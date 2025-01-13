@@ -1,8 +1,18 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { generateAIResponse, type ChatMessage } from "./services/ai";
 import { cryptoService } from "./services/crypto";
+import { subscriptionService } from "./services/subscription";
+import { requireSubscription } from "./middleware/subscription";
+
+// Authentication type
+interface AuthenticatedRequest extends Request {
+  user?: {
+    id: number;
+    subscription_tier: string;
+  };
+}
 
 interface CryptoData {
   symbol: string;
@@ -14,7 +24,7 @@ export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
   const connectedClients = new Set();
 
-  // Create WebSocket server with proper error handling
+  // WebSocket setup with error handling
   const wss = new WebSocketServer({ 
     server: httpServer,
     path: "/ws",
@@ -24,7 +34,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Error handler for the WebSocket server
   wss.on('error', (error) => {
     console.error('WebSocket Server Error:', error);
   });
@@ -51,7 +60,6 @@ export function registerRoutes(app: Express): Server {
             }
           } catch (error) {
             console.error(`Error fetching price for ${symbol}:`, error);
-            // Continue with other symbols even if one fails
           }
         }
       } catch (error) {
@@ -86,10 +94,8 @@ export function registerRoutes(app: Express): Server {
       connectedClients.delete(ws);
     };
 
-    // Start price updates
     startPriceUpdates();
 
-    // Handle WebSocket events
     ws.on("error", (error) => {
       console.error("WebSocket client error:", error);
       stopPriceUpdates();
@@ -100,7 +106,6 @@ export function registerRoutes(app: Express): Server {
       stopPriceUpdates();
     });
 
-    // Keep-alive ping with error handling
     const pingInterval = setInterval(() => {
       if (ws.readyState === ws.OPEN) {
         try {
@@ -116,6 +121,102 @@ export function registerRoutes(app: Express): Server {
     }, 30000);
   });
 
+  // API Routes
+  app.get("/api/subscription/plans", async (_req, res) => {
+    try {
+      const plans = await subscriptionService.getSubscriptionPlans();
+      res.json(plans);
+    } catch (error: any) {
+      console.error("Error fetching subscription plans:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch subscription plans",
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  });
+
+  // Require authentication for these routes
+  app.use("/api/subscription", (req: AuthenticatedRequest, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        error: "Authentication required",
+        details: "Please login to access subscription features"
+      });
+    }
+    next();
+  });
+
+  app.post("/api/subscription/verify", async (req: AuthenticatedRequest, res) => {
+    try {
+      const { signature, planId, amount } = req.body;
+
+      if (!signature || !planId || amount === undefined) {
+        return res.status(400).json({
+          error: "Missing required fields",
+          details: "Transaction signature, plan ID, and amount are required"
+        });
+      }
+
+      const isValid = await subscriptionService.verifyTransaction(signature);
+      if (!isValid) {
+        return res.status(400).json({
+          error: "Invalid transaction",
+          details: "The transaction could not be verified"
+        });
+      }
+
+      const subscription = await subscriptionService.createSubscription({
+        userId: req.user!.id,
+        planId,
+        transactionSignature: signature,
+        amountSol: amount
+      });
+
+      res.json({ subscription });
+    } catch (error: any) {
+      console.error("Subscription verification error:", error);
+      res.status(500).json({ 
+        error: "Failed to verify subscription",
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  });
+
+  app.post("/api/subscription/cancel", async (req: AuthenticatedRequest, res) => {
+    try {
+      const { subscriptionId } = req.body;
+
+      if (!subscriptionId) {
+        return res.status(400).json({
+          error: "Missing subscription ID",
+          details: "Subscription ID is required"
+        });
+      }
+
+      await subscriptionService.cancelSubscription(subscriptionId, req.user!.id);
+      res.json({ message: "Subscription cancelled successfully" });
+    } catch (error: any) {
+      console.error("Subscription cancellation error:", error);
+      res.status(500).json({ 
+        error: "Failed to cancel subscription",
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  });
+
+  // Protected routes with subscription tiers
+  app.get("/api/premium/market-analysis", 
+    requireSubscription("pro"),
+    (_req, res) => {
+      res.json({ 
+        message: "Premium market analysis data",
+        data: {
+          // Premium content here
+        }
+      });
+    }
+  );
+
   // Add AI chat endpoint with improved error handling
   app.post("/api/chat", async (req, res) => {
     try {
@@ -127,12 +228,7 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      console.log("Processing chat message:", message);
-      console.log("Chat history length:", history?.length || 0);
-
       const response = await generateAIResponse(message, history);
-      console.log("Generated response:", response.slice(0, 50) + "...");
-
       res.json({ response });
     } catch (error: any) {
       console.error("Chat error:", {
@@ -144,16 +240,15 @@ export function registerRoutes(app: Express): Server {
       });
 
       const statusCode = error.status || 500;
-      const errorMessage = error.message || "Failed to process chat message";
-
       res.status(statusCode).json({ 
-        error: errorMessage,
+        error: error.message || "Failed to process chat message",
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   });
 
-  // Health check endpoint with detailed status
+
+  // Health check endpoint
   app.get("/api/health", (_req, res) => {
     try {
       const cacheStatus = cryptoService.getCacheStatus();
@@ -163,9 +258,9 @@ export function registerRoutes(app: Express): Server {
         websocket_clients: connectedClients.size,
         crypto_service: cacheStatus
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Health check error:", error);
-      res.status(500).json({ status: "error", message: "Failed to get system status" });
+      res.status(500).json({ status: "error", message: error.message });
     }
   });
 
