@@ -1,10 +1,9 @@
 import OpenAI from "openai";
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   maxRetries: 3,
-  baseURL: "https://api.together.xyz", // Updated to use Together AI endpoint
+  baseURL: "https://api.together.xyz/v1",
 });
 
 export async function generateAIResponse(message: string): Promise<string> {
@@ -14,9 +13,9 @@ export async function generateAIResponse(message: string): Promise<string> {
   }
 
   try {
-    console.log("Sending request to AI API...");
+    console.log("Sending request to Together AI...");
     const response = await openai.chat.completions.create({
-      model: "mistral-7b-instruct-4k",  // Using Mistral model which is more cost-effective
+      model: "mistral-7b-instruct-4k",
       messages: [
         {
           role: "system",
@@ -32,10 +31,10 @@ export async function generateAIResponse(message: string): Promise<string> {
     });
 
     const reply = response.choices[0].message.content;
-    console.log("Received response from AI API:", reply?.substring(0, 50));
+    console.log("Received response:", reply?.substring(0, 50) + "...");
     return reply || "I apologize, I couldn't generate a response.";
   } catch (error: any) {
-    console.error("AI API Error:", {
+    console.error("Together AI Error:", {
       message: error.message,
       type: error.constructor.name,
       status: error.status || 500,
@@ -43,15 +42,11 @@ export async function generateAIResponse(message: string): Promise<string> {
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
 
-    if (error.message?.includes("API key")) {
-      return "I noticed there might be an issue with the API configuration. The team has been notified and will fix this shortly.";
-    }
-
     // Return user-friendly messages based on error type
     if (error.status === 429) {
       return "I'm receiving too many requests right now. Please try again in a moment.";
     } else if (error.status === 401) {
-      return "There seems to be an issue with my configuration. The API key might be invalid.";
+      return "There seems to be an issue with my API configuration. Please try again in a moment.";
     }
 
     return "I encountered an error processing your request. Please try again.";
