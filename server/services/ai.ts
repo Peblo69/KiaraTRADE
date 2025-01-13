@@ -3,7 +3,6 @@ import OpenAI from "openai";
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   maxRetries: 3,
-  baseURL: "https://api.together.xyz/v1",
 });
 
 export async function generateAIResponse(message: string): Promise<string> {
@@ -13,9 +12,9 @@ export async function generateAIResponse(message: string): Promise<string> {
   }
 
   try {
-    console.log("Sending request to Together AI...");
+    console.log("Sending request to OpenAI...");
     const response = await openai.chat.completions.create({
-      model: "mistral-7b-instruct-4k",
+      model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
@@ -34,7 +33,7 @@ export async function generateAIResponse(message: string): Promise<string> {
     console.log("Received response:", reply?.substring(0, 50) + "...");
     return reply || "I apologize, I couldn't generate a response.";
   } catch (error: any) {
-    console.error("Together AI Error:", {
+    console.error("OpenAI Error:", {
       message: error.message,
       type: error.constructor.name,
       status: error.status || 500,
