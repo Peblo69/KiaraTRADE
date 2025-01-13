@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import axios from "axios";
 
 interface Message {
   role: "user" | "assistant";
@@ -12,7 +13,7 @@ interface Message {
 export default function AiChat() {
   const [messages, setMessages] = useState<Message[]>([{
     role: "assistant",
-    content: "Hello! I am KIARA, your AI assistant. How can I help you today?"
+    content: "Hello! I am KIARA, your AI assistant. How can I help you with cryptocurrency analysis today?"
   }]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -20,23 +21,30 @@ export default function AiChat() {
   const sendMessage = async () => {
     if (!input.trim()) return;
 
-    const newMessage: Message = { role: "user", content: input };
-    setMessages(prev => [...prev, newMessage]);
+    const userMessage: Message = { role: "user", content: input };
+    setMessages(prev => [...prev, userMessage]);
     setInput("");
     setIsTyping(true);
 
-    // Simulate AI response - In a real implementation, this would be connected to your AI backend
-    setTimeout(() => {
+    try {
+      const response = await axios.post("/api/chat", { message: input });
       setMessages(prev => [...prev, {
         role: "assistant",
-        content: "I understand. How can I assist you further with that?"
+        content: response.data.response
       }]);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: "I apologize, I encountered an error processing your request. Please try again."
+      }]);
+    } finally {
       setIsTyping(false);
-    }, 1000);
+    }
   };
 
   return (
-    <Card className="flex flex-col h-[400px] backdrop-blur-sm bg-purple-900/10 border-purple-500/20">
+    <Card className="flex flex-col h-full backdrop-blur-sm bg-purple-900/10 border-purple-500/20">
       <div className="p-4 border-b border-purple-500/20">
         <h2 className="text-lg font-semibold text-purple-300">Chat with KIARA</h2>
       </div>

@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
+import { generateAIResponse } from "./services/ai";
 
 interface CryptoData {
   symbol: string;
@@ -70,6 +71,22 @@ export function registerRoutes(app: Express): Server {
       console.log("Client disconnected");
       clearInterval(interval);
     });
+  });
+
+  // Add AI chat endpoint
+  app.post("/api/chat", async (req, res) => {
+    try {
+      const { message } = req.body;
+      if (!message) {
+        return res.status(400).json({ error: "Message is required" });
+      }
+
+      const response = await generateAIResponse(message);
+      res.json({ response });
+    } catch (error) {
+      console.error("Chat error:", error);
+      res.status(500).json({ error: "Failed to process chat message" });
+    }
   });
 
   // Basic health check endpoint
