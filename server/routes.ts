@@ -27,9 +27,14 @@ export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
   const prices: CryptoPrices = { ...INITIAL_PRICES };
 
+  // WebSocket server setup with better error handling
   const wss = new WebSocketServer({ 
     server: httpServer,
-    path: "/ws"
+    path: "/ws",
+    handleProtocols: (protocols, _request) => {
+      const protocolArray = Array.from(protocols || []);
+      return protocolArray.includes('vite-hmr') ? false : (protocolArray[0] || false);
+    }
   });
 
   wss.on("connection", (ws) => {

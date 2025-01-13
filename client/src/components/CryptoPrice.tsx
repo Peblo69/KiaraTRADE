@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { useEffect, useState } from "react";
-import { connectToWebSocket, type BinanceTickerData } from "@/lib/websocket";
+import axios from "axios";
 
 interface CryptoPriceProps {
   coin: string;
@@ -18,28 +18,25 @@ export default function CryptoPrice({ coin }: CryptoPriceProps) {
   });
 
   useEffect(() => {
-    const ws = connectToWebSocket();
-
-    const handleMessage = (event: MessageEvent) => {
+    const fetchPrice = async () => {
       try {
-        const data = JSON.parse(event.data) as BinanceTickerData;
-        if (data.symbol === coin.toUpperCase()) {
-          setPriceData({
-            current_price: parseFloat(data.price),
-            price_change_percentage_24h: parseFloat(data.change24h)
-          });
-        }
+        const response = await axios.get(
+          `https://api.coingecko.com/api/v3/simple/price?ids=${coin}&vs_currencies=usd&include_24hr_change=true`
+        );
+        const data = response.data[coin];
+        setPriceData({
+          current_price: data.usd,
+          price_change_percentage_24h: data.usd_24h_change
+        });
       } catch (error) {
-        console.error('Error handling websocket message:', error);
+        console.error('Error fetching price:', error);
       }
     };
 
-    ws.addEventListener("message", handleMessage);
+    fetchPrice();
+    const interval = setInterval(fetchPrice, 30000); // Update every 30 seconds
 
-    return () => {
-      ws.removeEventListener("message", handleMessage);
-      ws.close();
-    };
+    return () => clearInterval(interval);
   }, [coin]);
 
   return (

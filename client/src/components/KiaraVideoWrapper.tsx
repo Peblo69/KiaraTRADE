@@ -10,7 +10,7 @@ export default function KiaraVideoWrapper() {
     if (!video) return;
 
     const handleLoadedMetadata = () => {
-      // Reset to first frame
+      // Ensure video starts from the first frame
       video.currentTime = 0;
     };
 
@@ -29,7 +29,7 @@ export default function KiaraVideoWrapper() {
     if (!video) return;
 
     if (!isPlaying) {
-      video.currentTime = 0; // Always start from beginning
+      video.currentTime = 0;
       video.play()
         .then(() => setIsPlaying(true))
         .catch(error => console.error("Error playing video:", error));
