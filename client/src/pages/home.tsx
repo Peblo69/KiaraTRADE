@@ -8,17 +8,30 @@ import TradingChart from "@/components/TradingChart";
 import SubscriptionPlans from "@/components/SubscriptionPlans";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 
-const popularTokens = [
-  "solana", "cardano", "polkadot", "avalanche-2", "chainlink", 
-  "polygon", "uniswap", "cosmos", "near", "algorand"
+// Include the main tokens in the rotation
+const allTokens = [
+  "bitcoin", "ethereum", "solana", "cardano", "polkadot", 
+  "avalanche-2", "chainlink", "polygon", "uniswap", 
+  "cosmos", "near", "algorand", "ripple", "dogecoin"
 ];
 
 const Home: FC = () => {
-  const [currentTokenIndex, setCurrentTokenIndex] = useState(0);
+  const [displayTokens, setDisplayTokens] = useState([
+    allTokens[0], // BTC
+    allTokens[1], // ETH
+    allTokens[2]  // SOL
+  ]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentTokenIndex((prev) => (prev + 1) % popularTokens.length);
+      setDisplayTokens(prev => {
+        const nextTokenIndex = (allTokens.indexOf(prev[2]) + 1) % allTokens.length;
+        return [
+          prev[1],                // ETH moves to BTC's position
+          prev[2],                // SOL moves to ETH's position
+          allTokens[nextTokenIndex] // New token appears
+        ];
+      });
     }, 10000); // Rotate every 10 seconds
 
     return () => clearInterval(interval);
@@ -31,12 +44,13 @@ const Home: FC = () => {
         <Navbar />
         <main className="container mx-auto px-4 py-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <CryptoPrice coin="bitcoin" />
-            <CryptoPrice coin="ethereum" />
-            <CryptoPrice 
-              coin={popularTokens[currentTokenIndex]} 
-              key={popularTokens[currentTokenIndex]} 
-            />
+            {displayTokens.map((token, index) => (
+              <CryptoPrice 
+                key={`${token}-${index}`}
+                coin={token}
+                className="transition-all duration-500 ease-in-out"
+              />
+            ))}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
