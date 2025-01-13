@@ -27,7 +27,13 @@ export default function AiChat() {
     setIsTyping(true);
 
     try {
-      const response = await axios.post("/api/chat", { message: input });
+      // Filter out the initial greeting message when sending history
+      const chatHistory = messages.slice(1);
+      const response = await axios.post("/api/chat", { 
+        message: input,
+        history: chatHistory
+      });
+
       setMessages(prev => [...prev, {
         role: "assistant",
         content: response.data.response

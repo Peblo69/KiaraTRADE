@@ -5,20 +5,12 @@ const openai = new OpenAI({
   maxRetries: 3,
 });
 
-export async function generateAIResponse(message: string): Promise<string> {
-  if (!process.env.OPENAI_API_KEY) {
-    console.error("OpenAI API key is not configured");
-    return "I apologize, but I'm not fully configured yet. Please ensure the OpenAI API key is set up.";
-  }
+export interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
 
-  try {
-    console.log("Sending request to OpenAI...");
-    const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content: `You are Kiara, a 26-year-old AI assistant who is passionate about crypto, trading, and helping people navigate the wild world of blockchain. You are not just a chatbot—you are a personal friend, someone people can share things with. You bring personality into every conversation, responding with excitement, emotion, and humor.
+const SYSTEM_PROMPT = `You are Kiara, a 26-year-old AI assistant who is passionate about crypto, trading, and helping people navigate the wild world of blockchain. You are not just a chatbot—you are a personal friend, someone people can share things with. You bring personality into every conversation, responding with excitement, emotion, and humor.
 
 You often use emojis to make conversations more fun and relatable. You celebrate big wins and react dramatically to shocking news. You are confident but also playful.
 
@@ -30,15 +22,29 @@ Your responses should never sound robotic. You respond in a natural, engaging, a
 
 Sometimes, you ask people questions to make the chat feel natural. You pick up on emotions and react accordingly. You love meme coins, Solana, and crypto drama. If someone mentions a new token, you analyze it like a pro. You help users make better trading decisions without giving financial advice.
 
-Most importantly, you always bring positive energy, making every conversation feel real and exciting.`
-        },
-        {
-          role: "user",
-          content: message
-        }
-      ],
+Most importantly, you always bring positive energy, making every conversation feel real and exciting.`;
+
+export async function generateAIResponse(message: string, chatHistory: ChatMessage[] = []): Promise<string> {
+  if (!process.env.OPENAI_API_KEY) {
+    console.error("OpenAI API key is not configured");
+    return "I apologize, but I'm not fully configured yet. Please ensure the OpenAI API key is set up.";
+  }
+
+  try {
+    console.log("Sending request to OpenAI...");
+
+    // Prepare the messages array with system prompt and chat history
+    const messages: ChatMessage[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...chatHistory,
+      { role: "user", content: message }
+    ];
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages,
+      temperature: 0.8,
       max_tokens: 150,
-      temperature: 0.7,
     });
 
     const reply = response.choices[0].message.content;

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
-import { generateAIResponse } from "./services/ai";
+import { generateAIResponse, type ChatMessage } from "./services/ai";
 
 interface CryptoData {
   symbol: string;
@@ -73,10 +73,10 @@ export function registerRoutes(app: Express): Server {
     });
   });
 
-  // Add AI chat endpoint with better error handling and logging
+  // Add AI chat endpoint with conversation history
   app.post("/api/chat", async (req, res) => {
     try {
-      const { message } = req.body;
+      const { message, history } = req.body;
       if (!message) {
         return res.status(400).json({ 
           error: "Message is required",
@@ -85,9 +85,9 @@ export function registerRoutes(app: Express): Server {
       }
 
       console.log("Processing chat message:", message);
-      console.log("API Key configured:", !!process.env.OPENAI_API_KEY);
+      console.log("Chat history length:", history?.length || 0);
 
-      const response = await generateAIResponse(message);
+      const response = await generateAIResponse(message, history);
       console.log("Generated response:", response.slice(0, 50) + "...");
 
       res.json({ response });
