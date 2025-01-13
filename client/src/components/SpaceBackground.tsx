@@ -18,35 +18,38 @@ export default function SpaceBackground() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    function resizeCanvas() {
+      if (!canvas) return;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+
     const stars: Star[] = [];
-    const numStars = 200;
+    const numStars = 300; // Increased number of stars
 
     // Initialize stars
     for (let i = 0; i < numStars; i++) {
       stars.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        size: Math.random() * 2 + 1,
-        alpha: Math.random(),
-        speed: Math.random() * 0.02 + 0.01
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        size: Math.random() * 1 + 0.5, // Smaller size range: 0.5 to 1.5
+        alpha: Math.random() * 0.5 + 0.1, // More subtle alpha range: 0.1 to 0.6
+        speed: Math.random() * 0.01 + 0.005 // Slower speed for more subtle effect
       });
     }
 
-    function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    }
-    
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
     function animate() {
+      if (!canvas || !ctx) return;
+
       ctx.fillStyle = 'rgba(7, 9, 13, 0.2)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       stars.forEach(star => {
         star.alpha += star.speed;
-        if (star.alpha > 1) star.alpha = 0;
+        if (star.alpha > 0.6) star.alpha = 0.1; // Reset at max alpha
 
         ctx.beginPath();
         ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;

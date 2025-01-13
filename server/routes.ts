@@ -30,7 +30,15 @@ export function registerRoutes(app: Express): Server {
   // WebSocket server for real-time crypto data
   const wss = new WebSocketServer({ 
     server: httpServer,
-    path: "/ws"
+    path: "/ws",
+    handleProtocols: (protocols, _request) => {
+      // Convert Set to Array for proper protocol handling
+      const protocolArray = Array.from(protocols);
+      if (protocolArray.includes('vite-hmr')) {
+        return false;
+      }
+      return protocolArray.length > 0 ? protocolArray[0] : false;
+    }
   });
 
   wss.on("connection", (ws) => {
