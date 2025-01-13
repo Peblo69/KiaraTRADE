@@ -21,16 +21,16 @@ const Home: FC = () => {
             <CryptoPrice coin="solana" />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            <div className="h-[400px]">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 h-[600px]">
+            <div className="h-full">
               <KiaraVideo />
             </div>
-            <div className="h-[400px]">
+            <div className="h-full">
               <AiChat />
             </div>
           </div>
 
-          <div className="mb-8">
+          <div className="mb-8 h-[600px]">
             <TradingChart />
           </div>
 

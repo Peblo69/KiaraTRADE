@@ -44,7 +44,8 @@ export default function SpaceBackground() {
     function animate() {
       if (!canvas || !ctx) return;
 
-      ctx.fillStyle = 'rgba(7, 9, 13, 0.2)';
+      // Use a more transparent black for the fade effect
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       stars.forEach(star => {
@@ -70,7 +71,7 @@ export default function SpaceBackground() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed top-0 left-0 w-full h-full pointer-events-none"
+      className="fixed top-0 left-0 w-full h-full pointer-events-none opacity-70"
     />
   );
 }
