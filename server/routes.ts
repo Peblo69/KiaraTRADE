@@ -73,7 +73,7 @@ export function registerRoutes(app: Express): Server {
     });
   });
 
-  // Add AI chat endpoint
+  // Add AI chat endpoint with better error handling
   app.post("/api/chat", async (req, res) => {
     try {
       const { message } = req.body;
