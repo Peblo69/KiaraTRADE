@@ -8,11 +8,11 @@ interface WalletContextProviderProps {
   children: ReactNode;
 }
 
-const WalletContextProvider: FC<WalletContextProviderProps> = ({ children }) => {
+export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children }) => {
   const { toast } = useToast();
   // You can change this to mainnet-beta for production
   const endpoint = "https://api.devnet.solana.com";
-  
+
   const wallets = useMemo(
     () => [
       new PhantomWalletAdapter(),
