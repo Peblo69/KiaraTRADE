@@ -23,19 +23,25 @@ const Home: FC = () => {
   ]);
 
   useEffect(() => {
+    // Keep the original array to maintain the correct order
+    let currentIndex = 2; // Start from SOL's position
+
     const interval = setInterval(() => {
+      currentIndex = (currentIndex + 1) % allTokens.length;
+
       setDisplayTokens(prev => {
-        const nextTokenIndex = (allTokens.indexOf(prev[2]) + 1) % allTokens.length;
+        // Move each token one position to the left
+        // The rightmost position gets the next token in sequence
         return [
-          prev[1],                // ETH moves to BTC's position
-          prev[2],                // SOL moves to ETH's position
-          allTokens[nextTokenIndex] // New token appears
+          prev[1], // ETH moves to BTC's position
+          prev[2], // SOL moves to ETH's position
+          allTokens[currentIndex] // New token appears
         ];
       });
     }, 10000); // Rotate every 10 seconds
 
     return () => clearInterval(interval);
-  }, []);
+  }, []); // Empty dependency array since we don't need to track external values
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
@@ -48,7 +54,7 @@ const Home: FC = () => {
               <CryptoPrice 
                 key={`${token}-${index}`}
                 coin={token}
-                className="transition-all duration-500 ease-in-out"
+                className={`transform transition-all duration-1000 ease-in-out animate-slide-right`}
               />
             ))}
           </div>

@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { generateAIResponse, type ChatMessage } from "./services/ai";
+import { cryptoService } from "./services/crypto";
 
 interface CryptoData {
   symbol: string;
@@ -9,42 +10,10 @@ interface CryptoData {
   change24h: string;
 }
 
-type CryptoPrices = {
-  [key: string]: number;
-};
-
-const INITIAL_PRICES: CryptoPrices = {
-  bitcoin: 45000,
-  ethereum: 2500,
-  solana: 100,
-  cardano: 0.5,
-  polkadot: 15,
-  "avalanche-2": 35,
-  chainlink: 20,
-  polygon: 0.8,
-  uniswap: 7,
-  cosmos: 8,
-  near: 3,
-  algorand: 0.25,
-  ripple: 0.5,
-  dogecoin: 0.1
-};
-
-function generatePrice(current: number): number {
-  const changePercent = (Math.random() - 0.5) * 0.002; // 0.2% max change
-  return current * (1 + changePercent);
-}
-
-function generateChange24h(): string {
-  return ((Math.random() * 10) - 5).toFixed(2); // -5% to +5% change
-}
-
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
-  const prices: CryptoPrices = { ...INITIAL_PRICES };
   const connectedClients = new Set();
 
-  // WebSocket server setup with better error handling
   const wss = new WebSocketServer({ 
     server: httpServer,
     path: "/ws",
@@ -58,38 +27,39 @@ export function registerRoutes(app: Express): Server {
     console.log("New WebSocket connection established");
     connectedClients.add(ws);
 
-    const sendPriceUpdates = () => {
+    const sendPriceUpdates = async (symbols: string[]) => {
       if (ws.readyState === ws.OPEN) {
-        Object.entries(prices).forEach(([symbol, currentPrice]) => {
-          // Update price
-          prices[symbol] = generatePrice(currentPrice);
-
-          try {
+        try {
+          for (const symbol of symbols) {
+            const priceData = await cryptoService.getPriceData(symbol);
             const data: CryptoData = {
               symbol,
-              price: prices[symbol].toFixed(2),
-              change24h: generateChange24h()
+              price: priceData.price.toFixed(2),
+              change24h: priceData.change24h.toFixed(2)
             };
             ws.send(JSON.stringify(data));
-          } catch (error) {
-            console.error(`Error sending price update for ${symbol}:`, error);
           }
-        });
+        } catch (error) {
+          console.error(`Error sending price updates:`, error);
+          // Don't close the connection on error, let the client retry
+        }
       }
     };
 
-    // Send initial prices immediately
-    sendPriceUpdates();
-
-    // Set up interval for price updates - every 2 seconds
+    // Set up interval for price updates
     const interval = setInterval(() => {
       if (ws.readyState === ws.OPEN) {
-        sendPriceUpdates();
+        const activeSymbols = cryptoService.getActiveSymbols();
+        if (activeSymbols.length > 0) {
+          sendPriceUpdates(activeSymbols).catch(error => {
+            console.error("Error in price update interval:", error);
+          });
+        }
       } else {
         clearInterval(interval);
         connectedClients.delete(ws);
       }
-    }, 2000);
+    }, 10000); // Update every 10 seconds
 
     ws.on("error", (error) => {
       console.error("WebSocket error:", error);
@@ -103,7 +73,7 @@ export function registerRoutes(app: Express): Server {
       connectedClients.delete(ws);
     });
 
-    // Ping/Pong to keep connection alive
+    // Keep-alive ping
     const pingInterval = setInterval(() => {
       if (ws.readyState === ws.OPEN) {
         ws.ping();
@@ -150,13 +120,14 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Enhanced health check endpoint
+  // Health check endpoint
   app.get("/api/health", (_req, res) => {
+    const cacheStatus = cryptoService.getCacheStatus();
     res.json({ 
       status: "ok",
       openai_configured: !!process.env.OPENAI_API_KEY,
       websocket_clients: connectedClients.size,
-      active_symbols: Object.keys(prices).length
+      crypto_service: cacheStatus
     });
   });
 

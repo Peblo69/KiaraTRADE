@@ -21,9 +21,12 @@ export default function CryptoPrice({ coin, className }: CryptoPriceProps) {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     const ws = connectToWebSocket();
+    const maxRetries = 5;
+    const baseDelay = 1000; // Start with 1 second delay
 
     const handleMessage = (event: MessageEvent) => {
       try {
@@ -35,19 +38,38 @@ export default function CryptoPrice({ coin, className }: CryptoPriceProps) {
           });
           setIsLoading(false);
           setError(null);
+          setRetryCount(0); // Reset retry count on successful update
         }
       } catch (err) {
         console.error('Error parsing WebSocket message:', err);
-        setError('Failed to update price data');
+
+        if (retryCount < maxRetries) {
+          // Exponential backoff
+          const delay = baseDelay * Math.pow(2, retryCount);
+          setTimeout(() => {
+            setRetryCount(prev => prev + 1);
+            // Attempt to reconnect
+            connectToWebSocket();
+          }, delay);
+
+          setError(`Retrying... (${retryCount + 1}/${maxRetries})`);
+        } else {
+          setError('Unable to update price data');
+        }
       }
     };
 
     ws.addEventListener('message', handleMessage);
 
+    // Reset states when coin changes
+    setIsLoading(true);
+    setError(null);
+    setRetryCount(0);
+
     return () => {
       ws.removeEventListener('message', handleMessage);
     };
-  }, [coin]);
+  }, [coin, retryCount]); // Include retryCount in dependencies
 
   // Dynamic color classes based on price change
   const getPriceChangeColor = (change: string) => {
@@ -61,7 +83,7 @@ export default function CryptoPrice({ coin, className }: CryptoPriceProps) {
   return (
     <Card 
       className={cn(
-        "p-4 backdrop-blur-sm bg-purple-900/10 border-purple-500/20 hover:border-purple-500/40 transition-all",
+        "p-4 backdrop-blur-sm bg-purple-900/10 border-purple-500/20 hover:border-purple-500/40 transition-all transform duration-500",
         className,
         {
           'border-green-500/20 hover:border-green-500/40': parseFloat(priceData.change24h) > 0,
@@ -87,7 +109,15 @@ export default function CryptoPrice({ coin, className }: CryptoPriceProps) {
         {isLoading ? (
           <div className="h-8 bg-purple-500/20 animate-pulse rounded" />
         ) : error ? (
-          <div className="text-red-400 text-sm">{error}</div>
+          <div className="text-red-400 text-sm">
+            {error}
+            <div className="h-1 bg-purple-500/20 mt-1 overflow-hidden">
+              <div 
+                className="h-full bg-purple-500 transition-all duration-300" 
+                style={{ width: `${(retryCount / 5) * 100}%` }}
+              />
+            </div>
+          </div>
         ) : parseFloat(priceData.price) > 0 ? (
           <div className="text-2xl font-bold">
             {new Intl.NumberFormat('en-US', {
