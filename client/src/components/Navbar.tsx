@@ -1,10 +1,40 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
+import { useWallet } from '@solana/wallet-adapter-react';
+import { useToast } from "@/hooks/use-toast";
 
 export default function Navbar() {
-  const connectWallet = () => {
-    // Wallet connection logic here
-    console.log("Connecting wallet...");
+  const { wallet, connect, disconnect, connected, publicKey } = useWallet();
+  const { toast } = useToast();
+
+  const handleWalletClick = async () => {
+    if (!wallet) {
+      toast({
+        title: "Wallet Not Found",
+        description: "Please install Phantom Wallet extension",
+        variant: "destructive",
+      });
+      window.open("https://phantom.app/", "_blank");
+      return;
+    }
+
+    if (connected) {
+      await disconnect();
+    } else {
+      try {
+        await connect();
+      } catch (error: any) {
+        toast({
+          title: "Connection Failed",
+          description: error.message || "Failed to connect to wallet",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const shortenAddress = (address: string) => {
+    return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
 
   return (
@@ -28,10 +58,17 @@ export default function Navbar() {
             <Link href="/kiara"><Button variant="ghost">Kiara</Button></Link>
             <Link href="/subscriptions"><Button variant="ghost">Subscriptions</Button></Link>
             <Button 
-              onClick={connectWallet}
-              className="bg-purple-500 hover:bg-purple-600 text-white"
+              onClick={handleWalletClick}
+              className={`${connected ? 'bg-green-500 hover:bg-green-600' : 'bg-purple-500 hover:bg-purple-600'} text-white`}
             >
-              Connect Wallet
+              {connected ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse" />
+                  {shortenAddress(publicKey?.toBase58() || '')}
+                </span>
+              ) : (
+                'Connect Wallet'
+              )}
             </Button>
           </div>
         </div>
