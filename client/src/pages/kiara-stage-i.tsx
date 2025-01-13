@@ -1,8 +1,40 @@
-import { FC } from "react";
+import { FC, useRef, useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
 
 const KiaraStageI: FC = () => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    // Set video to first frame when it loads
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+    }
+  }, []);
+
+  const handleVideoClick = () => {
+    if (!videoRef.current) return;
+
+    if (isPlaying) {
+      videoRef.current.pause();
+    } else {
+      // Reset to start if ended
+      if (videoRef.current.ended) {
+        videoRef.current.currentTime = 0;
+      }
+      videoRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleVideoEnd = () => {
+    setIsPlaying(false);
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
       <SpaceBackgroundEnhanced />
@@ -12,12 +44,13 @@ const KiaraStageI: FC = () => {
           <div className="grid grid-cols-2 gap-8">
             <div className="col-span-1">
               <video
-                className="w-full rounded-lg shadow-2xl"
-                autoPlay
-                loop
-                muted
+                ref={videoRef}
+                className="w-full rounded-lg shadow-2xl cursor-pointer"
+                loop={false}
                 playsInline
                 src="https://files.catbox.moe/ligfio.webm"
+                onClick={handleVideoClick}
+                onEnded={handleVideoEnd}
               />
             </div>
             <div className="col-span-1">
