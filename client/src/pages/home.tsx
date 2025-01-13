@@ -4,13 +4,13 @@ import SpaceBackground from "@/components/SpaceBackground";
 import CryptoPrice from "@/components/CryptoPrice";
 import AiChat from "@/components/AiChat";
 import KiaraVideo from "@/components/KiaraVideo";
-import PriceChart from "@/components/PriceChart";
+import TradingChart from "@/components/TradingChart";
 import SubscriptionPlans from "@/components/SubscriptionPlans";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 
 const Home: FC = () => {
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+    <div className="min-h-screen bg-black relative overflow-hidden">
       <SpaceBackground />
       <div className="relative z-10">
         <Navbar />
@@ -22,15 +22,19 @@ const Home: FC = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            <div className="space-y-4">
+            <div className="h-[400px]">
               <KiaraVideo />
+            </div>
+            <div className="h-[400px]">
               <AiChat />
             </div>
-            <div className="space-y-4">
-              <PriceChart />
-              <SubscriptionPlans />
-            </div>
           </div>
+
+          <div className="mb-8">
+            <TradingChart />
+          </div>
+
+          <SubscriptionPlans />
         </main>
         <ThemeSwitcher className="fixed bottom-4 right-4" />
       </div>

@@ -23,10 +23,10 @@ export default function KiaraVideo() {
   };
 
   return (
-    <Card className="relative w-full aspect-video rounded-lg overflow-hidden backdrop-blur-sm bg-purple-900/10 border border-purple-500/20">
+    <Card className="relative w-full h-[400px] bg-transparent border-0 overflow-hidden">
       <video
         ref={videoRef}
-        className="w-full h-full object-cover cursor-pointer"
+        className="w-full h-full object-contain cursor-pointer"
         src="https://files.catbox.moe/tq2h81.webm"
         playsInline
         onClick={handleVideoClick}
@@ -34,11 +34,6 @@ export default function KiaraVideo() {
       >
         Your browser does not support the video tag.
       </video>
-      {!isPlaying && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-          <span className="text-purple-300 text-lg font-semibold">Click to interact with KIARA</span>
-        </div>
-      )}
     </Card>
   );
 }
