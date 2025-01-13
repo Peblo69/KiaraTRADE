@@ -9,15 +9,17 @@ export default function KiaraVideoWrapper() {
     const video = videoRef.current;
     if (!video) return;
 
-    const handleLoadedMetadata = () => {
-      // Ensure video starts from the first frame
+    // Initialize video to first frame
+    video.currentTime = 0;
+
+    // Handle video load
+    const handleLoadedData = () => {
       video.currentTime = 0;
     };
 
-    video.addEventListener('loadedmetadata', handleLoadedMetadata);
-
+    video.addEventListener('loadeddata', handleLoadedData);
     return () => {
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      video.removeEventListener('loadeddata', handleLoadedData);
       if (video) {
         video.pause();
       }
@@ -40,7 +42,6 @@ export default function KiaraVideoWrapper() {
     const video = videoRef.current;
     if (!video) return;
     setIsPlaying(false);
-    // Reset to first frame when video ends
     video.currentTime = 0;
   };
 
@@ -53,7 +54,7 @@ export default function KiaraVideoWrapper() {
         playsInline
         onClick={handleVideoClick}
         onEnded={handleVideoEnd}
-        muted={false} // Ensure audio is enabled
+        muted={false}
       >
         Your browser does not support the video tag.
       </video>
