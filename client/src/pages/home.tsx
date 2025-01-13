@@ -3,7 +3,7 @@ import Navbar from "@/components/Navbar";
 import SpaceBackground from "@/components/SpaceBackground";
 import CryptoPrice from "@/components/CryptoPrice";
 import AiChat from "@/components/AiChat";
-import KiaraVideo from "@/components/KiaraVideo";
+import KiaraVideoWrapper from "@/components/KiaraVideoWrapper";
 import TradingChart from "@/components/TradingChart";
 import SubscriptionPlans from "@/components/SubscriptionPlans";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
@@ -23,7 +23,7 @@ const Home: FC = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 h-[600px]">
             <div className="h-full">
-              <KiaraVideo />
+              <KiaraVideoWrapper />
             </div>
             <div className="h-full">
               <AiChat />

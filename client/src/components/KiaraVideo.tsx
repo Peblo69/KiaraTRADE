@@ -6,10 +6,23 @@ export default function KiaraVideo() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (videoRef.current) {
-      // Set to last frame initially
-      videoRef.current.currentTime = videoRef.current.duration || 0;
-    }
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Add error handling
+    const handleError = (e: ErrorEvent) => {
+      console.error("Video error:", e);
+      setIsPlaying(false);
+    };
+
+    video.addEventListener('error', handleError);
+
+    return () => {
+      video.removeEventListener('error', handleError);
+      if (video) {
+        video.pause();
+      }
+    };
   }, []);
 
   const handleVideoClick = () => {
@@ -26,7 +39,7 @@ export default function KiaraVideo() {
   const handleVideoEnd = () => {
     if (!videoRef.current) return;
     setIsPlaying(false);
-    videoRef.current.currentTime = videoRef.current.duration; // Stay on last frame
+    videoRef.current.currentTime = videoRef.current.duration || 0; // Stay on last frame
   };
 
   return (
@@ -36,9 +49,13 @@ export default function KiaraVideo() {
         className="w-full h-full object-cover cursor-pointer"
         src="https://files.catbox.moe/tq2h81.webm"
         playsInline
-        muted
         onClick={handleVideoClick}
         onEnded={handleVideoEnd}
+        onLoadedMetadata={(e) => {
+          if (videoRef.current) {
+            videoRef.current.currentTime = videoRef.current.duration || 0;
+          }
+        }}
       >
         Your browser does not support the video tag.
       </video>
