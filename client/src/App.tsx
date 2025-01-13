@@ -5,15 +5,13 @@ import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import KiaraStageI from "@/pages/kiara-stage-i";
-import WalletContextProvider from "@/lib/wallet";
+import { WalletContextProvider } from "@/lib/wallet";
 
 function Router() {
   return (
     <Switch>
-      {/* Add pages below */}
       <Route path="/" component={Home} />
       <Route path="/kiara-stage-i" component={KiaraStageI} />
-      {/* Fallback to 404 */}
       <Route component={NotFound} />
     </Switch>
   );

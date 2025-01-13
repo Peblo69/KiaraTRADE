@@ -8,7 +8,7 @@ interface WalletContextProviderProps {
   children: ReactNode;
 }
 
-const WalletContextProvider: FC<WalletContextProviderProps> = ({ children }) => {
+export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children }) => {
   const { toast } = useToast();
   const endpoint = "https://api.devnet.solana.com";
 
