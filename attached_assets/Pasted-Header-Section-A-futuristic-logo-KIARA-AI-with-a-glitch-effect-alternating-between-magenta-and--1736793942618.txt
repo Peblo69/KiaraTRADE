@@ -1,0 +1,48 @@
+Header Section:
+A futuristic logo "KIARA_AI" with a glitch effect, alternating between magenta and cyan colors
+Two hexagonal badges on either side of the logo with "[AI]" and "[ML]" text in purple
+Navigation buttons for Home, About Us, Project, Kiara, Subscriptions, and a Connect Wallet button
+Space Background:
+A deep space background with a gradient from dark blue to black
+Twinkling stars of different sizes (small, medium, large) that fade in and out
+Stars have subtle glow effects creating a dynamic, immersive atmosphere
+Crypto Price Display:
+Three crypto price cards showing BTC, ETH, and SOL prices in real-time
+Each card has:
+The cryptocurrency name in purple
+Current price with green (up) or red (down) indicators
+24-hour price change percentage
+Subtle purple border with a shimmer effect
+AI Assistant Section:
+A video container with a purple glowing border
+Cyberpunk-style video display with scan line effects
+Interactive chat interface next to it featuring:
+Terminal-style design with purple accents
+Chat messages with a typing indicator
+Input field with a glowing focus effect
+"EXECUTE" button for sending messages
+Live Chart:
+BTC/USD price chart with a dark theme
+Purple crosshair for price tracking
+Candlestick patterns showing price movements
+Grid lines with subtle purple accents
+Theme Customization:
+Three theme dots (purple, green, red) for changing the color scheme
+Active theme indicated with a white ring
+Smooth transitions between themes
+Interactive Elements:
+Buttons with hover effects that lift slightly and glow
+Smooth transitions and animations
+Responsive layout that adapts to different screen sizes
+Premium Plans Section:
+Three subscription tiers (Basic, Pro, Enterprise)
+Cards with hover effects and glowing borders
+Price in SOL with feature lists
+Subscribe buttons with animation effects
+The overall aesthetic is cyberpunk/sci-fi with a professional touch, featuring:
+
+Dark theme with purple accents
+Glowing effects and subtle animations
+Glassmorphism effects on containers
+Retro-futuristic font (VT323) for headings and prices
+Smooth transitions and hover effects throughout
