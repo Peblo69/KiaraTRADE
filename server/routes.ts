@@ -78,20 +78,34 @@ export function registerRoutes(app: Express): Server {
     try {
       const { message } = req.body;
       if (!message) {
-        return res.status(400).json({ error: "Message is required" });
+        return res.status(400).json({ 
+          error: "Message is required",
+          details: "Please provide a message to process"
+        });
       }
 
+      console.log("Processing chat message:", message);
       const response = await generateAIResponse(message);
+      console.log("Generated response:", response.slice(0, 50) + "...");
       res.json({ response });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Chat error:", error);
-      res.status(500).json({ error: "Failed to process chat message" });
+      const statusCode = error.status || 500;
+      const errorMessage = error.message || "Failed to process chat message";
+
+      res.status(statusCode).json({ 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   });
 
   // Basic health check endpoint
   app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok" });
+    res.json({ 
+      status: "ok",
+      openai_configured: !!process.env.OPENAI_API_KEY 
+    });
   });
 
   return httpServer;
