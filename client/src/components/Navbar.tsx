@@ -79,7 +79,11 @@ export default function Navbar() {
             <Link href="/"><Button variant="ghost">Home</Button></Link>
             <Link href="/about"><Button variant="ghost">About Us</Button></Link>
             <Link href="/project"><Button variant="ghost">Project</Button></Link>
-            <Link href="/kiara"><Button variant="ghost">Kiara</Button></Link>
+            <Link href="/kiara-stage-i">
+              <Button variant="ghost" className="text-purple-400 hover:text-purple-300">
+                Kiara Stage I
+              </Button>
+            </Link>
             <Link href="/subscriptions"><Button variant="ghost">Subscriptions</Button></Link>
             <Button 
               onClick={handleWalletClick}
