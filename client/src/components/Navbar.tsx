@@ -8,7 +8,27 @@ export default function Navbar() {
   const { toast } = useToast();
 
   const handleWalletClick = async () => {
-    if (!wallet) {
+    if (connected) {
+      try {
+        await disconnect();
+        toast({
+          title: "Wallet Disconnected",
+          description: "Your wallet has been disconnected successfully",
+        });
+      } catch (error: any) {
+        toast({
+          title: "Disconnection Failed",
+          description: error.message || "Failed to disconnect wallet",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    // Check for Phantom wallet
+    const phantom = window?.phantom?.solana;
+
+    if (!phantom) {
       toast({
         title: "Wallet Not Found",
         description: "Please install Phantom Wallet extension",
@@ -18,18 +38,22 @@ export default function Navbar() {
       return;
     }
 
-    if (connected) {
-      await disconnect();
-    } else {
-      try {
-        await connect();
-      } catch (error: any) {
-        toast({
-          title: "Connection Failed",
-          description: error.message || "Failed to connect to wallet",
-          variant: "destructive",
-        });
-      }
+    try {
+      await connect().catch((err) => {
+        throw err;
+      });
+
+      toast({
+        title: "Wallet Connected",
+        description: "Your wallet has been connected successfully",
+      });
+    } catch (error: any) {
+      console.error("Connection error:", error);
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Failed to connect to wallet",
+        variant: "destructive",
+      });
     }
   };
 
