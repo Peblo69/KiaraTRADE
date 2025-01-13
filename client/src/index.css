@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    background: linear-gradient(to bottom, #090b13 0%, #000000 100%);
+  }
+}
+
+@layer components {
+  .animate-glitch {
+    animation: glitch 2s infinite;
+    position: relative;
+  }
+
+  @keyframes glitch {
+    0% {
+      text-shadow: 0.05em 0 0 rgba(255, 0, 255, 0.75),
+                  -0.05em -0.025em 0 rgba(0, 255, 255, 0.75);
+    }
+    14% {
+      text-shadow: 0.05em 0 0 rgba(255, 0, 255, 0.75),
+                  -0.05em -0.025em 0 rgba(0, 255, 255, 0.75);
+    }
+    15% {
+      text-shadow: -0.05em -0.025em 0 rgba(255, 0, 255, 0.75),
+                  0.025em 0.025em 0 rgba(0, 255, 255, 0.75);
+    }
+    49% {
+      text-shadow: -0.05em -0.025em 0 rgba(255, 0, 255, 0.75),
+                  0.025em 0.025em 0 rgba(0, 255, 255, 0.75);
+    }
+    50% {
+      text-shadow: 0.025em 0.05em 0 rgba(255, 0, 255, 0.75),
+                  0.05em 0 0 rgba(0, 255, 255, 0.75);
+    }
+    99% {
+      text-shadow: 0.025em 0.05em 0 rgba(255, 0, 255, 0.75),
+                  0.05em 0 0 rgba(0, 255, 255, 0.75);
+    }
+    100% {
+      text-shadow: -0.025em 0 0 rgba(255, 0, 255, 0.75),
+                  -0.025em -0.025em 0 rgba(0, 255, 255, 0.75);
+    }
+  }
+}
