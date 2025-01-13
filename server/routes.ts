@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { WebSocket } from "ws";
+import { WebSocketServer } from "ws";
 
 interface CryptoData {
   symbol: string;
@@ -28,7 +28,7 @@ export function registerRoutes(app: Express): Server {
   const prices: CryptoPrices = { ...INITIAL_PRICES };
 
   // WebSocket server for real-time crypto data
-  const wss = new WebSocket.Server({ 
+  const wss = new WebSocketServer({ 
     server: httpServer,
     path: "/ws"
   });
