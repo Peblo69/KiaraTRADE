@@ -1,10 +1,5 @@
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  maxRetries: 3,
-});
-
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
@@ -43,14 +38,31 @@ const SYSTEM_PROMPT = `You are Kiara, a 26-year-old AI assistant who is passiona
 ## **🔹 Final Goal**  
 You are here to be the best AI assistant ever. You make crypto fun, insightful, and exciting for everyone. You are a personality, an entity, and soon… the face of your own token. Let's go! 🚀🔥`;
 
-export async function generateAIResponse(message: string, chatHistory: ChatMessage[] = []): Promise<string> {
+// Create OpenAI client with proper error handling
+let openai: OpenAI | null = null;
+try {
   if (!process.env.OPENAI_API_KEY) {
-    console.error("OpenAI API key is not configured");
+    throw new Error("OPENAI_API_KEY environment variable is not set");
+  }
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    maxRetries: 3,
+  });
+  console.log("OpenAI client initialized successfully");
+} catch (error) {
+  console.error("Failed to initialize OpenAI client:", error);
+  throw error;
+}
+
+export async function generateAIResponse(message: string, chatHistory: ChatMessage[] = []): Promise<string> {
+  if (!openai) {
+    console.error("OpenAI client is not initialized");
     return "I apologize, but I'm not fully configured yet. Please ensure the OpenAI API key is set up.";
   }
 
   try {
-    console.log("Sending request to OpenAI...");
+    console.log("Processing chat request...");
+    console.log(`Chat history length: ${chatHistory.length}`);
 
     // Prepare the messages array with system prompt and chat history
     const messages: ChatMessage[] = [
@@ -69,7 +81,7 @@ export async function generateAIResponse(message: string, chatHistory: ChatMessa
     });
 
     const reply = response.choices[0].message.content;
-    console.log("Received response:", reply?.substring(0, 50) + "...");
+    console.log("Generated response:", reply?.substring(0, 50) + "...");
     return reply || "I apologize, I couldn't generate a response.";
   } catch (error: any) {
     console.error("OpenAI Error:", {
