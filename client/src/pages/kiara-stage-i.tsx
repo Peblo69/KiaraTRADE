@@ -4,7 +4,7 @@ import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
 
 const KiaraStageI: FC = () => {
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <div className="min-h-screen bg-black relative overflow-hidden">
       <SpaceBackgroundEnhanced />
       <div className="relative z-10">
         <Navbar />
@@ -12,7 +12,7 @@ const KiaraStageI: FC = () => {
           <div className="grid grid-cols-2 gap-8">
             <div className="col-span-1">
               <video
-                className="w-full rounded-lg shadow-2xl border border-purple-500/20"
+                className="w-full rounded-lg shadow-2xl"
                 autoPlay
                 loop
                 muted
