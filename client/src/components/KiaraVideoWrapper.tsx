@@ -9,16 +9,18 @@ export default function KiaraVideoWrapper() {
     const video = videoRef.current;
     if (!video) return;
 
-    const handleLoadedData = () => {
-      if (video.duration) {
-        video.currentTime = video.duration;
-      }
+    const handleLoadedMetadata = () => {
+      // Ensure video starts from the first frame
+      video.currentTime = 0;
     };
 
-    video.addEventListener('loadeddata', handleLoadedData);
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+
     return () => {
-      video.removeEventListener('loadeddata', handleLoadedData);
-      video.pause();
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      if (video) {
+        video.pause();
+      }
     };
   }, []);
 
@@ -28,12 +30,9 @@ export default function KiaraVideoWrapper() {
 
     if (!isPlaying) {
       video.currentTime = 0;
-      const playPromise = video.play();
-      if (playPromise) {
-        playPromise
-          .then(() => setIsPlaying(true))
-          .catch(error => console.error("Error playing video:", error));
-      }
+      video.play()
+        .then(() => setIsPlaying(true))
+        .catch(error => console.error("Error playing video:", error));
     }
   };
 
@@ -41,7 +40,8 @@ export default function KiaraVideoWrapper() {
     const video = videoRef.current;
     if (!video) return;
     setIsPlaying(false);
-    video.currentTime = video.duration;
+    // Reset to first frame when video ends
+    video.currentTime = 0;
   };
 
   return (
@@ -53,6 +53,7 @@ export default function KiaraVideoWrapper() {
         playsInline
         onClick={handleVideoClick}
         onEnded={handleVideoEnd}
+        muted={false} // Ensure audio is enabled
       >
         Your browser does not support the video tag.
       </video>
