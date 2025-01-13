@@ -73,7 +73,7 @@ export function registerRoutes(app: Express): Server {
     });
   });
 
-  // Add AI chat endpoint with better error handling
+  // Add AI chat endpoint with better error handling and logging
   app.post("/api/chat", async (req, res) => {
     try {
       const { message } = req.body;
@@ -85,11 +85,21 @@ export function registerRoutes(app: Express): Server {
       }
 
       console.log("Processing chat message:", message);
+      console.log("API Key configured:", !!process.env.OPENAI_API_KEY);
+
       const response = await generateAIResponse(message);
       console.log("Generated response:", response.slice(0, 50) + "...");
+
       res.json({ response });
     } catch (error: any) {
-      console.error("Chat error:", error);
+      console.error("Chat error:", {
+        message: error.message,
+        type: error.constructor.name,
+        status: error.status || 500,
+        code: error.code,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+
       const statusCode = error.status || 500;
       const errorMessage = error.message || "Failed to process chat message";
 
@@ -100,11 +110,12 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Basic health check endpoint
+  // Enhanced health check endpoint
   app.get("/api/health", (_req, res) => {
     res.json({ 
       status: "ok",
-      openai_configured: !!process.env.OPENAI_API_KEY 
+      openai_configured: !!process.env.OPENAI_API_KEY,
+      openai_key_length: process.env.OPENAI_API_KEY?.length || 0
     });
   });
 
