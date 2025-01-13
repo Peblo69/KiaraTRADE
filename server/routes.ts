@@ -14,6 +14,7 @@ export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
   const connectedClients = new Set();
 
+  // Create WebSocket server with proper error handling
   const wss = new WebSocketServer({ 
     server: httpServer,
     path: "/ws",
@@ -23,67 +24,99 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Error handler for the WebSocket server
+  wss.on('error', (error) => {
+    console.error('WebSocket Server Error:', error);
+  });
+
   wss.on("connection", (ws) => {
     console.log("New WebSocket connection established");
     connectedClients.add(ws);
 
     const sendPriceUpdates = async (symbols: string[]) => {
-      if (ws.readyState === ws.OPEN) {
-        try {
-          for (const symbol of symbols) {
+      if (ws.readyState !== ws.OPEN) return;
+
+      try {
+        for (const symbol of symbols) {
+          try {
             const priceData = await cryptoService.getPriceData(symbol);
             const data: CryptoData = {
               symbol,
               price: priceData.price.toFixed(2),
               change24h: priceData.change24h.toFixed(2)
             };
-            ws.send(JSON.stringify(data));
+
+            if (ws.readyState === ws.OPEN) {
+              ws.send(JSON.stringify(data));
+            }
+          } catch (error) {
+            console.error(`Error fetching price for ${symbol}:`, error);
+            // Continue with other symbols even if one fails
           }
-        } catch (error) {
-          console.error(`Error sending price updates:`, error);
-          // Don't close the connection on error, let the client retry
         }
+      } catch (error) {
+        console.error(`Error in price update batch:`, error);
       }
     };
 
-    // Set up interval for price updates
-    const interval = setInterval(() => {
-      if (ws.readyState === ws.OPEN) {
-        const activeSymbols = cryptoService.getActiveSymbols();
-        if (activeSymbols.length > 0) {
-          sendPriceUpdates(activeSymbols).catch(error => {
-            console.error("Error in price update interval:", error);
-          });
-        }
-      } else {
-        clearInterval(interval);
-        connectedClients.delete(ws);
-      }
-    }, 10000); // Update every 10 seconds
+    let priceUpdateInterval: NodeJS.Timeout | null = null;
 
-    ws.on("error", (error) => {
-      console.error("WebSocket error:", error);
-      clearInterval(interval);
+    const startPriceUpdates = () => {
+      if (priceUpdateInterval) return;
+
+      priceUpdateInterval = setInterval(() => {
+        if (ws.readyState === ws.OPEN) {
+          const activeSymbols = cryptoService.getActiveSymbols();
+          if (activeSymbols.length > 0) {
+            sendPriceUpdates(activeSymbols).catch(error => {
+              console.error("Error in price update interval:", error);
+            });
+          }
+        } else {
+          stopPriceUpdates();
+        }
+      }, 10000); // Update every 10 seconds
+    };
+
+    const stopPriceUpdates = () => {
+      if (priceUpdateInterval) {
+        clearInterval(priceUpdateInterval);
+        priceUpdateInterval = null;
+      }
       connectedClients.delete(ws);
+    };
+
+    // Start price updates
+    startPriceUpdates();
+
+    // Handle WebSocket events
+    ws.on("error", (error) => {
+      console.error("WebSocket client error:", error);
+      stopPriceUpdates();
     });
 
     ws.on("close", () => {
       console.log("Client disconnected");
-      clearInterval(interval);
-      connectedClients.delete(ws);
+      stopPriceUpdates();
     });
 
-    // Keep-alive ping
+    // Keep-alive ping with error handling
     const pingInterval = setInterval(() => {
       if (ws.readyState === ws.OPEN) {
-        ws.ping();
+        try {
+          ws.ping();
+        } catch (error) {
+          console.error("Error sending ping:", error);
+          clearInterval(pingInterval);
+          stopPriceUpdates();
+        }
       } else {
         clearInterval(pingInterval);
       }
     }, 30000);
   });
 
-  // Add AI chat endpoint with conversation history
+  // Add AI chat endpoint with improved error handling
   app.post("/api/chat", async (req, res) => {
     try {
       const { message, history } = req.body;
@@ -120,15 +153,20 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Health check endpoint
+  // Health check endpoint with detailed status
   app.get("/api/health", (_req, res) => {
-    const cacheStatus = cryptoService.getCacheStatus();
-    res.json({ 
-      status: "ok",
-      openai_configured: !!process.env.OPENAI_API_KEY,
-      websocket_clients: connectedClients.size,
-      crypto_service: cacheStatus
-    });
+    try {
+      const cacheStatus = cryptoService.getCacheStatus();
+      res.json({ 
+        status: "ok",
+        openai_configured: !!process.env.OPENAI_API_KEY,
+        websocket_clients: connectedClients.size,
+        crypto_service: cacheStatus
+      });
+    } catch (error) {
+      console.error("Health check error:", error);
+      res.status(500).json({ status: "error", message: "Failed to get system status" });
+    }
   });
 
   return httpServer;
