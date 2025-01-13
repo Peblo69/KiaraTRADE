@@ -10,8 +10,10 @@ import WalletContextProvider from "@/lib/wallet";
 function Router() {
   return (
     <Switch>
+      {/* Add pages below */}
       <Route path="/" component={Home} />
       <Route path="/kiara-stage-i" component={KiaraStageI} />
+      {/* Fallback to 404 */}
       <Route component={NotFound} />
     </Switch>
   );
@@ -19,12 +21,12 @@ function Router() {
 
 function App() {
   return (
-    <WalletContextProvider>
-      <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
+      <WalletContextProvider>
         <Router />
         <Toaster />
-      </QueryClientProvider>
-    </WalletContextProvider>
+      </WalletContextProvider>
+    </QueryClientProvider>
   );
 }
 
