@@ -27,56 +27,44 @@ export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
   const prices: CryptoPrices = { ...INITIAL_PRICES };
 
-  // WebSocket server setup with proper error handling
   const wss = new WebSocketServer({ 
     server: httpServer,
-    path: "/ws",
-    handleProtocols: (protocols, _request) => {
-      if (!protocols) return false;
-      const protocolArray = Array.isArray(protocols) ? protocols : [protocols];
-      return protocolArray.includes('vite-hmr') ? false : (protocolArray[0] || false);
-    }
+    path: "/ws"
   });
 
   wss.on("connection", (ws) => {
     console.log("New WebSocket connection");
     let interval: NodeJS.Timeout;
 
-    try {
-      const sendPriceUpdates = () => {
-        if (ws.readyState === ws.OPEN) {
-          Object.entries(prices).forEach(([symbol, currentPrice]) => {
-            prices[symbol] = generatePrice(currentPrice);
-            const data: CryptoData = {
-              symbol,
-              price: prices[symbol].toFixed(2),
-              change24h: ((Math.random() * 10) - 5).toFixed(2)
-            };
-            ws.send(JSON.stringify(data));
-          });
-        }
-      };
+    const sendPriceUpdates = () => {
+      if (ws.readyState === ws.OPEN) {
+        Object.entries(prices).forEach(([symbol, currentPrice]) => {
+          prices[symbol] = generatePrice(currentPrice);
+          const data: CryptoData = {
+            symbol,
+            price: prices[symbol].toFixed(2),
+            change24h: ((Math.random() * 10) - 5).toFixed(2)
+          };
+          ws.send(JSON.stringify(data));
+        });
+      }
+    };
 
-      // Send initial prices
-      sendPriceUpdates();
+    // Send initial prices
+    sendPriceUpdates();
 
-      // Start price updates
-      interval = setInterval(sendPriceUpdates, 2000);
+    // Start price updates
+    interval = setInterval(sendPriceUpdates, 2000);
 
-      ws.on("error", (error) => {
-        console.error("WebSocket error:", error);
-        clearInterval(interval);
-      });
-
-      ws.on("close", () => {
-        console.log("Client disconnected");
-        clearInterval(interval);
-      });
-    } catch (error) {
-      console.error("Error in WebSocket connection:", error);
+    ws.on("error", (error) => {
+      console.error("WebSocket error:", error);
       clearInterval(interval);
-      ws.close();
-    }
+    });
+
+    ws.on("close", () => {
+      console.log("Client disconnected");
+      clearInterval(interval);
+    });
   });
 
   // Basic health check endpoint
