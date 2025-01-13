@@ -27,45 +27,44 @@ export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
   const prices: CryptoPrices = { ...INITIAL_PRICES };
 
-  // WebSocket server for real-time crypto data
+  // WebSocket server setup with better error handling
   const wss = new WebSocketServer({ 
     server: httpServer,
     path: "/ws",
     handleProtocols: (protocols, _request) => {
-      // Convert Set to Array for proper protocol handling
-      const protocolArray = Array.from(protocols);
-      if (protocolArray.includes('vite-hmr')) {
-        return false;
-      }
-      return protocolArray.length > 0 ? protocolArray[0] : false;
+      const protocolArray = Array.from(protocols || []);
+      return protocolArray.includes('vite-hmr') ? false : (protocolArray[0] || false);
     }
   });
 
   wss.on("connection", (ws) => {
     console.log("New WebSocket connection");
+    let interval: NodeJS.Timeout;
 
-    // Send initial data for all coins
-    Object.entries(prices).forEach(([symbol, price]) => {
-      const data: CryptoData = {
-        symbol,
-        price: price.toFixed(2),
-        change24h: ((Math.random() * 10) - 5).toFixed(2) // Random initial 24h change
-      };
-      ws.send(JSON.stringify(data));
+    const sendPriceUpdates = () => {
+      if (ws.readyState === ws.OPEN) {
+        Object.entries(prices).forEach(([symbol, currentPrice]) => {
+          prices[symbol] = generatePrice(currentPrice);
+          const data: CryptoData = {
+            symbol,
+            price: prices[symbol].toFixed(2),
+            change24h: ((Math.random() * 10) - 5).toFixed(2)
+          };
+          ws.send(JSON.stringify(data));
+        });
+      }
+    };
+
+    // Send initial prices
+    sendPriceUpdates();
+
+    // Start price updates
+    interval = setInterval(sendPriceUpdates, 2000);
+
+    ws.on("error", (error) => {
+      console.error("WebSocket error:", error);
+      clearInterval(interval);
     });
-
-    // Simulate price updates
-    const interval = setInterval(() => {
-      Object.entries(prices).forEach(([symbol, currentPrice]) => {
-        prices[symbol] = generatePrice(currentPrice);
-        const data: CryptoData = {
-          symbol,
-          price: prices[symbol].toFixed(2),
-          change24h: ((Math.random() * 10) - 5).toFixed(2)
-        };
-        ws.send(JSON.stringify(data));
-      });
-    }, 2000);
 
     ws.on("close", () => {
       console.log("Client disconnected");
@@ -73,7 +72,7 @@ export function registerRoutes(app: Express): Server {
     });
   });
 
-  // API routes
+  // Basic health check endpoint
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
   });

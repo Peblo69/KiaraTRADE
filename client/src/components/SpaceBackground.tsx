@@ -25,16 +25,16 @@ export default function SpaceBackground() {
     }
 
     const stars: Star[] = [];
-    const numStars = 300; // Increased number of stars
+    const numStars = 200; // Reduced number of stars
 
-    // Initialize stars
+    // Initialize stars with smaller sizes
     for (let i = 0; i < numStars; i++) {
       stars.push({
         x: Math.random() * window.innerWidth,
         y: Math.random() * window.innerHeight,
-        size: Math.random() * 1 + 0.5, // Smaller size range: 0.5 to 1.5
-        alpha: Math.random() * 0.5 + 0.1, // More subtle alpha range: 0.1 to 0.6
-        speed: Math.random() * 0.01 + 0.005 // Slower speed for more subtle effect
+        size: Math.random() * 0.5 + 0.2, // Smaller size range: 0.2 to 0.7
+        alpha: Math.random() * 0.3 + 0.1, // More subtle alpha range: 0.1 to 0.4
+        speed: Math.random() * 0.005 + 0.002 // Slower speed for more subtle effect
       });
     }
 
@@ -49,7 +49,7 @@ export default function SpaceBackground() {
 
       stars.forEach(star => {
         star.alpha += star.speed;
-        if (star.alpha > 0.6) star.alpha = 0.1; // Reset at max alpha
+        if (star.alpha > 0.4) star.alpha = 0.1; // Reset at lower max alpha
 
         ctx.beginPath();
         ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
