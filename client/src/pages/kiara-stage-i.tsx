@@ -54,16 +54,17 @@ const KiaraStageI: FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
             <div className="col-span-1">
               <div className="relative w-[90%] mx-auto">
-                <video
-                  ref={videoRef}
-                  className="w-full rounded-lg shadow-2xl cursor-pointer"
-                  loop={false}
-                  playsInline
-                  src="https://files.catbox.moe/ligfio.webm"
-                  onClick={handleVideoClick}
-                  onEnded={handleVideoEnd}
-                />
-                <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black to-transparent pointer-events-none rounded-b-lg" />
+                <div className="video-container rounded-lg overflow-hidden">
+                  <video
+                    ref={videoRef}
+                    className="w-full rounded-lg shadow-2xl cursor-pointer relative z-10"
+                    loop={false}
+                    playsInline
+                    src="https://files.catbox.moe/ligfio.webm"
+                    onClick={handleVideoClick}
+                    onEnded={handleVideoEnd}
+                  />
+                </div>
               </div>
             </div>
             <div className="col-span-1">
