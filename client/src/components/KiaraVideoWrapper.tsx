@@ -7,78 +7,68 @@ const VIDEOS = {
 };
 
 export default function KiaraVideoWrapper() {
-  const [isInteractiveVideo, setIsInteractiveVideo] = useState(false);
-  const [hasPlayedInteractive, setHasPlayedInteractive] = useState(false);
-  const [isVideoReady, setIsVideoReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [isInteractive, setIsInteractive] = useState(false);
+  const [hasPlayedOnce, setHasPlayedOnce] = useState(false);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    // Check if we should play interactive video automatically
-    const shouldPlayInteractive = sessionStorage.getItem("shouldPlayInteractive") === "true";
+    // Check if we should play interactive video
+    const shouldPlayInteractive = sessionStorage.getItem('shouldPlayInteractive') === 'true';
 
-    const handleCanPlay = () => {
-      setIsVideoReady(true);
-      if (shouldPlayInteractive && !hasPlayedInteractive) {
-        setIsInteractiveVideo(true);
-        video.muted = false;
-        video.loop = false;
-        video.src = VIDEOS.INTERACTIVE;
-        video.play().catch(console.error);
-        sessionStorage.removeItem("shouldPlayInteractive");
-      }
-    };
+    if (shouldPlayInteractive && !hasPlayedOnce) {
+      // Setup for interactive video
+      video.src = VIDEOS.INTERACTIVE;
+      video.muted = false;
+      video.loop = false;
+      setIsInteractive(true);
 
-    const initializeVideo = () => {
-      if (shouldPlayInteractive && !hasPlayedInteractive) {
-        video.src = VIDEOS.INTERACTIVE;
-        video.muted = false;
-        video.loop = false;
-        setIsInteractiveVideo(true);
-      } else {
-        video.src = VIDEOS.DEFAULT;
-        video.muted = true;
-        video.loop = true;
-        setIsInteractiveVideo(false);
-      }
-      video.playsInline = true;
-    };
+      video.play().catch(console.error);
+      sessionStorage.removeItem('shouldPlayInteractive');
+    } else {
+      // Setup for default looping video
+      video.src = VIDEOS.DEFAULT;
+      video.muted = true;
+      video.loop = true;
+      setIsInteractive(false);
 
-    video.addEventListener("canplay", handleCanPlay);
-    initializeVideo();
+      video.play().catch(console.error);
+    }
 
+    // Cleanup function
     return () => {
-      video.removeEventListener("canplay", handleCanPlay);
       video.pause();
-      video.removeAttribute("src");
-      video.load();
+      video.src = '';
     };
-  }, [hasPlayedInteractive]);
-
-  const handleVideoClick = () => {
-    const video = videoRef.current;
-    if (!video || isInteractiveVideo) return;
-
-    // Only allow playing interactive video once per click
-    setIsInteractiveVideo(true);
-    video.src = VIDEOS.INTERACTIVE;
-    video.muted = false;
-    video.loop = false;
-    video.play().catch(console.error);
-  };
+  }, [hasPlayedOnce]);
 
   const handleVideoEnd = () => {
     const video = videoRef.current;
-    if (!video || !isInteractiveVideo) return;
+    if (!video || !isInteractive) return;
 
-    // Switch back to default video after interactive ends
-    setHasPlayedInteractive(true);
-    setIsInteractiveVideo(false);
+    // Mark interactive video as played
+    setHasPlayedOnce(true);
+    setIsInteractive(false);
+
+    // Switch to default looping video
     video.src = VIDEOS.DEFAULT;
     video.muted = true;
     video.loop = true;
+    video.play().catch(console.error);
+  };
+
+  const handleVideoClick = () => {
+    const video = videoRef.current;
+    if (!video || isInteractive) return;
+
+    // Play interactive video once when clicked
+    video.src = VIDEOS.INTERACTIVE;
+    video.muted = false;
+    video.loop = false;
+    setIsInteractive(true);
+
     video.play().catch(console.error);
   };
 
@@ -86,7 +76,7 @@ export default function KiaraVideoWrapper() {
     <Card className="w-full h-full bg-transparent border-0 overflow-hidden">
       <video
         ref={videoRef}
-        className={`w-full h-full object-contain cursor-pointer ${!isVideoReady ? "invisible" : ""}`}
+        className="w-full h-full object-contain cursor-pointer"
         playsInline
         onClick={handleVideoClick}
         onEnded={handleVideoEnd}

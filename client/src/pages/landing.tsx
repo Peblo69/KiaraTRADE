@@ -27,7 +27,6 @@ const Landing: FC = () => {
           src="https://files.catbox.moe/y3zjtd.mp4"
           autoPlay
           playsInline
-          muted
           loop
           style={{ pointerEvents: 'none' }}
         />
