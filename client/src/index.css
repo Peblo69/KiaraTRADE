@@ -143,7 +143,21 @@
     100% { transform: translateY(100%); }
   }
 
-  @keyframes float {
+  @keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes textGlow {
+  0%, 100% { text-shadow: 0 0 30px rgba(var(--theme-primary), 0.8); }
+  50% { text-shadow: 0 0 50px rgba(var(--theme-primary), 0.4); }
+}
+
+.animate-fade-in {
+  animation: fade-in 1s ease-out;
+}
+
+@keyframes float {
 
 .chat-container {
   position: relative;
