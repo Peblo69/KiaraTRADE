@@ -4,15 +4,19 @@ import MemoryStore from "memorystore";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { authenticateUser } from "./middleware/auth";
+import crypto from "crypto";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Generate a secure session secret if not provided
+const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+
 // Session configuration with better error handling
 const MemoryStoreSession = MemoryStore(session);
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   store: new MemoryStoreSession({
@@ -28,7 +32,7 @@ app.use(session({
 // Authentication middleware
 app.use(authenticateUser);
 
-// Logging middleware with error handling
+// Logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -59,6 +63,7 @@ app.use((req, res, next) => {
   next();
 });
 
+// Global error handlers
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
 });
@@ -69,14 +74,16 @@ process.on('unhandledRejection', (reason, promise) => {
 
 (async () => {
   try {
+    // Register routes first
     const server = registerRoutes(app);
 
-    // Global error handler
+    // Global error handler middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       console.error('Error:', err);
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
-      res.status(status).json({ message });
+      const details = process.env.NODE_ENV === 'development' ? err.stack : undefined;
+      res.status(status).json({ error: message, details });
     });
 
     // Setup vite in development and after all other routes
@@ -86,9 +93,9 @@ process.on('unhandledRejection', (reason, promise) => {
       serveStatic(app);
     }
 
-    // Serve the app on port 5000
-    const PORT = 5000;
-    server.listen(PORT, "0.0.0.0", () => {
+    // Start the server
+    const PORT = process.env.PORT || 5000;
+    server.listen(PORT, () => {
       log(`Server running on port ${PORT}`);
     });
   } catch (error) {

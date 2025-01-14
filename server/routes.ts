@@ -122,6 +122,19 @@ export function registerRoutes(app: Express): Server {
   });
 
   // API Routes
+  app.get("/api/market/overview", async (_req, res) => {
+    try {
+      const marketData = await cryptoService.getMarketOverview();
+      res.json(marketData);
+    } catch (error: any) {
+      console.error("Error fetching market overview:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch market overview",
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  });
+
   app.get("/api/subscription/plans", async (_req, res) => {
     try {
       const plans = await subscriptionService.getSubscriptionPlans();

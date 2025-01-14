@@ -1,0 +1,47 @@
+We need to replicate the top structure of CoinGecko’s homepage but adapt it to our Kiara AI website. Here’s exactly how it should look and function:
+
+📌 1. Top Bar (Crypto Market Data Overview)
+The top section should display real-time cryptocurrency data in a thin horizontal strip across the page.
+Include the following key metrics:
+Total Coins Listed (e.g., "Coins: 16,659")
+Total Exchanges Listed (e.g., "Exchanges: 1,202")
+Global Crypto Market Cap (e.g., "$3.51T ▲ 4.6%")
+24h Trading Volume (e.g., "$153.46B")
+BTC Dominance (e.g., "BTC 54.7%")
+ETH Dominance (e.g., "ETH 11.1%")
+Gas Fees (e.g., "Gas: 6.5 GWEI")
+These values should be dynamically fetched and updated in real time using API data.
+The font should be clean and minimal, and it should have a small upward/downward arrow next to percentage changes to indicate movement (green for up, red for down).
+📌 2. Main Navigation Bar (Kiara Branding & Menus)
+The main navigation bar should be sleek, modern, and aligned with Kiara’s futuristic theme.
+The left side should have the Kiara logo with the name "Kiara AI" next to it.
+The navigation menu should include:
+Crypto Market (Dropdown: Prices, Market Trends, Top Gainers)
+AI Assistant (Dropdown: Chat with Kiara, AI Tools, Premium Features)
+Trading (Dropdown: Strategies, Wallet Integration, Automated Trading)
+Learn (Dropdown: Crypto Basics, AI Guides, FAQ)
+Products (Dropdown: Kiara’s Token, Partnerships, AI Services)
+The font should be modern and futuristic, matching the AI aesthetic.
+📌 3. User Options (Login & Signup)
+On the right side, there should be two buttons:
+Login (White Button with Gray Border)
+Sign Up (Bright Green Button)
+These buttons should be the same size and style as CoinGecko’s, but fitted to our theme.
+The Sign Up button should stand out more with a vibrant green color.
+When logged in, these buttons should be replaced with a profile icon dropdown where users can manage their accounts.
+📌 4. Search Bar (Crypto & AI Assistant Search)
+Next to the login/signup buttons, there should be a search bar where users can:
+Search for crypto tokens and market data.
+Search for Kiara AI features & answers (e.g., "What is Solana?", "How do I buy ETH?")
+The search bar should have rounded corners and a subtle magnifying glass icon.
+📌 5. Light/Dark Mode Toggle & Settings
+In the top-right corner, there should be:
+A gear icon for settings.
+A light/dark mode toggle switch (default: dark mode).
+This should allow users to customize their experience while keeping a clean UI.
+🔥 Summary of What to Tell Replit Bot
+Structure: CoinGecko-style top bar with real-time crypto data.
+Navigation: Menu with sections for Crypto Market, AI Assistant, Trading, Learn, and Products.
+User Options: Login & Sign Up buttons (styled properly).
+Search Bar: Supports both crypto searches and AI interactions.
+Customization: Light/dark mode toggle and settings button.

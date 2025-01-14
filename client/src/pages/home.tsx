@@ -1,5 +1,6 @@
 import { FC, useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
+import MarketDataBar from "@/components/MarketDataBar";
 import SpaceBackground from "@/components/SpaceBackground";
 import CryptoPrice from "@/components/CryptoPrice";
 import AiChat from "@/components/AiChat";
@@ -23,15 +24,12 @@ const Home: FC = () => {
   ]);
 
   useEffect(() => {
-    // Keep the original array to maintain the correct order
     let currentIndex = 2; // Start from SOL's position
 
     const interval = setInterval(() => {
       currentIndex = (currentIndex + 1) % allTokens.length;
 
       setDisplayTokens(prev => {
-        // Move each token one position to the left
-        // The rightmost position gets the next token in sequence
         return [
           prev[1], // ETH moves to BTC's position
           prev[2], // SOL moves to ETH's position
@@ -41,12 +39,13 @@ const Home: FC = () => {
     }, 10000); // Rotate every 10 seconds
 
     return () => clearInterval(interval);
-  }, []); // Empty dependency array since we don't need to track external values
+  }, []); 
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
       <SpaceBackground />
       <div className="relative z-10">
+        <MarketDataBar />
         <Navbar />
         <main className="container mx-auto px-4 py-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
