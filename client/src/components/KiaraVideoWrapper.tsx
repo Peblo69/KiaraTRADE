@@ -10,6 +10,7 @@ const VIDEOS = {
 export default function KiaraVideoWrapper() {
   const [isInteractiveVideo, setIsInteractiveVideo] = useState(false);
   const [hasAutoPlayed, setHasAutoPlayed] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [location] = useLocation();
 
@@ -30,7 +31,7 @@ export default function KiaraVideoWrapper() {
         .then(() => setHasAutoPlayed(true))
         .catch(error => console.error("Error autoplaying interactive video:", error));
       setIsInteractiveVideo(true);
-    } else if (!isInteractiveVideo) {
+    } else if (!isInteractiveVideo && !isTransitioning) {
       // Default looping video for all other cases
       video.src = VIDEOS.DEFAULT;
       video.loop = true;
@@ -41,34 +42,61 @@ export default function KiaraVideoWrapper() {
 
     return () => {
       video.pause();
+      video.src = '';
     };
   }, [location, isInteractiveVideo]); // Run when location or video type changes
 
   const handleVideoClick = () => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || isTransitioning) return;
 
     if (!isInteractiveVideo) {
+      setIsTransitioning(true);
       // Switch to interactive video
+      video.pause();
       video.src = VIDEOS.INTERACTIVE;
       video.muted = false;
       video.loop = false;
       video.currentTime = 0;
-      video.play();
-      setIsInteractiveVideo(true);
+
+      // Small delay to ensure proper video loading
+      setTimeout(() => {
+        video.play()
+          .then(() => {
+            setIsInteractiveVideo(true);
+            setIsTransitioning(false);
+          })
+          .catch(error => {
+            console.error("Error playing interactive video:", error);
+            setIsTransitioning(false);
+          });
+      }, 100);
     }
   };
 
   const handleVideoEnd = () => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || isTransitioning) return;
 
+    setIsTransitioning(true);
     // Switch back to default video
+    video.pause();
     video.src = VIDEOS.DEFAULT;
     video.muted = true;
     video.loop = true;
-    video.play();
-    setIsInteractiveVideo(false);
+
+    // Small delay to ensure proper video loading
+    setTimeout(() => {
+      video.play()
+        .then(() => {
+          setIsInteractiveVideo(false);
+          setIsTransitioning(false);
+        })
+        .catch(error => {
+          console.error("Error switching to default video:", error);
+          setIsTransitioning(false);
+        });
+    }, 100);
   };
 
   return (
