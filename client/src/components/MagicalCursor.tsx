@@ -19,20 +19,16 @@ export default function MagicalCursor() {
     const updateMousePosition = (e: MouseEvent) => {
       setMousePosition({ x: e.clientX, y: e.clientY });
 
-      // Create new particle with reduced frequency
-      if (Math.random() > 0.7) { // Only create particles 30% of the time for subtlety
-        setParticleId(prev => prev + 1);
-        setParticles(prev => [...prev, {
-          id: particleId,
-          x: e.clientX,
-          y: e.clientY
-        }].slice(-5)); // Keep only last 5 particles for a more subtle effect
-      }
+      // Create new particle
+      setParticleId(prev => prev + 1);
+      setParticles(prev => [...prev, {
+        id: particleId,
+        x: e.clientX,
+        y: e.clientY
+      }].slice(-15)); // Keep more particles for a more visible trail
     };
 
     window.addEventListener('mousemove', updateMousePosition);
-    // Keep default cursor visible
-    document.body.style.cursor = 'auto';
 
     return () => {
       window.removeEventListener('mousemove', updateMousePosition);
@@ -41,13 +37,25 @@ export default function MagicalCursor() {
 
   return (
     <>
-      {/* Subtle cursor highlight */}
+      {/* Neon cursor highlight */}
       <motion.div
-        className="fixed w-4 h-4 pointer-events-none z-50"
+        className="fixed pointer-events-none z-50"
         animate={{ x: mousePosition.x - 8, y: mousePosition.y - 8 }}
         transition={{ type: "tween", duration: 0 }}
       >
-        <div className="w-full h-full rounded-full bg-gradient-to-r from-purple-500/20 to-cyan-500/20 backdrop-blur-sm" />
+        <div 
+          className="w-4 h-4"
+          style={{
+            boxShadow: `
+              0 0 5px rgba(168, 85, 247, 0.5),
+              0 0 10px rgba(34, 211, 238, 0.5),
+              0 0 15px rgba(168, 85, 247, 0.3)
+            `,
+            clipPath: 'polygon(0% 0%, 60% 60%, 100% 100%, 60% 100%, 60% 60%, 0% 100%)', // Custom cursor shape
+            transform: 'rotate(-45deg)',
+            background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.8), rgba(34, 211, 238, 0.8))'
+          }}
+        />
       </motion.div>
 
       {/* Mixed purple-cyan trail */}
@@ -56,31 +64,36 @@ export default function MagicalCursor() {
           <motion.div
             key={particle.id}
             initial={{ 
-              x: particle.x,
-              y: particle.y,
-              scale: 0.5,
-              opacity: 0.3 
+              x: particle.x - 4,
+              y: particle.y - 4,
+              scale: 1,
+              opacity: 0.8
             }}
             animate={{ 
               scale: 0,
-              opacity: 0 
+              opacity: 0
             }}
             exit={{ opacity: 0 }}
             transition={{
-              duration: 0.4,
+              duration: 0.6,
               ease: "easeOut"
             }}
-            className="fixed w-2 h-2 pointer-events-none z-40"
             style={{ 
-              left: -4, 
-              top: -4,
+              position: 'fixed',
+              width: '8px',
+              height: '8px',
+              pointerEvents: 'none',
+              zIndex: 40,
               background: index % 2 === 0 
-                ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.4), rgba(34, 211, 238, 0.4))'
-                : 'linear-gradient(135deg, rgba(34, 211, 238, 0.4), rgba(168, 85, 247, 0.4))'
+                ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.6), rgba(34, 211, 238, 0.2))'
+                : 'linear-gradient(135deg, rgba(34, 211, 238, 0.6), rgba(168, 85, 247, 0.2))',
+              boxShadow: index % 2 === 0
+                ? '0 0 8px rgba(168, 85, 247, 0.4)'
+                : '0 0 8px rgba(34, 211, 238, 0.4)',
+              borderRadius: '2px',
+              transform: 'rotate(45deg)'
             }}
-          >
-            <div className="w-full h-full rounded-full" />
-          </motion.div>
+          />
         ))}
       </AnimatePresence>
     </>
