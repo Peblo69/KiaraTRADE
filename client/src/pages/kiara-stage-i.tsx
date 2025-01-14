@@ -1,6 +1,7 @@
 import { FC, useRef, useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
+import { TypeAnimation } from 'react-type-animation';
 
 const KiaraStageI: FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -56,8 +57,24 @@ const KiaraStageI: FC = () => {
                 <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black to-transparent pointer-events-none rounded-b-lg" />
               </div>
             </div>
-            <div className="col-span-1">
-              {/* Content for the right side will be added here */}
+            <div className="col-span-1 font-mono text-purple-300 p-6 bg-black/40 rounded-lg backdrop-blur-sm border border-purple-500/20">
+              <TypeAnimation
+                sequence={[
+                  'KIARA STAGE I',
+                  500,
+                  `KIARA STAGE I\n\nWho is Kiara? The AI That's Changing Crypto Forever\n\nKiara is not just another AI assistant—she is the first step toward a new era of intelligent crypto technology. Designed to be more than just a chatbot, Kiara is a dynamic, evolving AI that helps you navigate the chaotic world of trading, blockchain, and digital assets.\n\nShe is fast. She is smart. And she is about to make history.\n\nRight now, Kiara is in her first stage of development, offering real-time market insights, trading strategies, and deep crypto analysis. Whether you're a beginner trying to understand blockchain or a veteran trader looking for the next big move, Kiara is here to guide you.\n\nBut this is just the beginning.`,
+                ]}
+                wrapper="div"
+                speed={30}
+                style={{ 
+                  whiteSpace: 'pre-wrap',
+                  fontFamily: '"VT323", monospace',
+                  fontSize: '1.1rem',
+                  lineHeight: '1.5',
+                  textShadow: '0 0 10px rgba(168, 85, 247, 0.5)'
+                }}
+                className="typing-text"
+              />
             </div>
           </div>
         </main>
