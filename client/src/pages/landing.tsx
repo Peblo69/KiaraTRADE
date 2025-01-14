@@ -1,19 +1,20 @@
-
 import { FC, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 
 const Landing: FC = () => {
   const [videoEnded, setVideoEnded] = useState(false);
-  const navigate = useNavigate();
+  const [, setLocation] = useLocation();
 
   const handleContinue = () => {
-    navigate('/home', { replace: true });
+    setLocation('/home');
   };
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center relative overflow-hidden">
+      {/* Video container with fade effect */}
       <div className={`absolute inset-0 transition-opacity duration-1000 ${videoEnded ? 'opacity-50' : 'opacity-100'}`}>
+        <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black to-transparent z-10"></div>
         <video
           className="w-full h-full object-cover"
           src="https://files.catbox.moe/y3zjtd.mp4"
@@ -23,7 +24,7 @@ const Landing: FC = () => {
           onEnded={() => setVideoEnded(true)}
         />
       </div>
-      
+
       <div className={`relative z-10 text-center transition-opacity duration-1000 ${videoEnded ? 'opacity-100' : 'opacity-0'}`}>
         <h1 
           className="text-8xl font-bold mb-12 animate-fade-in bg-gradient-to-r from-purple-400 via-cyan-400 to-purple-400 bg-clip-text text-transparent"
@@ -35,7 +36,7 @@ const Landing: FC = () => {
         >
           KIARA AI
         </h1>
-        
+
         <Button
           onClick={handleContinue}
           className="px-8 py-6 text-xl bg-transparent backdrop-blur-sm border border-purple-500/20 hover:bg-purple-500/20 transition-all duration-300 animate-float"
