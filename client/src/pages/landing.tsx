@@ -3,31 +3,23 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 
 const Landing: FC = () => {
-  const [videoEnded, setVideoEnded] = useState(false);
-  const [showLogo, setShowLogo] = useState(false);
-  const [showButton, setShowButton] = useState(false);
   const [, setLocation] = useLocation();
 
+  useEffect(() => {
+    // Check if this is the first visit
+    const hasVisitedBefore = localStorage.getItem('hasVisitedWebsite');
+    if (hasVisitedBefore) {
+      // If not first visit, redirect immediately to home
+      setLocation('/home');
+      return;
+    }
+  }, [setLocation]);
+
   const handleContinue = () => {
+    // Mark as visited when user clicks continue
+    localStorage.setItem('hasVisitedWebsite', 'true');
     setLocation('/home');
   };
-
-  useEffect(() => {
-    // Show logo after 2 seconds
-    const logoTimer = setTimeout(() => {
-      setShowLogo(true);
-    }, 2000);
-
-    // Show continue button after 4 seconds
-    const buttonTimer = setTimeout(() => {
-      setShowButton(true);
-    }, 4000);
-
-    return () => {
-      clearTimeout(logoTimer);
-      clearTimeout(buttonTimer);
-    };
-  }, []);
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center relative overflow-hidden">
@@ -40,17 +32,12 @@ const Landing: FC = () => {
           autoPlay
           playsInline
           loop
-          onEnded={() => setVideoEnded(true)}
           style={{ pointerEvents: 'none' }}
         />
       </div>
 
       <div className="relative z-10 text-center space-y-8">
-        <div 
-          className={`transition-all duration-1000 ${
-            showLogo ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform -translate-y-4'
-          }`}
-        >
+        <div className="transition-all duration-1000 opacity-100 transform translate-y-0">
           <h1 
             className="text-8xl font-bold mb-12"
             style={{
@@ -73,11 +60,7 @@ const Landing: FC = () => {
           </div>
         </div>
 
-        <div 
-          className={`transition-all duration-1000 ${
-            showButton ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform translate-y-4'
-          }`}
-        >
+        <div className="transition-all duration-1000 opacity-100 transform translate-y-0">
           <Button
             onClick={handleContinue}
             className="px-8 py-6 text-xl bg-transparent backdrop-blur-sm border-2 border-cyan-500/20 hover:border-cyan-500/40 hover:bg-cyan-500/10 transition-all duration-300"
