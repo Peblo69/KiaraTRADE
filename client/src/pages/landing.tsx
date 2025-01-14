@@ -1,4 +1,4 @@
-import { FC, useState, useEffect } from "react";
+import { FC, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 
@@ -6,24 +6,22 @@ const Landing: FC = () => {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    // Check if this is the first visit
     const hasVisitedBefore = localStorage.getItem('hasVisitedWebsite');
-    if (hasVisitedBefore) {
-      // If not first visit, redirect immediately to home
+    const isFirstVisit = hasVisitedBefore !== 'true';
+
+    if (!isFirstVisit) {
       setLocation('/home');
-      return;
     }
   }, [setLocation]);
 
   const handleContinue = () => {
-    // Mark as visited when user clicks continue
     localStorage.setItem('hasVisitedWebsite', 'true');
+    sessionStorage.setItem('shouldPlayInteractive', 'true');
     setLocation('/home');
   };
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center relative overflow-hidden">
-      {/* Video container with fade effect */}
       <div className="absolute inset-0">
         <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black to-transparent z-10"></div>
         <video
@@ -31,6 +29,7 @@ const Landing: FC = () => {
           src="https://files.catbox.moe/y3zjtd.mp4"
           autoPlay
           playsInline
+          muted
           loop
           style={{ pointerEvents: 'none' }}
         />
