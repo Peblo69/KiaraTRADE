@@ -15,12 +15,29 @@ Right now, Kiara is in her first stage of development, offering real-time market
 
 But this is just the beginning.`;
 
+const ROLE_CONTENT = `Kiara's Role Today – Your AI Crypto Assistant
+
+At her current stage, Kiara is your personal AI-powered market guide, helping you make smarter moves in the crypto space. She can:
+
+✔️ Analyze Tokens & Projects – Get instant insights on any crypto asset.
+✔️ Provide Market Trends & Trading Strategies – Stay ahead of pumps, trends, and risk factors.
+✔️ Help You Learn Crypto Faster – No need for endless Google searches—Kiara explains everything.
+✔️ Detect Scams & Risks – She warns you before you fall for a rug pull.
+✔️ Adapt to Your Trading Style – Over time, she refines her recommendations based on how you trade.
+
+Kiara is here to help you win in the crypto space—by being faster, smarter, and more informed than anyone else.`;
+
 const KiaraStageI: FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
   const { displayText, isComplete } = useTypewriter({
     text: CONTENT,
+    typingSpeed: 20,
+  });
+
+  const { displayText: roleDisplayText, isComplete: roleIsComplete } = useTypewriter({
+    text: ROLE_CONTENT,
     typingSpeed: 20,
   });
 
@@ -95,6 +112,40 @@ const KiaraStageI: FC = () => {
                 className="typing-text"
               >
                 {displayText}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto mt-12">
+            <div className="col-span-1">
+              <img 
+                src="https://files.catbox.moe/jqrz4d.png" 
+                alt="Kiara AI Assistant"
+                className="w-full rounded-lg shadow-2xl"
+                style={{
+                  maxWidth: '90%',
+                  margin: '0 auto',
+                  filter: 'drop-shadow(0 0 20px rgba(var(--theme-primary), 0.3))'
+                }}
+              />
+            </div>
+            <div className="col-span-1">
+              <div
+                style={{ 
+                  whiteSpace: 'pre-wrap',
+                  fontFamily: '"VT323", monospace',
+                  fontSize: '1.1rem',
+                  lineHeight: '1.5',
+                  textShadow: '0 0 10px rgba(var(--theme-primary), 0.5)',
+                  color: 'rgb(216, 180, 254)',
+                  backdropFilter: 'blur(4px)',
+                  padding: '1rem',
+                  opacity: roleIsComplete ? 1 : 0.9,
+                  transition: 'opacity 0.3s ease-in-out'
+                }}
+                className="typing-text"
+              >
+                {roleDisplayText}
               </div>
             </div>
           </div>
