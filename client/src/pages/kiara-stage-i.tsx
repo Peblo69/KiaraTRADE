@@ -1,6 +1,7 @@
-import { FC, useRef, useState, useEffect } from "react";
+import { FC, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
+import { useTypewriter } from "@/hooks/useTypewriter";
 
 const FULL_TEXT = `KIARA STAGE I
 
@@ -14,39 +15,14 @@ Right now, Kiara is in her first stage of development, offering real-time market
 
 But this is just the beginning.`;
 
-const TEXT_CHUNKS = [
-  "KIARA STAGE I",
-  FULL_TEXT
-];
-
 const KiaraStageI: FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentText, setCurrentText] = useState("");
-  const [textComplete, setTextComplete] = useState(false);
 
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = 0;
-    }
-  }, []);
-
-  useEffect(() => {
-    let timeout: NodeJS.Timeout;
-    const startAnimation = async () => {
-      // Show first chunk immediately
-      setCurrentText(TEXT_CHUNKS[0]);
-
-      // Show full text after minimal delay
-      timeout = setTimeout(() => {
-        setCurrentText(TEXT_CHUNKS[1]);
-        setTextComplete(true);
-      }, 300); // Very short delay for visual effect
-    };
-
-    startAnimation();
-    return () => clearTimeout(timeout);
-  }, []);
+  const { displayText, isComplete } = useTypewriter({
+    text: FULL_TEXT,
+    typingSpeed: 20, // Adjust this value to make it faster/slower
+  });
 
   const handleVideoClick = () => {
     if (!videoRef.current) return;
@@ -101,12 +77,12 @@ const KiaraStageI: FC = () => {
                   color: 'rgb(216, 180, 254)',
                   backdropFilter: 'blur(4px)',
                   padding: '1rem',
-                  opacity: textComplete ? 1 : 0.8,
+                  opacity: isComplete ? 1 : 0.9,
                   transition: 'opacity 0.3s ease-in-out'
                 }}
                 className="typing-text"
               >
-                {currentText}
+                {displayText}
               </div>
             </div>
           </div>
