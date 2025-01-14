@@ -2,6 +2,7 @@ import { FC, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
 import { useTypewriter } from "@/hooks/useTypewriter";
+import { ProgressBar } from "@/components/ui/progress-bar";
 
 const TITLE = "KIARA STAGE I";
 const CONTENT = `
@@ -68,6 +69,13 @@ const KiaraStageI: FC = () => {
       <div className="relative z-10">
         <Navbar />
         <main className="container mx-auto px-4 py-8">
+          <div className="max-w-6xl mx-auto mb-8">
+            <ProgressBar 
+              progress={70} 
+              label="Stage I Progress" 
+              className="mb-12"
+            />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
             <div className="col-span-1">
               <div className="relative w-[90%] mx-auto">

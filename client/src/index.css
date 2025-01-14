@@ -78,7 +78,7 @@
     z-index: 12;
   }
 
-  /* Matrix-style chat message styles */
+  /* Chat message styles */
   .chat-message {
     position: relative;
     padding: 0.75rem 1rem;
@@ -101,56 +101,7 @@
     background: rgba(var(--theme-cyan), 0.05);
   }
 
-  .chat-message::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(var(--theme-primary), 0.2),
-      transparent
-    );
-    transform: translateX(-100%);
-    animation: chat-shine 3s infinite;
-  }
-
-  .chat-message.user::before {
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(var(--theme-cyan), 0.2),
-      transparent
-    );
-  }
-
-  /* Matrix rain effect on messages */
-  .chat-message::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      rgba(var(--theme-primary), 0.03) 0px,
-      rgba(var(--theme-primary), 0.03) 1px,
-      transparent 1px,
-      transparent 2px
-    );
-    pointer-events: none;
-    animation: matrix-rain 8s linear infinite;
-  }
-
-  .chat-message.user::after {
-    background: repeating-linear-gradient(
-      0deg,
-      rgba(var(--theme-cyan), 0.03) 0px,
-      rgba(var(--theme-cyan), 0.03) 1px,
-      transparent 1px,
-      transparent 2px
-    );
-  }
-
-  /* Enhanced animations */
+  /* Animation Keyframes */
   @keyframes messageAppear {
     0% {
       opacity: 0;
@@ -198,7 +149,12 @@
     100% { transform: translateY(0px); }
   }
 
-  /* Theme-specific message styles */
+  @keyframes progress-shine {
+    0% { transform: translateX(-200%); }
+    100% { transform: translateX(200%); }
+  }
+
+  /* Theme-specific styles */
   [data-theme="green"] .chat-message {
     color: rgb(16, 185, 129);
     text-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
@@ -212,11 +168,17 @@
     border-color: rgba(239, 68, 68, 0.2);
     background: rgba(239, 68, 68, 0.05);
   }
+
+  .drop-shadow-glow {
+    text-shadow: 0 0 8px rgba(var(--theme-primary), 0.6);
+    letter-spacing: 0.5px;
+  }
 }
 
 /* Theme-based color utilities */
 .bg-purple-900\/10 {
-  background-color: rgba(var(--theme-primary), 0.1);
+  background-color: rgb(var(--theme-primary));
+  @apply bg-opacity-10;
 }
 
 .border-purple-500\/20 {
@@ -246,7 +208,8 @@
 }
 
 .bg-purple-900\/40 {
-  background-color: rgba(var(--theme-primary), 0.4);
+  background-color: rgb(var(--theme-primary));
+  @apply bg-opacity-40;
 }
 
 /* Retro text styling */
