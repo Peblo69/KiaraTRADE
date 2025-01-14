@@ -19,7 +19,8 @@ export default function KiaraVideoWrapper() {
     if (!video) return;
 
     // Check if this is the first load on the home page
-    const isFirstLoad = location === '/home' && !hasAutoPlayed;
+    const hasVisitedBefore = sessionStorage.getItem('hasVisitedHome');
+    const isFirstLoad = location === '/home' && !hasVisitedBefore;
 
     if (isFirstLoad) {
       // Start with interactive video on first load
@@ -28,7 +29,10 @@ export default function KiaraVideoWrapper() {
       video.muted = false;
       video.currentTime = 0;
       video.play()
-        .then(() => setHasAutoPlayed(true))
+        .then(() => {
+          setHasAutoPlayed(true);
+          sessionStorage.setItem('hasVisitedHome', 'true');
+        })
         .catch(error => console.error("Error autoplaying interactive video:", error));
       setIsInteractiveVideo(true);
     } else if (!isInteractiveVideo && !isTransitioning) {
