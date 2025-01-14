@@ -8,68 +8,51 @@ const VIDEOS = {
 
 export default function KiaraVideoWrapper() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isInteractive, setIsInteractive] = useState(false);
-  const [hasPlayedOnce, setHasPlayedOnce] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    // Check if we should play interactive video
-    const shouldPlayInteractive = sessionStorage.getItem('shouldPlayInteractive') === 'true';
-
-    if (shouldPlayInteractive && !hasPlayedOnce) {
-      // Setup for interactive video
-      video.src = VIDEOS.INTERACTIVE;
-      video.muted = false;
-      video.loop = false;
-      setIsInteractive(true);
-
-      video.play().catch(console.error);
+    // Start with interactive video if it's the first time
+    if (sessionStorage.getItem('shouldPlayInteractive') === 'true') {
+      playInteractiveVideo();
       sessionStorage.removeItem('shouldPlayInteractive');
     } else {
-      // Setup for default looping video
-      video.src = VIDEOS.DEFAULT;
-      video.muted = true;
-      video.loop = true;
-      setIsInteractive(false);
-
-      video.play().catch(console.error);
+      playLoopingVideo();
     }
+  }, []);
 
-    // Cleanup function
-    return () => {
-      video.pause();
-      video.src = '';
-    };
-  }, [hasPlayedOnce]);
-
-  const handleVideoEnd = () => {
+  const playInteractiveVideo = () => {
     const video = videoRef.current;
-    if (!video || !isInteractive) return;
+    if (!video || isPlaying) return;
 
-    // Mark interactive video as played
-    setHasPlayedOnce(true);
-    setIsInteractive(false);
+    setIsPlaying(true);
+    video.src = VIDEOS.INTERACTIVE;
+    video.muted = false;
+    video.loop = false;
+    video.play().catch(console.error);
+  };
 
-    // Switch to default looping video
+  const playLoopingVideo = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    setIsPlaying(false);
     video.src = VIDEOS.DEFAULT;
     video.muted = true;
     video.loop = true;
     video.play().catch(console.error);
   };
 
+  const handleVideoEnd = () => {
+    playLoopingVideo();
+  };
+
   const handleVideoClick = () => {
-    const video = videoRef.current;
-    if (!video || isInteractive) return;
-
-    // Play interactive video once when clicked
-    video.src = VIDEOS.INTERACTIVE;
-    video.muted = false;
-    video.loop = false;
-    setIsInteractive(true);
-
-    video.play().catch(console.error);
+    if (!isPlaying) {
+      playInteractiveVideo();
+    }
   };
 
   return (
