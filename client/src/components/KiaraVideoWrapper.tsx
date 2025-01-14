@@ -25,35 +25,23 @@ export default function KiaraVideoWrapper() {
       video.muted = false; // Unmute for interactive video
     }
 
-    // Handle video load
-    const handleLoadedData = () => {
-      if (!isInteractiveVideo) {
-        video.play().catch(error => console.error("Error playing video:", error));
-      }
-    };
-
-    video.addEventListener('loadeddata', handleLoadedData);
     return () => {
-      video.removeEventListener('loadeddata', handleLoadedData);
       video.pause();
     };
-  }, [isInteractiveVideo]);
+  }, []); // Only run once on mount to set up initial video
 
   const handleVideoClick = () => {
     const video = videoRef.current;
     if (!video) return;
 
     if (!isInteractiveVideo) {
-      // Switching to interactive video
-      setIsInteractiveVideo(true);
-      // Reset and play immediately
-      video.currentTime = 0;
+      // Switch to interactive video
+      video.src = VIDEOS.INTERACTIVE;
       video.muted = false;
-      // Use a Promise to ensure proper sequence
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(error => console.error("Error playing video:", error));
-      }
+      video.loop = false;
+      video.currentTime = 0;
+      video.play();
+      setIsInteractiveVideo(true);
     }
   };
 
@@ -61,11 +49,12 @@ export default function KiaraVideoWrapper() {
     const video = videoRef.current;
     if (!video) return;
 
-    setIsInteractiveVideo(false);
-    // Reset for auto-playing video
+    // Switch back to default video
+    video.src = VIDEOS.DEFAULT;
     video.muted = true;
     video.loop = true;
-    video.play().catch(error => console.error("Error playing video:", error));
+    video.play();
+    setIsInteractiveVideo(false);
   };
 
   return (
@@ -73,7 +62,7 @@ export default function KiaraVideoWrapper() {
       <video
         ref={videoRef}
         className="w-full h-full object-contain cursor-pointer"
-        src={isInteractiveVideo ? VIDEOS.INTERACTIVE : VIDEOS.DEFAULT}
+        src={VIDEOS.DEFAULT}
         playsInline
         onClick={handleVideoClick}
         onEnded={handleVideoEnd}
