@@ -31,7 +31,7 @@ export default function ThemeSwitcher({ className = "" }: ThemeSwitcherProps) {
     }).join('')}`;
   };
 
-  const updateThemeColors = (primary: { r: number, g: number, b: number }, accent: { r: number, g: number, b: number }) => {
+  const updateThemeColors = (primary: { r: number, g: number, b: number }, accent: { r: number, g: number, b: number }, themeName: string) => {
     // Set RGB values directly
     document.documentElement.style.setProperty(
       '--theme-primary',
@@ -41,11 +41,14 @@ export default function ThemeSwitcher({ className = "" }: ThemeSwitcherProps) {
       '--theme-accent',
       `${accent.r}, ${accent.g}, ${accent.b}`
     );
+
+    // Update data-theme attribute for theme-specific styles
+    document.documentElement.setAttribute('data-theme', themeName);
   };
 
   // Set initial theme on mount
   useEffect(() => {
-    updateThemeColors(themes[0].primary, themes[0].accent);
+    updateThemeColors(themes[0].primary, themes[0].accent, themes[0].name);
   }, []);
 
   return (
@@ -58,7 +61,7 @@ export default function ThemeSwitcher({ className = "" }: ThemeSwitcherProps) {
             backgroundColor: rgbToHex(theme.primary.r, theme.primary.g, theme.primary.b),
             boxShadow: `0 0 10px ${rgbToHex(theme.primary.r, theme.primary.g, theme.primary.b)}80`
           }}
-          onClick={() => updateThemeColors(theme.primary, theme.accent)}
+          onClick={() => updateThemeColors(theme.primary, theme.accent, theme.name)}
         >
           <span className="sr-only">Switch to {theme.name} theme</span>
         </Button>

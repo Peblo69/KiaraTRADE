@@ -78,19 +78,27 @@
     z-index: 12;
   }
 
+  /* Matrix-style chat message styles */
   .chat-message {
     position: relative;
-    padding: 0.5rem 1rem;
-    margin-bottom: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
     background: rgba(var(--theme-primary), 0.05);
     border-radius: 0.25rem;
-    border: 1px solid rgba(var(--theme-primary), 0.1);
+    border: 1px solid rgba(var(--theme-primary), 0.2);
     overflow: hidden;
     font-family: 'VT323', monospace;
     color: rgb(var(--theme-primary));
-    text-shadow: 0 0 5px rgba(var(--theme-primary), 0.5);
+    text-shadow: 0 0 8px rgba(var(--theme-primary), 0.6);
     letter-spacing: 0.5px;
-    animation: textflicker 0.01s infinite;
+    animation: messageAppear 0.3s ease-out, textflicker 0.01s infinite;
+  }
+
+  .chat-message.user {
+    border-color: rgba(var(--theme-cyan), 0.3);
+    color: rgb(var(--theme-cyan));
+    text-shadow: 0 0 8px rgba(var(--theme-cyan), 0.6);
+    background: rgba(var(--theme-cyan), 0.05);
   }
 
   .chat-message::before {
@@ -100,25 +108,58 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(var(--theme-primary), 0.1),
+      rgba(var(--theme-primary), 0.2),
       transparent
     );
-    animation: chat-shine 2s infinite;
+    transform: translateX(-100%);
+    animation: chat-shine 3s infinite;
   }
 
+  .chat-message.user::before {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(var(--theme-cyan), 0.2),
+      transparent
+    );
+  }
+
+  /* Matrix rain effect on messages */
   .chat-message::after {
     content: '';
     position: absolute;
     inset: 0;
     background: repeating-linear-gradient(
       0deg,
-      rgba(var(--theme-primary), 0.02) 0px,
-      rgba(var(--theme-primary), 0.02) 1px,
+      rgba(var(--theme-primary), 0.03) 0px,
+      rgba(var(--theme-primary), 0.03) 1px,
       transparent 1px,
       transparent 2px
     );
     pointer-events: none;
-    animation: scanline 8s linear infinite;
+    animation: matrix-rain 8s linear infinite;
+  }
+
+  .chat-message.user::after {
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(var(--theme-cyan), 0.03) 0px,
+      rgba(var(--theme-cyan), 0.03) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+  }
+
+  /* Enhanced animations */
+  @keyframes messageAppear {
+    0% {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   @keyframes textflicker {
@@ -137,33 +178,39 @@
   }
 
   @keyframes chat-shine {
-    0% {
-      transform: translateX(-100%);
-    }
-    100% {
-      transform: translateX(100%);
-    }
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  @keyframes matrix-rain {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100%); }
   }
 
   @keyframes scanline {
-    0% {
-      transform: translateY(-100%);
-    }
-    100% {
-      transform: translateY(100%);
-    }
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100%); }
   }
 
   @keyframes float {
-    0% {
-      transform: translateY(0px);
-    }
-    50% {
-      transform: translateY(-3px);
-    }
-    100% {
-      transform: translateY(0px);
-    }
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-3px); }
+    100% { transform: translateY(0px); }
+  }
+
+  /* Theme-specific message styles */
+  [data-theme="green"] .chat-message {
+    color: rgb(16, 185, 129);
+    text-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    border-color: rgba(16, 185, 129, 0.2);
+    background: rgba(16, 185, 129, 0.05);
+  }
+
+  [data-theme="red"] .chat-message {
+    color: rgb(239, 68, 68);
+    text-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+    border-color: rgba(239, 68, 68, 0.2);
+    background: rgba(239, 68, 68, 0.05);
   }
 }
 
