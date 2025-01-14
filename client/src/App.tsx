@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import KiaraStageI from "@/pages/kiara-stage-i";
+import AboutUs from "@/pages/about";
 import { WalletContextProvider } from "@/lib/wallet";
 
 function Router() {
@@ -12,6 +13,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/kiara-stage-i" component={KiaraStageI} />
+      <Route path="/about" component={AboutUs} />
       <Route component={NotFound} />
     </Switch>
   );
