@@ -72,8 +72,17 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-(async () => {
+// Initialize server and handle startup errors
+async function startServer() {
   try {
+    // Check required environment variables
+    const requiredEnvVars = ['DATABASE_URL', 'OPENAI_API_KEY'];
+    const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+    if (missingEnvVars.length > 0) {
+      throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+    }
+
     // Register routes first
     const server = registerRoutes(app);
 
@@ -83,7 +92,10 @@ process.on('unhandledRejection', (reason, promise) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
       const details = process.env.NODE_ENV === 'development' ? err.stack : undefined;
-      res.status(status).json({ error: message, details });
+
+      if (!res.headersSent) {
+        res.status(status).json({ error: message, details });
+      }
     });
 
     // Setup vite in development and after all other routes
@@ -98,8 +110,23 @@ process.on('unhandledRejection', (reason, promise) => {
     server.listen(PORT, () => {
       log(`Server running on port ${PORT}`);
     });
+
+    // Handle server shutdown gracefully
+    process.on('SIGTERM', () => {
+      log('SIGTERM signal received: closing HTTP server');
+      server.close(() => {
+        log('HTTP server closed');
+        process.exit(0);
+      });
+    });
   } catch (error) {
     console.error('Server startup error:', error);
     process.exit(1);
   }
-})();
+}
+
+// Start the server
+startServer().catch(error => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
+});

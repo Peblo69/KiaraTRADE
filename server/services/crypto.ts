@@ -28,44 +28,62 @@ class CryptoService {
     data: null,
     lastUpdated: 0
   };
-  private queue: string[] = [];
-  private isProcessingQueue = false;
-  private lastRequestTime = 0;
   private readonly MIN_REQUEST_INTERVAL = 2000; // 2 seconds between requests
-  private readonly CACHE_DURATION = 300000; // 5 minutes cache
+  private readonly CACHE_DURATION = 30000; // 30 seconds cache
   private readonly REQUEST_TIMEOUT = 5000; // 5 seconds timeout
+
+  private async fetchWithRetry<T>(url: string, retries = 3): Promise<T> {
+    let lastError;
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await axios.get(url, {
+          timeout: this.REQUEST_TIMEOUT,
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'KiaraAI/1.0'
+          }
+        });
+        return response.data;
+      } catch (error: any) {
+        console.error(`Attempt ${i + 1} failed:`, error.message);
+        lastError = error;
+        if (error.response?.status === 429) {
+          const retryAfter = parseInt(error.response.headers['retry-after']) || 60;
+          await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        }
+      }
+    }
+    throw lastError;
+  }
 
   async getMarketOverview(): Promise<MarketOverview> {
     const now = Date.now();
 
     // Return cache if fresh (30 seconds)
-    if (this.marketOverviewCache.data && now - this.marketOverviewCache.lastUpdated < 30000) {
+    if (this.marketOverviewCache.data && now - this.marketOverviewCache.lastUpdated < this.CACHE_DURATION) {
       return this.marketOverviewCache.data;
     }
 
     try {
-      console.log("Fetching market data from CoinGecko API..."); // Add logging
-      const globalData = await axios.get('https://api.coingecko.com/api/v3/global', {
-        timeout: this.REQUEST_TIMEOUT,
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'CryptoPrice/1.0'
-        }
-      });
+      const data = await this.fetchWithRetry<any>('https://api.coingecko.com/api/v3/global');
 
-      console.log("Received global data:", globalData.data); // Add logging
+      if (!data || !data.data) {
+        throw new Error('Invalid response from CoinGecko API');
+      }
 
-      const data = globalData.data.data;
+      const marketData = data.data;
       const overview: MarketOverview = {
-        total_coins: data.active_cryptocurrencies,
-        total_exchanges: data.markets,
+        total_coins: marketData.active_cryptocurrencies || 0,
+        total_exchanges: marketData.markets || 0,
         market_cap: {
-          value: data.total_market_cap.usd,
-          change_24h: data.market_cap_change_percentage_24h_usd
+          value: marketData.total_market_cap?.usd || 0,
+          change_24h: marketData.market_cap_change_percentage_24h_usd || 0
         },
-        volume_24h: data.total_volume.usd,
-        btc_dominance: data.market_cap_percentage.btc,
-        eth_dominance: data.market_cap_percentage.eth,
+        volume_24h: marketData.total_volume?.usd || 0,
+        btc_dominance: marketData.market_cap_percentage?.btc || 0,
+        eth_dominance: marketData.market_cap_percentage?.eth || 0,
         gas_price: Math.round(Math.random() * 20 + 5) // Simplified gas price simulation
       };
 
@@ -77,10 +95,6 @@ class CryptoService {
       return overview;
     } catch (error: any) {
       console.error('Error fetching market overview:', error.message);
-      if (error.response) {
-        console.error('Response data:', error.response.data);
-        console.error('Response status:', error.response.status);
-      }
 
       // Return last cached data if available, otherwise return default values
       return this.marketOverviewCache.data || {
@@ -99,96 +113,34 @@ class CryptoService {
     const cached = this.cache.get(coinId);
     const now = Date.now();
 
-    // Return cache if fresh
     if (cached && now - cached.lastUpdated < this.CACHE_DURATION) {
       return cached;
     }
 
-    // Add to queue if not already queued
-    if (!this.queue.includes(coinId)) {
-      this.queue.push(coinId);
-      this.processQueue().catch(console.error);
-    }
-
-    // Return stale cache while waiting for update
-    if (cached) {
-      return cached;
-    }
-
-    // Return default values if no cache available
-    return {
-      price: 0,
-      change24h: 0,
-      lastUpdated: now
-    };
-  }
-
-  private async processQueue() {
-    if (this.isProcessingQueue) return;
-    this.isProcessingQueue = true;
-
     try {
-      while (this.queue.length > 0) {
-        const coinId = this.queue.shift();
-        if (!coinId) continue;
+      const data = await this.fetchWithRetry<any>(
+        `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true`
+      );
 
-        try {
-          // Ensure minimum time between requests
-          const timeSinceLastRequest = Date.now() - this.lastRequestTime;
-          if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
-            await new Promise(resolve =>
-              setTimeout(resolve, this.MIN_REQUEST_INTERVAL - timeSinceLastRequest)
-            );
-          }
-
-          const response = await axios.get(
-            `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true`,
-            {
-              timeout: this.REQUEST_TIMEOUT,
-              headers: {
-                'Accept': 'application/json',
-                'User-Agent': 'CryptoPrice/1.0'
-              }
-            }
-          );
-
-          this.lastRequestTime = Date.now();
-
-          const data = response.data[coinId];
-          if (!data) {
-            console.warn(`No data returned for ${coinId}`);
-            continue;
-          }
-
-          this.cache.set(coinId, {
-            price: data.usd,
-            change24h: data.usd_24h_change,
-            lastUpdated: Date.now()
-          });
-
-        } catch (error: any) {
-          console.error(`Error fetching price for ${coinId}:`, {
-            message: error.message,
-            status: error.response?.status,
-            data: error.response?.data
-          });
-
-          // Handle rate limit specifically
-          if (error.response?.status === 429) {
-            const retryAfter = parseInt(error.response.headers['retry-after']) || 60;
-            await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-          }
-
-          // Re-queue with exponential backoff
-          setTimeout(() => {
-            if (!this.queue.includes(coinId)) {
-              this.queue.push(coinId);
-            }
-          }, this.MIN_REQUEST_INTERVAL * 2);
-        }
+      if (!data || !data[coinId]) {
+        throw new Error(`No data returned for ${coinId}`);
       }
-    } finally {
-      this.isProcessingQueue = false;
+
+      const priceData: PriceData = {
+        price: data[coinId].usd || 0,
+        change24h: data[coinId].usd_24h_change || 0,
+        lastUpdated: Date.now()
+      };
+
+      this.cache.set(coinId, priceData);
+      return priceData;
+    } catch (error: any) {
+      console.error(`Error fetching price for ${coinId}:`, error.message);
+      return cached || {
+        price: 0,
+        change24h: 0,
+        lastUpdated: now
+      };
     }
   }
 
@@ -199,10 +151,7 @@ class CryptoService {
   getCacheStatus() {
     return {
       cacheSize: this.cache.size,
-      queueLength: this.queue.length,
-      isProcessing: this.isProcessingQueue,
-      lastRequestTime: this.lastRequestTime,
-      cacheAge: Math.floor((Date.now() - this.lastRequestTime) / 1000)
+      marketOverviewAge: Math.floor((Date.now() - (this.marketOverviewCache.lastUpdated || 0)) / 1000)
     };
   }
 }

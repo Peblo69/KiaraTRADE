@@ -8,6 +8,7 @@
   :root {
     --theme-primary: 168, 85, 247; /* RGB values for purple */
     --theme-accent: 139, 92, 246;
+    --theme-cyan: 34, 211, 238; /* RGB values for cyan */
   }
 
   * {
@@ -50,6 +51,78 @@
         rgba(0,0,0,1) 100%
       );
     border-radius: 0.5rem;
+  }
+
+  .chat-window-container {
+    position: relative;
+    border: 1px solid rgba(34, 211, 238, 0.2);
+    border-radius: 0.5rem;
+    background: rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+  }
+
+  .chat-window-container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: 
+      linear-gradient(90deg, 
+        rgba(34, 211, 238, 0.1) 0%, 
+        transparent 20%, 
+        transparent 80%, 
+        rgba(34, 211, 238, 0.1) 100%
+      );
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .chat-window-container::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(34, 211, 238, 0.03) 0px,
+      rgba(34, 211, 238, 0.03) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+    pointer-events: none;
+    z-index: 11;
+    animation: scanline 10s linear infinite;
+  }
+
+  .retro-chat-overlay {
+    position: absolute;
+    inset: 0;
+    background: 
+      linear-gradient(
+        45deg,
+        rgba(34, 211, 238, 0.1) 0%,
+        transparent 20%,
+        transparent 80%,
+        rgba(34, 211, 238, 0.1) 100%
+      );
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    z-index: 12;
+  }
+
+  /* Message styling */
+  .message {
+    color: rgb(34, 211, 238) !important;
+    font-family: 'VT323', monospace !important;
+    text-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+    letter-spacing: 0.5px;
+  }
+
+  @keyframes scanline {
+    0% {
+      transform: translateY(-100%);
+    }
+    100% {
+      transform: translateY(100%);
+    }
   }
 
   @keyframes glitch {

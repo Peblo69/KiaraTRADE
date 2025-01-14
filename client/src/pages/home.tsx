@@ -9,37 +9,13 @@ import TradingChart from "@/components/TradingChart";
 import SubscriptionPlans from "@/components/SubscriptionPlans";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 
-// Include the main tokens in the rotation
+// Keep only the main tokens
 const allTokens = [
-  "bitcoin", "ethereum", "solana", "cardano", "polkadot", 
-  "avalanche-2", "chainlink", "polygon", "uniswap", 
-  "cosmos", "near", "algorand", "ripple", "dogecoin"
+  "bitcoin", "ethereum", "solana"
 ];
 
 const Home: FC = () => {
-  const [displayTokens, setDisplayTokens] = useState([
-    allTokens[0], // BTC
-    allTokens[1], // ETH
-    allTokens[2]  // SOL
-  ]);
-
-  useEffect(() => {
-    let currentIndex = 2; // Start from SOL's position
-
-    const interval = setInterval(() => {
-      currentIndex = (currentIndex + 1) % allTokens.length;
-
-      setDisplayTokens(prev => {
-        return [
-          prev[1], // ETH moves to BTC's position
-          prev[2], // SOL moves to ETH's position
-          allTokens[currentIndex] // New token appears
-        ];
-      });
-    }, 10000); // Rotate every 10 seconds
-
-    return () => clearInterval(interval);
-  }, []); 
+  const [displayTokens, setDisplayTokens] = useState(allTokens);
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
@@ -53,7 +29,7 @@ const Home: FC = () => {
               <CryptoPrice 
                 key={`${token}-${index}`}
                 coin={token}
-                className={`transform transition-all duration-1000 ease-in-out animate-slide-right`}
+                className="transform transition-all duration-1000 ease-in-out"
               />
             ))}
           </div>
@@ -62,7 +38,8 @@ const Home: FC = () => {
             <div className="h-[600px]">
               <KiaraVideoWrapper />
             </div>
-            <div className="h-[600px]">
+            <div className="h-[600px] chat-window-container">
+              <div className="retro-chat-overlay absolute inset-0 pointer-events-none"></div>
               <AiChat />
             </div>
           </div>
