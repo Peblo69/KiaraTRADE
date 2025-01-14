@@ -14,7 +14,11 @@ const Home: FC = () => {
         <main className="container mx-auto px-4 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             <div className="h-[600px]">
-              <KiaraVideoWrapper />
+              <div className="relative w-[90%] mx-auto">
+                <div className="video-container rounded-lg overflow-hidden">
+                  <KiaraVideoWrapper />
+                </div>
+              </div>
             </div>
             <div className="h-[600px] chat-window-container">
               <div className="retro-chat-overlay absolute inset-0 pointer-events-none"></div>
