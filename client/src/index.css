@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
 
 @tailwind base;
@@ -146,50 +147,18 @@
   @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
-}
+  }
 
-@keyframes textGlow {
-  0%, 100% { text-shadow: 0 0 30px rgba(var(--theme-primary), 0.8); }
-  50% { text-shadow: 0 0 50px rgba(var(--theme-primary), 0.4); }
-}
+  @keyframes textGlow {
+    0%, 100% { text-shadow: 0 0 30px rgba(var(--theme-primary), 0.8); }
+    50% { text-shadow: 0 0 50px rgba(var(--theme-primary), 0.4); }
+  }
 
-.animate-fade-in {
-  animation: fade-in 1s ease-out;
-}
+  .animate-fade-in {
+    animation: fade-in 1s ease-out;
+  }
 
-@keyframes float {
-
-.chat-container {
-  position: relative;
-  animation: colorVibrate 4s infinite;
-  box-shadow: 0 0 15px rgba(var(--theme-primary), 0.2);
-}
-
-.chat-container::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    45deg,
-    rgba(var(--theme-primary), 0.05),
-    rgba(var(--theme-cyan), 0.05)
-  );
-  pointer-events: none;
-  animation: gradientShift 8s infinite;
-}
-
-@keyframes colorVibrate {
-  0%, 100% { border-color: rgba(var(--theme-primary), 0.3); }
-  25% { border-color: rgba(var(--theme-cyan), 0.3); }
-  50% { border-color: rgba(var(--theme-primary), 0.3); }
-  75% { border-color: rgba(var(--theme-accent), 0.3); }
-}
-
-@keyframes gradientShift {
-  0% { opacity: 0.3; }
-  50% { opacity: 0.7; }
-  100% { opacity: 0.3; }
-}
+  @keyframes float {
 
     0% { transform: translateY(0px); }
     50% { transform: translateY(-3px); }
@@ -265,4 +234,36 @@
   text-shadow: 0 0 5px rgba(var(--theme-primary), 0.5);
   letter-spacing: 0.5px;
   animation: textflicker 0.01s infinite;
+}
+
+.chat-container {
+  position: relative;
+  animation: colorVibrate 4s infinite;
+  box-shadow: 0 0 15px rgba(var(--theme-primary), 0.2);
+}
+
+.chat-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    45deg,
+    rgba(var(--theme-primary), 0.05),
+    rgba(var(--theme-cyan), 0.05)
+  );
+  pointer-events: none;
+  animation: gradientShift 8s infinite;
+}
+
+@keyframes colorVibrate {
+  0%, 100% { border-color: rgba(var(--theme-primary), 0.3); }
+  25% { border-color: rgba(var(--theme-cyan), 0.3); }
+  50% { border-color: rgba(var(--theme-primary), 0.3); }
+  75% { border-color: rgba(var(--theme-accent), 0.3); }
+}
+
+@keyframes gradientShift {
+  0% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+  100% { opacity: 0.3; }
 }
