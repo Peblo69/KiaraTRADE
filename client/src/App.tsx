@@ -8,15 +8,44 @@ import KiaraStageI from "@/pages/kiara-stage-i";
 import AboutUs from "@/pages/about";
 import { WalletContextProvider } from "@/lib/wallet";
 import Landing from "@/pages/landing";
+import { useEffect } from "react";
+import { useLocation } from "wouter";
+
+// Protected Route component to handle session authentication
+function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    // Check session authentication
+    const isAuthenticated = sessionStorage.getItem('isAuthenticated');
+    if (isAuthenticated !== 'true') {
+      // Redirect to landing if not authenticated
+      setLocation('/');
+    }
+  }, [setLocation]);
+
+  return sessionStorage.getItem('isAuthenticated') === 'true' ? <Component /> : null;
+}
 
 function Router() {
   return (
     <Switch>
+      {/* Landing is accessible without auth */}
       <Route path="/" component={Landing} />
-      <Route path="/home" component={Home} />
-      <Route path="/kiara-stage-i" component={KiaraStageI} />
-      <Route path="/about" component={AboutUs} />
-      <Route component={NotFound} />
+
+      {/* All other routes require session auth */}
+      <Route path="/home">
+        <ProtectedRoute component={Home} />
+      </Route>
+      <Route path="/kiara-stage-i">
+        <ProtectedRoute component={KiaraStageI} />
+      </Route>
+      <Route path="/about">
+        <ProtectedRoute component={AboutUs} />
+      </Route>
+      <Route>
+        <ProtectedRoute component={NotFound} />
+      </Route>
     </Switch>
   );
 }

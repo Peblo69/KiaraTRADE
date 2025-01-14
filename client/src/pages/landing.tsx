@@ -5,17 +5,15 @@ import { Button } from "@/components/ui/button";
 const Landing: FC = () => {
   const [, setLocation] = useLocation();
 
+  // Clear any existing session when landing page is loaded
   useEffect(() => {
-    const hasVisitedBefore = localStorage.getItem('hasVisitedWebsite');
-    const isFirstVisit = hasVisitedBefore !== 'true';
-
-    if (!isFirstVisit) {
-      setLocation('/home');
-    }
-  }, [setLocation]);
+    sessionStorage.removeItem('isAuthenticated');
+    sessionStorage.removeItem('shouldPlayInteractive');
+  }, []);
 
   const handleContinue = () => {
-    localStorage.setItem('hasVisitedWebsite', 'true');
+    // Set session authentication
+    sessionStorage.setItem('isAuthenticated', 'true');
     sessionStorage.setItem('shouldPlayInteractive', 'true');
     setLocation('/home');
   };

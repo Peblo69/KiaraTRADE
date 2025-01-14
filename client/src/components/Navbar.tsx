@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useToast } from "@/hooks/use-toast";
 
 export default function Navbar() {
   const { wallet, connect, disconnect, connected, publicKey } = useWallet();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const handleWalletClick = async () => {
     if (connected) {
@@ -57,6 +58,12 @@ export default function Navbar() {
     }
   };
 
+  const handleLogout = () => {
+    sessionStorage.removeItem('isAuthenticated');
+    sessionStorage.removeItem('shouldPlayInteractive');
+    setLocation('/');
+  };
+
   const shortenAddress = (address: string) => {
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
@@ -76,7 +83,7 @@ export default function Navbar() {
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
-            <Link href="/"><Button variant="ghost">Home</Button></Link>
+            <Link href="/home"><Button variant="ghost">Home</Button></Link>
             <Link href="/about"><Button variant="ghost">About Us</Button></Link>
             <Link href="/project"><Button variant="ghost">Project</Button></Link>
             <Link href="/kiara-stage-i">
@@ -97,6 +104,13 @@ export default function Navbar() {
               ) : (
                 'Connect Wallet'
               )}
+            </Button>
+            <Button
+              onClick={handleLogout}
+              variant="ghost"
+              className="text-red-400 hover:text-red-300"
+            >
+              Exit
             </Button>
           </div>
         </div>
