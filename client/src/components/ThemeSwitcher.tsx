@@ -44,11 +44,23 @@ export default function ThemeSwitcher({ className = "" }: ThemeSwitcherProps) {
 
     // Update data-theme attribute for theme-specific styles
     document.documentElement.setAttribute('data-theme', themeName);
+
+    // Store theme preference in localStorage
+    localStorage.setItem('selectedTheme', themeName);
   };
 
-  // Set initial theme on mount
+  // Load theme from localStorage on mount
   useEffect(() => {
-    updateThemeColors(themes[0].primary, themes[0].accent, themes[0].name);
+    const savedTheme = localStorage.getItem('selectedTheme');
+    if (savedTheme) {
+      const theme = themes.find(t => t.name === savedTheme);
+      if (theme) {
+        updateThemeColors(theme.primary, theme.accent, theme.name);
+      }
+    } else {
+      // Set default theme if none saved
+      updateThemeColors(themes[0].primary, themes[0].accent, themes[0].name);
+    }
   }, []);
 
   return (
