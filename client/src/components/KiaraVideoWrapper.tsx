@@ -41,8 +41,9 @@ export default function KiaraVideoWrapper() {
     }
 
     return () => {
-      video.pause();
-      video.src = '';
+      if (video) {
+        video.pause();
+      }
     };
   }, [location, isInteractiveVideo]); // Run when location or video type changes
 
@@ -52,6 +53,7 @@ export default function KiaraVideoWrapper() {
 
     if (!isInteractiveVideo) {
       setIsTransitioning(true);
+
       // Switch to interactive video
       video.pause();
       video.src = VIDEOS.INTERACTIVE;
@@ -60,7 +62,7 @@ export default function KiaraVideoWrapper() {
       video.currentTime = 0;
 
       // Small delay to ensure proper video loading
-      setTimeout(() => {
+      const transitionTimeout = setTimeout(() => {
         video.play()
           .then(() => {
             setIsInteractiveVideo(true);
@@ -69,8 +71,21 @@ export default function KiaraVideoWrapper() {
           .catch(error => {
             console.error("Error playing interactive video:", error);
             setIsTransitioning(false);
+            // Fallback to default video on error
+            video.src = VIDEOS.DEFAULT;
+            video.muted = true;
+            video.loop = true;
+            video.play().catch(e => console.error("Error playing fallback video:", e));
           });
       }, 100);
+
+      // Clear transition state if timeout exceeds
+      setTimeout(() => {
+        clearTimeout(transitionTimeout);
+        if (isTransitioning) {
+          setIsTransitioning(false);
+        }
+      }, 3000);
     }
   };
 
@@ -86,7 +101,7 @@ export default function KiaraVideoWrapper() {
     video.loop = true;
 
     // Small delay to ensure proper video loading
-    setTimeout(() => {
+    const transitionTimeout = setTimeout(() => {
       video.play()
         .then(() => {
           setIsInteractiveVideo(false);
@@ -97,6 +112,14 @@ export default function KiaraVideoWrapper() {
           setIsTransitioning(false);
         });
     }, 100);
+
+    // Clear transition state if timeout exceeds
+    setTimeout(() => {
+      clearTimeout(transitionTimeout);
+      if (isTransitioning) {
+        setIsTransitioning(false);
+      }
+    }, 3000);
   };
 
   return (
