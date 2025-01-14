@@ -1,16 +1,51 @@
 import { FC, useRef, useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
-import { TypeAnimation } from 'react-type-animation';
+
+const FULL_TEXT = `KIARA STAGE I
+
+Who is Kiara? The AI That's Changing Crypto Forever
+
+Kiara is not just another AI assistant—she is the first step toward a new era of intelligent crypto technology. Designed to be more than just a chatbot, Kiara is a dynamic, evolving AI that helps you navigate the chaotic world of trading, blockchain, and digital assets.
+
+She is fast. She is smart. And she is about to make history.
+
+Right now, Kiara is in her first stage of development, offering real-time market insights, trading strategies, and deep crypto analysis. Whether you're a beginner trying to understand blockchain or a veteran trader looking for the next big move, Kiara is here to guide you.
+
+But this is just the beginning.`;
+
+const TEXT_CHUNKS = [
+  "KIARA STAGE I",
+  FULL_TEXT
+];
 
 const KiaraStageI: FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentText, setCurrentText] = useState("");
+  const [textComplete, setTextComplete] = useState(false);
 
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
     }
+  }, []);
+
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    const startAnimation = async () => {
+      // Show first chunk immediately
+      setCurrentText(TEXT_CHUNKS[0]);
+
+      // Show full text after minimal delay
+      timeout = setTimeout(() => {
+        setCurrentText(TEXT_CHUNKS[1]);
+        setTextComplete(true);
+      }, 300); // Very short delay for visual effect
+    };
+
+    startAnimation();
+    return () => clearTimeout(timeout);
   }, []);
 
   const handleVideoClick = () => {
@@ -56,26 +91,23 @@ const KiaraStageI: FC = () => {
               </div>
             </div>
             <div className="col-span-1">
-              <TypeAnimation
-                sequence={[
-                  'KIARA STAGE I',
-                  500,
-                  `KIARA STAGE I\n\nWho is Kiara? The AI That's Changing Crypto Forever\n\nKiara is not just another AI assistant—she is the first step toward a new era of intelligent crypto technology. Designed to be more than just a chatbot, Kiara is a dynamic, evolving AI that helps you navigate the chaotic world of trading, blockchain, and digital assets.\n\nShe is fast. She is smart. And she is about to make history.\n\nRight now, Kiara is in her first stage of development, offering real-time market insights, trading strategies, and deep crypto analysis. Whether you're a beginner trying to understand blockchain or a veteran trader looking for the next big move, Kiara is here to guide you.\n\nBut this is just the beginning.`,
-                ]}
-                wrapper="div"
-                speed={4}
+              <div
                 style={{ 
                   whiteSpace: 'pre-wrap',
                   fontFamily: '"VT323", monospace',
                   fontSize: '1.1rem',
                   lineHeight: '1.5',
                   textShadow: '0 0 10px rgba(168, 85, 247, 0.5)',
-                  color: 'rgb(216, 180, 254)', 
+                  color: 'rgb(216, 180, 254)',
                   backdropFilter: 'blur(4px)',
-                  padding: '1rem'
+                  padding: '1rem',
+                  opacity: textComplete ? 1 : 0.8,
+                  transition: 'opacity 0.3s ease-in-out'
                 }}
                 className="typing-text"
-              />
+              >
+                {currentText}
+              </div>
             </div>
           </div>
         </main>
