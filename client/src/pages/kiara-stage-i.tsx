@@ -8,7 +8,6 @@ const KiaraStageI: FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
-    // Set video to first frame when it loads
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
     }
@@ -20,7 +19,6 @@ const KiaraStageI: FC = () => {
     if (isPlaying) {
       videoRef.current.pause();
     } else {
-      // Reset to start if ended
       if (videoRef.current.ended) {
         videoRef.current.currentTime = 0;
       }
@@ -65,7 +63,7 @@ const KiaraStageI: FC = () => {
                   `KIARA STAGE I\n\nWho is Kiara? The AI That's Changing Crypto Forever\n\nKiara is not just another AI assistant—she is the first step toward a new era of intelligent crypto technology. Designed to be more than just a chatbot, Kiara is a dynamic, evolving AI that helps you navigate the chaotic world of trading, blockchain, and digital assets.\n\nShe is fast. She is smart. And she is about to make history.\n\nRight now, Kiara is in her first stage of development, offering real-time market insights, trading strategies, and deep crypto analysis. Whether you're a beginner trying to understand blockchain or a veteran trader looking for the next big move, Kiara is here to guide you.\n\nBut this is just the beginning.`,
                 ]}
                 wrapper="div"
-                speed={15}
+                speed={7}
                 style={{ 
                   whiteSpace: 'pre-wrap',
                   fontFamily: '"VT323", monospace',
