@@ -2,6 +2,7 @@ import { FC, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
 import { useTypewriter } from "@/hooks/useTypewriter";
+import MagicalCursor from "@/components/MagicalCursor";
 
 const TITLE = "KIARA STAGE I";
 const CONTENT = `
@@ -65,6 +66,7 @@ const KiaraStageI: FC = () => {
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
       <SpaceBackgroundEnhanced />
+      <MagicalCursor />
       <div className="relative z-10">
         <Navbar />
         <main className="container mx-auto px-4 py-8">
@@ -74,12 +76,16 @@ const KiaraStageI: FC = () => {
                 <div className="video-container rounded-lg overflow-hidden">
                   <video
                     ref={videoRef}
-                    className="w-full rounded-lg shadow-2xl cursor-pointer relative z-10"
+                    className="w-full rounded-lg shadow-2xl cursor-pointer relative z-10 animate-float"
                     loop={false}
                     playsInline
                     src="https://files.catbox.moe/ligfio.webm"
                     onClick={handleVideoClick}
                     onEnded={handleVideoEnd}
+                    style={{
+                      animation: 'float 6s ease-in-out infinite',
+                      boxShadow: '0 0 20px rgba(34, 211, 238, 0.2)',
+                    }}
                   />
                 </div>
               </div>
@@ -136,12 +142,15 @@ const KiaraStageI: FC = () => {
                   fontFamily: '"VT323", monospace',
                   fontSize: '1.1rem',
                   lineHeight: '1.5',
-                  textShadow: '0 0 10px rgba(var(--theme-primary), 0.5)',
-                  color: 'rgb(216, 180, 254)',
+                  textShadow: '0 0 10px rgba(34, 211, 238, 0.5)',
+                  color: 'rgb(34, 211, 238)',
                   backdropFilter: 'blur(4px)',
                   padding: '1rem',
                   opacity: roleIsComplete ? 1 : 0.9,
-                  transition: 'opacity 0.3s ease-in-out'
+                  transition: 'opacity 0.3s ease-in-out',
+                  border: '1px solid rgba(34, 211, 238, 0.2)',
+                  borderRadius: '0.5rem',
+                  background: 'rgba(34, 211, 238, 0.05)',
                 }}
                 className="typing-text"
               >

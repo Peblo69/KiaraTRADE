@@ -49,13 +49,9 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        const stringifiedJson = JSON.stringify(capturedJsonResponse);
+        logLine += ` :: ${stringifiedJson.length > 80 ? stringifiedJson.slice(0, 79) + "…" : stringifiedJson}`;
       }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
       log(logLine);
     }
   });
@@ -64,12 +60,19 @@ app.use((req, res, next) => {
 });
 
 // Global error handlers
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+process.on('uncaughtException', (error: Error) => {
+  log(`Uncaught Exception: ${error.message}`);
+  if (process.env.NODE_ENV === 'development') {
+    log(error.stack || 'No stack trace available');
+  }
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+process.on('unhandledRejection', (reason: any) => {
+  const errorMessage = reason instanceof Error ? reason.message : String(reason);
+  log(`Unhandled Rejection: ${errorMessage}`);
+  if (process.env.NODE_ENV === 'development' && reason instanceof Error) {
+    log(reason.stack || 'No stack trace available');
+  }
 });
 
 // Initialize server and handle startup errors
@@ -88,10 +91,14 @@ async function startServer() {
 
     // Global error handler middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-      console.error('Error:', err);
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
       const details = process.env.NODE_ENV === 'development' ? err.stack : undefined;
+
+      log(`Error Handler: ${status} - ${message}`);
+      if (details) {
+        log(`Stack Trace: ${details}`);
+      }
 
       if (!res.headersSent) {
         res.status(status).json({ error: message, details });
@@ -120,13 +127,17 @@ async function startServer() {
       });
     });
   } catch (error) {
-    console.error('Server startup error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`Server startup error: ${errorMessage}`);
+    if (error instanceof Error && error.stack) {
+      log(`Stack trace: ${error.stack}`);
+    }
     process.exit(1);
   }
 }
 
 // Start the server
 startServer().catch(error => {
-  console.error('Failed to start server:', error);
+  log(`Failed to start server: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 });
