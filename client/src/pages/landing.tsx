@@ -39,8 +39,9 @@ const Landing: FC = () => {
           src="https://files.catbox.moe/y3zjtd.mp4"
           autoPlay
           playsInline
-          controls
+          loop
           onEnded={() => setVideoEnded(true)}
+          style={{ pointerEvents: 'none' }}
         />
       </div>
 
