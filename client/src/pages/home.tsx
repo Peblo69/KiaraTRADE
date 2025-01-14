@@ -7,6 +7,7 @@ import KiaraVideoWrapper from "@/components/KiaraVideoWrapper";
 import TradingChart from "@/components/TradingChart";
 import SubscriptionPlans from "@/components/SubscriptionPlans";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import MagicalCursor from "@/components/MagicalCursor";
 
 // Include the main tokens in the rotation
 const allTokens = [
@@ -45,6 +46,7 @@ const Home: FC = () => {
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
+      <MagicalCursor />
       <SpaceBackground />
       <div className="relative z-10">
         <Navbar />
