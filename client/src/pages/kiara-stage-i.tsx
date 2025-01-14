@@ -3,8 +3,8 @@ import Navbar from "@/components/Navbar";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
 import { useTypewriter } from "@/hooks/useTypewriter";
 
-const FULL_TEXT = `KIARA STAGE I
-
+const TITLE = "KIARA STAGE I";
+const CONTENT = `
 Who is Kiara? The AI That's Changing Crypto Forever
 
 Kiara is not just another AI assistant—she is the first step toward a new era of intelligent crypto technology. Designed to be more than just a chatbot, Kiara is a dynamic, evolving AI that helps you navigate the chaotic world of trading, blockchain, and digital assets.
@@ -20,7 +20,7 @@ const KiaraStageI: FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
 
   const { displayText, isComplete } = useTypewriter({
-    text: FULL_TEXT,
+    text: CONTENT,
     typingSpeed: 20,
   });
 
@@ -68,6 +68,17 @@ const KiaraStageI: FC = () => {
               </div>
             </div>
             <div className="col-span-1">
+              <h1 
+                className="text-5xl md:text-7xl font-bold mb-12 bg-gradient-to-r from-purple-400 via-cyan-400 to-purple-400 bg-clip-text text-transparent animate-glitch"
+                style={{
+                  fontFamily: '"VT323", monospace',
+                  letterSpacing: '0.05em',
+                  fontWeight: '800',
+                  textShadow: '0 0 30px rgba(var(--theme-primary), 0.8)'
+                }}
+              >
+                {TITLE}
+              </h1>
               <div
                 style={{ 
                   whiteSpace: 'pre-wrap',
