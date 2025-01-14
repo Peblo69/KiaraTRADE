@@ -14,18 +14,13 @@ export default function KiaraVideoWrapper() {
     const video = videoRef.current;
     if (!video) return;
 
-    // Start with interactive video if it's the first time
-    if (sessionStorage.getItem('shouldPlayInteractive') === 'true') {
-      playInteractiveVideo();
-      sessionStorage.removeItem('shouldPlayInteractive');
-    } else {
-      playLoopingVideo();
-    }
+    // Always start with interactive video
+    playInteractiveVideo();
   }, []);
 
   const playInteractiveVideo = () => {
     const video = videoRef.current;
-    if (!video || isPlaying) return;
+    if (!video) return;
 
     setIsPlaying(true);
     video.src = VIDEOS.INTERACTIVE;
@@ -46,7 +41,9 @@ export default function KiaraVideoWrapper() {
   };
 
   const handleVideoEnd = () => {
-    playLoopingVideo();
+    if (videoRef.current?.src.includes(VIDEOS.INTERACTIVE)) {
+      playLoopingVideo();
+    }
   };
 
   const handleVideoClick = () => {

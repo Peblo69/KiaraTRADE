@@ -1,4 +1,4 @@
-import { FC, useRef, useState } from "react";
+import { FC, useRef, useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
 import { useTypewriter } from "@/hooks/useTypewriter";
@@ -42,25 +42,17 @@ const KiaraStageI: FC = () => {
     typingSpeed: 20,
   });
 
-  const handleVideoClick = () => {
-    if (!videoRef.current) return;
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
 
-    if (isPlaying) {
-      videoRef.current.pause();
-    } else {
-      if (videoRef.current.ended) {
-        videoRef.current.currentTime = 0;
-      }
-      videoRef.current.play();
-    }
-    setIsPlaying(!isPlaying);
-  };
+    // Autoplay video when component mounts
+    video.muted = false;
+    video.play().catch(console.error);
+  }, []);
 
   const handleVideoEnd = () => {
     setIsPlaying(false);
-    if (videoRef.current) {
-      videoRef.current.currentTime = 0;
-    }
   };
 
   return (
@@ -84,11 +76,10 @@ const KiaraStageI: FC = () => {
                   <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black to-transparent z-10"></div>
                   <video
                     ref={videoRef}
-                    className="w-full rounded-lg shadow-2xl cursor-pointer relative z-0 animate-float"
-                    loop={false}
-                    playsInline
+                    className="w-full rounded-lg shadow-2xl relative z-0 animate-float"
                     src="https://files.catbox.moe/ligfio.webm"
-                    onClick={handleVideoClick}
+                    playsInline
+                    autoPlay
                     onEnded={handleVideoEnd}
                     style={{
                       animation: 'float 6s ease-in-out infinite',
