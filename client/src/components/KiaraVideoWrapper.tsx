@@ -20,14 +20,8 @@ export default function KiaraVideoWrapper() {
     // Check if this is the first load on the home page
     const isFirstLoad = location === '/home' && !hasAutoPlayed;
 
-    // Configure video based on type and auto-play status
-    if (!isInteractiveVideo) {
-      video.loop = true;
-      video.autoplay = true;
-      video.muted = true; // Required for autoplay
-      video.play().catch(error => console.error("Error autoplaying video:", error));
-    } else if (isFirstLoad) {
-      // Auto-play the interactive video once when first loaded
+    if (isFirstLoad) {
+      // Start with interactive video on first load
       video.src = VIDEOS.INTERACTIVE;
       video.loop = false;
       video.muted = false;
@@ -36,12 +30,19 @@ export default function KiaraVideoWrapper() {
         .then(() => setHasAutoPlayed(true))
         .catch(error => console.error("Error autoplaying interactive video:", error));
       setIsInteractiveVideo(true);
+    } else if (!isInteractiveVideo) {
+      // Default looping video for all other cases
+      video.src = VIDEOS.DEFAULT;
+      video.loop = true;
+      video.autoplay = true;
+      video.muted = true;
+      video.play().catch(error => console.error("Error autoplaying video:", error));
     }
 
     return () => {
       video.pause();
     };
-  }, [location]); // Run when location changes
+  }, [location, isInteractiveVideo]); // Run when location or video type changes
 
   const handleVideoClick = () => {
     const video = videoRef.current;
@@ -75,7 +76,7 @@ export default function KiaraVideoWrapper() {
       <video
         ref={videoRef}
         className="w-full h-full object-contain cursor-pointer"
-        src={VIDEOS.DEFAULT}
+        src={isInteractiveVideo ? VIDEOS.INTERACTIVE : VIDEOS.DEFAULT}
         playsInline
         onClick={handleVideoClick}
         onEnded={handleVideoEnd}
