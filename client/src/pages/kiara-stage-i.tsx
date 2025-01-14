@@ -145,7 +145,16 @@ const KiaraStageI: FC = () => {
                 }}
                 className="typing-text"
               >
-                {roleDisplayText}
+                <div 
+                  style={{ 
+                    fontSize: '1.4rem',
+                    marginBottom: '1rem',
+                    fontWeight: '600'
+                  }}
+                >
+                  Kiara's Role Today – Your AI Crypto Assistant
+                </div>
+                {roleDisplayText.substring(roleDisplayText.indexOf('\n') + 1)}
               </div>
             </div>
           </div>
