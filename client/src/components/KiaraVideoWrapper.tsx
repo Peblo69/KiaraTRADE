@@ -22,8 +22,7 @@ export default function KiaraVideoWrapper() {
       video.play().catch(error => console.error("Error autoplaying video:", error));
     } else {
       video.loop = false;
-      video.muted = false;
-      video.currentTime = 0;
+      video.muted = false; // Unmute for interactive video
     }
 
     // Handle video load
@@ -44,13 +43,29 @@ export default function KiaraVideoWrapper() {
     const video = videoRef.current;
     if (!video) return;
 
-    setIsInteractiveVideo(true);
-    video.currentTime = 0;
-    video.play().catch(error => console.error("Error playing video:", error));
+    if (!isInteractiveVideo) {
+      // Switching to interactive video
+      setIsInteractiveVideo(true);
+      // Reset and play immediately
+      video.currentTime = 0;
+      video.muted = false;
+      // Use a Promise to ensure proper sequence
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => console.error("Error playing video:", error));
+      }
+    }
   };
 
   const handleVideoEnd = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
     setIsInteractiveVideo(false);
+    // Reset for auto-playing video
+    video.muted = true;
+    video.loop = true;
+    video.play().catch(error => console.error("Error playing video:", error));
   };
 
   return (
