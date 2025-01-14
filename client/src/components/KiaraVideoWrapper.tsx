@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
-//import { useLocation } from 'wouter'; //removed as per edited code
 
 const VIDEOS = {
   DEFAULT: "https://files.catbox.moe/3jiom4.webm",
@@ -9,102 +8,94 @@ const VIDEOS = {
 
 export default function KiaraVideoWrapper() {
   const [isInteractiveVideo, setIsInteractiveVideo] = useState(false);
-  //const [hasAutoPlayed, setHasAutoPlayed] = useState(false); //removed as per edited code
   const [isTransitioning, setIsTransitioning] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  //const [location] = useLocation(); //removed as per edited code
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    // Always start with default video
-    video.src = VIDEOS.DEFAULT;
-    video.loop = true;
-    video.autoplay = true;
-    video.muted = true;
-    video.play().catch(error => console.error("Error autoplaying video:", error));
+    const initializeVideo = async () => {
+      try {
+        // Set initial properties
+        video.src = VIDEOS.DEFAULT;
+        video.loop = true;
+        video.muted = true;
+        video.playsInline = true;
 
+        // Attempt to play
+        await video.play();
+      } catch (error) {
+        console.error("Error initializing video:", error);
+      }
+    };
+
+    initializeVideo();
+
+    // Cleanup function
     return () => {
       if (video) {
         video.pause();
+        video.src = '';
       }
     };
   }, []); // Only run once on mount
 
-  const handleVideoClick = () => {
+  const handleVideoClick = async () => {
     const video = videoRef.current;
     if (!video || isTransitioning) return;
 
     if (!isInteractiveVideo) {
-      setIsTransitioning(true);
+      try {
+        setIsTransitioning(true);
+        video.pause();
 
-      // Switch to interactive video
-      video.pause();
-      video.src = VIDEOS.INTERACTIVE;
-      video.muted = false;
-      video.loop = false;
-      video.currentTime = 0;
+        // Switch to interactive video
+        video.src = VIDEOS.INTERACTIVE;
+        video.muted = false;
+        video.loop = false;
+        video.currentTime = 0;
 
-      // Small delay to ensure proper video loading
-      const transitionTimeout = setTimeout(() => {
-        video.play()
-          .then(() => {
-            setIsInteractiveVideo(true);
-            setIsTransitioning(false);
-          })
-          .catch(error => {
-            console.error("Error playing interactive video:", error);
-            setIsTransitioning(false);
-            // Fallback to default video on error
-            video.src = VIDEOS.DEFAULT;
-            video.muted = true;
-            video.loop = true;
-            video.play().catch(e => console.error("Error playing fallback video:", e));
-          });
-      }, 100);
-
-      // Clear transition state if timeout exceeds
-      setTimeout(() => {
-        clearTimeout(transitionTimeout);
-        if (isTransitioning) {
-          setIsTransitioning(false);
+        await video.play();
+        setIsInteractiveVideo(true);
+      } catch (error) {
+        console.error("Error playing interactive video:", error);
+        // Fallback to default video
+        try {
+          video.src = VIDEOS.DEFAULT;
+          video.muted = true;
+          video.loop = true;
+          await video.play();
+        } catch (fallbackError) {
+          console.error("Error playing fallback video:", fallbackError);
         }
-      }, 3000);
+      } finally {
+        setIsTransitioning(false);
+      }
     }
   };
 
-  const handleVideoEnd = () => {
+  const handleVideoEnd = async () => {
     const video = videoRef.current;
     if (!video || isTransitioning) return;
 
-    setIsTransitioning(true);
-    // Switch back to default video
-    video.pause();
-    video.src = VIDEOS.DEFAULT;
-    video.muted = true;
-    video.loop = true;
+    try {
+      setIsTransitioning(true);
+      video.pause();
 
-    // Small delay to ensure proper video loading
-    const transitionTimeout = setTimeout(() => {
-      video.play()
-        .then(() => {
-          setIsInteractiveVideo(false);
-          setIsTransitioning(false);
-        })
-        .catch(error => {
-          console.error("Error switching to default video:", error);
-          setIsTransitioning(false);
-        });
-    }, 100);
+      // Switch back to default video
+      video.src = VIDEOS.DEFAULT;
+      video.muted = true;
+      video.loop = true;
+      video.currentTime = 0;
 
-    // Clear transition state if timeout exceeds
-    setTimeout(() => {
-      clearTimeout(transitionTimeout);
-      if (isTransitioning) {
-        setIsTransitioning(false);
-      }
-    }, 3000);
+      await video.play();
+      setIsInteractiveVideo(false);
+    } catch (error) {
+      console.error("Error returning to default video:", error);
+    } finally {
+      setIsTransitioning(false);
+    }
   };
 
   return (
@@ -112,8 +103,8 @@ export default function KiaraVideoWrapper() {
       <video
         ref={videoRef}
         className="w-full h-full object-contain cursor-pointer"
-        src={isInteractiveVideo ? VIDEOS.INTERACTIVE : VIDEOS.DEFAULT}
         playsInline
+        muted
         onClick={handleVideoClick}
         onEnded={handleVideoEnd}
       >
