@@ -121,10 +121,12 @@ export function registerRoutes(app: Express): Server {
     }, 30000);
   });
 
-  // API Routes
+  // API Routes with improved error handling
   app.get("/api/market/overview", async (_req, res) => {
     try {
+      console.log("Fetching market overview data..."); // Add logging
       const marketData = await cryptoService.getMarketOverview();
+      console.log("Market overview data:", marketData); // Add logging
       res.json(marketData);
     } catch (error: any) {
       console.error("Error fetching market overview:", error);
