@@ -16,6 +16,7 @@ const Home: FC = () => {
             <div className="h-[600px]">
               <div className="relative w-[90%] mx-auto">
                 <div className="video-container rounded-lg overflow-hidden">
+                  <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black to-transparent z-10"></div>
                   <KiaraVideoWrapper />
                 </div>
               </div>

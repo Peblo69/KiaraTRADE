@@ -2,7 +2,6 @@ import { FC } from "react";
 import Navbar from "@/components/Navbar";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
 import { useTypewriter } from "@/hooks/useTypewriter";
-import MagicalCursor from "@/components/MagicalCursor";
 
 const TITLE = "About Us – The Team Behind Kiara";
 const CONTENT = `Welcome to Kiara, a project designed to redefine the way AI and crypto merge. We are a team of developers, blockchain enthusiasts, and visionaries dedicated to building the most advanced AI-driven crypto assistant the world has ever seen.
@@ -53,7 +52,6 @@ const AboutUs: FC = () => {
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
       <SpaceBackgroundEnhanced />
-      <MagicalCursor />
       <div className="relative z-10">
         <Navbar />
         <main className="container mx-auto px-4 py-8">

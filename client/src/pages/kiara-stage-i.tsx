@@ -2,7 +2,6 @@ import { FC, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
 import { useTypewriter } from "@/hooks/useTypewriter";
-import MagicalCursor from "@/components/MagicalCursor";
 
 const TITLE = "KIARA STAGE I";
 const CONTENT = `
@@ -66,7 +65,6 @@ const KiaraStageI: FC = () => {
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
       <SpaceBackgroundEnhanced />
-      <MagicalCursor />
       <div className="relative z-10">
         <Navbar />
         <main className="container mx-auto px-4 py-8">
@@ -74,9 +72,11 @@ const KiaraStageI: FC = () => {
             <div className="col-span-1">
               <div className="relative w-[90%] mx-auto">
                 <div className="video-container rounded-lg overflow-hidden">
+                  <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black to-transparent z-10"></div>
+                  <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black to-transparent z-10"></div>
                   <video
                     ref={videoRef}
-                    className="w-full rounded-lg shadow-2xl cursor-pointer relative z-10 animate-float"
+                    className="w-full rounded-lg shadow-2xl cursor-pointer relative z-0 animate-float"
                     loop={false}
                     playsInline
                     src="https://files.catbox.moe/ligfio.webm"
@@ -91,7 +91,7 @@ const KiaraStageI: FC = () => {
               </div>
             </div>
             <div className="col-span-1">
-              <h1 
+              <h1
                 className="text-5xl md:text-7xl font-bold mb-12 bg-gradient-to-r from-purple-400 via-cyan-400 to-purple-400 bg-clip-text text-transparent animate-glitch"
                 style={{
                   fontFamily: '"VT323", monospace',
@@ -103,7 +103,7 @@ const KiaraStageI: FC = () => {
                 {TITLE}
               </h1>
               <div
-                style={{ 
+                style={{
                   whiteSpace: 'pre-wrap',
                   fontFamily: '"VT323", monospace',
                   fontSize: '1.1rem',
@@ -124,8 +124,8 @@ const KiaraStageI: FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto mt-12">
             <div className="col-span-1">
-              <img 
-                src="https://files.catbox.moe/jqrz4d.png" 
+              <img
+                src="https://files.catbox.moe/jqrz4d.png"
                 alt="Kiara AI Assistant"
                 className="w-full rounded-lg shadow-2xl"
                 style={{
@@ -137,7 +137,7 @@ const KiaraStageI: FC = () => {
             </div>
             <div className="col-span-1">
               <div
-                style={{ 
+                style={{
                   whiteSpace: 'pre-wrap',
                   fontFamily: '"VT323", monospace',
                   fontSize: '1.1rem',
@@ -154,8 +154,8 @@ const KiaraStageI: FC = () => {
                 }}
                 className="typing-text"
               >
-                <div 
-                  style={{ 
+                <div
+                  style={{
                     fontSize: '1.4rem',
                     marginBottom: '1rem',
                     fontWeight: '600'
