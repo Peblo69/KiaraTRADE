@@ -6,8 +6,8 @@
 
 @layer base {
   :root {
-    --theme-primary: #a855f7;
-    --theme-accent: #8b5cf6;
+    --theme-primary: 168, 85, 247; /* RGB values for purple */
+    --theme-accent: 139, 92, 246;
   }
 
   * {
@@ -60,37 +60,35 @@
 
 /* Apply theme colors to components */
 .bg-purple-900\/10 {
-  background-color: rgba(var(--theme-primary), 0.1) !important;
+  background-color: rgba(var(--theme-primary), 0.1);
 }
 
 .border-purple-500\/20 {
-  border-color: rgba(var(--theme-primary), 0.2) !important;
+  border-color: rgba(var(--theme-primary), 0.2);
 }
 
 .hover\:border-purple-500\/40:hover {
-  border-color: rgba(var(--theme-primary), 0.4) !important;
+  border-color: rgba(var(--theme-primary), 0.4);
 }
 
 .text-purple-300 {
-  color: rgba(var(--theme-primary), 0.9) !important;
+  color: rgb(var(--theme-primary));
+  opacity: 0.9;
 }
 
 .text-purple-400 {
-  color: rgba(var(--theme-primary), 1) !important;
+  color: rgb(var(--theme-primary));
 }
 
 .bg-purple-500 {
-  background-color: rgba(var(--theme-primary), 1) !important;
+  background-color: rgb(var(--theme-primary));
 }
 
 .hover\:bg-purple-600:hover {
-  background-color: rgba(var(--theme-primary), 0.8) !important;
+  background-color: rgb(var(--theme-primary));
+  opacity: 0.8;
 }
 
 .bg-purple-900\/40 {
-  background-color: rgba(var(--theme-primary), 0.4) !important;
-}
-
-.border-purple-500\/20 {
-  border-color: rgba(var(--theme-primary), 0.2) !important;
+  background-color: rgba(var(--theme-primary), 0.4);
 }

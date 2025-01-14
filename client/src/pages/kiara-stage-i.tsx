@@ -21,7 +21,7 @@ const KiaraStageI: FC = () => {
 
   const { displayText, isComplete } = useTypewriter({
     text: FULL_TEXT,
-    typingSpeed: 20, // Adjust this value to make it faster/slower
+    typingSpeed: 20,
   });
 
   const handleVideoClick = () => {
@@ -51,9 +51,9 @@ const KiaraStageI: FC = () => {
       <div className="relative z-10">
         <Navbar />
         <main className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
             <div className="col-span-1">
-              <div className="relative">
+              <div className="relative w-[90%] mx-auto">
                 <video
                   ref={videoRef}
                   className="w-full rounded-lg shadow-2xl cursor-pointer"
@@ -73,7 +73,7 @@ const KiaraStageI: FC = () => {
                   fontFamily: '"VT323", monospace',
                   fontSize: '1.1rem',
                   lineHeight: '1.5',
-                  textShadow: '0 0 10px rgba(168, 85, 247, 0.5)',
+                  textShadow: '0 0 10px rgba(var(--theme-primary), 0.5)',
                   color: 'rgb(216, 180, 254)',
                   backdropFilter: 'blur(4px)',
                   padding: '1rem',
