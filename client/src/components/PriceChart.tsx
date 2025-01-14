@@ -8,44 +8,44 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { connectToWebSocket, type BinanceTickerData } from "@/lib/websocket";
+import { useQuery } from "@tanstack/react-query";
 
 interface PricePoint {
   timestamp: number;
   price: number;
 }
 
+interface MarketData {
+  market_cap: {
+    value: number;
+    change_24h: number;
+  };
+  btc_dominance: number;
+}
+
 export default function PriceChart() {
   const [data, setData] = useState<PricePoint[]>([]);
 
+  // Use React Query to fetch market data
+  const { data: marketData } = useQuery<MarketData>({
+    queryKey: ["/api/market/overview"],
+    refetchInterval: 10000, // Refresh every 10 seconds
+  });
+
+  // Update chart data when market data changes
   useEffect(() => {
-    const ws = connectToWebSocket();
-
-    const handleMessage = (event: MessageEvent) => {
-      try {
-        const newPrice = JSON.parse(event.data) as BinanceTickerData;
-        if (newPrice.symbol === "BTC") {
-          setData(prev => {
-            const newData = [...prev, {
-              timestamp: Date.now(),
-              price: parseFloat(newPrice.price)
-            }];
-            if (newData.length > 100) newData.shift();
-            return newData;
-          });
-        }
-      } catch (error) {
-        console.error('Error parsing websocket message:', error);
-      }
-    };
-
-    ws.addEventListener("message", handleMessage);
-
-    return () => {
-      ws.removeEventListener("message", handleMessage);
-      ws.close();
-    };
-  }, []);
+    if (marketData?.market_cap && typeof marketData.btc_dominance === 'number') {
+      setData(prev => {
+        const newPrice = {
+          timestamp: Date.now(),
+          price: marketData.market_cap.value * (marketData.btc_dominance / 100)
+        };
+        const newData = [...prev, newPrice];
+        if (newData.length > 100) newData.shift();
+        return newData;
+      });
+    }
+  }, [marketData]);
 
   return (
     <Card className="h-[500px] p-4 backdrop-blur-sm bg-purple-900/10 border-purple-500/20">

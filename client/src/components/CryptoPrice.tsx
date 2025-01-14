@@ -1,8 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { connectToWebSocket } from "@/lib/websocket";
-import type { BinanceTickerData } from "@/lib/websocket";
+import { useQuery } from "@tanstack/react-query";
 
 interface CryptoPriceProps {
   coin: string;
@@ -10,73 +9,56 @@ interface CryptoPriceProps {
 }
 
 interface PriceData {
-  price: string;
-  change24h: string;
+  price: number;
+  change24h: number;
 }
 
 export default function CryptoPrice({ coin, className }: CryptoPriceProps) {
-  const [priceData, setPriceData] = useState<PriceData>({
-    price: "0",
-    change24h: "0"
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["/api/market/overview"],
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
 
-  useEffect(() => {
-    const ws = connectToWebSocket();
-    const maxRetries = 5;
-    const baseDelay = 1000; // Start with 1 second delay
+  const formatNumber = (num: number) => {
+    if (num >= 1e12) return `$${(num / 1e12).toFixed(2)}T`;
+    if (num >= 1e9) return `$${(num / 1e9).toFixed(2)}B`;
+    if (num >= 1e6) return `$${(num / 1e6).toFixed(2)}M`;
+    return `$${num.toLocaleString()}`;
+  };
 
-    const handleMessage = (event: MessageEvent) => {
-      try {
-        const data: BinanceTickerData = JSON.parse(event.data);
-        if (data.symbol === coin) {
-          setPriceData({
-            price: data.price,
-            change24h: data.change24h
-          });
-          setIsLoading(false);
-          setError(null);
-          setRetryCount(0); // Reset retry count on successful update
-        }
-      } catch (err) {
-        console.error('Error parsing WebSocket message:', err);
+  // Get the relevant price data based on the coin
+  const getPriceData = () => {
+    if (!data) return null;
 
-        if (retryCount < maxRetries) {
-          // Exponential backoff
-          const delay = baseDelay * Math.pow(2, retryCount);
-          setTimeout(() => {
-            setRetryCount(prev => prev + 1);
-            // Attempt to reconnect
-            connectToWebSocket();
-          }, delay);
+    switch (coin.toLowerCase()) {
+      case 'bitcoin':
+        return {
+          price: data.market_cap.value * (data.btc_dominance / 100),
+          change24h: data.market_cap.change_24h
+        };
+      case 'ethereum':
+        return {
+          price: data.market_cap.value * (data.eth_dominance / 100),
+          change24h: data.market_cap.change_24h
+        };
+      case 'solana':
+        // For Solana, we'll use a percentage of ETH market cap as an approximation
+        return {
+          price: data.market_cap.value * (data.eth_dominance / 100) * 0.1,
+          change24h: data.market_cap.change_24h
+        };
+      default:
+        return null;
+    }
+  };
 
-          setError(`Retrying... (${retryCount + 1}/${maxRetries})`);
-        } else {
-          setError('Unable to update price data');
-        }
-      }
-    };
-
-    ws.addEventListener('message', handleMessage);
-
-    // Reset states when coin changes
-    setIsLoading(true);
-    setError(null);
-    setRetryCount(0);
-
-    return () => {
-      ws.removeEventListener('message', handleMessage);
-    };
-  }, [coin, retryCount]); // Include retryCount in dependencies
+  const priceData = getPriceData();
 
   // Dynamic color classes based on price change
-  const getPriceChangeColor = (change: string) => {
-    const changeNum = parseFloat(change);
-    if (changeNum > 5) return 'text-green-400 font-bold';
-    if (changeNum > 0) return 'text-green-400';
-    if (changeNum < -5) return 'text-red-400 font-bold';
+  const getPriceChangeColor = (change: number) => {
+    if (change > 5) return 'text-green-400 font-bold';
+    if (change > 0) return 'text-green-400';
+    if (change < -5) return 'text-red-400 font-bold';
     return 'text-red-400';
   };
 
@@ -86,21 +68,21 @@ export default function CryptoPrice({ coin, className }: CryptoPriceProps) {
         "p-4 backdrop-blur-sm bg-purple-900/10 border-purple-500/20 hover:border-purple-500/40 transition-all transform duration-500",
         className,
         {
-          'border-green-500/20 hover:border-green-500/40': parseFloat(priceData.change24h) > 0,
-          'border-red-500/20 hover:border-red-500/40': parseFloat(priceData.change24h) < 0
+          'border-green-500/20 hover:border-green-500/40': priceData && priceData.change24h > 0,
+          'border-red-500/20 hover:border-red-500/40': priceData && priceData.change24h < 0
         }
       )}
     >
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold text-purple-300">{coin.toUpperCase()}/USD</h3>
-        {!isLoading && !error && parseFloat(priceData.price) > 0 && (
+        {!isLoading && !error && priceData && (
           <div className={cn(
             "flex items-center transition-colors",
             getPriceChangeColor(priceData.change24h)
           )}>
             <span>
-              {parseFloat(priceData.change24h) > 0 ? '+' : ''}
-              {parseFloat(priceData.change24h).toFixed(2)}%
+              {priceData.change24h > 0 ? '+' : ''}
+              {priceData.change24h.toFixed(2)}%
             </span>
           </div>
         )}
@@ -110,22 +92,11 @@ export default function CryptoPrice({ coin, className }: CryptoPriceProps) {
           <div className="h-8 bg-purple-500/20 animate-pulse rounded" />
         ) : error ? (
           <div className="text-red-400 text-sm">
-            {error}
-            <div className="h-1 bg-purple-500/20 mt-1 overflow-hidden">
-              <div 
-                className="h-full bg-purple-500 transition-all duration-300" 
-                style={{ width: `${(retryCount / 5) * 100}%` }}
-              />
-            </div>
+            Error loading price data
           </div>
-        ) : parseFloat(priceData.price) > 0 ? (
+        ) : priceData ? (
           <div className="text-2xl font-bold">
-            {new Intl.NumberFormat('en-US', {
-              style: 'currency',
-              currency: 'USD',
-              minimumFractionDigits: parseFloat(priceData.price) < 1 ? 6 : 2,
-              maximumFractionDigits: parseFloat(priceData.price) < 1 ? 6 : 2
-            }).format(parseFloat(priceData.price))}
+            {formatNumber(priceData.price)}
           </div>
         ) : (
           <div className="h-8 bg-purple-500/20 animate-pulse rounded" />
