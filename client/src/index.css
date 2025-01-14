@@ -144,6 +144,39 @@
   }
 
   @keyframes float {
+
+.chat-container {
+  position: relative;
+  animation: colorVibrate 4s infinite;
+  box-shadow: 0 0 15px rgba(var(--theme-primary), 0.2);
+}
+
+.chat-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    45deg,
+    rgba(var(--theme-primary), 0.05),
+    rgba(var(--theme-cyan), 0.05)
+  );
+  pointer-events: none;
+  animation: gradientShift 8s infinite;
+}
+
+@keyframes colorVibrate {
+  0%, 100% { border-color: rgba(var(--theme-primary), 0.3); }
+  25% { border-color: rgba(var(--theme-cyan), 0.3); }
+  50% { border-color: rgba(var(--theme-primary), 0.3); }
+  75% { border-color: rgba(var(--theme-accent), 0.3); }
+}
+
+@keyframes gradientShift {
+  0% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+  100% { opacity: 0.3; }
+}
+
     0% { transform: translateY(0px); }
     50% { transform: translateY(-3px); }
     100% { transform: translateY(0px); }

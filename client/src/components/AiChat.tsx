@@ -50,7 +50,7 @@ export default function AiChat() {
   };
 
   return (
-    <Card className="flex flex-col h-full bg-purple-900/10 border-purple-500/20">
+    <Card className="flex flex-col h-full bg-transparent backdrop-blur-sm border-purple-500/20 chat-container">
       <div className="p-4 border-b border-purple-500/20">
         <h2 className="text-lg font-semibold text-purple-300">Chat with KIARA</h2>
       </div>
