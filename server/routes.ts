@@ -1,6 +1,6 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer, type WebSocket } from "ws";
+import WebSocket, { WebSocketServer } from "ws";
 import { generateAIResponse } from "./services/ai";
 import { cryptoService } from "./services/crypto";
 import { subscriptionService } from "./services/subscription";
@@ -24,17 +24,29 @@ export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
   const connectedClients = new Set<WebSocket>();
 
+  // WebSocket setup with proper HMR handling
   const wss = new WebSocketServer({ 
-    server: httpServer,
-    path: "/ws",
-    handleProtocols: (protocols, _request) => {
-      const protocolArray = Array.isArray(protocols) ? protocols : Array.from(protocols || []);
-      return protocolArray.includes('vite-hmr') ? false : (protocolArray[0] || false);
-    }
+    noServer: true,
+    path: "/ws"
   });
 
-  wss.on('error', (error: Error) => {
-    log(`WebSocket Server Error: ${error.message}`);
+  // Handle WebSocket upgrade with improved vite-hmr handling
+  httpServer.on('upgrade', (request, socket, head) => {
+    const pathname = request.url || '';
+    if (pathname === '/ws') {
+      // Skip Vite HMR connections
+      const protocol = request.headers['sec-websocket-protocol'];
+      if (protocol === 'vite-hmr') {
+        log('Skipping vite-hmr WebSocket connection');
+        socket.destroy();
+        return;
+      }
+
+      log(`Processing WebSocket upgrade request for: ${pathname}`);
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    }
   });
 
   wss.on("connection", (ws: WebSocket) => {
@@ -44,14 +56,17 @@ export function registerRoutes(app: Express): Server {
 
       const sendPriceUpdates = async (symbols: string[]) => {
         if (ws.readyState !== ws.OPEN) {
-          log("WebSocket not open, skipping price update");
+          log('WebSocket not in OPEN state, skipping price update');
           return;
         }
 
         try {
           for (const symbol of symbols) {
             const priceData = await cryptoService.getPriceData(symbol);
-            if (!priceData) continue;
+            if (!priceData) {
+              log(`No price data available for ${symbol}`);
+              continue;
+            }
 
             const data: CryptoData = {
               symbol,
@@ -61,89 +76,63 @@ export function registerRoutes(app: Express): Server {
 
             if (ws.readyState === ws.OPEN) {
               ws.send(JSON.stringify(data));
+            } else {
+              log('WebSocket state changed during price update, stopping');
+              break;
             }
           }
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          log(`Error in price update batch: ${errorMessage}`);
+          log(`Price update error: ${error instanceof Error ? error.message : String(error)}`);
         }
       };
 
-      let priceUpdateInterval: NodeJS.Timeout | null = null;
-
-      const startPriceUpdates = () => {
-        if (priceUpdateInterval) {
-          log("Price updates already running");
-          return;
+      // Start price updates with interval tracking
+      const updateInterval = setInterval(() => {
+        const activeSymbols = cryptoService.getActiveSymbols();
+        if (activeSymbols.length > 0) {
+          sendPriceUpdates(activeSymbols);
         }
+      }, 10000);
 
-        priceUpdateInterval = setInterval(() => {
-          if (ws.readyState === ws.OPEN) {
-            const activeSymbols = cryptoService.getActiveSymbols();
-            if (activeSymbols.length > 0) {
-              sendPriceUpdates(activeSymbols).catch(error => {
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                log(`Error in price update interval: ${errorMessage}`);
-              });
-            }
-          } else {
-            stopPriceUpdates();
-          }
-        }, 10000);
-      };
-
-      const stopPriceUpdates = () => {
-        if (priceUpdateInterval) {
-          clearInterval(priceUpdateInterval);
-          priceUpdateInterval = null;
-        }
-        connectedClients.delete(ws);
-        log("Stopped price updates and removed client");
-      };
-
-      startPriceUpdates();
-
+      // Error handling with proper cleanup
       ws.on("error", (error: Error) => {
-        log(`WebSocket client error: ${error.message}`);
-        stopPriceUpdates();
-      });
-
-      ws.on("close", () => {
-        log("Client disconnected");
-        stopPriceUpdates();
-      });
-
-      const pingInterval = setInterval(() => {
-        if (ws.readyState === ws.OPEN) {
-          ws.ping((error?: Error) => {
-            if (error) {
-              log(`Ping error: ${error.message}`);
-              clearInterval(pingInterval);
-              stopPriceUpdates();
-            }
-          });
-        } else {
-          clearInterval(pingInterval);
+        log(`WebSocket error: ${error.message}`);
+        clearInterval(updateInterval);
+        connectedClients.delete(ws);
+        try {
+          ws.close();
+        } catch (closeError) {
+          log(`Error while closing WebSocket: ${closeError}`);
         }
-      }, 30000);
-
-      ws.on("pong", () => {
-        log("Received pong from client");
       });
-    } catch (wsError) {
-      const errorMessage = wsError instanceof Error ? wsError.message : String(wsError);
-      log(`WebSocket connection handling error: ${errorMessage}`);
+
+      // Cleanup on close
+      ws.on("close", () => {
+        log("Client disconnected, cleaning up resources");
+        clearInterval(updateInterval);
+        connectedClients.delete(ws);
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log(`WebSocket connection error: ${errorMessage}`);
+      connectedClients.delete(ws);
+      try {
+        ws.close();
+      } catch (closeError) {
+        log(`Error while closing WebSocket after error: ${closeError}`);
+      }
     }
   });
 
-  // API Routes
+  // Market overview endpoint
   app.get("/api/market/overview", async (_req, res) => {
     try {
       const marketData = await cryptoService.getMarketOverview();
       res.json(marketData);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      log(`Error fetching market overview: ${errorMessage}`);
+      log(`Market overview error: ${errorMessage}`);
       res.status(500).json({ 
         error: "Failed to fetch market overview",
         details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
@@ -151,13 +140,14 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Subscription endpoints
   app.get("/api/subscription/plans", async (_req, res) => {
     try {
       const plans = await subscriptionService.getSubscriptionPlans();
       res.json(plans);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      log(`Error fetching subscription plans: ${errorMessage}`);
+      log(`Subscription plans error: ${errorMessage}`);
       res.status(500).json({ 
         error: "Failed to fetch subscription plans",
         details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
@@ -165,7 +155,54 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add AI chat endpoint with improved error handling
+  app.use("/api/subscription", (req: AuthenticatedRequest, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        error: "Authentication required",
+        details: "Please login to access subscription features"
+      });
+    }
+    next();
+  });
+
+  app.post("/api/subscription/verify", async (req: AuthenticatedRequest, res) => {
+    try {
+      const { signature, planId, amount } = req.body;
+
+      if (!signature || !planId || amount === undefined) {
+        return res.status(400).json({
+          error: "Missing required fields",
+          details: "Transaction signature, plan ID, and amount are required"
+        });
+      }
+
+      const isValid = await subscriptionService.verifyTransaction(signature);
+      if (!isValid) {
+        return res.status(400).json({
+          error: "Invalid transaction",
+          details: "The transaction could not be verified"
+        });
+      }
+
+      const subscription = await subscriptionService.createSubscription({
+        userId: req.user!.id,
+        planId,
+        transactionSignature: signature,
+        amountSol: amount
+      });
+
+      res.json({ subscription });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log(`Subscription verification error: ${errorMessage}`);
+      res.status(500).json({ 
+        error: "Failed to verify subscription",
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      });
+    }
+  });
+
+  // Chat endpoint
   app.post("/api/chat", async (req, res) => {
     try {
       const { message, history } = req.body;
@@ -180,16 +217,10 @@ export function registerRoutes(app: Express): Server {
       res.json({ response });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorDetails = {
-        message: errorMessage,
-        type: error instanceof Error ? error.constructor.name : 'Unknown',
-        status: (error as any)?.status || 500
-      };
-      log(`Chat error: ${JSON.stringify(errorDetails)}`);
-
-      res.status(errorDetails.status).json({ 
-        error: errorMessage || "Failed to process chat message",
-        details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : undefined) : undefined
+      log(`Chat error: ${errorMessage}`);
+      res.status(500).json({ 
+        error: "Failed to process chat message",
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
       });
     }
   });
@@ -201,7 +232,7 @@ export function registerRoutes(app: Express): Server {
       res.json({ 
         status: "ok",
         openai_configured: !!process.env.OPENAI_API_KEY,
-        websocket_clients: connectedClients.size,
+        websocket_clients: wss.clients.size,
         crypto_service: cacheStatus
       });
     } catch (error) {
