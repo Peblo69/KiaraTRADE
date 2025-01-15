@@ -78,12 +78,19 @@ export default function Navbar() {
               alt="Kiara AI Logo"
               className="h-16 w-auto object-contain"
             />
-            <h1 className="text-3xl font-bold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-cyan-400 animate-glitch flex items-center gap-4">
+            <h1 
+              className="text-3xl font-bold tracking-wider"
+              style={{
+                background: 'linear-gradient(to right, #ff00ff, #00ffff, #ff00ff)',
+                backgroundSize: '200% auto',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                color: 'transparent',
+                textShadow: '0 0 10px rgba(255, 0, 255, 0.3)',
+                animation: 'shine 3s linear infinite, float 2s ease-in-out infinite'
+              }}
+            >
               KIARA_AI
-              <div className="flex gap-2">
-                <span className="text-sm px-2 py-1 rounded bg-purple-900/40 border border-purple-500/20">[AI]</span>
-                <span className="text-sm px-2 py-1 rounded bg-purple-900/40 border border-purple-500/20">[ML]</span>
-              </div>
             </h1>
           </div>
 
