@@ -1,0 +1,48 @@
+🚀 Project Page Design: Live PumpFun Token Feed
+
+📌 Objective:
+I want to add a "Live Token Tracker" section to the Project Page of my website. This section should dynamically display newly launched PumpFun tokens in real-time as they appear on the blockchain. The data must be fetched directly from the PumpFun WebSocket API and updated live without requiring a page refresh.
+
+🔹 Features & Requirements
+1️⃣ Real-Time Token Updates:
+
+The website must subscribe to new token creation events from the PumpFun WebSocket API.
+As soon as a token is created, it should instantly appear on the page.
+2️⃣ Modern, Clean UI:
+
+Tokens should be displayed in a card-style format, similar to trading websites like BullX, Photon, or Dexscreener.
+Each token card should include:
+Token Name & Symbol
+Token Logo/Image
+Current Market Cap (live updates)
+Liquidity Added Status (if liquidity is detected)
+Total Holders
+24h Trading Volume
+Live Price Chart (if possible)
+Clickable Solscan Link for users to view token details on the blockchain
+3️⃣ Smooth, Dynamic Display:
+
+The latest tokens should always appear at the top as they are launched.
+The UI should have a dark theme, smooth hover effects, and a mobile-friendly layout.
+Animations & transitions should be added for a polished experience.
+4️⃣ Fetching Additional Data:
+
+Once a new token is detected, the system should fetch extra details such as:
+Market Cap & Total Supply
+Number of Holders
+Price & Trading Volume
+The data should be pulled from Solana RPC API, Solscan, or PumpFun API.
+5️⃣ Professional, Trading-Style Layout:
+
+Tokens should be arranged neatly in rows or a grid layout, making it easy for users to track new launches.
+The design should resemble a real crypto tracking dashboard with overlays, charts, and clear token information.
+💡 Example Sites for Inspiration:
+Photon (Live token tracker with clean visuals)
+BullX (Well-structured token card system)
+DexScreener (Real-time crypto tracking UI)
+📌 Final Goal:
+
+The Project Page will include a Live Token Tracker that updates automatically with newly launched PumpFun tokens.
+The UI will be sleek, modern, and real-time, making it engaging and visually appealing for users.
+The system should function without requiring manual refresh, offering a seamless experience.
+🔥 This feature will make my website competitive with top crypto tracking platforms while keeping it unique and highly interactive! 🚀

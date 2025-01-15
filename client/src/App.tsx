@@ -6,10 +6,11 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import KiaraStageI from "@/pages/kiara-stage-i";
 import AboutUs from "@/pages/about";
+import ProjectPage from "@/pages/project";
 import { WalletContextProvider } from "@/lib/wallet";
 import Landing from "@/pages/landing";
-import { useEffect } from "react";
 import { useLocation } from "wouter";
+import { useEffect } from "react";
 
 // Protected Route component to handle session authentication
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -42,6 +43,9 @@ function Router() {
       </Route>
       <Route path="/about">
         <ProtectedRoute component={AboutUs} />
+      </Route>
+      <Route path="/project">
+        <ProtectedRoute component={ProjectPage} />
       </Route>
       <Route>
         <ProtectedRoute component={NotFound} />
