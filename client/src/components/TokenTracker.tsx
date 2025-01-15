@@ -1,4 +1,4 @@
-import { FC, useEffect } from 'react';
+import { FC, useEffect, useCallback } from 'react';
 import { Card } from "@/components/ui/card";
 import { pumpFunSocket, usePumpFunStore } from '@/lib/pumpfun-websocket';
 import { SiSolana } from 'react-icons/si';
@@ -79,17 +79,23 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
 };
 
 export const TokenTracker: FC = () => {
-  const { tokens, isConnected } = usePumpFunStore((state) => ({
+  const { tokens, isConnected } = usePumpFunStore(useCallback((state) => ({
     tokens: state.tokens,
     isConnected: state.isConnected
-  }));
+  }), []));
 
   useEffect(() => {
-    console.log('TokenTracker mounted, connecting to WebSocket');
-    pumpFunSocket.connect();
+    const connectWebSocket = () => {
+      console.log('TokenTracker: Initializing WebSocket connection');
+      pumpFunSocket.connect();
+    };
 
+    // Connect on mount
+    connectWebSocket();
+
+    // Cleanup on unmount
     return () => {
-      console.log('TokenTracker unmounted, disconnecting WebSocket');
+      console.log('TokenTracker: Cleaning up WebSocket connection');
       pumpFunSocket.disconnect();
     };
   }, []); // Empty dependency array to run only on mount/unmount

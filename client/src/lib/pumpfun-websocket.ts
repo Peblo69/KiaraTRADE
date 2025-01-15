@@ -19,7 +19,8 @@ interface PumpFunState {
   setConnected: (status: boolean) => void;
 }
 
-export const usePumpFunStore = create<PumpFunState>((set) => ({
+// Create store with initial state and actions
+export const usePumpFunStore = create<PumpFunState>()((set) => ({
   tokens: [],
   isConnected: false,
   addToken: (token) => {
@@ -42,23 +43,31 @@ class PumpFunWebSocket {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
+  private isConnecting = false;
 
   connect() {
-    try {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        console.log('WebSocket already connected');
-        return;
-      }
+    if (this.isConnecting) {
+      console.log('Already attempting to connect');
+      return;
+    }
 
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      console.log('WebSocket already connected');
+      return;
+    }
+
+    try {
+      this.isConnecting = true;
       console.log('Attempting to connect to PumpFun WebSocket...');
+
       this.ws = new WebSocket('wss://pumpportal.fun/api/data');
 
       this.ws.onopen = () => {
         console.log('Connected to PumpFun WebSocket');
         this.reconnectAttempts = 0;
+        this.isConnecting = false;
         usePumpFunStore.getState().setConnected(true);
 
-        // Subscribe to new token events
         if (this.ws?.readyState === WebSocket.OPEN) {
           console.log('Subscribing to new token events...');
           const payload = {
@@ -69,12 +78,11 @@ class PumpFunWebSocket {
       };
 
       this.ws.onmessage = (event) => {
-        console.log('Received WebSocket message:', event.data);
         try {
+          console.log('Received WebSocket message:', event.data);
           const data = JSON.parse(event.data);
           console.log('Parsed WebSocket data:', data);
 
-          // Process incoming token data
           if (data.type === 'newToken') {
             console.log('Processing new token:', data);
             usePumpFunStore.getState().addToken({
@@ -95,17 +103,20 @@ class PumpFunWebSocket {
 
       this.ws.onclose = () => {
         console.log('PumpFun WebSocket disconnected');
+        this.isConnecting = false;
         usePumpFunStore.getState().setConnected(false);
         this.attemptReconnect();
       };
 
       this.ws.onerror = (error) => {
         console.error('PumpFun WebSocket error:', error);
+        this.isConnecting = false;
         usePumpFunStore.getState().setConnected(false);
       };
 
     } catch (error) {
       console.error('Failed to connect to PumpFun WebSocket:', error);
+      this.isConnecting = false;
       usePumpFunStore.getState().setConnected(false);
       this.attemptReconnect();
     }
@@ -124,9 +135,11 @@ class PumpFunWebSocket {
       console.log('Disconnecting from PumpFun WebSocket');
       this.ws.close();
       this.ws = null;
+      this.isConnecting = false;
       usePumpFunStore.getState().setConnected(false);
     }
   }
 }
 
+// Create a single instance to be used across the application
 export const pumpFunSocket = new PumpFunWebSocket();
