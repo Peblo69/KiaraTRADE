@@ -72,21 +72,19 @@ export default function Navbar() {
     <nav className="border-b border-purple-800/20 backdrop-blur-sm">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-4">
             <img 
               src="https://files.catbox.moe/0b1u9r.png" 
               alt="Kiara AI Logo"
-              className="h-12 w-auto object-contain"
+              className="h-16 w-auto object-contain"
             />
-            <div className="flex flex-col">
-              <h1 className="text-2xl font-bold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-cyan-400 animate-glitch">
-                KIARA_AI
-              </h1>
+            <h1 className="text-3xl font-bold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-cyan-400 animate-glitch flex items-center gap-4">
+              KIARA_AI
               <div className="flex gap-2">
-                <span className="text-xs px-2 py-1 rounded bg-purple-900/40 border border-purple-500/20">[AI]</span>
-                <span className="text-xs px-2 py-1 rounded bg-purple-900/40 border border-purple-500/20">[ML]</span>
+                <span className="text-sm px-2 py-1 rounded bg-purple-900/40 border border-purple-500/20">[AI]</span>
+                <span className="text-sm px-2 py-1 rounded bg-purple-900/40 border border-purple-500/20">[ML]</span>
               </div>
-            </div>
+            </h1>
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
