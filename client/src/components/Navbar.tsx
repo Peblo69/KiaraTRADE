@@ -73,11 +73,13 @@ export default function Navbar() {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-4">
-            <img 
-              src="https://files.catbox.moe/0b1u9r.png" 
-              alt="Kiara AI Logo"
-              className="h-16 w-auto object-contain"
-            />
+            <div className="h-16 w-16 flex items-center">
+              <img 
+                src="https://files.catbox.moe/0b1u9r.png" 
+                alt="Kiara AI Logo"
+                className="w-full h-full object-contain"
+              />
+            </div>
             <h1 
               className="text-3xl font-bold tracking-wider"
               style={{

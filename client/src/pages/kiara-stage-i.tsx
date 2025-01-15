@@ -46,14 +46,17 @@ const KiaraStageI: FC = () => {
     const video = videoRef.current;
     if (!video) return;
 
-    // Autoplay video when component mounts
+    // Set up video to play once and freeze at the end
     video.muted = false;
+    video.loop = false;
+    video.addEventListener('ended', () => {
+      // Pause on the last frame
+      video.currentTime = video.duration;
+    });
+
+    // Start playing
     video.play().catch(console.error);
   }, []);
-
-  const handleVideoEnd = () => {
-    setIsPlaying(false);
-  };
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
@@ -79,8 +82,6 @@ const KiaraStageI: FC = () => {
                     className="w-full rounded-lg shadow-2xl relative z-0 animate-float"
                     src="https://files.catbox.moe/ligfio.webm"
                     playsInline
-                    autoPlay
-                    onEnded={handleVideoEnd}
                     style={{
                       animation: 'float 6s ease-in-out infinite',
                       boxShadow: '0 0 20px rgba(34, 211, 238, 0.2)',
@@ -120,7 +121,6 @@ const KiaraStageI: FC = () => {
               </div>
             </div>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto mt-12">
             <div className="col-span-1">
               <img

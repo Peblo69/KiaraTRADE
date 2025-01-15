@@ -45,6 +45,11 @@ class PumpFunWebSocket {
 
   connect() {
     try {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        console.log('WebSocket already connected');
+        return;
+      }
+
       console.log('Attempting to connect to PumpFun WebSocket...');
       this.ws = new WebSocket('wss://pumpportal.fun/api/data');
 
@@ -54,11 +59,13 @@ class PumpFunWebSocket {
         usePumpFunStore.getState().setConnected(true);
 
         // Subscribe to new token events
-        console.log('Subscribing to new token events...');
-        const payload = {
-          method: "subscribeNewToken"
-        };
-        this.ws?.send(JSON.stringify(payload));
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          console.log('Subscribing to new token events...');
+          const payload = {
+            method: "subscribeNewToken"
+          };
+          this.ws.send(JSON.stringify(payload));
+        }
       };
 
       this.ws.onmessage = (event) => {

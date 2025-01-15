@@ -87,11 +87,12 @@ export const TokenTracker: FC = () => {
   useEffect(() => {
     console.log('TokenTracker mounted, connecting to WebSocket');
     pumpFunSocket.connect();
+
     return () => {
       console.log('TokenTracker unmounted, disconnecting WebSocket');
       pumpFunSocket.disconnect();
     };
-  }, []);
+  }, []); // Empty dependency array to run only on mount/unmount
 
   return (
     <div className="space-y-4">
