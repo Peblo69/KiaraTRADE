@@ -7,6 +7,7 @@ import Home from "@/pages/home";
 import KiaraStageI from "@/pages/kiara-stage-i";
 import AboutUs from "@/pages/about";
 import ProjectPage from "@/pages/project";
+import SubscriptionsPage from "@/pages/subscriptions";
 import { WalletContextProvider } from "@/lib/wallet";
 import Landing from "@/pages/landing";
 import { useLocation } from "wouter";
@@ -46,6 +47,9 @@ function Router() {
       </Route>
       <Route path="/project">
         <ProtectedRoute component={ProjectPage} />
+      </Route>
+      <Route path="/subscriptions">
+        <ProtectedRoute component={SubscriptionsPage} />
       </Route>
       <Route>
         <ProtectedRoute component={NotFound} />
