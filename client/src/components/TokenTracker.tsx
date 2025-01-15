@@ -2,7 +2,7 @@ import { FC, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { pumpFunSocket, usePumpFunStore } from '@/lib/pumpfun-websocket';
 import { SiSolana } from 'react-icons/si';
-import { ExternalLink, TrendingUp, Users, Wallet } from 'lucide-react';
+import { ExternalLink, TrendingUp, Users, Wallet, Wifi, WifiOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const formatNumber = (num: number) => {
@@ -79,20 +79,37 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
 };
 
 export const TokenTracker: FC = () => {
-  const tokens = usePumpFunStore((state) => state.tokens);
+  const { tokens, isConnected } = usePumpFunStore((state) => ({
+    tokens: state.tokens,
+    isConnected: state.isConnected
+  }));
 
   useEffect(() => {
+    console.log('TokenTracker mounted, connecting to WebSocket');
     pumpFunSocket.connect();
-    return () => pumpFunSocket.disconnect();
+    return () => {
+      console.log('TokenTracker unmounted, disconnecting WebSocket');
+      pumpFunSocket.disconnect();
+    };
   }, []);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-purple-300">Live Token Tracker</h2>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="animate-pulse inline-block w-2 h-2 bg-green-500 rounded-full"></span>
-          <span className="text-gray-400">Live Updates</span>
+        <div className="flex items-center gap-2">
+          {isConnected ? (
+            <div className="flex items-center gap-2 text-sm text-green-400">
+              <Wifi size={16} />
+              <span>Connected</span>
+              <span className="animate-pulse inline-block w-2 h-2 bg-green-500 rounded-full"></span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-red-400">
+              <WifiOff size={16} />
+              <span>Disconnected</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -106,7 +123,9 @@ export const TokenTracker: FC = () => {
 
       {tokens.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-400">Waiting for new tokens...</p>
+          <p className="text-gray-400">
+            {isConnected ? "Waiting for new tokens..." : "Connecting to PumpFun..."}
+          </p>
         </div>
       )}
     </div>
