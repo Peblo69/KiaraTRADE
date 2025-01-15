@@ -9,18 +9,22 @@ const VIDEOS = {
 export default function KiaraVideoWrapper() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const isMounted = useRef(false); // Prevent infinite loops
 
   useEffect(() => {
+    if (isMounted.current) return; // Ensure it runs only once
+    isMounted.current = true;
+
     const video = videoRef.current;
     if (!video) return;
 
-    // Always start with interactive video
+    // Play interactive video once on mount
     playInteractiveVideo();
   }, []);
 
   const playInteractiveVideo = () => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || isPlaying) return; // Prevent unnecessary state updates
 
     setIsPlaying(true);
     video.src = VIDEOS.INTERACTIVE;
@@ -31,7 +35,7 @@ export default function KiaraVideoWrapper() {
 
   const playLoopingVideo = () => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !isPlaying) return; // Prevent unnecessary state updates
 
     setIsPlaying(false);
     video.src = VIDEOS.DEFAULT;
