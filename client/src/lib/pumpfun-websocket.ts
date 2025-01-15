@@ -40,56 +40,100 @@ class PumpFunWebSocket {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 5000; // 5 seconds
+  private heartbeatInterval: NodeJS.Timeout | null = null;
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      return; // Avoid multiple connections
+      console.log('WebSocket already connected');
+      return;
     }
 
-    this.ws = new WebSocket('wss://pumpportal.fun/api/data');
+    try {
+      console.log('Attempting to connect to PumpFun WebSocket...');
+      this.ws = new WebSocket('wss://pumpportal.fun/api/data');
 
-    this.ws.onopen = () => {
-      console.log('✅ Connected to PumpFun WebSocket');
-      usePumpFunStore.getState().setConnected(true);
-      this.reconnectAttempts = 0; // Reset reconnect attempts
+      this.ws.onopen = () => {
+        console.log('✅ Connected to PumpFun WebSocket');
+        usePumpFunStore.getState().setConnected(true);
+        this.reconnectAttempts = 0;
 
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ method: "subscribeNewToken" }));
-      }
-    };
+        // Start heartbeat
+        this.startHeartbeat();
 
-    this.ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        if (data.method === 'subscribeNewToken') {
-          usePumpFunStore.getState().addToken({
-            name: data.params.name || 'Unknown',
-            symbol: data.params.symbol || 'UNKNOWN',
-            marketCap: data.params.marketCap || 0,
-            liquidityAdded: data.params.liquidityAdded || false,
-            holders: data.params.holders || 0,
-            volume24h: data.params.volume24h || 0,
-            address: data.params.address,
-            price: data.params.price || 0,
-          });
+        // Subscribe to new token events
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          console.log('Sending subscription request...');
+          this.ws.send(JSON.stringify({
+            method: "subscribeNewToken",
+            params: {
+              type: "newTokens"
+            }
+          }));
         }
-      } catch (error) {
-        console.error('❌ Error processing WebSocket message:', error);
+      };
+
+      this.ws.onmessage = (event) => {
+        try {
+          console.log('Received WebSocket message:', event.data);
+          const data = JSON.parse(event.data);
+
+          if (data.method === 'subscribeNewToken' && data.params) {
+            console.log('Processing new token data:', data.params);
+            usePumpFunStore.getState().addToken({
+              name: data.params.name || 'Unknown',
+              symbol: data.params.symbol || 'UNKNOWN',
+              marketCap: parseFloat(data.params.marketCap) || 0,
+              liquidityAdded: Boolean(data.params.liquidityAdded),
+              holders: parseInt(data.params.holders) || 0,
+              volume24h: parseFloat(data.params.volume24h) || 0,
+              address: data.params.address,
+              price: parseFloat(data.params.price) || 0,
+            });
+          }
+        } catch (error) {
+          console.error('❌ Error processing WebSocket message:', error);
+        }
+      };
+
+      this.ws.onclose = () => {
+        console.log('⚠️ PumpFun WebSocket disconnected');
+        this.cleanup();
+        this.reconnect();
+      };
+
+      this.ws.onerror = (error) => {
+        console.error('🚨 PumpFun WebSocket error:', error);
+        this.cleanup();
+        this.reconnect();
+      };
+
+    } catch (error) {
+      console.error('Failed to establish WebSocket connection:', error);
+      this.cleanup();
+      this.reconnect();
+    }
+  }
+
+  private startHeartbeat() {
+    // Clear any existing heartbeat
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+
+    // Send heartbeat every 30 seconds
+    this.heartbeatInterval = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ method: "heartbeat" }));
       }
-    };
+    }, 30000);
+  }
 
-    this.ws.onclose = () => {
-      console.log('⚠️ PumpFun WebSocket disconnected');
-      usePumpFunStore.getState().setConnected(false);
-      this.reconnect();
-    };
-
-    this.ws.onerror = (error) => {
-      console.error('🚨 PumpFun WebSocket error:', error);
-      usePumpFunStore.getState().setConnected(false);
-      this.reconnect();
-    };
+  private cleanup() {
+    usePumpFunStore.getState().setConnected(false);
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
   }
 
   private reconnect() {
@@ -103,15 +147,15 @@ class PumpFunWebSocket {
 
     setTimeout(() => {
       this.connect();
-    }, this.reconnectDelay);
+    }, this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1)); // Exponential backoff
   }
 
   disconnect() {
     if (this.ws) {
       console.log('🔌 Closing WebSocket connection');
+      this.cleanup();
       this.ws.close();
       this.ws = null;
-      usePumpFunStore.getState().setConnected(false);
     }
   }
 }
