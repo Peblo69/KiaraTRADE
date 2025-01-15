@@ -67,11 +67,32 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // Start the server
-    const PORT = parseInt(process.env.PORT || "5000", 10);
-    server.listen(PORT, "0.0.0.0", () => {
-      log(`Server running on port ${PORT}`);
-    });
+    // Start the server with port fallback logic
+    const tryPort = async (port: number): Promise<number> => {
+      try {
+        await new Promise((resolve, reject) => {
+          server.listen(port, "0.0.0.0")
+            .once('listening', () => {
+              log(`Server running on port ${port}`);
+              resolve(port);
+            })
+            .once('error', (err: any) => {
+              if (err.code === 'EADDRINUSE') {
+                log(`Port ${port} is in use, trying next port`);
+                resolve(tryPort(port + 1));
+              } else {
+                reject(err);
+              }
+            });
+        });
+        return port;
+      } catch (error) {
+        throw error;
+      }
+    };
+
+    const startingPort = parseInt(process.env.PORT || "3001", 10);
+    await tryPort(startingPort);
 
     // Handle server shutdown gracefully
     process.on('SIGTERM', () => {
