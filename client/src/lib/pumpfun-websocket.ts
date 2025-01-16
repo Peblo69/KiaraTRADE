@@ -28,7 +28,7 @@ export const usePumpFunStore = create<PumpFunState>((set) => ({
       return {
         tokens: [...state.tokens, token]
           .sort((a, b) => b.marketCap - a.marketCap)
-          .slice(0, 100), // Keep only the top 100 tokens
+          .slice(0, 100), // Keep only the top 100 tokens by market cap
       };
     }),
   updateToken: (address, updates) =>
