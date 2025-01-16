@@ -23,19 +23,24 @@ export const usePumpFunStore = create<PumpFunState>((set) => ({
   tokens: [],
   isConnected: false,
   addToken: (token) =>
-    set((state) => ({
-      // Sort tokens by market cap in descending order when adding new token
-      tokens: [...state.tokens, token]
-        .sort((a, b) => b.marketCap - a.marketCap)
-        .slice(0, 100), // Keep only the top 100 tokens
-    })),
+    set((state) => {
+      console.log('Adding token to store:', token);
+      return {
+        tokens: [...state.tokens, token]
+          .sort((a, b) => b.marketCap - a.marketCap)
+          .slice(0, 100), // Keep only the top 100 tokens
+      };
+    }),
   updateToken: (address, updates) =>
     set((state) => ({
       tokens: state.tokens.map((token) =>
         token.address === address ? { ...token, ...updates } : token
       ),
     })),
-  setConnected: (status) => set({ isConnected: status }),
+  setConnected: (status) => {
+    console.log('Setting connection status:', status);
+    set({ isConnected: status });
+  }
 }));
 
 class PumpFunWebSocket {
@@ -54,7 +59,7 @@ class PumpFunWebSocket {
 
     try {
       console.log('Attempting to connect to PumpFun WebSocket...');
-      this.ws = new WebSocket('wss://pumpportal.fun/api/data');
+      this.ws = new WebSocket('wss://pump.fun/ws/v1');
 
       this.ws.onopen = () => {
         console.log('✅ Connected to PumpFun WebSocket');
@@ -64,15 +69,21 @@ class PumpFunWebSocket {
         // Start heartbeat
         this.startHeartbeat();
 
+        // For testing - add some mock data while waiting for real data
+        this.addMockData();
+
         // Subscribe to new token events
         if (this.ws?.readyState === WebSocket.OPEN) {
           console.log('Sending subscription request...');
-          this.ws.send(JSON.stringify({
-            method: "subscribeNewToken",
-            params: {
-              type: "newTokens"
+          const subscriptionMsg = {
+            type: "subscribe",
+            channel: "tokens",
+            data: {
+              event: "new_token"
             }
-          }));
+          };
+          console.log('Subscription message:', subscriptionMsg);
+          this.ws.send(JSON.stringify(subscriptionMsg));
         }
       };
 
@@ -81,29 +92,34 @@ class PumpFunWebSocket {
           console.log('Received WebSocket message:', event.data);
           const data = JSON.parse(event.data);
 
-          if (data.method === 'subscribeNewToken' && data.params) {
-            console.log('Processing new token data:', data.params);
-            const price = parseFloat(data.params.price) || 0;
+          if (data.type === 'token' && data.data) {
+            console.log('Processing new token data:', data.data);
+            const tokenData = data.data;
+            const price = parseFloat(tokenData.price) || 0;
             const marketCap = price * this.TOTAL_SUPPLY; // Calculate market cap based on 1B supply
 
-            usePumpFunStore.getState().addToken({
-              name: data.params.name || 'Unknown',
-              symbol: data.params.symbol || 'UNKNOWN',
-              marketCap, // Store calculated market cap
-              liquidityAdded: Boolean(data.params.liquidityAdded),
-              holders: parseInt(data.params.holders) || 0,
-              volume24h: parseFloat(data.params.volume24h) || 0,
-              address: data.params.address,
+            const token = {
+              name: tokenData.name || 'Unknown',
+              symbol: tokenData.symbol || 'UNKNOWN',
+              marketCap,
+              liquidityAdded: Boolean(tokenData.liquidityAdded),
+              holders: parseInt(tokenData.holders) || 0,
+              volume24h: parseFloat(tokenData.volume24h) || 0,
+              address: tokenData.address,
               price,
-            });
+            };
+
+            console.log('Adding processed token:', token);
+            usePumpFunStore.getState().addToken(token);
           }
         } catch (error) {
           console.error('❌ Error processing WebSocket message:', error);
+          console.error('Message data:', event.data);
         }
       };
 
-      this.ws.onclose = () => {
-        console.log('⚠️ PumpFun WebSocket disconnected');
+      this.ws.onclose = (event) => {
+        console.log('⚠️ PumpFun WebSocket disconnected', event.code, event.reason);
         this.cleanup();
         this.reconnect();
       };
@@ -121,6 +137,36 @@ class PumpFunWebSocket {
     }
   }
 
+  private addMockData() {
+    // Add some mock data for testing
+    const mockTokens = [
+      {
+        name: "Sample Token 1",
+        symbol: "ST1",
+        price: 0.00001,
+        marketCap: 10000,
+        liquidityAdded: true,
+        holders: 100,
+        volume24h: 5000,
+        address: "sample1"
+      },
+      {
+        name: "Sample Token 2",
+        symbol: "ST2",
+        price: 0.00002,
+        marketCap: 20000,
+        liquidityAdded: true,
+        holders: 200,
+        volume24h: 10000,
+        address: "sample2"
+      }
+    ];
+
+    mockTokens.forEach(token => {
+      usePumpFunStore.getState().addToken(token);
+    });
+  }
+
   private startHeartbeat() {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
@@ -128,12 +174,14 @@ class PumpFunWebSocket {
 
     this.heartbeatInterval = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ method: "heartbeat" }));
+        console.log('Sending heartbeat');
+        this.ws.send(JSON.stringify({ type: "ping" }));
       }
     }, 30000);
   }
 
   private cleanup() {
+    console.log('Cleaning up WebSocket connection');
     usePumpFunStore.getState().setConnected(false);
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
