@@ -4,12 +4,17 @@ interface TokenData {
   name: string;
   symbol: string;
   marketCap: number;
+  marketCapSol: number;
   liquidityAdded: boolean;
   holders: number;
   volume24h: number;
   address: string;
   price: number;
   imageUrl?: string;
+  signature?: string;
+  uri?: string;
+  initialBuy?: number;
+  solAmount?: number;
 }
 
 interface PumpPortalState {
@@ -85,7 +90,7 @@ class PumpPortalWebSocket {
         try {
           console.log('[PumpPortal WebSocket] Received message:', event.data);
           const data = JSON.parse(event.data);
-          
+
           if (data.event === 'newToken') {
             this.handleNewToken(data.token);
           } else if (data.event === 'tokenTrade') {
@@ -144,13 +149,16 @@ class PumpPortalWebSocket {
     const token: TokenData = {
       name: tokenData.name || 'Unknown',
       symbol: tokenData.symbol || 'UNKNOWN',
-      marketCap: tokenData.marketCap || 0,
-      liquidityAdded: Boolean(tokenData.liquidityAdded),
-      holders: parseInt(tokenData.holders) || 0,
-      volume24h: parseFloat(tokenData.volume24h) || 0,
-      address: tokenData.address,
-      price: parseFloat(tokenData.price) || 0,
-      imageUrl: tokenData.imageUrl,
+      marketCap: tokenData.marketCapSol || 0,
+      liquidityAdded: Boolean(tokenData.pool === "pump"),
+      holders: 0, // Will be updated through trade events
+      volume24h: 0, // Will be updated through trade events
+      address: tokenData.mint,
+      price: tokenData.solAmount / tokenData.initialBuy || 0,
+      imageUrl: tokenData.uri,
+      signature: tokenData.signature,
+      initialBuy: tokenData.initialBuy,
+      solAmount: tokenData.solAmount
     };
 
     usePumpPortalStore.getState().addToken(token);
@@ -174,22 +182,28 @@ class PumpPortalWebSocket {
         symbol: "ST1",
         price: 0.00001,
         marketCap: 10000,
+        marketCapSol: 10000,
         liquidityAdded: true,
         holders: 100,
         volume24h: 5000,
         address: "sample1",
-        imageUrl: "https://cryptologos.cc/logos/solana-sol-logo.png"
+        imageUrl: "https://cryptologos.cc/logos/solana-sol-logo.png",
+        initialBuy: 1000,
+        solAmount: 10
       },
       {
         name: "Sample Token 2",
         symbol: "ST2",
         price: 0.00002,
         marketCap: 20000,
+        marketCapSol: 20000,
         liquidityAdded: true,
         holders: 200,
         volume24h: 10000,
         address: "sample2",
-        imageUrl: "https://cryptologos.cc/logos/solana-sol-logo.png"
+        imageUrl: "https://cryptologos.cc/logos/solana-sol-logo.png",
+        initialBuy: 2000,
+        solAmount: 40
       }
     ];
 

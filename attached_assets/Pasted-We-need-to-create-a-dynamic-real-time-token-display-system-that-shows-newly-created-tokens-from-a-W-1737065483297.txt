@@ -1,0 +1,90 @@
+We need to create a dynamic, real-time token display system that shows newly created tokens from a WebSocket data feed. The design should look similar to platforms like Bullx or Photon, where each token is displayed as a small, visually appealing card or mini-window. New tokens should appear at the top of the list and move down as more tokens are added.
+
+Features and Details:
+
+Data Source:
+Tokens are received through a WebSocket connection. Each token message contains the following key fields:
+name: The name of the token (e.g., "The Sendor Is Live").
+symbol: The token's symbol (e.g., "SENDOR").
+uri: A URL to the token's metadata or image (e.g., https://ipfs.io/...).
+marketCapSol: The token's market cap in SOL (e.g., 30.62).
+initialBuy: The amount initially bought (e.g., 47840764.33).
+solAmount: The SOL amount used for the initial transaction (e.g., 1.4).
+signature: A unique transaction signature, which can be used as a link to a blockchain explorer (e.g., Solscan).
+pool: A tag or classification for the token (e.g., pump).
+UI Design Requirements:
+
+Token Cards:
+
+Each token should be displayed as a card or mini-window.
+Include the following on each card:
+Profile Image: Use the uri to fetch and display the token's image. If unavailable, use a default placeholder image.
+Name and Symbol: Display prominently, with the symbol as a tag or subtitle.
+Market Cap: Show marketCapSol rounded to two decimal places (e.g., "30.62 SOL").
+Initial Buy and SOL Amount: Include these as activity indicators (e.g., "Initial Buy: 47.84M, SOL: 1.4").
+Transaction Link: Make the signature a clickable link that opens in a blockchain explorer.
+Pool Tag: Display the pool as a small badge or label.
+Dynamic Updates:
+
+As new tokens arrive, display them at the top of the list.
+Older tokens should move down, with a maximum of 100 tokens visible at a time.
+Use a smooth scrolling or animation effect when adding new tokens.
+Scroll Area:
+
+The token list should be contained in a vertically scrollable area.
+Set a maximum height for the list (e.g., 500px) and enable overflow scrolling.
+Responsive Design:
+
+Ensure the token cards are responsive and adapt to different screen sizes.
+Use a grid layout on wider screens and a single-column layout on mobile.
+Technical Requirements:
+
+WebSocket Integration:
+
+Connect to the WebSocket endpoint: wss://pumpportal.fun/api/data.
+Listen for messages where txType is create.
+Parse the message data and extract the required fields (name, symbol, uri, etc.).
+Add new tokens dynamically to the UI.
+Metadata Handling:
+
+If the uri field points to JSON metadata, parse it to extract the image field.
+Fallback to a placeholder image if the uri is invalid or empty.
+Styling and Animation:
+
+Use modern UI styles with CSS or frameworks like Tailwind CSS.
+Add smooth animations for new tokens appearing in the list.
+Blockchain Links:
+
+Format the signature into a clickable URL for Solscan:
+Example: https://solscan.io/tx/<signature>.
+Example Token Card Layout (Desktop View):
+
+sql
+Copy
+Edit
++--------------------------------------------------+
+| [Profile Image]  Token Name     [Symbol Badge]   |
+|                                                  |
+| Market Cap: 30.62 SOL                            |
+| Initial Buy: 47.84M SOL: 1.4                     |
+| Pool: Pump    [View on Solscan]                  |
++--------------------------------------------------+
+Mobile View:
+
+sql
+Copy
+Edit
++----------------------------------+
+| [Profile Image]                  |
+| Token Name                       |
+| [Symbol Badge]                   |
+| Market Cap: 30.62 SOL            |
+| Initial Buy: 47.84M SOL: 1.4     |
+| Pool: Pump    [View on Solscan]  |
++----------------------------------+
+Behavior:
+
+When the WebSocket sends a new token, the UI should immediately add it as the first card in the list.
+Cards should move down smoothly as new tokens are added.
+If the list exceeds 100 tokens, remove the oldest ones.
+This explanation should provide the builder AI with all the information needed to create the system. Let me know if there’s anything else to add or clarify!

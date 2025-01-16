@@ -32,16 +32,28 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
           <h3 className="text-lg font-bold text-purple-300">{token.name || 'Unknown Token'}</h3>
           <p className="text-sm text-gray-400">{token.symbol || 'UNKNOWN'}</p>
         </div>
-        {token.address && (
-          <a 
-            href={`https://solscan.io/token/${token.address}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-purple-400 hover:text-purple-300 transition-colors"
-          >
-            <ExternalLink size={16} />
-          </a>
-        )}
+        <div className="flex gap-2">
+          {token.signature && (
+            <a 
+              href={`https://solscan.io/tx/${token.signature}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-400 hover:text-purple-300 transition-colors"
+            >
+              <ExternalLink size={16} />
+            </a>
+          )}
+          {token.address && (
+            <a 
+              href={`https://solscan.io/token/${token.address}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-400 hover:text-purple-300 transition-colors ml-2"
+            >
+              <SiSolana size={16} />
+            </a>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -49,24 +61,24 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
           <div className="flex items-center gap-2 text-sm">
             <Wallet size={14} className="text-purple-400" />
             <span className="text-gray-300">Market Cap:</span>
-            <span className="text-purple-300 font-semibold">${formatNumber(token.marketCap || 0)}</span>
+            <span className="text-purple-300 font-semibold">{formatNumber(token.marketCap)} SOL</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Users size={14} className="text-purple-400" />
-            <span className="text-gray-300">Holders:</span>
-            <span className="text-purple-300">{formatNumber(token.holders || 0)}</span>
+            <span className="text-gray-300">Initial Buy:</span>
+            <span className="text-purple-300">{formatNumber(token.initialBuy || 0)}</span>
           </div>
         </div>
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
             <TrendingUp size={14} className="text-purple-400" />
-            <span className="text-gray-300">24h Volume:</span>
-            <span className="text-purple-300">${formatNumber(token.volume24h || 0)}</span>
+            <span className="text-gray-300">SOL Amount:</span>
+            <span className="text-purple-300">{token.solAmount?.toFixed(2) || '0.00'} SOL</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <SiSolana className="text-purple-400" />
             <span className="text-gray-300">Price:</span>
-            <span className="text-purple-300">${(token.price || 0).toFixed(6)}</span>
+            <span className="text-purple-300">{(token.price || 0).toFixed(6)} SOL</span>
           </div>
         </div>
       </div>
@@ -74,7 +86,7 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
       {token.liquidityAdded && (
         <div className="mt-3 text-xs">
           <span className="px-2 py-1 rounded-full bg-green-500/20 text-green-300">
-            Liquidity Added
+            Pump Pool
           </span>
         </div>
       )}
