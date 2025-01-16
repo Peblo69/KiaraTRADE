@@ -1,7 +1,7 @@
 import { FC, useEffect, useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { usePumpFunStore } from '@/lib/pumpfun-websocket';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
 interface LogMessage {
   timestamp: string;
@@ -11,9 +11,9 @@ interface LogMessage {
 
 export const DebugPanel: FC = () => {
   const [logs, setLogs] = useState<LogMessage[]>([]);
-  const isConnected = usePumpFunStore(state => state.isConnected);
-  const connectionError = usePumpFunStore(state => state.connectionError);
-  const tokens = usePumpFunStore(state => state.tokens);
+  const isConnected = usePumpPortalStore(state => state.isConnected);
+  const connectionError = usePumpPortalStore(state => state.connectionError);
+  const tokens = usePumpPortalStore(state => state.tokens);
 
   useEffect(() => {
     // Override console.log to capture WebSocket related logs
@@ -23,7 +23,7 @@ export const DebugPanel: FC = () => {
     console.log = (...args) => {
       originalLog.apply(console, args);
       const message = args.join(' ');
-      if (message.includes('[PumpFun')) {
+      if (message.includes('[PumpPortal')) {
         setLogs(prev => [...prev, {
           timestamp: new Date().toLocaleTimeString(),
           message,
@@ -35,7 +35,7 @@ export const DebugPanel: FC = () => {
     console.error = (...args) => {
       originalError.apply(console, args);
       const message = args.join(' ');
-      if (message.includes('[PumpFun')) {
+      if (message.includes('[PumpPortal')) {
         setLogs(prev => [...prev, {
           timestamp: new Date().toLocaleTimeString(),
           message,
@@ -67,7 +67,7 @@ export const DebugPanel: FC = () => {
           </div>
         </div>
       </div>
-      
+
       <ScrollArea className="h-[300px] rounded-md border border-purple-500/20">
         <div className="p-4 space-y-2">
           {logs.map((log, index) => (

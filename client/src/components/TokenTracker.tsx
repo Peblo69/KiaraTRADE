@@ -1,6 +1,6 @@
 import { FC, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
-import { pumpFunSocket, usePumpFunStore } from '@/lib/pumpfun-websocket';
+import { pumpPortalSocket, usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { SiSolana } from 'react-icons/si';
 import { ExternalLink, TrendingUp, Users, Wallet, Wifi, WifiOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -83,16 +83,16 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
 );
 
 export const TokenTracker: FC = () => {
-  const tokens = usePumpFunStore(state => state.tokens);
-  const isConnected = usePumpFunStore(state => state.isConnected);
-  const connectionError = usePumpFunStore(state => state.connectionError);
+  const tokens = usePumpPortalStore(state => state.tokens);
+  const isConnected = usePumpPortalStore(state => state.isConnected);
+  const connectionError = usePumpPortalStore(state => state.connectionError);
 
   useEffect(() => {
     console.log('[TokenTracker] Component mounted, connecting to WebSocket...');
-    pumpFunSocket.connect();
+    pumpPortalSocket.connect();
     return () => {
       console.log('[TokenTracker] Component unmounted, disconnecting WebSocket...');
-      pumpFunSocket.disconnect();
+      pumpPortalSocket.disconnect();
     };
   }, []);
 
@@ -100,21 +100,21 @@ export const TokenTracker: FC = () => {
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row items-center justify-between mb-6">
         <div className="flex flex-col items-center md:items-start space-y-2 mb-4 md:mb-0">
-          <h2 className="text-2xl font-bold text-purple-300">Top PumpFun Tokens</h2>
-          <p className="text-sm text-gray-400">Sorted by Market Cap (Supply: 1B tokens)</p>
+          <h2 className="text-2xl font-bold text-purple-300">Live PumpFun Tokens</h2>
+          <p className="text-sm text-gray-400">Real-time token tracking (1B supply)</p>
         </div>
         <div className="flex items-center gap-2">
           {isConnected ? (
             <div className="flex items-center gap-2 text-sm text-green-400">
               <Wifi size={16} />
-              <span>Connected to PumpFun</span>
+              <span>Connected to PumpPortal</span>
               <span className="animate-pulse inline-block w-2 h-2 bg-green-500 rounded-full"></span>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-sm text-red-400">
               <WifiOff size={16} />
               <span>
-                {connectionError || 'Connecting to PumpFun...'}
+                {connectionError || 'Connecting to PumpPortal...'}
               </span>
             </div>
           )}
@@ -134,7 +134,7 @@ export const TokenTracker: FC = () => {
           <p className="text-gray-400">
             {isConnected 
               ? "Waiting for new tokens..." 
-              : connectionError || "Connecting to PumpFun..."}
+              : connectionError || "Connecting to PumpPortal..."}
           </p>
         </div>
       )}
