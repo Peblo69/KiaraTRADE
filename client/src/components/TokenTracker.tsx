@@ -84,12 +84,13 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
 export const TokenTracker: FC = () => {
   const tokens = usePumpFunStore(state => state.tokens);
   const isConnected = usePumpFunStore(state => state.isConnected);
+  const connectionError = usePumpFunStore(state => state.connectionError);
 
   useEffect(() => {
-    console.log('TokenTracker mounted, connecting to WebSocket...');
+    console.log('[TokenTracker] Component mounted, connecting to WebSocket...');
     pumpFunSocket.connect();
     return () => {
-      console.log('TokenTracker unmounted, disconnecting WebSocket...');
+      console.log('[TokenTracker] Component unmounted, disconnecting WebSocket...');
       pumpFunSocket.disconnect();
     };
   }, []);
@@ -111,7 +112,9 @@ export const TokenTracker: FC = () => {
           ) : (
             <div className="flex items-center gap-2 text-sm text-red-400">
               <WifiOff size={16} />
-              <span>Connecting to PumpFun...</span>
+              <span>
+                {connectionError || 'Connecting to PumpFun...'}
+              </span>
             </div>
           )}
         </div>
@@ -130,7 +133,7 @@ export const TokenTracker: FC = () => {
           <p className="text-gray-400">
             {isConnected 
               ? "Waiting for new tokens..." 
-              : "Connecting to PumpFun..."}
+              : connectionError || "Connecting to PumpFun..."}
           </p>
         </div>
       )}

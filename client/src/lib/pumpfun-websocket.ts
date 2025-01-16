@@ -9,22 +9,26 @@ interface TokenData {
   volume24h: number;
   address: string;
   price: number;
+  imageUrl?: string; // Optional token image URL
 }
 
 interface PumpFunState {
   tokens: TokenData[];
   isConnected: boolean;
+  connectionError: string | null;
   addToken: (token: TokenData) => void;
   updateToken: (address: string, updates: Partial<TokenData>) => void;
   setConnected: (status: boolean) => void;
+  setError: (error: string | null) => void;
 }
 
 export const usePumpFunStore = create<PumpFunState>((set) => ({
   tokens: [],
   isConnected: false,
+  connectionError: null,
   addToken: (token) =>
     set((state) => {
-      console.log('Adding token to store:', token);
+      console.log('[PumpFun Store] Adding token:', token);
       return {
         tokens: [...state.tokens, token]
           .sort((a, b) => b.marketCap - a.marketCap)
@@ -38,8 +42,12 @@ export const usePumpFunStore = create<PumpFunState>((set) => ({
       ),
     })),
   setConnected: (status) => {
-    console.log('Setting connection status:', status);
-    set({ isConnected: status });
+    console.log('[PumpFun Store] Connection status:', status);
+    set({ isConnected: status, connectionError: null });
+  },
+  setError: (error) => {
+    console.log('[PumpFun Store] Connection error:', error);
+    set({ connectionError: error });
   }
 }));
 
@@ -53,28 +61,28 @@ class PumpFunWebSocket {
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      console.log('WebSocket already connected');
+      console.log('[PumpFun WebSocket] Already connected');
       return;
     }
 
     try {
-      console.log('Attempting to connect to PumpFun WebSocket...');
+      console.log('[PumpFun WebSocket] Attempting to connect...');
       this.ws = new WebSocket('wss://pump.fun/ws/v1');
 
       this.ws.onopen = () => {
-        console.log('✅ Connected to PumpFun WebSocket');
+        console.log('[PumpFun WebSocket] ✅ Connected successfully');
         usePumpFunStore.getState().setConnected(true);
         this.reconnectAttempts = 0;
 
         // Start heartbeat
         this.startHeartbeat();
 
-        // For testing - add some mock data while waiting for real data
+        // Add mock data for initial UI testing
         this.addMockData();
 
         // Subscribe to new token events
         if (this.ws?.readyState === WebSocket.OPEN) {
-          console.log('Sending subscription request...');
+          console.log('[PumpFun WebSocket] Sending subscription request...');
           const subscriptionMsg = {
             type: "subscribe",
             channel: "tokens",
@@ -82,21 +90,21 @@ class PumpFunWebSocket {
               event: "new_token"
             }
           };
-          console.log('Subscription message:', subscriptionMsg);
+          console.log('[PumpFun WebSocket] Subscription message:', subscriptionMsg);
           this.ws.send(JSON.stringify(subscriptionMsg));
         }
       };
 
       this.ws.onmessage = (event) => {
         try {
-          console.log('Received WebSocket message:', event.data);
+          console.log('[PumpFun WebSocket] Received message:', event.data);
           const data = JSON.parse(event.data);
 
           if (data.type === 'token' && data.data) {
-            console.log('Processing new token data:', data.data);
+            console.log('[PumpFun WebSocket] Processing token data:', data.data);
             const tokenData = data.data;
             const price = parseFloat(tokenData.price) || 0;
-            const marketCap = price * this.TOTAL_SUPPLY; // Calculate market cap based on 1B supply
+            const marketCap = price * this.TOTAL_SUPPLY;
 
             const token = {
               name: tokenData.name || 'Unknown',
@@ -107,38 +115,42 @@ class PumpFunWebSocket {
               volume24h: parseFloat(tokenData.volume24h) || 0,
               address: tokenData.address,
               price,
+              imageUrl: tokenData.uri || undefined,
             };
 
-            console.log('Adding processed token:', token);
+            console.log('[PumpFun WebSocket] Adding processed token:', token);
             usePumpFunStore.getState().addToken(token);
           }
         } catch (error) {
-          console.error('❌ Error processing WebSocket message:', error);
-          console.error('Message data:', event.data);
+          console.error('[PumpFun WebSocket] ❌ Error processing message:', error);
+          console.error('[PumpFun WebSocket] Message data:', event.data);
+          usePumpFunStore.getState().setError('Failed to process token data');
         }
       };
 
       this.ws.onclose = (event) => {
-        console.log('⚠️ PumpFun WebSocket disconnected', event.code, event.reason);
+        console.log('[PumpFun WebSocket] ⚠️ Connection closed', event.code, event.reason);
         this.cleanup();
         this.reconnect();
       };
 
       this.ws.onerror = (error) => {
-        console.error('🚨 PumpFun WebSocket error:', error);
+        console.error('[PumpFun WebSocket] 🚨 Connection error:', error);
+        usePumpFunStore.getState().setError('WebSocket connection error');
         this.cleanup();
         this.reconnect();
       };
 
     } catch (error) {
-      console.error('Failed to establish WebSocket connection:', error);
+      console.error('[PumpFun WebSocket] Failed to establish connection:', error);
+      usePumpFunStore.getState().setError('Failed to establish WebSocket connection');
       this.cleanup();
       this.reconnect();
     }
   }
 
   private addMockData() {
-    // Add some mock data for testing
+    console.log('[PumpFun WebSocket] Adding mock data for testing...');
     const mockTokens = [
       {
         name: "Sample Token 1",
@@ -148,7 +160,8 @@ class PumpFunWebSocket {
         liquidityAdded: true,
         holders: 100,
         volume24h: 5000,
-        address: "sample1"
+        address: "sample1",
+        imageUrl: "https://cryptologos.cc/logos/solana-sol-logo.png"
       },
       {
         name: "Sample Token 2",
@@ -158,11 +171,13 @@ class PumpFunWebSocket {
         liquidityAdded: true,
         holders: 200,
         volume24h: 10000,
-        address: "sample2"
+        address: "sample2",
+        imageUrl: "https://cryptologos.cc/logos/solana-sol-logo.png"
       }
     ];
 
     mockTokens.forEach(token => {
+      console.log('[PumpFun WebSocket] Adding mock token:', token);
       usePumpFunStore.getState().addToken(token);
     });
   }
@@ -174,14 +189,14 @@ class PumpFunWebSocket {
 
     this.heartbeatInterval = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
-        console.log('Sending heartbeat');
+        console.log('[PumpFun WebSocket] Sending heartbeat ping');
         this.ws.send(JSON.stringify({ type: "ping" }));
       }
     }, 30000);
   }
 
   private cleanup() {
-    console.log('Cleaning up WebSocket connection');
+    console.log('[PumpFun WebSocket] Cleaning up connection');
     usePumpFunStore.getState().setConnected(false);
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
@@ -191,12 +206,13 @@ class PumpFunWebSocket {
 
   private reconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('❌ Max WebSocket reconnect attempts reached');
+      console.error('[PumpFun WebSocket] ❌ Max reconnect attempts reached');
+      usePumpFunStore.getState().setError('Maximum reconnection attempts reached');
       return;
     }
 
     this.reconnectAttempts++;
-    console.log(`🔄 Attempting WebSocket reconnect (#${this.reconnectAttempts})...`);
+    console.log(`[PumpFun WebSocket] 🔄 Attempting reconnect (#${this.reconnectAttempts})...`);
 
     setTimeout(() => {
       this.connect();
@@ -205,7 +221,7 @@ class PumpFunWebSocket {
 
   disconnect() {
     if (this.ws) {
-      console.log('🔌 Closing WebSocket connection');
+      console.log('[PumpFun WebSocket] 🔌 Closing connection');
       this.cleanup();
       this.ws.close();
       this.ws = null;

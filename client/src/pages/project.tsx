@@ -12,7 +12,7 @@ const ProjectPage: FC = () => {
         <main className="container mx-auto px-4 py-8">
           <div className="max-w-7xl mx-auto">
             <h1 
-              className="text-6xl md:text-8xl font-bold text-center mb-12"
+              className="text-4xl md:text-6xl font-bold text-center mb-8"
               style={{
                 fontFamily: '"VT323", monospace',
                 background: 'linear-gradient(to right, #00ff87 0%, #60efff 50%, #0061ff 100%)',
@@ -25,7 +25,7 @@ const ProjectPage: FC = () => {
                 animation: 'pulse 2s ease-in-out infinite'
               }}
             >
-              Coming Soon...
+              PumpFun Token Tracker
             </h1>
             <TokenTracker />
           </div>
