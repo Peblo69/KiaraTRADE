@@ -12,6 +12,7 @@ import { WalletContextProvider } from "@/lib/wallet";
 import Landing from "@/pages/landing";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
+import { TokenTracker } from "@/components/TokenTracker";
 
 // Protected Route component to handle session authentication
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -50,6 +51,9 @@ function Router() {
       </Route>
       <Route path="/subscriptions">
         <ProtectedRoute component={SubscriptionsPage} />
+      </Route>
+      <Route path="/tokens">
+        <ProtectedRoute component={TokenTracker} />
       </Route>
       <Route>
         <ProtectedRoute component={NotFound} />
