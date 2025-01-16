@@ -37,6 +37,7 @@ export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMet
     }
 
     const data = await response.json();
+    console.log('Received metadata response:', data); // Debug log
 
     if (!data.result) {
       throw new Error('No metadata found');
@@ -48,30 +49,47 @@ export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMet
       uri: data.result.uri || '',
     };
 
-    // If we have a URI, try to fetch the actual image URL
+    // If we have a URI, try to fetch the actual image URL with retries
     if (metadata.uri) {
-      try {
-        const uriResponse = await fetch(metadata.uri);
-        if (!uriResponse.ok) {
-          throw new Error(`Failed to fetch URI data: ${uriResponse.statusText}`);
+      let attempts = 0;
+      const maxAttempts = 3;
+
+      while (attempts < maxAttempts) {
+        try {
+          console.log(`Attempting to fetch URI data (attempt ${attempts + 1}):`, metadata.uri);
+          const uriResponse = await fetch(metadata.uri);
+
+          if (!uriResponse.ok) {
+            throw new Error(`Failed to fetch URI data: ${uriResponse.statusText}`);
+          }
+
+          const uriData = await uriResponse.json();
+          console.log('Received URI data:', uriData); // Debug log
+
+          // Try different possible image fields in order of preference
+          metadata.image = 
+            uriData.image_url || // Try official image URL first
+            uriData.image || // Then standard image field
+            uriData.imageUrl || // Then alternate casing
+            uriData.uri || // Then fall back to URI
+            metadata.uri; // Finally use original URI
+
+          if (metadata.image) {
+            console.log('Found image URL:', metadata.image);
+            break; // Successfully found an image URL
+          }
+
+          metadata.description = uriData.description;
+          break;
+        } catch (error) {
+          console.error(`Attempt ${attempts + 1} failed:`, error);
+          attempts++;
+          if (attempts === maxAttempts) {
+            console.error('All attempts to fetch URI data failed');
+            metadata.image = metadata.uri; // Use URI as fallback
+          }
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempts)); // Exponential backoff
         }
-
-        const uriData = await uriResponse.json();
-
-        // Try different possible image fields
-        metadata.image = uriData.image || 
-                        uriData.image_url || 
-                        uriData.imageUrl || 
-                        uriData.uri ||
-                        metadata.uri;
-
-        metadata.description = uriData.description;
-
-        console.log('Enriched metadata for token:', mintAddress, metadata);
-      } catch (error) {
-        console.error('Failed to fetch token URI data:', error);
-        // Keep the original URI if the extended fetch fails
-        metadata.image = metadata.uri;
       }
     }
 
@@ -79,10 +97,13 @@ export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMet
     metadataCache.set(mintAddress, metadata);
 
     // Update the token in the store with enriched data
+    const imageUrl = getImageUrl(metadata.image || metadata.uri);
+    console.log('Final image URL:', imageUrl); // Debug log
+
     usePumpPortalStore.getState().updateToken(mintAddress, {
       name: metadata.name,
       symbol: metadata.symbol,
-      imageUrl: getImageUrl(metadata.image || metadata.uri),
+      imageUrl,
     });
 
     return metadata;
