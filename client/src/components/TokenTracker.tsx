@@ -1,8 +1,6 @@
 import { FC, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
-import { pumpPortalSocket, usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { heliusSocket, useHeliusStore } from '@/lib/helius-websocket';
-import { getImageUrl, enrichTokenMetadata } from '@/lib/token-metadata';
+import { pumpFunSocket, usePumpFunStore } from '@/lib/pumpfun-websocket';
 import { SiSolana } from 'react-icons/si';
 import { 
   ExternalLink, 
@@ -31,19 +29,8 @@ const formatNumber = (num: number) => {
 };
 
 const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
-  const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
-  const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
-
-  // Only fetch metadata if we don't have an image URL
-  useEffect(() => {
-    if (token.address && !token.imageUrl) {
-      console.log('[TokenCard] Fetching metadata for token:', token.address);
-      enrichTokenMetadata(token.address).catch(console.error);
-    }
-  }, [token.address]);
-
-  // Get the image URL, preferring the direct imageUrl from WebSocket data
-  const imageUrl = token.imageUrl || token.uri || 'https://cryptologos.cc/logos/solana-sol-logo.png';
+  // Use PumpFun's direct image URL
+  const imageUrl = token.imageUrl || `https://pump.fun/token/${token.address}/image`;
   console.log('[TokenCard] Using image URL:', imageUrl, 'for token:', token.address);
 
   return (
@@ -65,9 +52,7 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
                 onError={(e) => {
                   console.log('[TokenCard] Image load error for token:', token.address);
                   const img = e.target as HTMLImageElement;
-                  if (!img.src.includes('solana-sol-logo.png')) {
-                    img.src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
-                  }
+                  img.src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
                 }}
               />
               <div className="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-black"></div>
@@ -76,12 +61,6 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
               <h3 className="text-lg font-bold text-white mb-0.5">{token.name || 'Unknown Token'}</h3>
               <div className="flex items-center gap-2">
                 <p className="text-sm text-blue-400 font-medium">{token.symbol || 'UNKNOWN'}</p>
-                {token.priceChange24h && (
-                  <span className={`text-xs font-semibold flex items-center gap-0.5 ${priceChangeColor}`}>
-                    <PriceChangeIcon size={12} />
-                    {Math.abs(token.priceChange24h).toFixed(2)}%
-                  </span>
-                )}
               </div>
             </div>
           </div>
@@ -119,30 +98,30 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
                 <Wallet size={14} className="text-blue-400" />
                 <span className="text-gray-400">Market Cap</span>
               </div>
-              <span className="text-white font-bold">{formatNumber(token.marketCapSol)} SOL</span>
+              <span className="text-white font-bold">{formatNumber(token.marketCap)} SOL</span>
             </div>
             <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
               <div className="flex items-center gap-2 text-sm mb-1">
                 <Users size={14} className="text-blue-400" />
-                <span className="text-gray-400">Initial Buy</span>
+                <span className="text-gray-400">Holders</span>
               </div>
-              <span className="text-white font-bold">{formatNumber(token.initialBuy || 0)}</span>
+              <span className="text-white font-bold">{formatNumber(token.holders)}</span>
             </div>
           </div>
           <div className="space-y-3">
             <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
               <div className="flex items-center gap-2 text-sm mb-1">
                 <TrendingUp size={14} className="text-blue-400" />
-                <span className="text-gray-400">SOL Amount</span>
+                <span className="text-gray-400">Volume 24h</span>
               </div>
-              <span className="text-white font-bold">{token.solAmount?.toFixed(2) || '0.00'} SOL</span>
+              <span className="text-white font-bold">{formatNumber(token.volume24h)} SOL</span>
             </div>
             <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
               <div className="flex items-center gap-2 text-sm mb-1">
                 <Clock size={14} className="text-blue-400" />
                 <span className="text-gray-400">Price</span>
               </div>
-              <span className="text-white font-bold">{(token.price || 0).toFixed(6)} SOL</span>
+              <span className="text-white font-bold">{token.price.toFixed(6)} SOL</span>
             </div>
           </div>
         </div>
@@ -150,23 +129,10 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
         {/* Liquidity Info */}
         {token.liquidityAdded && (
           <div className="border-t border-gray-800 pt-3 mt-3">
-            <div className="flex items-center gap-2 text-sm mb-2">
-              <BarChart3 size={14} className="text-blue-400" />
-              <span className="text-gray-400">Liquidity Pool:</span>
-              <span className="text-white font-bold">{formatNumber(token.vSolInBondingCurve || 0)} SOL</span>
-            </div>
             <div className="flex items-center justify-between">
               <span className="px-2 py-1 rounded-full bg-green-500/20 text-green-400 text-xs font-medium border border-green-500/20">
-                Pump Pool Active
+                Liquidity Added
               </span>
-              {token.lastUpdated && (
-                <div className="flex items-center gap-1 text-xs text-gray-500">
-                  <ActivitySquare size={12} />
-                  <span>
-                    Updated {new Date(token.lastUpdated).toLocaleTimeString()}
-                  </span>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -176,17 +142,14 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
 };
 
 export const TokenTracker: FC = () => {
-  const tokens = usePumpPortalStore(state => state.tokens);
-  const heliusConnected = useHeliusStore(state => state.isConnected);
+  const tokens = usePumpFunStore(state => state.tokens);
 
   useEffect(() => {
-    // Connect to both websocket sources
-    pumpPortalSocket.connect();
-    heliusSocket.connect();
+    // Connect to PumpFun WebSocket
+    pumpFunSocket.connect();
 
     return () => {
-      pumpPortalSocket.disconnect();
-      heliusSocket.disconnect();
+      pumpFunSocket.disconnect();
     };
   }, []);
 
