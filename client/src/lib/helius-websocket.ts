@@ -59,24 +59,63 @@ class HeliusWebSocket {
           this.messageHandlers.forEach(handler => handler(data));
 
           if (data.type === 'transaction') {
-            // Process transaction data
-            const { description, type, tokenTransfers, nativeTransfers, accountData, signature } = data;
+            // Extract transaction details
+            const { description, type, tokenTransfers, nativeTransfers, accountData } = data;
             console.log('[Helius WebSocket] Processing transaction:', { description, type });
 
+            // Process token transfers
             if (tokenTransfers?.length > 0) {
               tokenTransfers.forEach((transfer: any) => {
+                if (!transfer.mint) return;
+
                 const existingToken = usePumpPortalStore.getState().tokens.find(
                   t => t.address === transfer.mint
                 );
 
                 if (existingToken) {
-                  console.log('[Helius WebSocket] Updating token data:', transfer);
+                  // Calculate new values
+                  const volume24h = (existingToken.volume24h || 0) + (parseFloat(transfer.amount) || 0);
+                  const price = transfer.amount && transfer.tokenAmount 
+                    ? parseFloat(transfer.amount) / parseFloat(transfer.tokenAmount)
+                    : existingToken.price;
+
+                  // Update token data
+                  console.log('[Helius WebSocket] Updating token data:', {
+                    mint: transfer.mint,
+                    volume24h,
+                    price
+                  });
+
                   usePumpPortalStore.getState().updateToken(transfer.mint, {
-                    volume24h: (existingToken.volume24h || 0) + (transfer.amount || 0),
+                    volume24h,
+                    price,
                     lastUpdated: Date.now()
                   });
                 }
               });
+            }
+
+            // Process native transfers for market cap updates
+            if (nativeTransfers?.length > 0) {
+              const totalTransfer = nativeTransfers.reduce(
+                (sum: number, transfer: any) => sum + (parseFloat(transfer.amount) || 0),
+                0
+              );
+
+              if (totalTransfer > 0 && data.mint) {
+                const existingToken = usePumpPortalStore.getState().tokens.find(
+                  t => t.address === data.mint
+                );
+
+                if (existingToken) {
+                  // Update market cap based on total transfer
+                  const marketCapSol = totalTransfer * (existingToken.price || 0);
+                  usePumpPortalStore.getState().updateToken(data.mint, {
+                    marketCapSol,
+                    lastUpdated: Date.now()
+                  });
+                }
+              }
             }
           }
 
@@ -118,6 +157,7 @@ class HeliusWebSocket {
 
     this.heartbeatInterval = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
+        console.log('[Helius WebSocket] Sending heartbeat');
         this.ws.send(JSON.stringify({ type: "ping" }));
       }
     }, 30000);
@@ -136,7 +176,8 @@ class HeliusWebSocket {
             filters: [
               { value: "SWAP", field: "type" },
               { value: "TRANSFER", field: "type" },
-              { value: "NFT_SALE", field: "type" }
+              { value: "NFT_SALE", field: "type" },
+              { value: "TOKEN_CREATE", field: "type" }
             ]
           }
         }

@@ -1,0 +1,169 @@
+Next Steps to Fix Dead Data and Add Features
+1. Fetch Metadata for Token Images
+Update the imageUrl field dynamically by querying token metadata via the Helius RPC API or Metaplex Metadata Program.
+
+javascript
+Copy
+Edit
+async function fetchTokenMetadata(mintAddress) {
+  const query = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "getTokenMetadata",
+    params: { mint: mintAddress },
+  };
+
+  try {
+    const response = await fetch("https://mainnet.helius-rpc.com/?api-key=YOUR_API_KEY", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(query),
+    });
+
+    const result = await response.json();
+    if (result?.result?.uri) {
+      const metadataResponse = await fetch(result.result.uri);
+      const metadata = await metadataResponse.json();
+      return metadata.image; // Image URL
+    }
+  } catch (error) {
+    console.error("Failed to fetch token metadata:", error);
+  }
+
+  return null; // Fallback if metadata fetching fails
+}
+2. Render Tokens Dynamically
+Add logic to render tokens dynamically on the UI when they are added to the Zustand store.
+
+javascript
+Copy
+Edit
+function displayToken(token) {
+  const tokenList = document.getElementById("token-list");
+
+  const tokenCard = document.createElement("div");
+  tokenCard.className = "token-card";
+  tokenCard.id = `token-${token.address}`;
+  tokenCard.innerHTML = `
+    <img src="${token.imageUrl}" alt="${token.name}" style="width: 100px; height: 100px;">
+    <h3>${token.name} (${token.symbol})</h3>
+    <p>Market Cap: ${token.marketCap} SOL</p>
+    <p>Price: ${token.price} SOL</p>
+    <p>Volume (24h): ${token.volume24h} SOL</p>
+    <canvas id="chart-${token.address}" width="400" height="200"></canvas>
+  `;
+
+  tokenList.appendChild(tokenCard);
+}
+3. Add Graphs for Tokens
+Use Chart.js to visualize token-specific data (e.g., price or volume trends).
+
+javascript
+Copy
+Edit
+function createGraph(token) {
+  const ctx = document.getElementById(`chart-${token.address}`).getContext("2d");
+
+  const chart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: [],
+      datasets: [
+        {
+          label: "Price (SOL)",
+          data: [],
+          borderColor: "rgba(75, 192, 192, 1)",
+          tension: 0.1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: { title: { display: true, text: "Time" } },
+        y: { title: { display: true, text: "Price (SOL)" } },
+      },
+    },
+  });
+
+  return chart;
+}
+
+function updateGraph(chart, data) {
+  chart.data.labels.push(new Date().toLocaleTimeString());
+  chart.data.datasets[0].data.push(data.price);
+  chart.update();
+}
+4. Handle WebSocket and Fallback Logic
+Add a fallback mechanism to periodically fetch token data if WebSocket disconnects
+
+or fails to provide data.
+
+javascript
+Copy
+Edit
+// Periodic fetch for token data
+async function fetchTokenData() {
+  const tokens = usePumpFunStore.getState().tokens;
+
+  for (const token of tokens) {
+    const metadata = await fetchTokenMetadata(token.address);
+    if (metadata) {
+      usePumpFunStore.getState().updateToken(token.address, {
+        imageUrl: metadata.image || token.imageUrl,
+        marketCap: metadata.marketCap || token.marketCap,
+        price: metadata.price || token.price,
+        volume24h: metadata.volume24h || token.volume24h,
+      });
+
+      // Update the UI and graph
+      const card = document.getElementById(`token-${token.address}`);
+      if (card) {
+        card.querySelector("p:nth-of-type(1)").textContent = `Market Cap: ${metadata.marketCap} SOL`;
+        card.querySelector("p:nth-of-type(2)").textContent = `Price: ${metadata.price} SOL`;
+        card.querySelector("p:nth-of-type(3)").textContent = `Volume (24h): ${metadata.volume24h} SOL`;
+      }
+
+      const chart = tokenCharts.get(token.address);
+      if (chart) {
+        updateGraph(chart, { price: metadata.price });
+      }
+    }
+  }
+}
+
+// Fallback interval
+setInterval(fetchTokenData, 30000);
+5. Update WebSocket Logic to Handle Graph Updates
+Modify the WebSocket onmessage handler to update graphs dynamically when new data arrives.
+
+javascript
+Copy
+Edit
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+
+  if (data.type === "token") {
+    const tokenData = {
+      name: data.data.name || "Unknown",
+      symbol: data.data.symbol || "UNKNOWN",
+      marketCap: parseFloat(data.data.marketCap) || 0,
+      price: parseFloat(data.data.price) || 0,
+      volume24h: parseFloat(data.data.volume24h) || 0,
+      address: data.data.address,
+      imageUrl: `https://pump.fun/token/${data.data.address}/image`,
+    };
+
+    const chart = tokenCharts.get(tokenData.address) || createGraph(tokenData);
+    updateGraph(chart, { price: tokenData.price });
+
+    usePumpFunStore.getState().addToken(tokenData);
+    displayToken(tokenData);
+  }
+};
+Final Setup
+WebSocket: Provides real-time token updates.
+Metadata Fetch: Retrieves enriched metadata (e.g., images) using Helius RPC API.
+UI Rendering: Dynamically adds tokens as cards with updated details.
+Graphs: Visualize token-specific metrics (e.g., price trends) using Chart.js.
+Fallback Logic: Periodically fetches token data to ensure reliability.
