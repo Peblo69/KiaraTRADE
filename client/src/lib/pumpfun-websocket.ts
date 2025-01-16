@@ -24,7 +24,10 @@ export const usePumpFunStore = create<PumpFunState>((set) => ({
   isConnected: false,
   addToken: (token) =>
     set((state) => ({
-      tokens: [token, ...state.tokens].slice(0, 100), // Keep only the latest 100 tokens
+      // Sort tokens by market cap in descending order when adding new token
+      tokens: [...state.tokens, token]
+        .sort((a, b) => b.marketCap - a.marketCap)
+        .slice(0, 100), // Keep only the top 100 tokens
     })),
   updateToken: (address, updates) =>
     set((state) => ({
@@ -41,6 +44,7 @@ class PumpFunWebSocket {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 5000; // 5 seconds
   private heartbeatInterval: NodeJS.Timeout | null = null;
+  private readonly TOTAL_SUPPLY = 1_000_000_000; // 1 billion tokens
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -79,15 +83,18 @@ class PumpFunWebSocket {
 
           if (data.method === 'subscribeNewToken' && data.params) {
             console.log('Processing new token data:', data.params);
+            const price = parseFloat(data.params.price) || 0;
+            const marketCap = price * this.TOTAL_SUPPLY; // Calculate market cap based on 1B supply
+
             usePumpFunStore.getState().addToken({
               name: data.params.name || 'Unknown',
               symbol: data.params.symbol || 'UNKNOWN',
-              marketCap: parseFloat(data.params.marketCap) || 0,
+              marketCap, // Store calculated market cap
               liquidityAdded: Boolean(data.params.liquidityAdded),
               holders: parseInt(data.params.holders) || 0,
               volume24h: parseFloat(data.params.volume24h) || 0,
               address: data.params.address,
-              price: parseFloat(data.params.price) || 0,
+              price,
             });
           }
         } catch (error) {
@@ -115,12 +122,10 @@ class PumpFunWebSocket {
   }
 
   private startHeartbeat() {
-    // Clear any existing heartbeat
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
     }
 
-    // Send heartbeat every 30 seconds
     this.heartbeatInterval = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ method: "heartbeat" }));

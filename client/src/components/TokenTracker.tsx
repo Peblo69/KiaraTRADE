@@ -6,6 +6,9 @@ import { ExternalLink, TrendingUp, Users, Wallet, Wifi, WifiOff } from 'lucide-r
 import { motion, AnimatePresence } from 'framer-motion';
 
 const formatNumber = (num: number) => {
+  if (num >= 1000000000) {
+    return `${(num / 1000000000).toFixed(2)}B`;
+  }
   if (num >= 1000000) {
     return `${(num / 1000000).toFixed(2)}M`;
   }
@@ -45,7 +48,7 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
           <div className="flex items-center gap-2 text-sm">
             <Wallet size={14} className="text-purple-400" />
             <span className="text-gray-300">Market Cap:</span>
-            <span className="text-purple-300">${formatNumber(token.marketCap || 0)}</span>
+            <span className="text-purple-300 font-semibold">${formatNumber(token.marketCap || 0)}</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Users size={14} className="text-purple-400" />
@@ -93,8 +96,11 @@ export const TokenTracker: FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-purple-300">Live Token Tracker</h2>
+      <div className="flex flex-col md:flex-row items-center justify-between mb-6">
+        <div className="flex flex-col items-center md:items-start space-y-2 mb-4 md:mb-0">
+          <h2 className="text-2xl font-bold text-purple-300">Top PumpFun Tokens</h2>
+          <p className="text-sm text-gray-400">Sorted by Market Cap (Supply: 1B tokens)</p>
+        </div>
         <div className="flex items-center gap-2">
           {isConnected ? (
             <div className="flex items-center gap-2 text-sm text-green-400">
