@@ -2,6 +2,7 @@ import { FC, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { pumpPortalSocket, usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { heliusSocket, useHeliusStore } from '@/lib/helius-websocket';
+import { getImageUrl, enrichTokenMetadata } from '@/lib/token-metadata';
 import { SiSolana } from 'react-icons/si';
 import { 
   ExternalLink, 
@@ -33,6 +34,15 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
   const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
   const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
 
+  // Fetch metadata when token is first displayed
+  useEffect(() => {
+    if (token.address && (!token.imageUrl || token.imageUrl === 'https://cryptologos.cc/logos/solana-sol-logo.png')) {
+      enrichTokenMetadata(token.address).catch(console.error);
+    }
+  }, [token.address]);
+
+  const imageUrl = getImageUrl(token.imageUrl);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -44,19 +54,20 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
         {/* Token Header with Image */}
         <div className="flex justify-between items-start mb-4">
           <div className="flex items-center gap-3">
-            {token.uri && (
-              <div className="relative">
-                <img 
-                  src={token.uri} 
-                  alt={token.symbol} 
-                  className="w-12 h-12 rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
-                  }}
-                />
-                <div className="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-black"></div>
-              </div>
-            )}
+            <div className="relative">
+              <img 
+                src={imageUrl}
+                alt={token.symbol} 
+                className="w-12 h-12 rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover"
+                onError={(e) => {
+                  const img = e.target as HTMLImageElement;
+                  if (img.src !== 'https://cryptologos.cc/logos/solana-sol-logo.png') {
+                    img.src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
+                  }
+                }}
+              />
+              <div className="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-black"></div>
+            </div>
             <div>
               <h3 className="text-lg font-bold text-white mb-0.5">{token.name || 'Unknown Token'}</h3>
               <div className="flex items-center gap-2">
