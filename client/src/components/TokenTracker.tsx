@@ -2,7 +2,7 @@ import { FC, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { pumpPortalSocket, usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { SiSolana } from 'react-icons/si';
-import { ExternalLink, TrendingUp, Users, Wallet } from 'lucide-react';
+import { ExternalLink, TrendingUp, Users, Wallet, BarChart3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const formatNumber = (num: number) => {
@@ -26,10 +26,23 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
     transition={{ duration: 0.3, delay: index * 0.1 }}
   >
     <Card className="p-4 backdrop-blur-sm bg-purple-900/10 border-purple-500/20 hover:border-purple-500/40 transition-all hover:transform hover:-translate-y-1">
+      {/* Token Header with Image */}
       <div className="flex justify-between items-start mb-3">
-        <div>
-          <h3 className="text-lg font-bold text-purple-300">{token.name || 'Unknown Token'}</h3>
-          <p className="text-sm text-gray-400">{token.symbol || 'UNKNOWN'}</p>
+        <div className="flex items-center gap-3">
+          {token.uri && (
+            <img 
+              src={token.uri} 
+              alt={token.symbol} 
+              className="w-10 h-10 rounded-full bg-purple-900/30"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
+              }}
+            />
+          )}
+          <div>
+            <h3 className="text-lg font-bold text-purple-300">{token.name || 'Unknown Token'}</h3>
+            <p className="text-sm text-gray-400">{token.symbol || 'UNKNOWN'}</p>
+          </div>
         </div>
         <div className="flex gap-2">
           {token.signature && (
@@ -38,6 +51,7 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
               target="_blank"
               rel="noopener noreferrer"
               className="text-purple-400 hover:text-purple-300 transition-colors"
+              title="View Transaction"
             >
               <ExternalLink size={16} />
             </a>
@@ -48,6 +62,7 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
               target="_blank"
               rel="noopener noreferrer"
               className="text-purple-400 hover:text-purple-300 transition-colors ml-2"
+              title="View Token"
             >
               <SiSolana size={16} />
             </a>
@@ -55,12 +70,13 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      {/* Market Stats */}
+      <div className="grid grid-cols-2 gap-4 mb-3">
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
             <Wallet size={14} className="text-purple-400" />
             <span className="text-gray-300">Market Cap:</span>
-            <span className="text-purple-300 font-semibold">{formatNumber(token.marketCap)} SOL</span>
+            <span className="text-purple-300 font-semibold">{formatNumber(token.marketCapSol)} SOL</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Users size={14} className="text-purple-400" />
@@ -82,11 +98,19 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
         </div>
       </div>
 
+      {/* Liquidity Info */}
       {token.liquidityAdded && (
-        <div className="mt-3 text-xs">
-          <span className="px-2 py-1 rounded-full bg-green-500/20 text-green-300">
-            Pump Pool
-          </span>
+        <div className="border-t border-purple-500/20 pt-3 mt-3">
+          <div className="flex items-center gap-2 text-sm mb-2">
+            <BarChart3 size={14} className="text-purple-400" />
+            <span className="text-gray-300">Liquidity Pool:</span>
+            <span className="text-purple-300">{formatNumber(token.vSolInBondingCurve || 0)} SOL</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-1 rounded-full bg-green-500/20 text-green-300 text-xs">
+              Pump Pool
+            </span>
+          </div>
         </div>
       )}
     </Card>
