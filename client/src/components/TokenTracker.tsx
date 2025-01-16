@@ -2,7 +2,7 @@ import { FC, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { pumpPortalSocket, usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { SiSolana } from 'react-icons/si';
-import { ExternalLink, TrendingUp, Users, Wallet, BarChart3 } from 'lucide-react';
+import { ExternalLink, TrendingUp, Users, Wallet, BarChart3, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const formatNumber = (num: number) => {
@@ -25,23 +25,26 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
     exit={{ opacity: 0, scale: 0.95 }}
     transition={{ duration: 0.3, delay: index * 0.1 }}
   >
-    <Card className="p-4 backdrop-blur-sm bg-purple-900/10 border-purple-500/20 hover:border-purple-500/40 transition-all hover:transform hover:-translate-y-1">
+    <Card className="p-4 bg-black/40 backdrop-blur-lg border border-gray-800 hover:border-blue-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/10">
       {/* Token Header with Image */}
-      <div className="flex justify-between items-start mb-3">
+      <div className="flex justify-between items-start mb-4">
         <div className="flex items-center gap-3">
           {token.uri && (
-            <img 
-              src={token.uri} 
-              alt={token.symbol} 
-              className="w-10 h-10 rounded-full bg-purple-900/30"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
-              }}
-            />
+            <div className="relative">
+              <img 
+                src={token.uri} 
+                alt={token.symbol} 
+                className="w-12 h-12 rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
+                }}
+              />
+              <div className="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-black"></div>
+            </div>
           )}
           <div>
-            <h3 className="text-lg font-bold text-purple-300">{token.name || 'Unknown Token'}</h3>
-            <p className="text-sm text-gray-400">{token.symbol || 'UNKNOWN'}</p>
+            <h3 className="text-lg font-bold text-white mb-0.5">{token.name || 'Unknown Token'}</h3>
+            <p className="text-sm text-blue-400 font-medium">{token.symbol || 'UNKNOWN'}</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -50,7 +53,7 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
               href={`https://solscan.io/tx/${token.signature}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-purple-400 hover:text-purple-300 transition-colors"
+              className="text-gray-400 hover:text-blue-400 transition-colors"
               title="View Transaction"
             >
               <ExternalLink size={16} />
@@ -61,7 +64,7 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
               href={`https://solscan.io/token/${token.address}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-purple-400 hover:text-purple-300 transition-colors ml-2"
+              className="text-gray-400 hover:text-blue-400 transition-colors ml-2"
               title="View Token"
             >
               <SiSolana size={16} />
@@ -70,45 +73,53 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
         </div>
       </div>
 
-      {/* Market Stats */}
-      <div className="grid grid-cols-2 gap-4 mb-3">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm">
-            <Wallet size={14} className="text-purple-400" />
-            <span className="text-gray-300">Market Cap:</span>
-            <span className="text-purple-300 font-semibold">{formatNumber(token.marketCapSol)} SOL</span>
+      {/* Market Stats Grid */}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="space-y-3">
+          <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
+            <div className="flex items-center gap-2 text-sm mb-1">
+              <Wallet size={14} className="text-blue-400" />
+              <span className="text-gray-400">Market Cap</span>
+            </div>
+            <span className="text-white font-bold">{formatNumber(token.marketCapSol)} SOL</span>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <Users size={14} className="text-purple-400" />
-            <span className="text-gray-300">Initial Buy:</span>
-            <span className="text-purple-300">{formatNumber(token.initialBuy || 0)}</span>
+          <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
+            <div className="flex items-center gap-2 text-sm mb-1">
+              <Users size={14} className="text-blue-400" />
+              <span className="text-gray-400">Initial Buy</span>
+            </div>
+            <span className="text-white font-bold">{formatNumber(token.initialBuy || 0)}</span>
           </div>
         </div>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm">
-            <TrendingUp size={14} className="text-purple-400" />
-            <span className="text-gray-300">SOL Amount:</span>
-            <span className="text-purple-300">{token.solAmount?.toFixed(2) || '0.00'} SOL</span>
+        <div className="space-y-3">
+          <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
+            <div className="flex items-center gap-2 text-sm mb-1">
+              <TrendingUp size={14} className="text-blue-400" />
+              <span className="text-gray-400">SOL Amount</span>
+            </div>
+            <span className="text-white font-bold">{token.solAmount?.toFixed(2) || '0.00'} SOL</span>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <SiSolana className="text-purple-400" />
-            <span className="text-gray-300">Price:</span>
-            <span className="text-purple-300">{(token.price || 0).toFixed(6)} SOL</span>
+          <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
+            <div className="flex items-center gap-2 text-sm mb-1">
+              <Clock size={14} className="text-blue-400" />
+              <span className="text-gray-400">Price</span>
+            </div>
+            <span className="text-white font-bold">{(token.price || 0).toFixed(6)} SOL</span>
           </div>
         </div>
       </div>
 
       {/* Liquidity Info */}
       {token.liquidityAdded && (
-        <div className="border-t border-purple-500/20 pt-3 mt-3">
+        <div className="border-t border-gray-800 pt-3 mt-3">
           <div className="flex items-center gap-2 text-sm mb-2">
-            <BarChart3 size={14} className="text-purple-400" />
-            <span className="text-gray-300">Liquidity Pool:</span>
-            <span className="text-purple-300">{formatNumber(token.vSolInBondingCurve || 0)} SOL</span>
+            <BarChart3 size={14} className="text-blue-400" />
+            <span className="text-gray-400">Liquidity Pool:</span>
+            <span className="text-white font-bold">{formatNumber(token.vSolInBondingCurve || 0)} SOL</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="px-2 py-1 rounded-full bg-green-500/20 text-green-300 text-xs">
-              Pump Pool
+            <span className="px-2 py-1 rounded-full bg-green-500/20 text-green-400 text-xs font-medium border border-green-500/20">
+              Pump Pool Active
             </span>
           </div>
         </div>
@@ -128,25 +139,21 @@ export const TokenTracker: FC = () => {
   }, []);
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto px-4">
       <h1 
-        className="text-4xl md:text-6xl font-bold text-center mb-8"
+        className="text-4xl md:text-6xl font-bold text-center mb-12"
         style={{
-          fontFamily: '"VT323", monospace',
-          background: 'linear-gradient(to right, #00ff87 0%, #60efff 50%, #0061ff 100%)',
+          background: 'linear-gradient(to right, #3b82f6, #60a5fa)',
           backgroundClip: 'text',
           WebkitBackgroundClip: 'text',
           color: 'transparent',
-          textShadow: '0 0 30px rgba(96, 239, 255, 0.4)',
-          letterSpacing: '0.15em',
-          filter: 'drop-shadow(0 0 10px rgba(96, 239, 255, 0.2))',
-          animation: 'pulse 2s ease-in-out infinite'
+          textShadow: '0 0 30px rgba(59, 130, 246, 0.5)',
         }}
       >
-        PumpFun Token Tracker
+        Real-Time Token Tracker
       </h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence>
           {tokens.map((token, index) => (
             <TokenCard key={token.address || index} token={token} index={index} />
