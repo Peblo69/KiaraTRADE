@@ -179,6 +179,7 @@ export const TokenTracker: FC = () => {
   const tokens = usePumpPortalStore(state => state.tokens);
 
   useEffect(() => {
+    console.log('[TokenTracker] Initializing WebSocket connections');
     pumpPortalSocket.connect();
     heliusSocket.connect();
     initializeVolumeTracking();
