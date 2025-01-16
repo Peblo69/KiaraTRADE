@@ -1,7 +1,8 @@
 import { FC, useEffect, useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { pumpPortalSocket, usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { heliusSocket, useHeliusStore } from '@/lib/helius-websocket';
+import { heliusSocket } from '@/lib/helius-websocket';
+import { initializeVolumeTracking, useTokenVolumeStore } from '@/lib/token-volume';
 import { SiSolana } from 'react-icons/si';
 import { 
   ExternalLink, 
@@ -34,40 +35,23 @@ interface VolumeData {
 }
 
 const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
-  const [volumeHistory, setVolumeHistory] = useState<VolumeData[]>([]);
+  const volumeHistory = useTokenVolumeStore(state => state.getVolumeHistory(token.address));
   const [isLoadingVolume, setIsLoadingVolume] = useState(false);
   const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
   const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
 
   useEffect(() => {
-    const fetchVolumeHistory = async () => {
-      if (!token.address || isLoadingVolume) return;
-
+    if (!volumeHistory.length && token.address) {
       setIsLoadingVolume(true);
-      try {
-        const response = await fetch(`https://pump.fun/api/v1/tokens/${token.address}/volume?period=24h`);
-        if (!response.ok) throw new Error('Failed to fetch volume history');
-
-        const data = await response.json();
-        const volumeData = data.volumes.map((v: any) => ({
-          timestamp: v.timestamp,
-          volume: v.volume
-        }));
-
-        setVolumeHistory(volumeData);
-      } catch (error) {
-        console.error('[TokenCard] Error fetching volume history:', error);
-        const mockData = Array.from({ length: 24 }, (_, i) => ({
-          timestamp: Date.now() - (23 - i) * 3600000,
-          volume: Math.random() * token.volume24h / 24
-        }));
-        setVolumeHistory(mockData);
-      } finally {
-        setIsLoadingVolume(false);
-      }
-    };
-
-    fetchVolumeHistory();
+      const mockData = Array.from({ length: 24 }, (_, i) => ({
+        timestamp: Date.now() - (23 - i) * 3600000,
+        volume: Math.random() * token.volume24h / 24
+      }));
+      mockData.forEach(data => {
+        useTokenVolumeStore.getState().addVolumeData(token.address, data.volume);
+      });
+      setIsLoadingVolume(false);
+    }
   }, [token.address]);
 
   const imageUrl = token.imageUrl || token.uri || `https://pump.fun/token/${token.address}/image`;
@@ -195,10 +179,9 @@ export const TokenTracker: FC = () => {
   const tokens = usePumpPortalStore(state => state.tokens);
 
   useEffect(() => {
-    // Connect to both websocket sources
     pumpPortalSocket.connect();
     heliusSocket.connect();
-
+    initializeVolumeTracking();
     return () => {
       pumpPortalSocket.disconnect();
       heliusSocket.disconnect();

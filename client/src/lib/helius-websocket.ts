@@ -30,6 +30,7 @@ class HeliusWebSocket {
   private reconnectDelay = 5000;
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private readonly API_KEY = '004f9b13-f526-4952-9998-52f5c7bec6ee';
+  private messageHandlers: ((data: any) => void)[] = [];
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -52,6 +53,11 @@ class HeliusWebSocket {
       this.ws.onmessage = async (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('[Helius WebSocket] Received message:', data);
+
+          // Notify all message handlers
+          this.messageHandlers.forEach(handler => handler(data));
+
           if (data.type === 'create') {
             const tokenData: HeliusTokenData = {
               mint: data.mint,
@@ -61,7 +67,7 @@ class HeliusWebSocket {
               signature: data.signature,
             };
 
-            // Enrich token data in PumpPortal store
+            // Update token in PumpPortal store
             const existingToken = usePumpPortalStore.getState().tokens.find(
               t => t.address === tokenData.mint
             );
@@ -102,6 +108,10 @@ class HeliusWebSocket {
     }
   }
 
+  onMessage(handler: (data: any) => void) {
+    this.messageHandlers.push(handler);
+  }
+
   private startHeartbeat() {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
@@ -116,11 +126,14 @@ class HeliusWebSocket {
 
   private subscribeToTokenEvents() {
     if (this.ws?.readyState === WebSocket.OPEN) {
+      // Subscribe to token transactions
       this.ws.send(JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
         method: "subscribeTokenEvents",
-        params: {}
+        params: {
+          types: ["create", "swap", "transfer"]
+        }
       }));
     }
   }
@@ -131,6 +144,7 @@ class HeliusWebSocket {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
     }
+    this.messageHandlers = [];
   }
 
   private reconnect() {
