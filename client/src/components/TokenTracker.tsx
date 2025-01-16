@@ -16,17 +16,20 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { VolumeChart } from './VolumeChart';
 
-const formatNumber = (num: number) => {
+// SOL price in USD (this should be fetched from an API in production)
+const SOL_PRICE_USD = 104.23;
+
+const formatNumber = (num: number, isCurrency = false) => {
   if (num >= 1000000000) {
-    return `${(num / 1000000000).toFixed(2)}B`;
+    return `${isCurrency ? '$' : ''}${(num / 1000000000).toFixed(2)}B`;
   }
   if (num >= 1000000) {
-    return `${(num / 1000000).toFixed(2)}M`;
+    return `${isCurrency ? '$' : ''}${(num / 1000000).toFixed(2)}M`;
   }
   if (num >= 1000) {
-    return `${(num / 1000).toFixed(2)}K`;
+    return `${isCurrency ? '$' : ''}${(num / 1000).toFixed(2)}K`;
   }
-  return num.toFixed(2);
+  return `${isCurrency ? '$' : ''}${num.toFixed(2)}`;
 };
 
 interface VolumeData {
@@ -56,6 +59,11 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
 
   const imageUrl = token.imageUrl || token.uri || `https://pump.fun/token/${token.address}/image`;
   console.log('[TokenCard] Using image URL:', imageUrl, 'for token:', token.address);
+
+  // Calculate USD values
+  const marketCapUSD = (token.marketCapSol || token.marketCap || 0) * SOL_PRICE_USD;
+  const initialBuyUSD = (token.initialBuy || 0) * SOL_PRICE_USD;
+  const volume24hUSD = (token.volume24h || 0) * SOL_PRICE_USD;
 
   return (
     <motion.div
@@ -126,14 +134,20 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
                 <Wallet size={14} className="text-blue-400" />
                 <span className="text-gray-400">Market Cap</span>
               </div>
-              <span className="text-white font-bold">{formatNumber(token.marketCapSol || token.marketCap)} SOL</span>
+              <div className="flex flex-col">
+                <span className="text-white font-bold">{formatNumber(marketCapUSD, true)}</span>
+                <span className="text-xs text-gray-500">{formatNumber(token.marketCapSol || token.marketCap)} SOL</span>
+              </div>
             </div>
             <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
               <div className="flex items-center gap-2 text-sm mb-1">
                 <Users size={14} className="text-blue-400" />
                 <span className="text-gray-400">Initial Buy</span>
               </div>
-              <span className="text-white font-bold">{formatNumber(token.initialBuy || 0)}</span>
+              <div className="flex flex-col">
+                <span className="text-white font-bold">{formatNumber(initialBuyUSD, true)}</span>
+                <span className="text-xs text-gray-500">{formatNumber(token.initialBuy || 0)} SOL</span>
+              </div>
             </div>
           </div>
           <div className="space-y-3">
@@ -142,14 +156,20 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
                 <TrendingUp size={14} className="text-blue-400" />
                 <span className="text-gray-400">Volume 24h</span>
               </div>
-              <span className="text-white font-bold">{formatNumber(token.volume24h || 0)} SOL</span>
+              <div className="flex flex-col">
+                <span className="text-white font-bold">{formatNumber(volume24hUSD, true)}</span>
+                <span className="text-xs text-gray-500">{formatNumber(token.volume24h || 0)} SOL</span>
+              </div>
             </div>
             <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
               <div className="flex items-center gap-2 text-sm mb-1">
                 <Clock size={14} className="text-blue-400" />
                 <span className="text-gray-400">Price</span>
               </div>
-              <span className="text-white font-bold">{(token.price || 0).toFixed(6)} SOL</span>
+              <div className="flex flex-col">
+                <span className="text-white font-bold">${((token.price || 0) * SOL_PRICE_USD).toFixed(6)}</span>
+                <span className="text-xs text-gray-500">{(token.price || 0).toFixed(6)} SOL</span>
+              </div>
             </div>
           </div>
         </div>
