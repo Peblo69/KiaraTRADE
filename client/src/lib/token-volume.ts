@@ -10,9 +10,9 @@ interface TokenVolumeState {
   volumeData: Record<string, VolumeData[]>;
   addVolumeData: (tokenAddress: string, amount: number) => void;
   getVolumeHistory: (tokenAddress: string) => VolumeData[];
+  updateVolume24h: (tokenAddress: string, volume: number) => void;
 }
 
-// Create a store for managing token volume data
 export const useTokenVolumeStore = create<TokenVolumeState>((set, get) => ({
   volumeData: {},
 
@@ -28,6 +28,9 @@ export const useTokenVolumeStore = create<TokenVolumeState>((set, get) => ({
       const twentyFourHoursAgo = currentTime - 24 * 60 * 60 * 1000;
       const filteredData = newData.filter(data => data.timestamp >= twentyFourHoursAgo);
 
+      // Sort data by timestamp
+      filteredData.sort((a, b) => a.timestamp - b.timestamp);
+
       return {
         volumeData: {
           ...state.volumeData,
@@ -41,37 +44,53 @@ export const useTokenVolumeStore = create<TokenVolumeState>((set, get) => ({
     const state = get();
     return state.volumeData[tokenAddress] || [];
   },
+
+  updateVolume24h: (tokenAddress: string, volume: number) => {
+    set((state) => {
+      const currentData = state.volumeData[tokenAddress] || [];
+      const currentTime = Date.now();
+
+      // If there's no data, create initial data points
+      if (currentData.length === 0) {
+        const initialData = Array.from({ length: 24 }, (_, i) => ({
+          timestamp: currentTime - (23 - i) * 3600000,
+          volume: volume / 24 // Distribute volume evenly across 24 hours
+        }));
+
+        return {
+          volumeData: {
+            ...state.volumeData,
+            [tokenAddress]: initialData,
+          },
+        };
+      }
+
+      return state;
+    });
+  },
 }));
 
-// Function to process Helius transaction data
+// Process transaction data and update volume
 export const processHeliusTransaction = (transaction: any) => {
   try {
-    console.log('[Token Volume] Processing Helius transaction:', transaction);
+    console.log('[Token Volume] Processing transaction:', transaction);
 
     if (!transaction || !transaction.type) {
       console.warn('[Token Volume] Invalid transaction data');
       return;
     }
 
-    // Handle different transaction types
     switch (transaction.type) {
       case 'SWAP':
-        if (transaction.tokenTransfers) {
-          transaction.tokenTransfers.forEach((transfer: any) => {
-            if (transfer.mint && transfer.amount) {
-              console.log(`[Token Volume] Adding swap volume for token ${transfer.mint}: ${transfer.amount} SOL`);
-              useTokenVolumeStore.getState().addVolumeData(transfer.mint, transfer.amount);
-            }
-          });
-        }
-        break;
-
       case 'TRANSFER':
         if (transaction.tokenTransfers) {
           transaction.tokenTransfers.forEach((transfer: any) => {
             if (transfer.mint && transfer.amount) {
-              console.log(`[Token Volume] Adding transfer volume for token ${transfer.mint}: ${transfer.amount} SOL`);
-              useTokenVolumeStore.getState().addVolumeData(transfer.mint, transfer.amount);
+              const amount = parseFloat(transfer.amount);
+              if (!isNaN(amount) && amount > 0) {
+                console.log(`[Token Volume] Adding volume for token ${transfer.mint}: ${amount} SOL`);
+                useTokenVolumeStore.getState().addVolumeData(transfer.mint, amount);
+              }
             }
           });
         }
@@ -79,25 +98,29 @@ export const processHeliusTransaction = (transaction: any) => {
 
       case 'NFT_SALE':
         if (transaction.nativeTransfers) {
-          transaction.nativeTransfers.forEach((transfer: any) => {
-            if (transfer.amount) {
-              console.log(`[Token Volume] Adding NFT sale volume: ${transfer.amount} SOL`);
-              useTokenVolumeStore.getState().addVolumeData(transaction.mint, transfer.amount);
-            }
-          });
+          const totalAmount = transaction.nativeTransfers.reduce(
+            (sum: number, transfer: any) => sum + (parseFloat(transfer.amount) || 0),
+            0
+          );
+
+          if (totalAmount > 0 && transaction.mint) {
+            console.log(`[Token Volume] Adding NFT sale volume for ${transaction.mint}: ${totalAmount} SOL`);
+            useTokenVolumeStore.getState().addVolumeData(transaction.mint, totalAmount);
+          }
         }
         break;
     }
+
   } catch (error) {
     console.error('[Token Volume] Error processing transaction:', error);
   }
 };
 
-// Initialize Helius WebSocket connection for volume tracking
+// Initialize volume tracking with Helius WebSocket
 export const initializeVolumeTracking = () => {
   console.log('[Token Volume] Initializing volume tracking');
+
   heliusSocket.onMessage((data: any) => {
-    console.log('[Token Volume] Received WebSocket message:', data);
     if (data.type === 'transaction') {
       processHeliusTransaction(data);
     }

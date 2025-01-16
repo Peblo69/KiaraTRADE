@@ -58,29 +58,28 @@ class HeliusWebSocket {
           // Notify all message handlers
           this.messageHandlers.forEach(handler => handler(data));
 
-          if (data.type === 'create') {
-            const tokenData: HeliusTokenData = {
-              mint: data.mint,
-              name: data.name || 'Unknown',
-              symbol: data.symbol || 'UNKNOWN',
-              uri: data.uri,
-              signature: data.signature,
-            };
+          if (data.type === 'transaction') {
+            // Process transaction data
+            const { description, type, tokenTransfers, nativeTransfers, accountData, signature } = data;
+            console.log('[Helius WebSocket] Processing transaction:', { description, type });
 
-            // Update token in PumpPortal store
-            const existingToken = usePumpPortalStore.getState().tokens.find(
-              t => t.address === tokenData.mint
-            );
+            if (tokenTransfers?.length > 0) {
+              tokenTransfers.forEach((transfer: any) => {
+                const existingToken = usePumpPortalStore.getState().tokens.find(
+                  t => t.address === transfer.mint
+                );
 
-            if (existingToken) {
-              usePumpPortalStore.getState().updateToken(tokenData.mint, {
-                name: tokenData.name,
-                symbol: tokenData.symbol,
-                uri: tokenData.uri,
-                signature: tokenData.signature,
+                if (existingToken) {
+                  console.log('[Helius WebSocket] Updating token data:', transfer);
+                  usePumpPortalStore.getState().updateToken(transfer.mint, {
+                    volume24h: (existingToken.volume24h || 0) + (transfer.amount || 0),
+                    lastUpdated: Date.now()
+                  });
+                }
               });
             }
           }
+
         } catch (error) {
           console.error('[Helius WebSocket] Error processing message:', error);
           useHeliusStore.getState().setError('Failed to process token data');
@@ -126,13 +125,20 @@ class HeliusWebSocket {
 
   private subscribeToTokenEvents() {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      // Subscribe to token transactions
+      console.log('[Helius WebSocket] Subscribing to token events');
       this.ws.send(JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "subscribeTokenEvents",
+        method: "subscribeTransactions",
         params: {
-          types: ["create", "swap", "transfer"]
+          accountIds: [], // Subscribe to all transactions
+          filter: {
+            filters: [
+              { value: "SWAP", field: "type" },
+              { value: "TRANSFER", field: "type" },
+              { value: "NFT_SALE", field: "type" }
+            ]
+          }
         }
       }));
     }

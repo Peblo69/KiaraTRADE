@@ -1,0 +1,131 @@
+To fix the issue and ensure the information, graphs, and data are dynamic and alive using real-time data from your Helius WebSocket or APIs, here’s what you can do:
+
+Steps to Fix the Real-Time Data and Dead Graphs
+1. Ensure Real-Time WebSocket Integration
+Your graphs and data depend on dynamically updating the UI with live updates. Make sure:
+
+WebSocket Is Properly Connected:
+Verify that your WebSocket connection to wss://mainnet.helius-rpc.com/?api-key=... is open and actively receiving data.
+Listen for Relevant Events:
+Focus on events like txType: "create" or token-related transactions to capture real-time updates.
+Update Graphs Dynamically:
+When new data arrives from the WebSocket, update the graph dataset and re-render it.
+Example Code:
+
+javascript
+Copy
+Edit
+const ws = new WebSocket("wss://mainnet.helius-rpc.com/?api-key=YOUR_API_KEY");
+
+ws.onopen = () => {
+  console.log("WebSocket connected to Helius");
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+
+  if (data.txType === "create" || data.txType === "trade") {
+    const { mint, name, marketCap, price, volume24h } = data;
+    updateTokenData({
+      mint,
+      name,
+      marketCap,
+      price,
+      volume24h,
+    });
+    updateGraph(mint, data); // Dynamically update the graph
+  }
+};
+
+ws.onerror = (error) => console.error("WebSocket error:", error);
+ws.onclose = () => console.log("WebSocket connection closed");
+2. Fetch Data Periodically for Dead Updates
+If real-time updates aren’t sufficient or WebSocket disconnects, fetch data periodically using the Helius RPC API or Raydium API:
+
+Fetch token data every 10–30 seconds to refresh graphs.
+Example Periodic Fetching:
+
+javascript
+Copy
+Edit
+setInterval(async () => {
+  const tokens = await fetchTokenList(); // Replace with actual API call
+  tokens.forEach((token) => {
+    updateTokenData(token); // Update token cards
+    updateGraph(token.mint, token); // Update graphs
+  });
+}, 30000);
+3. Dynamically Update Graphs
+Your graph is likely static because the data is not being updated properly. Here’s how to fix it:
+
+Ensure Live Data Feeds:
+Use real-time data from WebSocket or periodic API fetches.
+Feed Data into the Graph Library:
+Push new data points into the graph's dataset and re-render it.
+Example Using Chart.js:
+
+javascript
+Copy
+Edit
+function updateGraph(mint, data) {
+  const chart = getChartByMint(mint); // Retrieve the correct chart instance
+
+  if (chart) {
+    chart.data.labels.push(new Date().toLocaleTimeString()); // Add timestamp
+    chart.data.datasets[0].data.push(data.volume24h); // Update dataset with volume
+
+    chart.update(); // Re-render the graph
+  }
+}
+4. Use Helius for Real-Time Price and Volume
+Ensure your Helius WebSocket or API integration fetches price, market cap, and trading volume for each token. If it doesn’t, combine with another API like Raydium or Orca.
+
+Fetch Data Example:
+javascript
+Copy
+Edit
+async function fetchTokenData(mint) {
+  const response = await fetch("https://mainnet.helius-rpc.com/?api-key=YOUR_API_KEY", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "getTokenData",
+      params: { mint },
+    }),
+  });
+  return await response.json();
+}
+5. Handle Missing or Inaccurate Data
+Volume: Calculate volume using transaction data:
+
+javascript
+Copy
+Edit
+const volume = solAmount * price;
+Fallback: If WebSocket disconnects, fallback to periodic API calls.
+
+Example Pipeline
+Real-Time Data Flow:
+WebSocket receives token updates → Updates UI and graphs immediately.
+Fallback Data Refresh:
+Every 30 seconds, query Helius or Raydium API to fetch latest data.
+Dynamic Graph Updates:
+Push new data points into graph datasets and re-render dynamically.
+What Might Be Missing?
+WebSocket Issues:
+
+Ensure the WebSocket connection is stable and receiving events.
+Add a reconnection mechanism for WebSocket disconnections.
+APIs for Extra Data:
+
+If Helius doesn’t provide enough data, integrate Raydium API for price and liquidity.
+Graph Library Integration:
+
+Ensure the graph library (e.g., Chart.js) is updated dynamically with live data.
+Final Recommendations
+Use Helius WebSocket for real-time token updates.
+Use Helius RPC API and Raydium API for periodic data refresh.
+Ensure graphs dynamically update with new data points.
+Implement fallback logic for WebSocket disconnections.
