@@ -1,13 +1,16 @@
 import { FC, useEffect, useState } from 'react';
 import { Card } from "@/components/ui/card";
-import { pumpFunSocket, usePumpFunStore } from '@/lib/pumpfun-websocket';
+import { pumpPortalSocket, usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { heliusSocket, useHeliusStore } from '@/lib/helius-websocket';
 import { SiSolana } from 'react-icons/si';
 import { 
   ExternalLink, 
   TrendingUp, 
   Users, 
   Wallet, 
-  Clock
+  Clock,
+  ArrowUpRight,
+  ArrowDownRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VolumeChart } from './VolumeChart';
@@ -33,6 +36,8 @@ interface VolumeData {
 const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
   const [volumeHistory, setVolumeHistory] = useState<VolumeData[]>([]);
   const [isLoadingVolume, setIsLoadingVolume] = useState(false);
+  const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
+  const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
 
   useEffect(() => {
     const fetchVolumeHistory = async () => {
@@ -65,7 +70,7 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
     fetchVolumeHistory();
   }, [token.address]);
 
-  const imageUrl = token.imageUrl || `https://pump.fun/token/${token.address}/image`;
+  const imageUrl = token.imageUrl || token.uri || `https://pump.fun/token/${token.address}/image`;
   console.log('[TokenCard] Using image URL:', imageUrl, 'for token:', token.address);
 
   return (
@@ -95,6 +100,12 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
               <h3 className="text-lg font-bold text-white mb-0.5">{token.name || 'Unknown Token'}</h3>
               <div className="flex items-center gap-2">
                 <p className="text-sm text-blue-400 font-medium">{token.symbol || 'UNKNOWN'}</p>
+                {token.priceChange24h && (
+                  <span className={`text-xs font-semibold flex items-center gap-0.5 ${priceChangeColor}`}>
+                    <PriceChangeIcon size={12} />
+                    {Math.abs(token.priceChange24h).toFixed(2)}%
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -131,14 +142,14 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
                 <Wallet size={14} className="text-blue-400" />
                 <span className="text-gray-400">Market Cap</span>
               </div>
-              <span className="text-white font-bold">{formatNumber(token.marketCap)} SOL</span>
+              <span className="text-white font-bold">{formatNumber(token.marketCapSol || token.marketCap)} SOL</span>
             </div>
             <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
               <div className="flex items-center gap-2 text-sm mb-1">
                 <Users size={14} className="text-blue-400" />
-                <span className="text-gray-400">Holders</span>
+                <span className="text-gray-400">Initial Buy</span>
               </div>
-              <span className="text-white font-bold">{formatNumber(token.holders)}</span>
+              <span className="text-white font-bold">{formatNumber(token.initialBuy || 0)}</span>
             </div>
           </div>
           <div className="space-y-3">
@@ -147,14 +158,14 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
                 <TrendingUp size={14} className="text-blue-400" />
                 <span className="text-gray-400">Volume 24h</span>
               </div>
-              <span className="text-white font-bold">{formatNumber(token.volume24h)} SOL</span>
+              <span className="text-white font-bold">{formatNumber(token.volume24h || 0)} SOL</span>
             </div>
             <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
               <div className="flex items-center gap-2 text-sm mb-1">
                 <Clock size={14} className="text-blue-400" />
                 <span className="text-gray-400">Price</span>
               </div>
-              <span className="text-white font-bold">{token.price.toFixed(6)} SOL</span>
+              <span className="text-white font-bold">{(token.price || 0).toFixed(6)} SOL</span>
             </div>
           </div>
         </div>
@@ -181,12 +192,16 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
 };
 
 export const TokenTracker: FC = () => {
-  const tokens = usePumpFunStore(state => state.tokens);
+  const tokens = usePumpPortalStore(state => state.tokens);
 
   useEffect(() => {
-    pumpFunSocket.connect();
+    // Connect to both websocket sources
+    pumpPortalSocket.connect();
+    heliusSocket.connect();
+
     return () => {
-      pumpFunSocket.disconnect();
+      pumpPortalSocket.disconnect();
+      heliusSocket.disconnect();
     };
   }, []);
 
