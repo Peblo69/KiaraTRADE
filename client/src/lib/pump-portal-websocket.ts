@@ -18,6 +18,8 @@ interface TokenData {
   vTokensInBondingCurve?: number;
   vSolInBondingCurve?: number;
   bondingCurveKey?: string;
+  lastUpdated?: number;  // Timestamp of last update
+  priceChange24h?: number; // 24h price change percentage
 }
 
 interface PumpPortalState {
@@ -36,8 +38,16 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
   connectionError: null,
   addToken: (token) =>
     set((state) => {
+      const now = Date.now();
+      const enrichedToken = {
+        ...token,
+        lastUpdated: now,
+        // Add mock price change for UI testing (remove in production)
+        priceChange24h: Math.random() * 200 - 100,
+      };
+
       return {
-        tokens: [...state.tokens, token]
+        tokens: [...state.tokens, enrichedToken]
           .sort((a, b) => b.marketCapSol - a.marketCapSol)
           .slice(0, 100), // Keep only top 100 tokens
       };
@@ -45,7 +55,7 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
   updateToken: (address, updates) =>
     set((state) => ({
       tokens: state.tokens.map((token) =>
-        token.address === address ? { ...token, ...updates } : token
+        token.address === address ? { ...token, ...updates, lastUpdated: Date.now() } : token
       ),
     })),
   setConnected: (status) => {
@@ -75,6 +85,7 @@ class PumpPortalWebSocket {
         usePumpPortalStore.getState().setConnected(true);
         this.reconnectAttempts = 0;
         this.subscribeToEvents();
+        this.startHeartbeat();
       };
 
       this.ws.onmessage = (event) => {
@@ -129,6 +140,18 @@ class PumpPortalWebSocket {
       this.cleanup();
       this.reconnect();
     }
+  }
+
+  private startHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+
+    this.heartbeatInterval = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: "ping" }));
+      }
+    }, 30000); // Send heartbeat every 30 seconds
   }
 
   private subscribeToEvents() {
