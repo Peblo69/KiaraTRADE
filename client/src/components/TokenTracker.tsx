@@ -4,6 +4,7 @@ import { pumpFunSocket, usePumpFunStore } from '@/lib/pumpfun-websocket';
 import { SiSolana } from 'react-icons/si';
 import { ExternalLink, TrendingUp, Users, Wallet, Wifi, WifiOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import DebugPanel from './DebugPanel';
 
 const formatNumber = (num: number) => {
   if (num >= 1000000000) {
@@ -137,6 +138,9 @@ export const TokenTracker: FC = () => {
           </p>
         </div>
       )}
+
+      {/* Debug Panel */}
+      <DebugPanel />
     </div>
   );
 };
