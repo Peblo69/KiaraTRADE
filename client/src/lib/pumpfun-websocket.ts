@@ -29,7 +29,6 @@ export const usePumpFunStore = create<PumpFunState>((set) => ({
   connectionError: null,
   addToken: (token) =>
     set((state) => {
-      // Add token with proper logging
       console.log('[PumpFun Store] Adding token:', token);
       return {
         tokens: [...state.tokens, token]
@@ -68,7 +67,6 @@ class PumpFunWebSocket {
 
     try {
       console.log('[PumpFun WebSocket] Attempting to connect...');
-      // Connect to PumpFun's WebSocket
       this.ws = new WebSocket('wss://pump.fun/ws/v1');
 
       this.ws.onopen = () => {
@@ -78,17 +76,10 @@ class PumpFunWebSocket {
         this.startHeartbeat();
 
         // Subscribe to new token events
-        if (this.ws?.readyState === WebSocket.OPEN) {
-          console.log('[PumpFun WebSocket] Sending subscription request...');
-          const subscriptionMsg = {
-            type: "subscribe",
-            channel: "tokens",
-            data: {
-              event: "new_token"
-            }
-          };
-          this.ws.send(JSON.stringify(subscriptionMsg));
-        }
+        this.subscribeToNewTokens();
+
+        // Request initial token list
+        this.requestInitialTokens();
       };
 
       this.ws.onmessage = (event) => {
@@ -96,10 +87,10 @@ class PumpFunWebSocket {
           const data = JSON.parse(event.data);
           console.log('[PumpFun WebSocket] Received message:', data);
 
-          if (data.type === 'token' && data.data) {
+          if (data.type === 'token') {
             const tokenData = data.data;
+            if (!tokenData) return;
 
-            // Create token object with proper image URL from PumpFun
             const token: TokenData = {
               name: tokenData.name || 'Unknown',
               symbol: tokenData.symbol || 'UNKNOWN',
@@ -109,12 +100,11 @@ class PumpFunWebSocket {
               volume24h: parseFloat(tokenData.volume24h) || 0,
               address: tokenData.address,
               price: parseFloat(tokenData.price) || 0,
-              // Use PumpFun's image URL directly
               imageUrl: `https://pump.fun/token/${tokenData.address}/image`,
               signature: tokenData.signature,
             };
 
-            console.log('[PumpFun WebSocket] Adding processed token:', token);
+            console.log('[PumpFun WebSocket] Processing token:', token);
             usePumpFunStore.getState().addToken(token);
           }
         } catch (error) {
@@ -151,10 +141,39 @@ class PumpFunWebSocket {
 
     this.heartbeatInterval = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
-        console.log('[PumpFun WebSocket] Sending heartbeat ping');
+        console.log('[PumpFun WebSocket] Sending heartbeat');
         this.ws.send(JSON.stringify({ type: "ping" }));
       }
     }, 30000);
+  }
+
+  private subscribeToNewTokens() {
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      console.log('[PumpFun WebSocket] Cannot subscribe, connection not open');
+      return;
+    }
+
+    console.log('[PumpFun WebSocket] Subscribing to new tokens');
+    this.ws.send(JSON.stringify({
+      type: "subscribe",
+      channel: "tokens",
+      event: "new"
+    }));
+  }
+
+  private requestInitialTokens() {
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      console.log('[PumpFun WebSocket] Cannot request initial tokens, connection not open');
+      return;
+    }
+
+    console.log('[PumpFun WebSocket] Requesting initial token list');
+    this.ws.send(JSON.stringify({
+      type: "get_tokens",
+      limit: 100,
+      sort: "market_cap",
+      order: "desc"
+    }));
   }
 
   private cleanup() {
@@ -168,7 +187,7 @@ class PumpFunWebSocket {
 
   private reconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('[PumpFun WebSocket] Max reconnect attempts reached');
+      console.error('[PumpFun WebSocket] Max reconnection attempts reached');
       usePumpFunStore.getState().setError('Maximum reconnection attempts reached');
       return;
     }
