@@ -1,8 +1,19 @@
 import { FC, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { pumpPortalSocket, usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { heliusSocket, useHeliusStore } from '@/lib/helius-websocket';
 import { SiSolana } from 'react-icons/si';
-import { ExternalLink, TrendingUp, Users, Wallet, BarChart3, Clock, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { 
+  ExternalLink, 
+  TrendingUp, 
+  Users, 
+  Wallet, 
+  BarChart3, 
+  Clock, 
+  ArrowUpRight, 
+  ArrowDownRight,
+  ActivitySquare 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const formatNumber = (num: number) => {
@@ -129,14 +140,17 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
               <span className="text-gray-400">Liquidity Pool:</span>
               <span className="text-white font-bold">{formatNumber(token.vSolInBondingCurve || 0)} SOL</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between">
               <span className="px-2 py-1 rounded-full bg-green-500/20 text-green-400 text-xs font-medium border border-green-500/20">
                 Pump Pool Active
               </span>
               {token.lastUpdated && (
-                <span className="text-xs text-gray-500">
-                  Updated {new Date(token.lastUpdated).toLocaleTimeString()}
-                </span>
+                <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <ActivitySquare size={12} />
+                  <span>
+                    Updated {new Date(token.lastUpdated).toLocaleTimeString()}
+                  </span>
+                </div>
               )}
             </div>
           </div>
@@ -148,11 +162,16 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
 
 export const TokenTracker: FC = () => {
   const tokens = usePumpPortalStore(state => state.tokens);
+  const heliusConnected = useHeliusStore(state => state.isConnected);
 
   useEffect(() => {
+    // Connect to both websocket sources
     pumpPortalSocket.connect();
+    heliusSocket.connect();
+
     return () => {
       pumpPortalSocket.disconnect();
+      heliusSocket.disconnect();
     };
   }, []);
 

@@ -1,0 +1,147 @@
+Build a real-time token tracking and display system for Solana tokens, similar to Photon, Bullx, or PumpFun. The system must dynamically fetch and display token information, including images, real-time prices, market cap, and other metadata.
+
+Features and Requirements
+1. Real-Time Token Tracking
+Use Case: Display newly created tokens or recent trades dynamically as they happen.
+Integration Details:
+Use the Helius WebSocket API (wss://mainnet.helius-rpc.com/?api-key=...) to listen for real-time token-related events.
+Filter for events like:
+Token creation (txType: "create").
+Price updates (based on transactions).
+Extract key information from the WebSocket message:
+mint address: Use this as the token's unique identifier.
+name, symbol, and signature: For metadata and transaction linking.
+2. Token Metadata and Images
+Use Case: Enrich token data with images, descriptions, and other details.
+
+Integration Details:
+
+Fetch metadata using the Helius RPC API (https://mainnet.helius-rpc.com/?api-key=...) or Metaplex Metadata Program.
+Use the mint address from the WebSocket message to query the token's metadata.
+Parse the uri field in the metadata to retrieve the JSON containing:
+image: URL to the token’s image.
+name, symbol, and description: For display purposes.
+Fallback Handling:
+
+If the image field is missing or inaccessible, use a placeholder image.
+Example API Call:
+
+json
+Copy
+Edit
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getTokenMetadata",
+  "params": {
+    "mint": "<MINT_ADDRESS>"
+  }
+}
+3. Real-Time Prices and Market Cap
+Use Case: Display accurate token prices, liquidity, and market cap in real-time.
+Integration Details:
+Use decentralized exchange APIs like Raydium or Orca to fetch token price, liquidity, and volume data.
+Raydium API Endpoint: https://api.raydium.io/pairs
+Alternatively, calculate prices manually using on-chain data:
+javascript
+Copy
+Edit
+price = solAmount / tokensTraded;
+marketCap = price * totalSupply;
+Example Query to Fetch Real-Time Price:
+
+json
+Copy
+Edit
+GET https://api.raydium.io/pairs
+Include:
+price: Current token price in SOL and USD.
+marketCap: Calculated based on price and total supply.
+liquidity: Available liquidity in the token pool.
+4. Dynamic Token Display
+Use Case: Show tokens as visually appealing cards or windows, updating dynamically.
+Design Details:
+Display each token as a card containing:
+Profile Image: Fetched from metadata image or placeholder.
+Name and Symbol: Prominently displayed.
+Market Cap, Price, Liquidity: Real-time updates.
+Initial Buy and SOL Amount: Extracted from WebSocket data.
+Transaction Link: Link to Solscan using signature.
+Arrange cards in a scrollable list or grid.
+New tokens appear at the top, pushing older tokens down.
+Card Layout Example:
+
+sql
+Copy
+Edit
++--------------------------------------------------+
+| [Profile Image]  Token Name     [Symbol Badge]   |
+|                                                  |
+| Market Cap: 111.84 SOL                           |
+| Price: 0.000000 SOL                              |
+| Initial Buy: 536.50M   Liquidity: 60.00 SOL      |
+| [View on Solscan]                                |
++--------------------------------------------------+
+5. API Integrations
+Here are all the APIs and tools required:
+
+Helius WebSocket API
+
+URL: wss://mainnet.helius-rpc.com/?api-key=...
+Use this for real-time token creation and trade events.
+Helius RPC API
+
+URL: https://mainnet.helius-rpc.com/?api-key=...
+Fetch metadata and other on-chain details using the token’s mint address.
+Raydium API
+
+URL: https://api.raydium.io/pairs
+Fetch real-time prices, liquidity, and volume for tokens.
+Metaplex Metadata Program
+
+Fetch metadata directly from Solana’s on-chain program.
+IPFS Gateways
+
+Use https://ipfs.io/ or https://cloudflare-ipfs.com/ to fetch token images from metadata URIs.
+Solscan
+
+Use https://solscan.io/tx/<signature> to link transactions.
+6. Optimizations
+Caching:
+
+Cache metadata and images locally or on a CDN to improve performance.
+Example: Proxy IPFS content through Cloudflare.
+Reconnection Logic for WebSocket:
+
+Implement automatic reconnection if the WebSocket disconnects.
+7. User Interface Features
+Responsive Design:
+
+Ensure token cards look good on both desktop and mobile.
+Use a grid layout for larger screens and a single-column layout for smaller ones.
+Animations:
+
+Add smooth animations for new tokens appearing at the top of the list.
+Search and Filter:
+
+Allow users to search for specific tokens or filter by market cap, price, or volume.
+Final Notes
+With these APIs and tools, you can build a real-time token display system that dynamically updates as new tokens are created or traded. It will show:
+
+Images (from metadata).
+Real-time prices (via DEX APIs).
+Market cap and liquidity.
+Transaction links (via Solscan).
+
+this are my helius websockets
+
+https://mainnet.helius-rpc.com/?api-key=004f9b13-f526-4952-9998-52f5c7bec6ee
+
+Secure RPC URL
+https://ramona-1jvbj3-fast-mainnet.helius-rpc.com
+
+Dedicated Staked Connection URL
+https://staked.helius-rpc.com?api-key=004f9b13-f526-4952-9998-52f5c7bec6ee
+
+Standard Websocket URL
+wss://mainnet.helius-rpc.com/?api-key=004f9b13-f526-4952-9998-52f5c7bec6ee
