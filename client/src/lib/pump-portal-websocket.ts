@@ -81,23 +81,34 @@ class PumpPortalWebSocket {
 
         // Subscribe to token events
         this.subscribeToEvents();
-
-        // Add mock data for initial UI testing
-        this.addMockData();
       };
 
       this.ws.onmessage = (event) => {
         try {
-          console.log('[PumpPortal WebSocket] Received message:', event.data);
           const data = JSON.parse(event.data);
 
-          if (data.event === 'newToken') {
-            this.handleNewToken(data.token);
-          } else if (data.event === 'tokenTrade') {
-            this.handleTokenTrade(data.trade);
+          // Handle new token creation
+          if (data.txType === 'create') {
+            const token: TokenData = {
+              name: data.name || 'Unknown',
+              symbol: data.symbol || 'UNKNOWN',
+              marketCap: data.marketCapSol || 0,
+              marketCapSol: data.marketCapSol || 0,
+              liquidityAdded: data.pool === "pump",
+              holders: 0,
+              volume24h: 0,
+              address: data.mint,
+              price: data.solAmount / data.initialBuy || 0,
+              imageUrl: data.uri,
+              signature: data.signature,
+              initialBuy: data.initialBuy,
+              solAmount: data.solAmount
+            };
+
+            usePumpPortalStore.getState().addToken(token);
           }
         } catch (error) {
-          console.error('[PumpPortal WebSocket] ❌ Error processing message:', error);
+          console.error('[PumpPortal WebSocket] Error processing message:', error);
           console.error('[PumpPortal WebSocket] Message data:', event.data);
           usePumpPortalStore.getState().setError('Failed to process token data');
         }
@@ -135,82 +146,6 @@ class PumpPortalWebSocket {
     this.ws.send(JSON.stringify({
       method: "subscribeNewToken"
     }));
-
-    // Subscribe to all token trades
-    console.log('[PumpPortal WebSocket] Subscribing to token trades...');
-    this.ws.send(JSON.stringify({
-      method: "subscribeTokenTrade",
-      keys: [] // Empty array to subscribe to all tokens
-    }));
-  }
-
-  private handleNewToken(tokenData: any) {
-    console.log('[PumpPortal WebSocket] Processing new token:', tokenData);
-    const token: TokenData = {
-      name: tokenData.name || 'Unknown',
-      symbol: tokenData.symbol || 'UNKNOWN',
-      marketCap: tokenData.marketCapSol || 0,
-      liquidityAdded: Boolean(tokenData.pool === "pump"),
-      holders: 0, // Will be updated through trade events
-      volume24h: 0, // Will be updated through trade events
-      address: tokenData.mint,
-      price: tokenData.solAmount / tokenData.initialBuy || 0,
-      imageUrl: tokenData.uri,
-      signature: tokenData.signature,
-      initialBuy: tokenData.initialBuy,
-      solAmount: tokenData.solAmount
-    };
-
-    usePumpPortalStore.getState().addToken(token);
-  }
-
-  private handleTokenTrade(tradeData: any) {
-    console.log('[PumpPortal WebSocket] Processing trade:', tradeData);
-    if (tradeData.tokenAddress) {
-      usePumpPortalStore.getState().updateToken(tradeData.tokenAddress, {
-        price: parseFloat(tradeData.price) || 0,
-        volume24h: parseFloat(tradeData.volume24h) || 0,
-      });
-    }
-  }
-
-  private addMockData() {
-    console.log('[PumpPortal WebSocket] Adding mock data for testing...');
-    const mockTokens = [
-      {
-        name: "Sample Token 1",
-        symbol: "ST1",
-        price: 0.00001,
-        marketCap: 10000,
-        marketCapSol: 10000,
-        liquidityAdded: true,
-        holders: 100,
-        volume24h: 5000,
-        address: "sample1",
-        imageUrl: "https://cryptologos.cc/logos/solana-sol-logo.png",
-        initialBuy: 1000,
-        solAmount: 10
-      },
-      {
-        name: "Sample Token 2",
-        symbol: "ST2",
-        price: 0.00002,
-        marketCap: 20000,
-        marketCapSol: 20000,
-        liquidityAdded: true,
-        holders: 200,
-        volume24h: 10000,
-        address: "sample2",
-        imageUrl: "https://cryptologos.cc/logos/solana-sol-logo.png",
-        initialBuy: 2000,
-        solAmount: 40
-      }
-    ];
-
-    mockTokens.forEach(token => {
-      console.log('[PumpPortal WebSocket] Adding mock token:', token);
-      usePumpPortalStore.getState().addToken(token);
-    });
   }
 
   private cleanup() {

@@ -2,9 +2,8 @@ import { FC, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { pumpPortalSocket, usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { SiSolana } from 'react-icons/si';
-import { ExternalLink, TrendingUp, Users, Wallet, Wifi, WifiOff } from 'lucide-react';
+import { ExternalLink, TrendingUp, Users, Wallet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import DebugPanel from './DebugPanel';
 
 const formatNumber = (num: number) => {
   if (num >= 1000000000) {
@@ -96,42 +95,32 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => (
 
 export const TokenTracker: FC = () => {
   const tokens = usePumpPortalStore(state => state.tokens);
-  const isConnected = usePumpPortalStore(state => state.isConnected);
-  const connectionError = usePumpPortalStore(state => state.connectionError);
 
   useEffect(() => {
-    console.log('[TokenTracker] Component mounted, connecting to WebSocket...');
     pumpPortalSocket.connect();
     return () => {
-      console.log('[TokenTracker] Component unmounted, disconnecting WebSocket...');
       pumpPortalSocket.disconnect();
     };
   }, []);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row items-center justify-between mb-6">
-        <div className="flex flex-col items-center md:items-start space-y-2 mb-4 md:mb-0">
-          <h2 className="text-2xl font-bold text-purple-300">Live PumpFun Tokens</h2>
-          <p className="text-sm text-gray-400">Real-time token tracking (1B supply)</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isConnected ? (
-            <div className="flex items-center gap-2 text-sm text-green-400">
-              <Wifi size={16} />
-              <span>Connected to PumpPortal</span>
-              <span className="animate-pulse inline-block w-2 h-2 bg-green-500 rounded-full"></span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-sm text-red-400">
-              <WifiOff size={16} />
-              <span>
-                {connectionError || 'Connecting to PumpPortal...'}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
+    <div className="max-w-7xl mx-auto">
+      <h1 
+        className="text-4xl md:text-6xl font-bold text-center mb-8"
+        style={{
+          fontFamily: '"VT323", monospace',
+          background: 'linear-gradient(to right, #00ff87 0%, #60efff 50%, #0061ff 100%)',
+          backgroundClip: 'text',
+          WebkitBackgroundClip: 'text',
+          color: 'transparent',
+          textShadow: '0 0 30px rgba(96, 239, 255, 0.4)',
+          letterSpacing: '0.15em',
+          filter: 'drop-shadow(0 0 10px rgba(96, 239, 255, 0.2))',
+          animation: 'pulse 2s ease-in-out infinite'
+        }}
+      >
+        PumpFun Token Tracker
+      </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <AnimatePresence>
@@ -140,19 +129,6 @@ export const TokenTracker: FC = () => {
           ))}
         </AnimatePresence>
       </div>
-
-      {tokens.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-400">
-            {isConnected 
-              ? "Waiting for new tokens..." 
-              : connectionError || "Connecting to PumpPortal..."}
-          </p>
-        </div>
-      )}
-
-      {/* Debug Panel */}
-      <DebugPanel />
     </div>
   );
 };
