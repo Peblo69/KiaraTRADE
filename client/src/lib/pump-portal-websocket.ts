@@ -18,8 +18,8 @@ interface TokenData {
   vTokensInBondingCurve?: number;
   vSolInBondingCurve?: number;
   bondingCurveKey?: string;
-  lastUpdated?: number;  // Timestamp of last update
-  priceChange24h?: number; // 24h price change percentage
+  lastUpdated?: number;
+  priceChange24h?: number;
 }
 
 interface PumpPortalState {
@@ -46,6 +46,9 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
         priceChange24h: Math.random() * 200 - 100,
       };
 
+      // Log the token being added
+      console.log('[PumpPortal Store] Adding token:', enrichedToken);
+
       return {
         tokens: [...state.tokens, enrichedToken]
           .sort((a, b) => b.marketCapSol - a.marketCapSol)
@@ -59,9 +62,11 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
       ),
     })),
   setConnected: (status) => {
+    console.log('[PumpPortal Store] Connection status:', status);
     set({ isConnected: status, connectionError: null });
   },
   setError: (error) => {
+    console.log('[PumpPortal Store] Connection error:', error);
     set({ connectionError: error });
   }
 }));
@@ -75,13 +80,16 @@ class PumpPortalWebSocket {
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) {
+      console.log('[PumpPortal WebSocket] Already connected');
       return;
     }
 
     try {
+      console.log('[PumpPortal WebSocket] Attempting to connect...');
       this.ws = new WebSocket('wss://pumpportal.fun/api/data');
 
       this.ws.onopen = () => {
+        console.log('[PumpPortal WebSocket] Connected successfully');
         usePumpPortalStore.getState().setConnected(true);
         this.reconnectAttempts = 0;
         this.subscribeToEvents();
@@ -91,6 +99,7 @@ class PumpPortalWebSocket {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('[PumpPortal WebSocket] Received message:', data);
 
           // Handle new token creation
           if (data.txType === 'create') {
@@ -104,7 +113,7 @@ class PumpPortalWebSocket {
               volume24h: 0,
               address: data.mint,
               price: data.solAmount / data.initialBuy || 0,
-              imageUrl: data.uri,
+              imageUrl: data.uri, // Use the URI directly as image URL first
               uri: data.uri,
               signature: data.signature,
               initialBuy: data.initialBuy,
@@ -114,6 +123,7 @@ class PumpPortalWebSocket {
               bondingCurveKey: data.bondingCurveKey
             };
 
+            console.log('[PumpPortal WebSocket] Adding new token:', token);
             usePumpPortalStore.getState().addToken(token);
           }
         } catch (error) {
@@ -123,6 +133,7 @@ class PumpPortalWebSocket {
       };
 
       this.ws.onclose = (event) => {
+        console.log('[PumpPortal WebSocket] Connection closed:', event);
         this.cleanup();
         this.reconnect();
       };
@@ -149,22 +160,26 @@ class PumpPortalWebSocket {
 
     this.heartbeatInterval = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
+        console.log('[PumpPortal WebSocket] Sending heartbeat');
         this.ws.send(JSON.stringify({ type: "ping" }));
       }
-    }, 30000); // Send heartbeat every 30 seconds
+    }, 30000);
   }
 
   private subscribeToEvents() {
     if (this.ws?.readyState !== WebSocket.OPEN) {
+      console.log('[PumpPortal WebSocket] Cannot subscribe, connection not open');
       return;
     }
 
+    console.log('[PumpPortal WebSocket] Subscribing to events');
     this.ws.send(JSON.stringify({
       method: "subscribeNewToken"
     }));
   }
 
   private cleanup() {
+    console.log('[PumpPortal WebSocket] Cleaning up connection');
     usePumpPortalStore.getState().setConnected(false);
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
@@ -174,11 +189,14 @@ class PumpPortalWebSocket {
 
   private reconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('[PumpPortal WebSocket] Max reconnection attempts reached');
       usePumpPortalStore.getState().setError('Maximum reconnection attempts reached');
       return;
     }
 
     this.reconnectAttempts++;
+    console.log(`[PumpPortal WebSocket] Attempting reconnect (#${this.reconnectAttempts})`);
+
     setTimeout(() => {
       this.connect();
     }, this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1));
@@ -186,6 +204,7 @@ class PumpPortalWebSocket {
 
   disconnect() {
     if (this.ws) {
+      console.log('[PumpPortal WebSocket] Disconnecting');
       this.cleanup();
       this.ws.close();
       this.ws = null;

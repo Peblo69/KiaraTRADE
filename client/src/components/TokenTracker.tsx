@@ -34,14 +34,17 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
   const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
   const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
 
-  // Fetch metadata when token is first displayed
+  // Only fetch metadata if we don't have an image URL
   useEffect(() => {
-    if (token.address && (!token.imageUrl || token.imageUrl === 'https://cryptologos.cc/logos/solana-sol-logo.png')) {
+    if (token.address && !token.imageUrl) {
+      console.log('[TokenCard] Fetching metadata for token:', token.address);
       enrichTokenMetadata(token.address).catch(console.error);
     }
   }, [token.address]);
 
-  const imageUrl = getImageUrl(token.imageUrl);
+  // Get the image URL, preferring the direct imageUrl from WebSocket data
+  const imageUrl = token.imageUrl || token.uri || 'https://cryptologos.cc/logos/solana-sol-logo.png';
+  console.log('[TokenCard] Using image URL:', imageUrl, 'for token:', token.address);
 
   return (
     <motion.div
@@ -60,8 +63,9 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
                 alt={token.symbol} 
                 className="w-12 h-12 rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover"
                 onError={(e) => {
+                  console.log('[TokenCard] Image load error for token:', token.address);
                   const img = e.target as HTMLImageElement;
-                  if (img.src !== 'https://cryptologos.cc/logos/solana-sol-logo.png') {
+                  if (!img.src.includes('solana-sol-logo.png')) {
                     img.src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
                   }
                 }}
