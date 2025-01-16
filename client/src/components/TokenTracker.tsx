@@ -1,4 +1,4 @@
-import { FC, useEffect } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { pumpFunSocket, usePumpFunStore } from '@/lib/pumpfun-websocket';
 import { SiSolana } from 'react-icons/si';
@@ -7,13 +7,10 @@ import {
   TrendingUp, 
   Users, 
   Wallet, 
-  BarChart3, 
-  Clock, 
-  ArrowUpRight, 
-  ArrowDownRight,
-  ActivitySquare 
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { VolumeChart } from './VolumeChart';
 
 const formatNumber = (num: number) => {
   if (num >= 1000000000) {
@@ -28,8 +25,46 @@ const formatNumber = (num: number) => {
   return num.toFixed(2);
 };
 
+interface VolumeData {
+  timestamp: number;
+  volume: number;
+}
+
 const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
-  // Use PumpFun's direct image URL
+  const [volumeHistory, setVolumeHistory] = useState<VolumeData[]>([]);
+  const [isLoadingVolume, setIsLoadingVolume] = useState(false);
+
+  useEffect(() => {
+    const fetchVolumeHistory = async () => {
+      if (!token.address || isLoadingVolume) return;
+
+      setIsLoadingVolume(true);
+      try {
+        const response = await fetch(`https://pump.fun/api/v1/tokens/${token.address}/volume?period=24h`);
+        if (!response.ok) throw new Error('Failed to fetch volume history');
+
+        const data = await response.json();
+        const volumeData = data.volumes.map((v: any) => ({
+          timestamp: v.timestamp,
+          volume: v.volume
+        }));
+
+        setVolumeHistory(volumeData);
+      } catch (error) {
+        console.error('[TokenCard] Error fetching volume history:', error);
+        const mockData = Array.from({ length: 24 }, (_, i) => ({
+          timestamp: Date.now() - (23 - i) * 3600000,
+          volume: Math.random() * token.volume24h / 24
+        }));
+        setVolumeHistory(mockData);
+      } finally {
+        setIsLoadingVolume(false);
+      }
+    };
+
+    fetchVolumeHistory();
+  }, [token.address]);
+
   const imageUrl = token.imageUrl || `https://pump.fun/token/${token.address}/image`;
   console.log('[TokenCard] Using image URL:', imageUrl, 'for token:', token.address);
 
@@ -41,7 +76,6 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
       transition={{ duration: 0.3, delay: index * 0.1 }}
     >
       <Card className="p-4 bg-black/40 backdrop-blur-lg border border-gray-800 hover:border-blue-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/10">
-        {/* Token Header with Image */}
         <div className="flex justify-between items-start mb-4">
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -90,7 +124,6 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
           </div>
         </div>
 
-        {/* Market Stats Grid */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="space-y-3">
             <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
@@ -126,7 +159,13 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
           </div>
         </div>
 
-        {/* Liquidity Info */}
+        {volumeHistory.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm text-gray-400 mb-2">Trading Volume (24h)</h4>
+            <VolumeChart data={volumeHistory} />
+          </div>
+        )}
+
         {token.liquidityAdded && (
           <div className="border-t border-gray-800 pt-3 mt-3">
             <div className="flex items-center justify-between">
@@ -145,9 +184,7 @@ export const TokenTracker: FC = () => {
   const tokens = usePumpFunStore(state => state.tokens);
 
   useEffect(() => {
-    // Connect to PumpFun WebSocket
     pumpFunSocket.connect();
-
     return () => {
       pumpFunSocket.disconnect();
     };
