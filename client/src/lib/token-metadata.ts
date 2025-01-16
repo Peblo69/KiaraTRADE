@@ -18,28 +18,42 @@ export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMet
   }
 
   try {
-    // Fetch metadata using Helius API
-    const response = await fetch('https://ramona-1jvbj3-fast-mainnet.helius-rpc.com', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 'metadata-fetch',
-        method: 'getTokenMetadata',
-        params: [mintAddress],
-      }),
-    });
+    // Fetch metadata using Helius API with retries
+    let attempts = 0;
+    const maxAttempts = 3;
+    let data;
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch metadata: ${response.statusText}`);
+    while (attempts < maxAttempts) {
+      try {
+        const response = await fetch('https://ramona-1jvbj3-fast-mainnet.helius-rpc.com', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 'metadata-fetch',
+            method: 'getTokenMetadata',
+            params: [mintAddress],
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch metadata: ${response.statusText}`);
+        }
+
+        data = await response.json();
+        console.log('[Token Metadata] Received metadata response:', data);
+        break;
+      } catch (error) {
+        attempts++;
+        console.error(`[Token Metadata] Attempt ${attempts} failed:`, error);
+        if (attempts === maxAttempts) throw error;
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+      }
     }
 
-    const data = await response.json();
-    console.log('Received metadata response:', data); // Debug log
-
-    if (!data.result) {
+    if (!data?.result) {
       throw new Error('No metadata found');
     }
 
@@ -49,14 +63,12 @@ export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMet
       uri: data.result.uri || '',
     };
 
-    // If we have a URI, try to fetch the actual image URL with retries
+    // If we have a URI, try to fetch the actual image URL
     if (metadata.uri) {
-      let attempts = 0;
-      const maxAttempts = 3;
-
+      attempts = 0;
       while (attempts < maxAttempts) {
         try {
-          console.log(`Attempting to fetch URI data (attempt ${attempts + 1}):`, metadata.uri);
+          console.log(`[Token Metadata] Attempting to fetch URI data (attempt ${attempts + 1}):`, metadata.uri);
           const uriResponse = await fetch(metadata.uri);
 
           if (!uriResponse.ok) {
@@ -64,31 +76,50 @@ export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMet
           }
 
           const uriData = await uriResponse.json();
-          console.log('Received URI data:', uriData); // Debug log
+          console.log('[Token Metadata] Received URI data:', uriData);
 
           // Try different possible image fields in order of preference
-          metadata.image = 
-            uriData.image_url || // Try official image URL first
-            uriData.image || // Then standard image field
-            uriData.imageUrl || // Then alternate casing
-            uriData.uri || // Then fall back to URI
-            metadata.uri; // Finally use original URI
+          const possibleImageFields = [
+            uriData.image_url,
+            uriData.image,
+            uriData.imageUrl,
+            uriData.uri,
+            uriData.animation_url,
+            metadata.uri
+          ];
 
-          if (metadata.image) {
-            console.log('Found image URL:', metadata.image);
-            break; // Successfully found an image URL
+          // Find the first valid image URL
+          for (const imageUrl of possibleImageFields) {
+            if (imageUrl && typeof imageUrl === 'string') {
+              try {
+                const imgResponse = await fetch(getImageUrl(imageUrl));
+                if (imgResponse.ok && imgResponse.headers.get('content-type')?.startsWith('image/')) {
+                  metadata.image = imageUrl;
+                  console.log('[Token Metadata] Valid image URL found:', imageUrl);
+                  break;
+                }
+              } catch (error) {
+                console.warn('[Token Metadata] Failed to validate image URL:', imageUrl, error);
+                continue;
+              }
+            }
+          }
+
+          if (!metadata.image) {
+            console.warn('[Token Metadata] No valid image URL found, using fallback');
+            metadata.image = 'https://cryptologos.cc/logos/solana-sol-logo.png';
           }
 
           metadata.description = uriData.description;
           break;
         } catch (error) {
-          console.error(`Attempt ${attempts + 1} failed:`, error);
           attempts++;
+          console.error(`[Token Metadata] URI fetch attempt ${attempts} failed:`, error);
           if (attempts === maxAttempts) {
-            console.error('All attempts to fetch URI data failed');
-            metadata.image = metadata.uri; // Use URI as fallback
+            console.error('[Token Metadata] All attempts to fetch URI data failed');
+            metadata.image = 'https://cryptologos.cc/logos/solana-sol-logo.png';
           }
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempts)); // Exponential backoff
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
         }
       }
     }
@@ -98,7 +129,7 @@ export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMet
 
     // Update the token in the store with enriched data
     const imageUrl = getImageUrl(metadata.image || metadata.uri);
-    console.log('Final image URL:', imageUrl); // Debug log
+    console.log('[Token Metadata] Final image URL:', imageUrl);
 
     usePumpPortalStore.getState().updateToken(mintAddress, {
       name: metadata.name,
@@ -108,7 +139,7 @@ export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMet
 
     return metadata;
   } catch (error) {
-    console.error('Error fetching token metadata:', error);
+    console.error('[Token Metadata] Error fetching token metadata:', error);
     return null;
   }
 }
@@ -119,7 +150,7 @@ export function getImageUrl(uri?: string, fallback = 'https://cryptologos.cc/log
   try {
     // Handle IPFS URLs
     if (uri.startsWith('ipfs://')) {
-      return uri.replace('ipfs://', 'https://ipfs.io/ipfs/');
+      return uri.replace('ipfs://', 'https://cloudflare-ipfs.com/ipfs/');
     }
 
     // Handle Arweave URLs
@@ -139,12 +170,16 @@ export function getImageUrl(uri?: string, fallback = 'https://cryptologos.cc/log
 
     // If it's already a valid HTTPS URL, return it
     if (uri.startsWith('https://')) {
+      // Special case for raw IPFS gateway URLs
+      if (uri.includes('ipfs.io')) {
+        return uri.replace('ipfs.io', 'cloudflare-ipfs.com');
+      }
       return uri;
     }
 
     // If it looks like an IPFS hash without protocol
     if (/^Qm[1-9A-Za-z]{44}/.test(uri)) {
-      return `https://ipfs.io/ipfs/${uri}`;
+      return `https://cloudflare-ipfs.com/ipfs/${uri}`;
     }
 
     // If it's an Arweave hash without protocol
@@ -160,7 +195,7 @@ export function getImageUrl(uri?: string, fallback = 'https://cryptologos.cc/log
       return `https://${uri}`;
     }
   } catch (error) {
-    console.error('Error processing image URL:', error);
+    console.error('[Token Metadata] Error processing image URL:', error);
     return fallback;
   }
 }
