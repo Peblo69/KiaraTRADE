@@ -112,8 +112,8 @@ export function setupAuth(app: Express) {
     app.post("/api/dev/clear-test-accounts", async (req, res) => {
       try {
         // Clear all test accounts (any email ending with @example.com)
-        await db.delete(users).where((users, { like }) => 
-          like(users.email, '%@example.com')
+        await db.delete(users).where((users, { like }) =>
+          like(users.email, "%@example.com")
         );
         res.json({ message: "Test accounts cleared" });
       } catch (error) {
@@ -140,11 +140,6 @@ export function setupAuth(app: Express) {
 
       const { username, email, password } = result.data;
 
-      // In development mode, always clear existing test accounts first
-      if (app.get("env") === "development" && email.endsWith("@example.com")) {
-        await db.delete(users).where(eq(users.email, email));
-      }
-
       // Check if username exists
       const [existingUser] = await db
         .select()
@@ -156,7 +151,6 @@ export function setupAuth(app: Express) {
         console.log("Registration failed: Username exists:", username);
         return res.status(400).json({ message: "Username already exists" });
       }
-
 
       // Hash the password
       const hashedPassword = await crypto.hash(password);
@@ -184,6 +178,7 @@ export function setupAuth(app: Express) {
       // Send verification email
       try {
         await sendVerificationEmail(email, verificationToken);
+        console.log("Verification email sent to:", email);
       } catch (error) {
         console.error("Failed to send verification email:", error);
         // Don't fail registration if email fails
