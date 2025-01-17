@@ -29,7 +29,10 @@ export const usePumpFunStore = create<PumpFunState>((set) => ({
   connectionError: null,
   addToken: (token) =>
     set((state) => {
-      console.log('[PumpFun Store] Adding token:', token);
+      console.log('[PumpFun Store] Adding token:', {
+        ...token,
+        signature: token.signature ? '[REDACTED]' : undefined
+      });
       return {
         tokens: [...state.tokens, token]
           .sort((a, b) => b.marketCap - a.marketCap)
@@ -81,13 +84,21 @@ class PumpFunWebSocket {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('[PumpFun WebSocket] Received message:', {
+          // Log the full raw message data for debugging
+          console.log('[PumpFun WebSocket] Raw message data:', {
             type: data.type,
-            data: data.data ? {
+            data: {
               ...data.data,
-              // Log everything except sensitive data
-              signature: data.data.signature ? '[REDACTED]' : undefined
-            } : null,
+              signature: data.data?.signature ? '[REDACTED]' : undefined,
+              name: data.data?.name,
+              symbol: data.data?.symbol,
+              marketCap: data.data?.marketCap,
+              address: data.data?.address,
+              price: data.data?.price,
+              uri: data.data?.uri, // Important for image URL
+              metadata: data.data?.metadata,
+              imageUrl: data.data?.imageUrl
+            },
             timestamp: new Date().toISOString()
           });
 
@@ -104,13 +115,14 @@ class PumpFunWebSocket {
               volume24h: parseFloat(tokenData.volume24h) || 0,
               address: tokenData.address,
               price: parseFloat(tokenData.price) || 0,
-              imageUrl: tokenData.uri || `https://pump.fun/token/${tokenData.address}/image`,
+              imageUrl: tokenData.uri || tokenData.metadata?.image || `https://pump.fun/token/${tokenData.address}/image`,
               signature: tokenData.signature,
             };
 
             console.log('[PumpFun WebSocket] Processing token:', {
               ...token,
-              signature: token.signature ? '[REDACTED]' : undefined
+              signature: token.signature ? '[REDACTED]' : undefined,
+              imageSource: tokenData.uri ? 'uri' : tokenData.metadata?.image ? 'metadata' : 'default'
             });
             usePumpFunStore.getState().addToken(token);
           }
