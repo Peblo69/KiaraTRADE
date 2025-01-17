@@ -24,15 +24,9 @@ import { PriceChart } from './PriceChart';
 const SOL_PRICE_USD = 104.23;
 
 const formatNumber = (num: number, isCurrency = false) => {
-  if (num >= 1000000000) {
-    return `${isCurrency ? '$' : ''}${(num / 1000000000).toFixed(2)}B`;
-  }
-  if (num >= 1000000) {
-    return `${isCurrency ? '$' : ''}${(num / 1000000).toFixed(2)}M`;
-  }
-  if (num >= 1000) {
-    return `${isCurrency ? '$' : ''}${(num / 1000).toFixed(2)}K`;
-  }
+  if (num >= 1000000000) return `${isCurrency ? '$' : ''}${(num / 1000000000).toFixed(2)}B`;
+  if (num >= 1000000) return `${isCurrency ? '$' : ''}${(num / 1000000).toFixed(2)}M`;
+  if (num >= 1000) return `${isCurrency ? '$' : ''}${(num / 1000).toFixed(2)}K`;
   return `${isCurrency ? '$' : ''}${num.toFixed(2)}`;
 };
 
@@ -41,13 +35,11 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
   const socialMetrics = useTokenSocialMetricsStore(state => state.getMetrics(token.address));
   const priceHistory = useTokenPriceStore(state => state.getPriceHistory(token.address));
   const [initialized, setInitialized] = useState(false);
-  const [imageError, setImageError] = useState(false);
   const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
   const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
 
   useEffect(() => {
     if (!initialized && token.address) {
-      // Initialize data only once per token
       if (volumeHistory.length === 0) {
         useTokenVolumeStore.getState().addVolumeData(token.address, token.volume24h || 0);
       }
@@ -63,8 +55,6 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
       setInitialized(true);
     }
   }, [token.address, initialized]);
-
-  const imageUrl = `https://pump.fun/token/${token.address}/image`;
 
   // Calculate USD values
   const marketCapUSD = (token.marketCapSol || token.marketCap || 0) * SOL_PRICE_USD;
@@ -83,12 +73,11 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
           <div className="flex items-center gap-3">
             <div className="relative">
               <img 
-                src={imageUrl}
+                src={`https://pump.fun/token/${token.address}/image`}
                 alt={token.symbol} 
                 className="w-12 h-12 rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover"
                 onError={(e) => {
-                  const img = e.target as HTMLImageElement;
-                  img.src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
+                  (e.target as HTMLImageElement).src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
                 }}
               />
               <div className="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-black"></div>
