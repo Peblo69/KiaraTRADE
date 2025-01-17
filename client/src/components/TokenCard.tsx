@@ -1,4 +1,4 @@
-import { FC, memo, useState, useEffect } from 'react';
+import { FC, memo, useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { SiSolana } from 'react-icons/si';
 import { 
@@ -12,7 +12,7 @@ import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import TransactionHistory from './TransactionHistory';
 
 const SOL_PRICE_USD = 104.23;
-const PUMPFUN_LOGO = "https://files.catbox.moe/qw20vj.png";
+const PUMPFUN_LOGO = "https://files.catbox.moe/0z99ub.png";
 const DEFAULT_TOKEN_IMAGE = "https://cryptologos.cc/logos/solana-sol-logo.png?v=024";
 
 const formatNumber = (num: number, isCurrency = false) => {
