@@ -13,7 +13,8 @@ import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import TransactionHistory from './TransactionHistory';
 
 const SOL_PRICE_USD = 104.23;
-const PUMPFUN_LOGO = "https://files.catbox.moe/qw20vj.png"; // PumpFun logo URL
+const PUMPFUN_LOGO = "https://files.catbox.moe/qw20vj.png";
+const DEFAULT_TOKEN_IMAGE = "https://cryptologos.cc/logos/solana-sol-logo.png?v=024";
 
 const formatNumber = (num: number, isCurrency = false) => {
   if (num >= 1000000000) return `${isCurrency ? '$' : ''}${(num / 1000000000).toFixed(2)}B`;
@@ -44,18 +45,22 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
       <div className="flex justify-between items-start mb-4">
         <div className="flex items-center gap-3">
           <div className="relative">
-            <div className="w-12 h-12 relative">
+            <div className="w-12 h-12 relative rounded-xl overflow-hidden">
               <img 
-                src={!imageError ? token.imageUrl : 'https://cryptologos.cc/logos/solana-sol-logo.png'}
-                alt={token.symbol} 
-                className="w-full h-full rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover"
+                src={imageError ? DEFAULT_TOKEN_IMAGE : token.imageUrl}
+                alt={token.symbol || 'Token'} 
+                className="w-full h-full bg-gray-900/50 border border-gray-800 shadow-lg object-cover"
                 onError={() => setImageError(true)}
+                loading="lazy"
               />
-              <img
-                src={PUMPFUN_LOGO}
-                alt="PumpFun"
-                className="absolute -right-3 -bottom-2 w-6 h-6 object-contain"
-              />
+              <div className="absolute -right-2 -bottom-2 w-6 h-6">
+                <img
+                  src={PUMPFUN_LOGO}
+                  alt="PumpFun"
+                  className="w-full h-full object-contain drop-shadow-lg"
+                  loading="lazy"
+                />
+              </div>
             </div>
           </div>
           <div>
