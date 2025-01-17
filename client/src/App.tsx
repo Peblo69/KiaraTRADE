@@ -11,6 +11,7 @@ import Project from "@/pages/project";
 import KiaraStageI from "@/pages/kiara-stage-i";
 import Subscriptions from "@/pages/subscriptions";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
+import VerifyEmailPage from "@/pages/auth/verify-email";
 
 function Router() {
   return (
@@ -21,14 +22,7 @@ function Router() {
       <Route path="/project" component={Project} />
       <Route path="/kiara-stage-i" component={KiaraStageI} />
       <Route path="/subscriptions" component={Subscriptions} />
-      <Route path="/verify-email" component={() => {
-        const params = new URLSearchParams(window.location.search);
-        const token = params.get('token');
-        if (!token) {
-          return <div>Invalid verification link</div>;
-        }
-        return <div>Verifying your email...</div>;
-      }} />
+      <Route path="/verify-email" component={VerifyEmailPage} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -32,7 +32,7 @@ const crypto = {
 // extend express user object with our schema
 declare global {
   namespace Express {
-    interface User extends SelectUser { }
+    interface User extends SelectUser {}
   }
 }
 
@@ -111,9 +111,12 @@ export function setupAuth(app: Express) {
   if (app.get("env") === "development") {
     app.post("/api/dev/clear-test-accounts", async (req, res) => {
       try {
+        // Clear all test accounts
         await db.delete(users).where(eq(users.email, "test@example.com"));
-        // Also clear any existing test emails
-        await db.delete(users).where(eq(users.email, req.body.email));
+        // Also clear the specific test email if provided
+        if (req.body.email) {
+          await db.delete(users).where(eq(users.email, req.body.email));
+        }
         res.json({ message: "Test accounts cleared" });
       } catch (error) {
         console.error("Error clearing test accounts:", error);
@@ -124,14 +127,16 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      console.log("Registration attempt:", { ...req.body, password: '[REDACTED]' });
+      console.log("Registration attempt:", { ...req.body, password: "[REDACTED]" });
 
       const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
         console.log("Validation failed:", result.error.issues);
-        return res
-          .status(400)
-          .json({ message: "Invalid input: " + result.error.issues.map(i => i.message).join(", ") });
+        return res.status(400).json({
+          message:
+            "Invalid input: " +
+            result.error.issues.map((i) => i.message).join(", "),
+        });
       }
 
       const { username, email, password } = result.data;
@@ -141,7 +146,7 @@ export function setupAuth(app: Express) {
         await db.delete(users).where(eq(users.email, email));
       }
 
-      // Check if user or email already exists (after clearing test accounts)
+      // Check if username exists
       const [existingUser] = await db
         .select()
         .from(users)
@@ -153,7 +158,7 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Username already exists" });
       }
 
-      // Check for existing email
+      // Check for existing email (after clearing test accounts)
       const [existingEmail] = await db
         .select()
         .from(users)
@@ -169,10 +174,7 @@ export function setupAuth(app: Express) {
       const hashedPassword = await crypto.hash(password);
 
       // Create verification token
-      const verificationToken = randomBytes(32).toString('hex');
-
-      // In development, auto-verify email
-      const emailVerified = app.get("env") === "development";
+      const verificationToken = randomBytes(32).toString("hex");
 
       // Create the new user
       const [newUser] = await db
@@ -181,44 +183,81 @@ export function setupAuth(app: Express) {
           username,
           email,
           password: hashedPassword,
-          verification_token: emailVerified ? null : verificationToken,
-          email_verified: emailVerified,
+          verification_token: verificationToken,
+          email_verified: false,
         })
         .returning();
 
-      console.log("User created successfully:", { id: newUser.id, username: newUser.username });
+      console.log("User created successfully:", {
+        id: newUser.id,
+        username: newUser.username,
+      });
 
-      // In production, send verification email
-      if (app.get("env") !== "development") {
-        try {
-          await sendVerificationEmail(email, verificationToken);
-        } catch (error) {
-          console.error("Failed to send verification email:", error);
-          // Don't fail registration if email fails
-        }
+      // Send verification email
+      try {
+        await sendVerificationEmail(email, verificationToken);
+      } catch (error) {
+        console.error("Failed to send verification email:", error);
+        // Don't fail registration if email fails
       }
 
-      // Log the user in after registration
-      req.login(newUser, (err) => {
-        if (err) {
-          console.error("Login after registration failed:", err);
-          return next(err);
-        }
-        return res.json({
-          message: app.get("env") === "development" 
-            ? "Registration successful" 
-            : "Registration successful. Please check your email for verification.",
-          user: { 
-            id: newUser.id, 
-            username: newUser.username,
-            email: newUser.email,
-            email_verified: newUser.email_verified
-          },
-        });
+      return res.json({
+        message:
+          "Registration successful. Please check your email for verification.",
+        user: {
+          id: newUser.id,
+          username: newUser.username,
+          email: newUser.email,
+          email_verified: false,
+        },
       });
     } catch (error) {
       console.error("Registration error:", error);
       next(error);
+    }
+  });
+
+  // Verification endpoint that also handles login
+  app.get("/api/verify-email/:token", async (req, res) => {
+    try {
+      const token = req.params.token;
+      const [user] = await db
+        .update(users)
+        .set({
+          email_verified: true,
+          verification_token: null,
+        })
+        .where(eq(users.verification_token, token))
+        .returning();
+
+      if (!user) {
+        return res.status(400).json({
+          message: "Invalid or expired verification token",
+        });
+      }
+
+      // Log the user in after verification
+      req.login(user, (err) => {
+        if (err) {
+          console.error("Login after verification failed:", err);
+          return res
+            .status(500)
+            .json({ message: "Failed to log in after verification" });
+        }
+
+        res.json({
+          message: "Email verified successfully",
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            email_verified: true,
+          },
+        });
+      });
+    } catch (error) {
+      console.error("Email verification error:", error);
+      res.status(500).json({ message: "Failed to verify email" });
     }
   });
 
@@ -249,7 +288,7 @@ export function setupAuth(app: Express) {
             id: user.id,
             username: user.username,
             email: user.email,
-            email_verified: user.email_verified
+            email_verified: user.email_verified,
           },
         });
       });
@@ -276,34 +315,12 @@ export function setupAuth(app: Express) {
         id: user.id,
         username: user.username,
         email: user.email,
-        email_verified: user.email_verified
+        email_verified: user.email_verified,
       });
     }
 
     res.status(401).json({ message: "Not logged in" });
   });
 
-  // Email verification endpoint
-  app.get("/api/verify-email/:token", async (req, res) => {
-    try {
-      const token = req.params.token;
-      const [user] = await db
-        .update(users)
-        .set({ 
-          email_verified: true,
-          verification_token: null 
-        })
-        .where(eq(users.verification_token, token))
-        .returning();
 
-      if (!user) {
-        return res.status(400).json({ message: "Invalid or expired verification token" });
-      }
-
-      res.json({ message: "Email verified successfully" });
-    } catch (error) {
-      console.error("Email verification error:", error);
-      res.status(500).json({ message: "Failed to verify email" });
-    }
-  });
 }
