@@ -1,4 +1,4 @@
-import { FC, memo } from 'react';
+import { FC, memo, useMemo } from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -25,36 +25,46 @@ interface Props {
   data: CandleData[];
 }
 
+const formatXAxis = (timestamp: number) => {
+  return format(new Date(timestamp), 'HH:mm');
+};
+
+const formatYAxis = (value: number) => {
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+  return value.toFixed(2);
+};
+
+const CustomTooltip = memo(({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-gray-900/90 backdrop-blur-lg border border-gray-800 p-2 rounded-lg text-sm">
+        <p className="text-gray-400">{format(new Date(data.timestamp), 'HH:mm:ss')}</p>
+        <p className="text-white">Price: {data.close.toFixed(6)} SOL</p>
+        <p className="text-blue-400">Volume: {formatYAxis(data.volume)} SOL</p>
+        <p className="text-green-400">MCap: {formatYAxis(data.marketCap)} SOL</p>
+      </div>
+    );
+  }
+  return null;
+});
+
+CustomTooltip.displayName = 'CustomTooltip';
+
 const CandlestickChartBase: FC<Props> = ({ data }) => {
-  const formatXAxis = (timestamp: number) => {
-    return format(new Date(timestamp), 'HH:mm');
-  };
-
-  const formatYAxis = (value: number) => {
-    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
-    return value.toFixed(2);
-  };
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-gray-900/90 backdrop-blur-lg border border-gray-800 p-2 rounded-lg text-sm">
-          <p className="text-gray-400">{format(new Date(data.timestamp), 'HH:mm:ss')}</p>
-          <p className="text-white">Price: {data.close.toFixed(6)} SOL</p>
-          <p className="text-blue-400">Volume: {formatYAxis(data.volume)} SOL</p>
-          <p className="text-green-400">MCap: {formatYAxis(data.marketCap)} SOL</p>
-        </div>
-      );
-    }
-    return null;
-  };
+  // Memoize the chart data to prevent unnecessary recalculations
+  const chartData = useMemo(() => {
+    return data.map(candle => ({
+      ...candle,
+      volumeHeight: Math.min(candle.volume * 0.1, candle.high - candle.low)
+    }));
+  }, [data]);
 
   return (
     <div className="w-full h-48">
       <ResponsiveContainer>
-        <ComposedChart data={data}>
+        <ComposedChart data={chartData}>
           {/* Price candlesticks */}
           <Bar
             dataKey="low"
