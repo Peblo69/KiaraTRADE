@@ -41,13 +41,33 @@ const TokenImage: FC<{ token: any }> = memo(({ token }) => {
       return 'https://cryptologos.cc/logos/solana-sol-logo.png'; // Fallback image
     }
 
-    // If token has a URI property, use that first
-    if (token.uri && !token.uri.includes('undefined')) {
+    // If token has a URI property that looks like an image URL, use that first
+    if (token.uri && 
+        (token.uri.endsWith('.png') || 
+         token.uri.endsWith('.jpg') || 
+         token.uri.endsWith('.jpeg') || 
+         token.uri.endsWith('.gif') ||
+         token.uri.startsWith('data:image'))) {
       return token.uri;
     }
 
-    // Otherwise use the pump.fun URL
+    // Try the imageUrl if it exists
+    if (token.imageUrl && !token.imageUrl.includes('undefined')) {
+      return token.imageUrl;
+    }
+
+    // Otherwise use the pump.fun URL as fallback
     return `https://pump.fun/token/${token.address}/image`;
+  };
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    console.log(`Image load error for token ${token.address}:`, {
+      uri: token.uri,
+      imageUrl: token.imageUrl,
+      fallbackUrl: `https://pump.fun/token/${token.address}/image`
+    });
+    setImageError(true);
+    setIsLoading(false);
   };
 
   return (
@@ -56,10 +76,7 @@ const TokenImage: FC<{ token: any }> = memo(({ token }) => {
         src={getImageUrl()}
         alt={token.symbol || 'Token'} 
         className={`w-full h-full rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-        onError={(e) => {
-          console.log(`Image load error for token ${token.address}:`, e);
-          setImageError(true);
-        }}
+        onError={handleImageError}
         onLoad={() => setIsLoading(false)}
       />
       {isLoading && (
@@ -69,7 +86,7 @@ const TokenImage: FC<{ token: any }> = memo(({ token }) => {
       )}
       {imageError && (
         <div className="absolute inset-0 bg-gray-900/50 rounded-xl flex items-center justify-center">
-          <ImageOff size={20} className="text-gray-400" />
+          <SiSolana size={24} className="text-blue-400" />
         </div>
       )}
       <div className="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-black"></div>
