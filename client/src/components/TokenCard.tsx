@@ -55,14 +55,6 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
                 onError={handleImageError}
                 loading="lazy"
               />
-              <div className="absolute bottom-0 right-0 w-5 h-5 transform translate-x-[-25%] translate-y-[-25%]">
-                <img
-                  src={PUMPFUN_LOGO}
-                  alt="PumpFun"
-                  className="w-full h-full object-contain drop-shadow-lg"
-                  loading="lazy"
-                />
-              </div>
             </div>
           </div>
           <div>
@@ -98,14 +90,28 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
             </a>
           )}
           {token.address && (
-            <a 
-              href={`https://solscan.io/token/${token.address}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-400 hover:text-blue-400 transition-colors ml-2"
-            >
-              <SiSolana size={16} />
-            </a>
+            <>
+              <a 
+                href={`https://solscan.io/token/${token.address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-400 hover:text-blue-400 transition-colors"
+              >
+                <SiSolana size={16} />
+              </a>
+              <a 
+                href={`https://pumpfun.fun/token/${token.address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-400 hover:text-blue-400 transition-colors"
+              >
+                <img
+                  src={PUMPFUN_LOGO}
+                  alt="View on PumpFun"
+                  className="w-4 h-4 object-contain"
+                />
+              </a>
+            </>
           )}
         </div>
       </div>
