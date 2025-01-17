@@ -1,19 +1,53 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
+import { db } from "@db";
+import { users } from "@db/schema";
+import { eq } from "drizzle-orm";
+import session from "express-session";
+import { randomBytes, scrypt } from "crypto";
+import { promisify } from "util";
+import { sendVerificationEmail } from "./services/email";
 import { generateAIResponse } from "./services/ai";
 import { cryptoService } from "./services/crypto";
-import { registerUser, verifyEmail } from "./services/auth";
 import { log } from "./vite";
 
+const scryptAsync = promisify(scrypt);
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString("hex");
+  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${buf.toString("hex")}.${salt}`;
+}
+
+async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
+  const [hashedPassword, salt] = stored.split(".");
+  const hashedPasswordBuf = Buffer.from(hashedPassword, "hex");
+  const suppliedPasswordBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+  return hashedPasswordBuf.equals(suppliedPasswordBuf);
+}
+
 interface AuthenticatedRequest extends Request {
-  user?: {
-    id: number;
-    subscription_tier: string;
-  };
+  session: {
+    userId?: number;
+  } & session.Session;
 }
 
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
+
+  // Session middleware
+  app.use(
+    session({
+      secret: process.env.SESSION_SECRET || "kiara-super-secret",
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        secure: process.env.NODE_ENV === "production",
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      },
+    })
+  );
 
   // Registration endpoint
   app.post("/api/register", async (req, res) => {
@@ -27,7 +61,37 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      const user = await registerUser(username, email, password);
+      // Check if user already exists
+      const existingUser = await db.query.users.findFirst({
+        where: (users, { or }) => or(
+          eq(users.username, username),
+          eq(users.email, email)
+        ),
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ 
+          error: "User already exists",
+          details: "Username or email is already registered"
+        });
+      }
+
+      // Generate verification token and hash password
+      const verificationToken = randomBytes(32).toString("hex");
+      const hashedPassword = await hashPassword(password);
+
+      // Create new user
+      const [user] = await db.insert(users).values({
+        username,
+        email,
+        password: hashedPassword,
+        verification_token: verificationToken,
+        email_verified: false,
+      }).returning();
+
+      // Send verification email
+      await sendVerificationEmail(email, verificationToken);
+
       res.status(201).json({ 
         message: "Registration successful. Please check your email for verification.",
         userId: user.id 
@@ -42,6 +106,78 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Login endpoint
+  app.post("/api/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+
+      if (!username || !password) {
+        return res.status(400).json({
+          error: "Missing credentials",
+          details: "Username and password are required"
+        });
+      }
+
+      const user = await db.query.users.findFirst({
+        where: eq(users.username, username),
+      });
+
+      if (!user) {
+        return res.status(400).json({
+          error: "Invalid credentials",
+          details: "Username or password is incorrect"
+        });
+      }
+
+      const isPasswordValid = await comparePasswords(password, user.password);
+      if (!isPasswordValid) {
+        return res.status(400).json({
+          error: "Invalid credentials",
+          details: "Username or password is incorrect"
+        });
+      }
+
+      if (!user.email_verified) {
+        return res.status(400).json({
+          error: "Email not verified",
+          details: "Please verify your email before logging in"
+        });
+      }
+
+      // Set user session
+      (req as AuthenticatedRequest).session.userId = user.id;
+
+      res.json({
+        message: "Login successful",
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+        }
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log(`Login error: ${errorMessage}`);
+      res.status(400).json({
+        error: "Login failed",
+        details: errorMessage
+      });
+    }
+  });
+
+  // Logout endpoint
+  app.post("/api/logout", (req, res) => {
+    (req as AuthenticatedRequest).session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({
+          error: "Logout failed",
+          details: "Failed to destroy session"
+        });
+      }
+      res.json({ message: "Logged out successfully" });
+    });
+  });
+
   // Email verification endpoint
   app.get("/api/verify-email", async (req, res) => {
     try {
@@ -54,7 +190,14 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      const user = await verifyEmail(token);
+      const [user] = await db
+        .update(users)
+        .set({ 
+          email_verified: true,
+          verification_token: null
+        })
+        .where(eq(users.verification_token, token))
+        .returning();
 
       if (!user) {
         return res.status(400).json({ 

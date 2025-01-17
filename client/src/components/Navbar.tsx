@@ -4,12 +4,14 @@ import { Link, useLocation } from "wouter";
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useToast } from "@/hooks/use-toast";
 import RegisterModal from "./auth/RegisterModal";
+import LoginModal from "./auth/LoginModal";
 
 export default function Navbar() {
   const { wallet, connect, disconnect, connected, publicKey } = useWallet();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   const handleWalletClick = async () => {
     if (connected) {
@@ -61,10 +63,33 @@ export default function Navbar() {
     }
   };
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('isAuthenticated');
-    sessionStorage.removeItem('shouldPlayInteractive');
-    setLocation('/');
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error('Logout failed');
+      }
+
+      toast({
+        title: "Logged out",
+        description: "You have been logged out successfully",
+      });
+
+      // Clear any session data
+      sessionStorage.removeItem('isAuthenticated');
+      sessionStorage.removeItem('shouldPlayInteractive');
+      window.location.href = '/';
+    } catch (error) {
+      toast({
+        title: "Logout failed",
+        description: "Failed to logout. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const shortenAddress = (address: string) => {
@@ -110,6 +135,7 @@ export default function Navbar() {
                 </Button>
               </Link>
               <Link href="/subscriptions"><Button variant="ghost">Subscriptions</Button></Link>
+
               {/* Auth Buttons */}
               <Button 
                 onClick={() => setIsRegisterOpen(true)}
@@ -118,11 +144,14 @@ export default function Navbar() {
               >
                 Register
               </Button>
-              <Link href="/login">
-                <Button variant="outline" className="text-purple-400 hover:text-purple-300">
-                  Login
-                </Button>
-              </Link>
+              <Button 
+                onClick={() => setIsLoginOpen(true)}
+                variant="outline" 
+                className="text-purple-400 hover:text-purple-300"
+              >
+                Login
+              </Button>
+
               <Button 
                 onClick={handleWalletClick}
                 className={`${connected ? 'bg-green-500 hover:bg-green-600' : 'bg-purple-500 hover:bg-purple-600'} text-white`}
@@ -151,6 +180,10 @@ export default function Navbar() {
       <RegisterModal 
         isOpen={isRegisterOpen} 
         onClose={() => setIsRegisterOpen(false)} 
+      />
+      <LoginModal 
+        isOpen={isLoginOpen} 
+        onClose={() => setIsLoginOpen(false)} 
       />
     </>
   );
