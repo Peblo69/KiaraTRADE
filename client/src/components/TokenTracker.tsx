@@ -1,250 +1,21 @@
-import { FC, memo, useEffect, useState } from 'react';
+import { FC, memo, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
-import { pumpPortalSocket, usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { pumpPortalSocket } from '@/lib/pump-portal-websocket';
 import { heliusSocket } from '@/lib/helius-websocket';
-import { initializeVolumeTracking, useTokenVolumeStore } from '@/lib/token-volume';
-import { SiSolana } from 'react-icons/si';
-import { 
-  ExternalLink, 
-  TrendingUp, 
-  Users, 
-  Wallet,
-  ArrowUpRight,
-  ArrowDownRight,
-  Globe,
-  TwitterIcon
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { VolumeChart } from './VolumeChart';
-import { TransactionHistory } from './TransactionHistory';
 import { TokenFilters } from './TokenFilters';
 import { useTokenFiltersStore, filterTokens } from '@/lib/token-filters';
-import { CandlestickChart } from './CandlestickChart';
-import { useTokenPriceStore } from '@/lib/price-history';
-
-// SOL price in USD (this should be fetched from an API in production)
-const SOL_PRICE_USD = 104.23;
-
-const formatNumber = (num: number, isCurrency = false) => {
-  if (num >= 1000000000) return `${isCurrency ? '$' : ''}${(num / 1000000000).toFixed(2)}B`;
-  if (num >= 1000000) return `${isCurrency ? '$' : ''}${(num / 1000000).toFixed(2)}M`;
-  if (num >= 1000) return `${isCurrency ? '$' : ''}${(num / 1000).toFixed(2)}K`;
-  return `${isCurrency ? '$' : ''}${num.toFixed(2)}`;
-};
-
-const TokenImage: FC<{ token: any }> = memo(({ token }) => {
-  const [imageError, setImageError] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const getImageUrl = () => {
-    if (imageError || !token.address) {
-      return 'https://cryptologos.cc/logos/solana-sol-logo.png';
-    }
-
-    if (token.metadata?.image) {
-      if (token.metadata.image.startsWith('ipfs://')) {
-        const ipfsHash = token.metadata.image.replace('ipfs://', '');
-        return `https://ipfs.io/ipfs/${ipfsHash}`;
-      }
-      return token.metadata.image;
-    }
-
-    return `https://pump.fun/token/${token.address}/image`;
-  };
-
-  return (
-    <div className="relative w-12 h-12">
-      <img 
-        src={getImageUrl()}
-        alt={token.metadata?.symbol || token.symbol || 'Token'} 
-        className={`w-full h-full rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-        onError={() => {
-          console.log(`Image load error for token ${token.address}, metadata:`, token.metadata);
-          setImageError(true);
-          setIsLoading(false);
-        }}
-        onLoad={() => {
-          console.log(`Image loaded successfully for token ${token.address}`);
-          setIsLoading(false);
-        }}
-      />
-      {isLoading && (
-        <div className="absolute inset-0 bg-gray-900/50 rounded-xl flex items-center justify-center">
-          <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-      )}
-      {imageError && (
-        <div className="absolute inset-0 bg-gray-900/50 rounded-xl flex items-center justify-center">
-          <SiSolana size={24} className="text-blue-400" />
-        </div>
-      )}
-      <div className="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-black"></div>
-    </div>
-  );
-});
-
-const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => {
-  const volumeHistory = useTokenVolumeStore(state => state.getVolumeHistory(token.address));
-  const priceHistory = useTokenPriceStore(state => state.getPriceHistory(token.address));
-
-  const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
-  const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
-
-  // Calculate USD values
-  const marketCapUSD = token.marketCapSol * SOL_PRICE_USD;
-  const initialBuyUSD = (token.solAmount || 0) * SOL_PRICE_USD; 
-  const volume24hUSD = (token.volume24h || 0) * SOL_PRICE_USD;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.3, delay: index * 0.1 }}
-    >
-      <Card className="p-4 bg-black/40 backdrop-blur-lg border border-gray-800 hover:border-blue-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/10">
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex items-center gap-3">
-            <TokenImage token={token} />
-            <div>
-              <h3 className="text-lg font-bold text-white mb-0.5">{token.metadata?.name || token.name || 'Unknown Token'}</h3>
-              <div className="flex items-center gap-2">
-                <p className="text-sm text-blue-400 font-medium">{token.metadata?.symbol || token.symbol || 'UNKNOWN'}</p>
-                {token.priceChange24h && (
-                  <span className={`text-xs font-semibold flex items-center gap-0.5 ${priceChangeColor}`}>
-                    <PriceChangeIcon size={12} />
-                    {Math.abs(token.priceChange24h).toFixed(2)}%
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            {token.metadata?.twitter && (
-              <a 
-                href={token.metadata.twitter}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-blue-400 transition-colors"
-              >
-                <TwitterIcon size={16} />
-              </a>
-            )}
-            {token.metadata?.website && (
-              <a 
-                href={token.metadata.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-blue-400 transition-colors"
-              >
-                <Globe size={16} />
-              </a>
-            )}
-            {token.signature && (
-              <a 
-                href={`https://solscan.io/tx/${token.signature}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-blue-400 transition-colors"
-                title="View Transaction"
-              >
-                <ExternalLink size={16} />
-              </a>
-            )}
-            {token.address && (
-              <a 
-                href={`https://solscan.io/token/${token.address}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-blue-400 transition-colors ml-2"
-                title="View Token"
-              >
-                <SiSolana size={16} />
-              </a>
-            )}
-          </div>
-        </div>
-
-        {token.metadata?.description && (
-          <p className="text-sm text-gray-400 mb-4 line-clamp-2">{token.metadata.description}</p>
-        )}
-
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="space-y-3">
-            <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-sm mb-1">
-                <Wallet size={14} className="text-blue-400" />
-                <span className="text-gray-400">Market Cap</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-white font-bold">{formatNumber(marketCapUSD, true)}</span>
-                <span className="text-xs text-gray-500">{formatNumber(token.marketCapSol)} SOL</span>
-              </div>
-            </div>
-            <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-sm mb-1">
-                <Users size={14} className="text-blue-400" />
-                <span className="text-gray-400">Initial Buy</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-white font-bold">{formatNumber(initialBuyUSD, true)}</span>
-                <span className="text-xs text-gray-500">{formatNumber(token.solAmount || 0)} SOL</span>
-              </div>
-            </div>
-          </div>
-          <div className="space-y-3">
-            <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-sm mb-1">
-                <TrendingUp size={14} className="text-blue-400" />
-                <span className="text-gray-400">Volume 24h</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-white font-bold">{formatNumber(volume24hUSD, true)}</span>
-                <span className="text-xs text-gray-500">{formatNumber(token.volume24h || 0)} SOL</span>
-              </div>
-            </div>
-            <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-sm mb-1">
-                <TrendingUp size={14} className="text-blue-400" />
-                <span className="text-gray-400">Price</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-white font-bold">${((token.price || 0) * SOL_PRICE_USD).toFixed(6)}</span>
-                <span className="text-xs text-gray-500">{(token.price || 0).toFixed(6)} SOL</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 border-t border-gray-800 pt-4">
-          <h4 className="text-sm text-gray-400 mb-2">Price & Market Cap</h4>
-          <CandlestickChart data={priceHistory} />
-        </div>
-
-        {token.address && <TransactionHistory tokenAddress={token.address} />}
-
-        {token.liquidityAdded && (
-          <div className="border-t border-gray-800 pt-3 mt-3">
-            <div className="flex items-center justify-between">
-              <span className="px-2 py-1 rounded-full bg-green-500/20 text-green-400 text-xs font-medium border border-green-500/20">
-                Liquidity Added
-              </span>
-            </div>
-          </div>
-        )}
-      </Card>
-    </motion.div>
-  );
-});
+import TokenCard from './TokenCard';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export const TokenTracker: FC = () => {
   const tokens = usePumpPortalStore(state => state.tokens);
   const activeFilter = useTokenFiltersStore(state => state.activeFilter);
 
   useEffect(() => {
+    // Connect to WebSockets only once
     pumpPortalSocket.connect();
     heliusSocket.connect();
-    initializeVolumeTracking();
 
     return () => {
       pumpPortalSocket.disconnect();
@@ -282,4 +53,4 @@ export const TokenTracker: FC = () => {
   );
 };
 
-export default TokenTracker;
+export default memo(TokenTracker);

@@ -3,6 +3,7 @@ import { useTokenVolumeStore } from './token-volume';
 import { useTokenPriceStore } from './price-history';
 import { useTokenSocialMetricsStore } from './social-metrics';
 import { useTransactionHistoryStore } from './transaction-history';
+import { devtools } from 'zustand/middleware';
 
 interface TokenMetadata {
   name: string;
@@ -114,99 +115,85 @@ const processSocialMetrics = async (token: TokenData) => {
   }
 };
 
-export const usePumpPortalStore = create<PumpPortalState>((set) => ({
-  tokens: [],
-  isConnected: false,
-  connectionError: null,
-  addToken: async (token) => {
-    set((state) => {
-      const now = Date.now();
-      const initialPrice = token.solAmount && token.initialBuy
-        ? token.solAmount / token.initialBuy
-        : 0;
+export const usePumpPortalStore = create<PumpPortalState>()(
+  devtools(
+    (set) => ({
+      tokens: [],
+      isConnected: false,
+      connectionError: null,
 
-      const enrichedToken = {
-        ...token,
-        price: initialPrice,
-        lastUpdated: now,
-      };
+      addToken: async (token) => {
+        set((state) => {
+          const now = Date.now();
+          const initialPrice = token.solAmount && token.initialBuy
+            ? token.solAmount / token.initialBuy
+            : 0;
 
-      if (token.address) {
-        try {
-          // Initialize the price history first
-          useTokenPriceStore.getState().initializePriceHistory(
-            token.address, 
-            initialPrice,
-            token.marketCapSol || 0
-          );
+          const enrichedToken = {
+            ...token,
+            price: initialPrice,
+            lastUpdated: now,
+          };
 
-          // Then add volume data
-          useTokenVolumeStore.getState().addVolumeData(
-            token.address, 
-            token.volume24h || 0
-          );
-
-          processSocialMetrics(enrichedToken);
-
-          if (token.uri) {
-            parseTokenMetadata(token.uri).then(metadata => {
-              if (metadata) {
-                set(state => ({
-                  tokens: state.tokens.map(t =>
-                    t.address === token.address
-                      ? { ...t, metadata }
-                      : t
-                  )
-                }));
-
-                if (metadata.twitter) {
-                  processSocialMetrics({
-                    ...enrichedToken,
-                    metadata
-                  });
+          // Batch initialize price history and metadata
+          if (token.address) {
+            Promise.all([
+              useTokenPriceStore.getState().initializePriceHistory(
+                token.address, 
+                initialPrice,
+                token.marketCapSol || 0
+              ),
+              token.uri && parseTokenMetadata(token.uri).then(metadata => {
+                if (metadata) {
+                  set(state => ({
+                    tokens: state.tokens.map(t =>
+                      t.address === token.address
+                        ? { ...t, metadata }
+                        : t
+                    )
+                  }));
                 }
-              }
-            });
+              })
+            ]).catch(console.error);
           }
-        } catch (error) {
-          console.error('[PumpPortal Store] Error initializing token data:', error);
-        }
-      }
 
-      return {
-        tokens: [...state.tokens, enrichedToken]
-          .sort((a, b) => b.marketCapSol - a.marketCapSol)
-          .slice(0, 100),
-      };
-    });
-  },
-  updateToken: (address, updates) =>
-    set((state) => {
-      const currentToken = state.tokens.find(token => token.address === address);
-      if (!currentToken) return state;
+          return {
+            tokens: [...state.tokens, enrichedToken]
+              .sort((a, b) => b.marketCapSol - a.marketCapSol)
+              .slice(0, 100),
+          };
+        });
+      },
 
-      // Calculate price change percentage
-      const priceChange24h = updates.price !== undefined && currentToken.price !== undefined
-        ? ((updates.price - currentToken.price) / currentToken.price) * 100
-        : currentToken.priceChange24h;
+      updateToken: (address, updates) =>
+        set((state) => {
+          const currentToken = state.tokens.find(token => token.address === address);
+          if (!currentToken) return state;
 
-      // Create the updated token data
-      const updatedToken = {
-        ...currentToken,
-        ...updates,
-        priceChange24h,
-        lastUpdated: Date.now()
-      };
+          const priceChange24h = updates.price !== undefined && currentToken.price !== undefined
+            ? ((updates.price - currentToken.price) / currentToken.price) * 100
+            : currentToken.priceChange24h;
 
-      return {
-        tokens: state.tokens.map((token) =>
-          token.address === address ? updatedToken : token
-        ),
-      };
+          const updatedToken = {
+            ...currentToken,
+            ...updates,
+            priceChange24h,
+            lastUpdated: Date.now()
+          };
+
+          return {
+            tokens: state.tokens.map((token) =>
+              token.address === address ? updatedToken : token
+            ),
+          };
+        }),
+
+      setConnected: (status) => set({ isConnected: status, connectionError: null }),
+      setError: (error) => set({ connectionError: error })
     }),
-  setConnected: (status) => set({ isConnected: status, connectionError: null }),
-  setError: (error) => set({ connectionError: error })
-}));
+    { name: 'pump-portal-store' }
+  )
+);
 
 class PumpPortalWebSocket {
   private ws: WebSocket | null = null;
@@ -214,8 +201,93 @@ class PumpPortalWebSocket {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 5000;
   private heartbeatInterval: NodeJS.Timeout | null = null;
-  private updateQueue: Map<string, NodeJS.Timeout> = new Map();
-  private readonly UPDATE_DEBOUNCE = 2000; // 2 second debounce for updates
+  private updateQueue = new Map<string, {
+    timeout: NodeJS.Timeout;
+    updates: Array<{
+      price: number;
+      marketCap: number;
+      volume: number;
+      signature: string;
+      buyer: string;
+      timestamp: number;
+    }>;
+  }>();
+  private readonly UPDATE_DEBOUNCE = 2000;
+  private readonly BATCH_SIZE = 5;
+
+  private processQueuedUpdates(tokenAddress: string) {
+    const queueData = this.updateQueue.get(tokenAddress);
+    if (!queueData || queueData.updates.length === 0) return;
+
+    const { updates } = queueData;
+    const lastUpdate = updates[updates.length - 1];
+
+    // Batch update price history
+    useTokenPriceStore.getState().addPricePoint(
+      tokenAddress,
+      lastUpdate.price,
+      lastUpdate.marketCap,
+      updates.reduce((sum, u) => sum + u.volume, 0)
+    );
+
+    // Add latest transaction
+    useTransactionHistoryStore.getState().addTransaction(tokenAddress, {
+      signature: lastUpdate.signature,
+      buyer: lastUpdate.buyer,
+      solAmount: lastUpdate.volume,
+      tokenAmount: lastUpdate.volume / lastUpdate.price,
+      timestamp: lastUpdate.timestamp,
+      type: 'trade'
+    });
+
+    // Clear the queue
+    this.updateQueue.delete(tokenAddress);
+  }
+
+  private handleTokenUpdate(data: any) {
+    if (!data.mint || !data.solAmount) return;
+
+    const tokenAddress = data.mint;
+    const price = data.solAmount / (data.tokenAmount || data.initialBuy);
+    const update = {
+      price,
+      marketCap: data.marketCapSol || 0,
+      volume: data.solAmount,
+      signature: data.signature,
+      buyer: data.traderPublicKey,
+      timestamp: Date.now()
+    };
+
+    const queueData = this.updateQueue.get(tokenAddress);
+    if (queueData) {
+      clearTimeout(queueData.timeout);
+      queueData.updates.push(update);
+
+      if (queueData.updates.length >= this.BATCH_SIZE) {
+        this.processQueuedUpdates(tokenAddress);
+      } else {
+        queueData.timeout = setTimeout(() => {
+          this.processQueuedUpdates(tokenAddress);
+        }, this.UPDATE_DEBOUNCE);
+      }
+    } else {
+      const timeout = setTimeout(() => {
+        this.processQueuedUpdates(tokenAddress);
+      }, this.UPDATE_DEBOUNCE);
+
+      this.updateQueue.set(tokenAddress, {
+        timeout,
+        updates: [update]
+      });
+    }
+
+    // Update main token store
+    usePumpPortalStore.getState().updateToken(tokenAddress, {
+      price,
+      marketCapSol: data.marketCapSol || 0,
+      volume24h: data.volume24h || 0
+    });
+  }
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -344,46 +416,6 @@ class PumpPortalWebSocket {
     setTimeout(() => {
       this.connect();
     }, this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1));
-  }
-
-  private handleTokenUpdate(data: any) {
-    const tokenAddress = data.mint;
-    if (!tokenAddress) return;
-
-    // Clear existing timeout for this token
-    const existingTimeout = this.updateQueue.get(tokenAddress);
-    if (existingTimeout) {
-      clearTimeout(existingTimeout);
-    }
-
-    // Debounce the update
-    const timeout = setTimeout(() => {
-      if (data.solAmount && (data.tokenAmount || data.initialBuy)) {
-        const price = data.solAmount / (data.tokenAmount || data.initialBuy);
-
-        // Update price history with debounced value
-        useTokenPriceStore.getState().addPricePoint(
-          tokenAddress,
-          price,
-          data.marketCapSol || 0,
-          data.solAmount || 0
-        );
-
-        // Update transaction history
-        useTransactionHistoryStore.getState().addTransaction(tokenAddress, {
-          signature: data.signature,
-          buyer: data.traderPublicKey,
-          solAmount: data.solAmount || 0,
-          tokenAmount: data.tokenAmount || data.initialBuy || 0,
-          timestamp: Date.now(),
-          type: data.txType === 'create' ? 'buy' : 'sell'
-        });
-      }
-
-      this.updateQueue.delete(tokenAddress);
-    }, this.UPDATE_DEBOUNCE);
-
-    this.updateQueue.set(tokenAddress, timeout);
   }
 
 
