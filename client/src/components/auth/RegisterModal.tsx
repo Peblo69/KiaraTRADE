@@ -44,24 +44,32 @@ export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
 
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterForm) => {
-      const response = await fetch("/api/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-        credentials: 'include'
-      });
+      try {
+        const response = await fetch("/api/register", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+          credentials: 'include'
+        });
 
-      const result = await response.json();
+        const contentType = response.headers.get("content-type");
+        const result = contentType?.includes("application/json") 
+          ? await response.json()
+          : await response.text();
 
-      if (!response.ok) {
-        throw new Error(result.message || "Registration failed");
+        if (!response.ok) {
+          throw new Error(typeof result === 'object' ? result.message : result || "Registration failed");
+        }
+
+        return result;
+      } catch (error) {
+        console.error("Registration error:", error);
+        throw error;
       }
-
-      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setIsEmailSent(true);
       toast({
         title: "Registration successful!",
