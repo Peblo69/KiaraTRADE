@@ -1,4 +1,4 @@
-import { FC } from 'react';
+import { FC, memo } from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -25,7 +25,7 @@ interface Props {
   data: CandleData[];
 }
 
-export const CandlestickChart: FC<Props> = ({ data }) => {
+const CandlestickChartBase: FC<Props> = ({ data }) => {
   const formatXAxis = (timestamp: number) => {
     return format(new Date(timestamp), 'HH:mm');
   };
@@ -68,7 +68,7 @@ export const CandlestickChart: FC<Props> = ({ data }) => {
             stroke="none"
             yAxisId="price"
           />
-          
+
           {/* Market cap line */}
           <Line
             type="monotone"
@@ -135,4 +135,5 @@ export const CandlestickChart: FC<Props> = ({ data }) => {
   );
 };
 
+export const CandlestickChart = memo(CandlestickChartBase);
 export default CandlestickChart;
