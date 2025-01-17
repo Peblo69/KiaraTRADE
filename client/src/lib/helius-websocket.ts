@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { usePumpPortalStore } from './pump-portal-websocket';
 import { useTokenPriceStore } from './price-history';
+import { useTokenVolumeStore } from './token-volume';
 
 interface HeliusTokenData {
   mint: string;
@@ -8,6 +9,9 @@ interface HeliusTokenData {
   symbol: string;
   uri?: string;
   signature?: string;
+  price?: number;
+  volume24h?: number;
+  marketCap?: number;
 }
 
 interface HeliusState {
@@ -60,71 +64,62 @@ class HeliusWebSocket {
           this.messageHandlers.forEach(handler => handler(data));
 
           if (data.type === 'transaction') {
-            // Extract transaction details
-            const { description, type, tokenTransfers, nativeTransfers, accountData } = data;
-            console.log('[Helius WebSocket] Processing transaction:', { description, type });
+            const { accountData, type: txType, tokenTransfers, nativeTransfers } = data;
 
-            // Process token transfers
-            if (tokenTransfers?.length > 0) {
-              tokenTransfers.forEach((transfer: any) => {
+            if (txType === 'SWAP' || txType === 'TRANSFER' || txType === 'TOKEN_CREATE') {
+              const transfers = tokenTransfers || [];
+              transfers.forEach(async (transfer: any) => {
                 if (!transfer.mint) return;
 
-                const existingToken = usePumpPortalStore.getState().tokens.find(
-                  t => t.address === transfer.mint
-                );
+                try {
+                  // Fetch token metadata
+                  const metadata = await this.fetchTokenMetadata(transfer.mint);
+                  if (!metadata) return;
 
-                if (existingToken) {
-                  // Calculate new values
-                  const volume24h = (existingToken.volume24h || 0) + (parseFloat(transfer.amount) || 0);
-                  const price = transfer.amount && transfer.tokenAmount 
-                    ? parseFloat(transfer.amount) / parseFloat(transfer.tokenAmount)
-                    : existingToken.price;
+                  const volume = parseFloat(transfer.amount) || 0;
+                  const price = transfer.tokenAmount ? volume / parseFloat(transfer.tokenAmount) : 0;
 
-                  // Update price history
+                  // Update token data in store
+                  const tokenData = {
+                    name: metadata.name || 'Unknown',
+                    symbol: metadata.symbol || 'UNKNOWN',
+                    address: transfer.mint,
+                    price,
+                    volume24h: volume,
+                    marketCap: price * (metadata.supply || 0),
+                    imageUrl: metadata.image || undefined,
+                    uri: metadata.uri,
+                    holders: metadata.holders || 0,
+                    liquidityAdded: true // Set based on actual pool data
+                  };
+
+                  console.log('[Helius WebSocket] Processing token:', tokenData);
+
+                  // Update stores
                   if (price && !isNaN(price)) {
                     useTokenPriceStore.getState().addPricePoint(transfer.mint, price);
                   }
 
-                  // Update token data
-                  console.log('[Helius WebSocket] Updating token data:', {
-                    mint: transfer.mint,
-                    volume24h,
-                    price
-                  });
+                  if (volume && !isNaN(volume)) {
+                    useTokenVolumeStore.getState().addVolumeData(transfer.mint, volume);
+                  }
 
-                  usePumpPortalStore.getState().updateToken(transfer.mint, {
-                    volume24h,
-                    price,
-                    lastUpdated: Date.now()
-                  });
+                  const existingToken = usePumpPortalStore.getState().tokens.find(
+                    t => t.address === transfer.mint
+                  );
+
+                  if (existingToken) {
+                    usePumpPortalStore.getState().updateToken(transfer.mint, tokenData);
+                  } else {
+                    usePumpPortalStore.getState().addToken(tokenData);
+                  }
+
+                } catch (error) {
+                  console.error('[Helius WebSocket] Error processing transfer:', error);
                 }
               });
             }
-
-            // Process native transfers for market cap updates
-            if (nativeTransfers?.length > 0) {
-              const totalTransfer = nativeTransfers.reduce(
-                (sum: number, transfer: any) => sum + (parseFloat(transfer.amount) || 0),
-                0
-              );
-
-              if (totalTransfer > 0 && data.mint) {
-                const existingToken = usePumpPortalStore.getState().tokens.find(
-                  t => t.address === data.mint
-                );
-
-                if (existingToken) {
-                  // Update market cap based on total transfer
-                  const marketCapSol = totalTransfer * (existingToken.price || 0);
-                  usePumpPortalStore.getState().updateToken(data.mint, {
-                    marketCapSol,
-                    lastUpdated: Date.now()
-                  });
-                }
-              }
-            }
           }
-
         } catch (error) {
           console.error('[Helius WebSocket] Error processing message:', error);
           useHeliusStore.getState().setError('Failed to process token data');
@@ -150,6 +145,40 @@ class HeliusWebSocket {
       this.cleanup();
       this.reconnect();
     }
+  }
+
+  private async fetchTokenMetadata(mint: string) {
+    try {
+      const response = await fetch('https://mainnet.helius-rpc.com/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'my-id',
+          method: 'getAsset',
+          params: {
+            id: mint,
+          },
+        }),
+      });
+
+      const data = await response.json();
+      if (data.result) {
+        return {
+          name: data.result.content?.metadata?.name,
+          symbol: data.result.content?.metadata?.symbol,
+          uri: data.result.content?.json_uri,
+          image: data.result.content?.links?.image,
+          supply: data.result.token_info?.supply,
+          holders: data.result.token_info?.holder_count,
+        };
+      }
+    } catch (error) {
+      console.error('[Helius WebSocket] Error fetching token metadata:', error);
+    }
+    return null;
   }
 
   onMessage(handler: (data: any) => void) {
@@ -182,7 +211,6 @@ class HeliusWebSocket {
             filters: [
               { value: "SWAP", field: "type" },
               { value: "TRANSFER", field: "type" },
-              { value: "NFT_SALE", field: "type" },
               { value: "TOKEN_CREATE", field: "type" }
             ]
           }

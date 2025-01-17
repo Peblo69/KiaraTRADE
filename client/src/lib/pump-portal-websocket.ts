@@ -42,11 +42,8 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
       const enrichedToken = {
         ...token,
         lastUpdated: now,
-        // Add mock price change for UI testing (remove in production)
-        priceChange24h: Math.random() * 200 - 100,
       };
 
-      // Log the token being added
       console.log('[PumpPortal Store] Adding token:', enrichedToken);
 
       return {
@@ -56,11 +53,28 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
       };
     }),
   updateToken: (address, updates) =>
-    set((state) => ({
-      tokens: state.tokens.map((token) =>
-        token.address === address ? { ...token, ...updates, lastUpdated: Date.now() } : token
-      ),
-    })),
+    set((state) => {
+      const currentToken = state.tokens.find(token => token.address === address);
+      if (!currentToken) return state;
+
+      // Calculate price change if we have new price data
+      const priceChange24h = updates.price !== undefined && currentToken.price !== undefined
+        ? ((updates.price - currentToken.price) / currentToken.price) * 100
+        : currentToken.priceChange24h;
+
+      return {
+        tokens: state.tokens.map((token) =>
+          token.address === address 
+            ? { 
+                ...token, 
+                ...updates, 
+                priceChange24h,
+                lastUpdated: Date.now() 
+              } 
+            : token
+        ),
+      };
+    }),
   setConnected: (status) => {
     console.log('[PumpPortal Store] Connection status:', status);
     set({ isConnected: status, connectionError: null });
@@ -109,11 +123,11 @@ class PumpPortalWebSocket {
               marketCap: data.marketCapSol || 0,
               marketCapSol: data.marketCapSol || 0,
               liquidityAdded: data.pool === "pump",
-              holders: 0,
-              volume24h: 0,
+              holders: data.holders || 0,
+              volume24h: data.volume24h || 0,
               address: data.mint,
-              price: data.solAmount / data.initialBuy || 0,
-              imageUrl: data.uri, // Use the URI directly as image URL first
+              price: data.solAmount / (data.initialBuy || 1),
+              imageUrl: data.uri,
               uri: data.uri,
               signature: data.signature,
               initialBuy: data.initialBuy,
