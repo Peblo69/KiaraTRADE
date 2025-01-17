@@ -44,30 +44,34 @@ export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
 
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterForm) => {
-      try {
-        const response = await fetch("/api/register", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(data),
-          credentials: 'include'
-        });
+      const response = await fetch("/api/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+        credentials: 'include'
+      });
 
+      if (!response.ok) {
         const contentType = response.headers.get("content-type");
-        const result = contentType?.includes("application/json") 
-          ? await response.json()
-          : await response.text();
+        let errorMessage: string;
 
-        if (!response.ok) {
-          throw new Error(typeof result === 'object' ? result.message : result || "Registration failed");
+        try {
+          if (contentType?.includes("application/json")) {
+            const errorData = await response.json();
+            errorMessage = errorData.message;
+          } else {
+            errorMessage = await response.text();
+          }
+        } catch (e) {
+          errorMessage = "Failed to process server response";
         }
 
-        return result;
-      } catch (error) {
-        console.error("Registration error:", error);
-        throw error;
+        throw new Error(errorMessage || "Registration failed");
       }
+
+      return response.json();
     },
     onSuccess: (data) => {
       setIsEmailSent(true);
