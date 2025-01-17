@@ -1,4 +1,4 @@
-import { FC, useEffect, useState } from 'react';
+import { FC, useEffect, useState, useCallback } from 'react';
 import { Card } from "@/components/ui/card";
 import { pumpPortalSocket, usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { heliusSocket } from '@/lib/helius-websocket';
@@ -34,27 +34,24 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
   const volumeHistory = useTokenVolumeStore(state => state.getVolumeHistory(token.address));
   const socialMetrics = useTokenSocialMetricsStore(state => state.getMetrics(token.address));
   const priceHistory = useTokenPriceStore(state => state.getPriceHistory(token.address));
-  const [initialized, setInitialized] = useState(false);
+
   const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
   const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
 
   useEffect(() => {
-    if (!initialized && token.address) {
-      if (volumeHistory.length === 0) {
-        useTokenVolumeStore.getState().addVolumeData(token.address, token.volume24h || 0);
-      }
-
+    // Initialize data only once when component mounts
+    if (token.address) {
       if (!socialMetrics) {
         generateMockSocialMetrics(token.address);
       }
-
+      if (volumeHistory.length === 0) {
+        useTokenVolumeStore.getState().addVolumeData(token.address, token.volume24h || 0);
+      }
       if (priceHistory.length === 0 && token.price) {
         useTokenPriceStore.getState().initializePriceHistory(token.address, token.price);
       }
-
-      setInitialized(true);
     }
-  }, [token.address, initialized]);
+  }, [token.address]); // Only re-run if token address changes
 
   // Calculate USD values
   const marketCapUSD = (token.marketCapSol || token.marketCap || 0) * SOL_PRICE_USD;
@@ -202,15 +199,17 @@ export const TokenTracker: FC = () => {
   const tokens = usePumpPortalStore(state => state.tokens);
 
   useEffect(() => {
-    console.log('[TokenTracker] Initializing WebSocket connections');
+    // Initialize WebSocket connections once
     pumpPortalSocket.connect();
     heliusSocket.connect();
     initializeVolumeTracking();
+
+    // Cleanup on unmount
     return () => {
       pumpPortalSocket.disconnect();
       heliusSocket.disconnect();
     };
-  }, []);
+  }, []); // Empty dependency array = run once on mount
 
   return (
     <div className="max-w-7xl mx-auto px-4">

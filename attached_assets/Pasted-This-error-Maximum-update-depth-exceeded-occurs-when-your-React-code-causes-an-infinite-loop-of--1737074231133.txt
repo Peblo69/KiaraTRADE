@@ -1,0 +1,160 @@
+This error, "Maximum update depth exceeded," occurs when your React code causes an infinite loop of state updates, re-renders, or effect executions. Here's how you can fix it step by step:
+
+1. Identify the Cause
+This happens when:
+
+A setState (or Zustand's set) call triggers a re-render, and during that re-render, setState is called again without a condition to stop it.
+A useEffect dependency list is misconfigured, leading to continuous execution.
+A component's state is tied to props or external store values, which causes infinite updates.
+2. Fixing the Error in Common Scenarios
+Scenario 1: State Updates in useEffect
+If you're updating the state inside useEffect, ensure the dependency list ([]) does not cause repeated executions.
+
+Example of the issue:
+
+javascript
+Copy
+Edit
+useEffect(() => {
+  setState(someValue); // This triggers a re-render and re-executes the effect.
+}, [someValue]); // someValue changes on every render, causing an infinite loop.
+Fix:
+
+Ensure state updates only happen when necessary:
+javascript
+Copy
+Edit
+useEffect(() => {
+  if (state !== someValue) {
+    setState(someValue); // Only update when there's a change.
+  }
+}, [someValue, state]);
+Scenario 2: Zustand State Updates
+Zustand state updates (set) in React components can lead to infinite updates if the state triggers a change that re-triggers the same set.
+
+Example:
+
+javascript
+Copy
+Edit
+const tokens = usePumpFunStore((state) => state.tokens);
+
+useEffect(() => {
+  tokens.forEach((token) => {
+    // This could trigger infinite updates if `set` depends on observed state
+    usePumpFunStore.getState().updateToken(token.address, { updatedField: value });
+  });
+}, [tokens]);
+Fix: Avoid state updates that depend on the state they are updating:
+
+javascript
+Copy
+Edit
+useEffect(() => {
+  const uniqueTokens = [...new Map(tokens.map((t) => [t.address, t])).values()];
+  uniqueTokens.forEach((token) => {
+    if (!token.updatedField) {
+      usePumpFunStore.getState().updateToken(token.address, { updatedField: value });
+    }
+  });
+}, [tokens]);
+Scenario 3: WebSocket Data Triggering State Updates
+If WebSocket messages trigger state updates that re-render and cause the WebSocket to re-send updates, it creates a loop.
+
+Example of the issue:
+
+javascript
+Copy
+Edit
+this.ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  usePumpFunStore.getState().addToken(data); // Updates the state, causing the same logic to run again.
+};
+Fix: Check if the data has actually changed before updating the state:
+
+javascript
+Copy
+Edit
+this.ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+
+  const existingToken = usePumpFunStore.getState().tokens.find(
+    (token) => token.address === data.address
+  );
+
+  if (!existingToken || existingToken.price !== data.price) {
+    usePumpFunStore.getState().addToken(data); // Only update if data has changed.
+  }
+};
+Scenario 4: Rendering Based on State Updates
+If your component's rendering logic causes indirect updates to the state, it can create a loop.
+
+Example:
+
+javascript
+Copy
+Edit
+const Component = () => {
+  const tokens = usePumpFunStore((state) => state.tokens);
+
+  // Rendering causes setState due to some logic inside.
+  tokens.forEach((token) => {
+    usePumpFunStore.getState().updateToken(token.address, { updatedField: true });
+  });
+
+  return <div>{tokens.map((token) => token.name)}</div>;
+};
+Fix: Avoid updating the state during rendering. Use useEffect for side effects:
+
+javascript
+Copy
+Edit
+const Component = () => {
+  const tokens = usePumpFunStore((state) => state.tokens);
+
+  useEffect(() => {
+    tokens.forEach((token) => {
+      if (!token.updatedField) {
+        usePumpFunStore.getState().updateToken(token.address, { updatedField: true });
+      }
+    });
+  }, [tokens]);
+
+  return <div>{tokens.map((token) => token.name)}</div>;
+};
+3. Debugging Tips
+Enable Logging to Find the Cause
+Add logs to your setState, Zustand set, or useEffect calls to see what is triggering repeatedly:
+
+javascript
+Copy
+Edit
+console.log("State updated:", state); // Or tokens in Zustand
+Break the Loop with Conditions
+Add conditions to prevent unnecessary updates:
+
+javascript
+Copy
+Edit
+if (state !== newValue) {
+  setState(newValue);
+}
+4. Disable the Overlay in Development
+To prevent the error overlay from blocking you while debugging, you can disable it in vite.config.js:
+
+javascript
+Copy
+Edit
+export default {
+  server: {
+    hmr: {
+      overlay: false,
+    },
+  },
+};
+5. Checklist to Prevent This Issue
+State Updates: Ensure that setState or Zustand set is only called when data changes.
+Dependencies: Properly configure useEffect dependencies and avoid over-inclusion.
+WebSocket Updates: Debounce or throttle WebSocket updates to prevent rapid-fire changes.
+Render Logic: Avoid updating state directly during rendering.
+Logging: Add logs to monitor the source of repeated updates.
