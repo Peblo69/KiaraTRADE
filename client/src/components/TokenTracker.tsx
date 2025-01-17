@@ -5,6 +5,7 @@ import { useTokenFiltersStore, filterTokens } from '@/lib/token-filters';
 import TokenCard from './TokenCard';
 import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import { motion, AnimatePresence } from 'framer-motion';
+import DebugPanel from './DebugPanel';
 
 export const TokenTracker: FC = memo(() => {
   const tokens = useUnifiedTokenStore(state => state.tokens);
@@ -57,6 +58,8 @@ export const TokenTracker: FC = memo(() => {
           ))}
         </AnimatePresence>
       </div>
+
+      <DebugPanel />
     </div>
   );
 });

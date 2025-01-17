@@ -1,0 +1,174 @@
+
+The "Maximum update depth exceeded" error happens when there is an infinite loop of state updates, typically caused by:
+
+Frequent state updates in a loop (e.g., state triggering a render, which triggers another state update).
+Uncontrolled subscriptions to a shared state/store (e.g., Zustand store or WebSocket listener repeatedly triggering updates).
+Dependency mismanagement in useEffect hooks or React lifecycle methods.
+Here’s how to diagnose and fix the problem:
+
+Diagnosis
+From your logs, the issue likely originates in the way state updates (e.g., UnifiedTokenStore) are processed. Specifically:
+
+Frequent Updates: Tokens and price points are added multiple times, potentially triggering continuous re-renders.
+Candle Updates: The Candle update check and Current candle state updates might be repeatedly triggering state updates because conditions like needsUpdate are constantly true.
+WebSocket Data: Incoming WebSocket transactions might be triggering multiple redundant state updates.
+Steps to Fix
+1. Avoid Redundant Updates
+Before adding or updating a token, check whether the update is necessary. Modify the state logic to avoid updating state unless there’s a meaningful change.
+
+Update Token Logic
+Update the token state only if the new data differs from the existing data:
+
+javascript
+Copy
+Edit
+function updateToken(address, updates, set) {
+  set((state) => {
+    const existingToken = state.tokens[address];
+    if (!existingToken) {
+      // New token: Add it to the state
+      return {
+        ...state,
+        tokens: {
+          ...state.tokens,
+          [address]: updates,
+        },
+      };
+    }
+
+    // Compare existing and new values to avoid redundant updates
+    const hasChanges = Object.entries(updates).some(
+      ([key, value]) => existingToken[key] !== value
+    );
+
+    if (!hasChanges) return state; // Skip update if nothing has changed
+
+    return {
+      ...state,
+      tokens: {
+        ...state.tokens,
+        [address]: {
+          ...existingToken,
+          ...updates,
+        },
+      },
+    };
+  });
+}
+2. Debounce Candle Updates
+Batch or debounce candle updates to reduce state changes. For example, if new price points are coming in too frequently:
+
+javascript
+Copy
+Edit
+let candleUpdateTimeout;
+
+function updateCandle(tokenAddress, newCandleData, set) {
+  if (candleUpdateTimeout) clearTimeout(candleUpdateTimeout);
+
+  candleUpdateTimeout = setTimeout(() => {
+    set((state) => {
+      const currentCandle = state.currentCandles[tokenAddress];
+      if (!currentCandle) {
+        // Start a new candle
+        return {
+          ...state,
+          currentCandles: {
+            ...state.currentCandles,
+            [tokenAddress]: newCandleData,
+          },
+        };
+      }
+
+      // Update the existing candle with new high/low values
+      return {
+        ...state,
+        currentCandles: {
+          ...state.currentCandles,
+          [tokenAddress]: {
+            ...currentCandle,
+            high: Math.max(currentCandle.high, newCandleData.high),
+            low: Math.min(currentCandle.low, newCandleData.low),
+            close: newCandleData.close,
+          },
+        },
+      };
+    });
+  }, 500); // Wait 500ms before applying updates
+}
+3. Batch Updates from WebSocket
+Instead of updating state immediately for every incoming WebSocket transaction, collect updates in a batch and process them at intervals.
+
+Example: Batch Processing
+javascript
+Copy
+Edit
+let updateBatch = [];
+let batchTimeout;
+
+function handleWebSocketTransaction(transaction) {
+  updateBatch.push(transaction);
+
+  if (batchTimeout) clearTimeout(batchTimeout);
+
+  batchTimeout = setTimeout(() => {
+    processBatchUpdates(updateBatch);
+    updateBatch = [];
+  }, 200); // Process updates every 200ms
+}
+
+function processBatchUpdates(batch) {
+  const updates = batch.reduce((acc, transaction) => {
+    const { tokenAddress, price, marketCap, volume } = transaction;
+    if (!acc[tokenAddress]) {
+      acc[tokenAddress] = { price, marketCap, volume };
+    } else {
+      acc[tokenAddress] = {
+        ...acc[tokenAddress],
+        price: Math.max(acc[tokenAddress].price, price), // Use the highest price
+        volume: acc[tokenAddress].volume + volume, // Sum volumes
+      };
+    }
+    return acc;
+  }, {});
+
+  for (const [tokenAddress, updateData] of Object.entries(updates)) {
+    useUnifiedTokenStore.getState().updateToken(tokenAddress, updateData);
+  }
+}
+4. Memoize Derived Data
+Avoid recalculating derived data like filtered tokens or chart data on every render.
+
+javascript
+Copy
+Edit
+const filteredTokens = useMemo(() => {
+  return tokens.filter((token) => token.volume > 0); // Example filter
+}, [tokens]);
+
+const chartData = useMemo(() => {
+  return candles.map((candle) => ({
+    ...candle,
+    volumeHeight: Math.min(candle.volume * 0.1, candle.high - candle.low),
+  }));
+}, [candles]);
+5. Add Logging to Debug Update Triggers
+Log state updates and rendering to find what’s causing the loop:
+
+javascript
+Copy
+Edit
+useEffect(() => {
+  console.log("Rendered Token Store:", tokens);
+}, [tokens]);
+
+useEffect(() => {
+  console.log("Rendered Candlestick Chart:", candles);
+}, [candles]);
+Summary of Fixes
+Prevent Redundant State Updates: Ensure state changes only occur when data has actually changed.
+Batch WebSocket Updates: Group multiple WebSocket updates together and process them periodically.
+Debounce Candle Updates: Wait for a short period before applying candle updates to avoid frequent state changes.
+Memoize Derived Data: Use useMemo to prevent recalculations and unnecessary re-renders.
+Debug State Changes: Add logging to trace what triggers the state updates and address the root cause.
+Implement these fixes step by step to resolve the infinite update loop and optimize your application. Let me know if you need more help!

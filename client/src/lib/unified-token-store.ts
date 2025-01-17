@@ -57,6 +57,7 @@ interface UnifiedTokenState {
   transactions: Record<string, Transaction[]>;
   isConnected: boolean;
   connectionError: string | null;
+  updateCount: number; // Add update counter
 
   // Actions
   addToken: (token: TokenData) => void;
@@ -85,6 +86,7 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
       transactions: {},
       isConnected: false,
       connectionError: null,
+      updateCount: 0,
 
       addToken: (token) => {
         console.log('[UnifiedTokenStore] Adding token:', token.address, {
@@ -125,6 +127,7 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
                 marketCap: token.marketCapSol || 0
               }
             } : state.currentCandles,
+            updateCount: state.updateCount + 1
           };
         });
       },
@@ -157,6 +160,7 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
                   }
                 : token
             ),
+            updateCount: state.updateCount + 1
           };
         });
       },
@@ -206,12 +210,13 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
               currentCandles: {
                 ...state.currentCandles,
                 [tokenAddress]: newCandle
-              }
+              },
+              updateCount: state.updateCount + 1
             };
           }
 
           // Check if update is actually needed
-          const needsUpdate = 
+          const needsUpdate =
             currentCandle.high !== Math.max(currentCandle.high, price) ||
             currentCandle.low !== Math.min(currentCandle.low, price) ||
             currentCandle.close !== price ||
@@ -241,7 +246,8 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
                 volume: currentCandle.volume + volume,
                 marketCap
               }
-            }
+            },
+            updateCount: state.updateCount + 1
           };
         });
       },
@@ -264,22 +270,23 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
             transactions: {
               ...state.transactions,
               [tokenAddress]: [transaction, ...tokenTransactions].slice(0, 10)
-            }
+            },
+            updateCount: state.updateCount + 1
           };
         });
       },
 
       setConnected: (status) => {
         console.log('[UnifiedTokenStore] Setting connection status:', status);
-        set({ isConnected: status, connectionError: null });
+        set({ isConnected: status, connectionError: null, updateCount: get().updateCount +1 });
       },
 
       setError: (error) => {
         console.log('[UnifiedTokenStore] Setting error:', error);
-        set({ connectionError: error });
+        set({ connectionError: error, updateCount: get().updateCount + 1 });
       },
 
-      // Selectors
+      // Selectors with added logging
       getToken: (address) => {
         const token = get().tokens.find(token => token.address === address);
         console.log('[UnifiedTokenStore] Getting token:', {
