@@ -13,6 +13,7 @@ import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import TransactionHistory from './TransactionHistory';
 
 const SOL_PRICE_USD = 104.23;
+const PUMPFUN_LOGO = "https://files.catbox.moe/qw20vj.png"; // PumpFun logo URL
 
 const formatNumber = (num: number, isCurrency = false) => {
   if (num >= 1000000000) return `${isCurrency ? '$' : ''}${(num / 1000000000).toFixed(2)}B`;
@@ -28,6 +29,7 @@ interface TokenCardProps {
 
 const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
   const token = useUnifiedTokenStore(state => state.getToken(tokenAddress));
+  const [imageError, setImageError] = useState(false);
 
   if (!token) return null;
 
@@ -41,15 +43,20 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
     <Card className="p-4 bg-black/40 backdrop-blur-lg border border-gray-800 hover:border-blue-500/50 transition-all duration-300">
       <div className="flex justify-between items-start mb-4">
         <div className="flex items-center gap-3">
-          <div className="relative w-12 h-12">
-            <img 
-              src={token.imageUrl || 'https://cryptologos.cc/logos/solana-sol-logo.png'}
-              alt={token.symbol} 
-              className="w-full h-full rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
-              }}
-            />
+          <div className="relative">
+            <div className="w-12 h-12 relative">
+              <img 
+                src={!imageError ? token.imageUrl : 'https://cryptologos.cc/logos/solana-sol-logo.png'}
+                alt={token.symbol} 
+                className="w-full h-full rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover"
+                onError={() => setImageError(true)}
+              />
+              <img
+                src={PUMPFUN_LOGO}
+                alt="PumpFun"
+                className="absolute -right-3 -bottom-2 w-6 h-6 object-contain"
+              />
+            </div>
           </div>
           <div>
             <h3 className="text-lg font-bold text-white mb-0.5">
