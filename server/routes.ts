@@ -5,10 +5,7 @@ import { users } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { randomBytes, scrypt } from "crypto";
 import { promisify } from "util";
-import { sendVerificationEmail } from "./services/email";
 import session from "express-session";
-import { generateAIResponse } from "./services/ai";
-import { cryptoService } from "./services/crypto";
 import { log } from "./vite";
 
 const scryptAsync = promisify(scrypt);
@@ -65,8 +62,7 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      // Generate verification token and hash password
-      const verificationToken = randomBytes(32).toString("hex");
+      // Hash password
       const hashedPassword = await hashPassword(password);
 
       // Create new user
@@ -74,15 +70,11 @@ export function registerRoutes(app: Express): Server {
         username,
         email,
         password: hashedPassword,
-        verification_token: verificationToken,
         email_verified: false,
       }).returning();
 
-      // Send verification email
-      await sendVerificationEmail(email, verificationToken);
-
       res.status(201).json({
-        message: "Registration successful. Please check your email for verification.",
+        message: "Registration successful",
         userId: user.id
       });
     } catch (error) {
@@ -121,12 +113,6 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      if (!user.email_verified) {
-        return res.status(400).json({
-          message: "Please verify your email before logging in"
-        });
-      }
-
       // Set user session
       (req as any).session.userId = user.id;
 
@@ -142,44 +128,6 @@ export function registerRoutes(app: Express): Server {
       console.error("Login error:", error);
       res.status(500).json({
         message: "Login failed. Please try again."
-      });
-    }
-  });
-
-  // Email verification endpoint
-  app.get("/api/verify-email", async (req, res) => {
-    try {
-      const { token } = req.query;
-
-      if (!token || typeof token !== 'string') {
-        return res.status(400).json({
-          message: "Invalid verification token"
-        });
-      }
-
-      const [user] = await db
-        .update(users)
-        .set({
-          email_verified: true,
-          verification_token: null
-        })
-        .where(eq(users.verification_token, token))
-        .returning();
-
-      if (!user) {
-        return res.status(400).json({
-          message: "Invalid or expired verification token"
-        });
-      }
-
-      res.json({
-        message: "Email verified successfully",
-        userId: user.id
-      });
-    } catch (error) {
-      console.error("Verification error:", error);
-      res.status(500).json({
-        message: "Email verification failed. Please try again."
       });
     }
   });

@@ -11,7 +11,6 @@ import Project from "@/pages/project";
 import KiaraStageI from "@/pages/kiara-stage-i";
 import Subscriptions from "@/pages/subscriptions";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
-import Register from "@/pages/auth/register";
 
 function Router() {
   return (
@@ -22,7 +21,6 @@ function Router() {
       <Route path="/project" component={Project} />
       <Route path="/kiara-stage-i" component={KiaraStageI} />
       <Route path="/subscriptions" component={Subscriptions} />
-      <Route path="/register" component={Register} />
       <Route path="/verify-email" component={() => {
         const params = new URLSearchParams(window.location.search);
         const token = params.get('token');

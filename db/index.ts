@@ -6,5 +6,12 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL must be set");
 }
 
-const client = postgres(process.env.DATABASE_URL);
+// Configure the connection for Replit's PostgreSQL
+const client = postgres(process.env.DATABASE_URL, {
+  max: 1,
+  ssl: true,
+  idle_timeout: 20,
+  connect_timeout: 10,
+});
+
 export const db = drizzle(client, { schema });
