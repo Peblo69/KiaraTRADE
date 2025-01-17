@@ -1,4 +1,4 @@
-import { FC, memo, useCallback } from 'react';
+import { FC } from 'react';
 import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import { ExternalLink } from 'lucide-react';
 
@@ -19,13 +19,8 @@ const formatTime = (timestamp: number): string => {
   return `${Math.floor(seconds / 86400)}d ago`;
 };
 
-const TransactionHistory: FC<TransactionHistoryProps> = memo(({ tokenAddress }) => {
-  const transactions = useUnifiedTokenStore(
-    useCallback(
-      (state) => state.getTransactions(tokenAddress),
-      [tokenAddress]
-    )
-  );
+const TransactionHistory: FC<TransactionHistoryProps> = ({ tokenAddress }) => {
+  const transactions = useUnifiedTokenStore(state => state.getTransactions(tokenAddress));
 
   if (!transactions?.length) {
     return null;
@@ -75,8 +70,6 @@ const TransactionHistory: FC<TransactionHistoryProps> = memo(({ tokenAddress }) 
       </div>
     </div>
   );
-});
-
-TransactionHistory.displayName = 'TransactionHistory';
+};
 
 export default TransactionHistory;

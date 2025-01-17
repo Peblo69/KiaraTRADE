@@ -29,7 +29,6 @@ interface TokenCardProps {
   index: number;
 }
 
-// Memoized TokenImage component
 const TokenImage: FC<{ metadata: any; address: string }> = memo(({ metadata, address }) => {
   const [imageError, setImageError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,7 +84,6 @@ const TokenImage: FC<{ metadata: any; address: string }> = memo(({ metadata, add
 
 TokenImage.displayName = 'TokenImage';
 
-// Memoized TokenPrice component
 const TokenPrice: FC<{ price: number; priceChange24h: number }> = memo(({ price, priceChange24h }) => {
   const priceChangeColor = priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
   const PriceChangeIcon = priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
@@ -112,27 +110,18 @@ const TokenPrice: FC<{ price: number; priceChange24h: number }> = memo(({ price,
 
 TokenPrice.displayName = 'TokenPrice';
 
-// Main TokenCard component with optimized renders
 const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
-  // Use selector pattern to minimize re-renders
-  const token = useUnifiedTokenStore(
-    useCallback((state) => {
-      return state.getToken(tokenAddress);
-    }, [tokenAddress])
-  );
+  const token = useUnifiedTokenStore(state => state.getToken(tokenAddress));
 
-  // Early return if token is not found
   if (!token) {
     return null;
   }
 
-  const { marketCapUSD, initialBuyUSD, volume24hUSD } = useMemo(() => {
-    return {
-      marketCapUSD: token.marketCapSol * SOL_PRICE_USD,
-      initialBuyUSD: (token.solAmount || 0) * SOL_PRICE_USD,
-      volume24hUSD: (token.volume24h || 0) * SOL_PRICE_USD
-    };
-  }, [token.marketCapSol, token.solAmount, token.volume24h]);
+  const { marketCapUSD, initialBuyUSD, volume24hUSD } = useMemo(() => ({
+    marketCapUSD: token.marketCapSol * SOL_PRICE_USD,
+    initialBuyUSD: (token.solAmount || 0) * SOL_PRICE_USD,
+    volume24hUSD: (token.volume24h || 0) * SOL_PRICE_USD
+  }), [token.marketCapSol, token.solAmount, token.volume24h]);
 
   return (
     <motion.div

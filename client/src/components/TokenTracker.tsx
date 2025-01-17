@@ -1,4 +1,4 @@
-import { FC, memo, useEffect, useMemo } from 'react';
+import { FC, useEffect } from 'react';
 import { unifiedWebSocket } from '@/lib/unified-websocket';
 import { TokenFilters } from './TokenFilters';
 import { useTokenFiltersStore, filterTokens } from '@/lib/token-filters';
@@ -6,23 +6,18 @@ import TokenCard from './TokenCard';
 import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export const TokenTracker: FC = memo(() => {
+export const TokenTracker: FC = () => {
   const tokens = useUnifiedTokenStore(state => state.tokens);
   const activeFilter = useTokenFiltersStore(state => state.activeFilter);
 
   useEffect(() => {
-    // Connect to WebSocket only once
     unifiedWebSocket.connect();
-
     return () => {
       unifiedWebSocket.disconnect();
     };
   }, []);
 
-  // Memoize filtered tokens to prevent unnecessary recalculations
-  const filteredTokens = useMemo(() => {
-    return filterTokens(tokens, activeFilter);
-  }, [tokens, activeFilter]);
+  const filteredTokens = filterTokens(tokens, activeFilter);
 
   return (
     <div className="max-w-7xl mx-auto px-4">
@@ -54,8 +49,6 @@ export const TokenTracker: FC = memo(() => {
       </div>
     </div>
   );
-});
-
-TokenTracker.displayName = 'TokenTracker';
+};
 
 export default TokenTracker;
