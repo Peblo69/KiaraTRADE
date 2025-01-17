@@ -105,11 +105,13 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-blue-400 transition-colors"
               >
-                <img
-                  src={PUMPFUN_LOGO}
-                  alt="View on PumpFun"
-                  className="w-4 h-4 object-contain"
-                />
+                <div style={{ width: '16px', height: '16px' }}>
+                  <img
+                    src={PUMPFUN_LOGO}
+                    alt="View on PumpFun"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
               </a>
             </>
           )}
