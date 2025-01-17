@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { FC } from "react";
 import { Card } from "@/components/ui/card";
 import {
   LineChart,
@@ -8,76 +8,93 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { motion } from "framer-motion";
 
 interface PricePoint {
   timestamp: number;
   price: number;
 }
 
-// Generate mock data for the last 24 hours
-const generateMockData = (): PricePoint[] => {
-  const data: PricePoint[] = [];
-  const now = Date.now();
-  const basePrice = 45000; // Base BTC price
+interface PriceChartProps {
+  data: PricePoint[];
+  symbol: string;
+}
 
-  for (let i = 0; i < 100; i++) {
-    const timestamp = now - (100 - i) * 15 * 60 * 1000; // Every 15 minutes
-    const randomChange = (Math.random() - 0.5) * 1000; // Random price variation
-    data.push({
-      timestamp,
-      price: basePrice + randomChange
-    });
-  }
-  return data;
-};
+export const PriceChart: FC<PriceChartProps> = ({ data, symbol }) => {
+  // Format price numbers for tooltip
+  const formatPrice = (value: number) => {
+    if (value >= 1000000) return `${(value / 1000000).toFixed(2)}M`;
+    if (value >= 1000) return `${(value / 1000).toFixed(2)}K`;
+    return value.toFixed(6);
+  };
 
-export default function PriceChart() {
-  const [data, setData] = useState<PricePoint[]>(generateMockData());
-
-  // Update data every minute
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setData(prev => {
-        const lastPrice = prev[prev.length - 1].price;
-        const randomChange = (Math.random() - 0.5) * 200;
-        const newPoint = {
-          timestamp: Date.now(),
-          price: lastPrice + randomChange
-        };
-        const newData = [...prev.slice(1), newPoint];
-        return newData;
-      });
-    }, 60000); // Update every minute
-
-    return () => clearInterval(interval);
-  }, []);
+  // Format timestamp for x-axis
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
-    <Card className="h-[500px] p-4 backdrop-blur-sm bg-purple-900/10 border-purple-500/20">
-      <h2 className="text-lg font-semibold text-purple-300 mb-4">BTC/USD Live Chart</h2>
-      <ResponsiveContainer width="100%" height="90%">
-        <LineChart data={data}>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="w-full h-[120px] mt-4"
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart
+          data={data}
+          margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+        >
+          <defs>
+            <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <XAxis
             dataKey="timestamp"
-            tickFormatter={(ts) => new Date(ts).toLocaleTimeString()}
-            stroke="#6b7280"
+            tickFormatter={formatTime}
+            stroke="#4b5563"
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
           />
-          <YAxis stroke="#6b7280" />
+          <YAxis
+            tickFormatter={formatPrice}
+            stroke="#4b5563"
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
+          />
           <Tooltip
-            contentStyle={{
-              backgroundColor: "rgba(17, 24, 39, 0.9)",
-              border: "1px solid rgba(139, 92, 246, 0.2)",
+            content={({ active, payload }) => {
+              if (active && payload && payload.length) {
+                return (
+                  <div className="bg-gray-900/90 backdrop-blur-sm border border-gray-800 p-2 rounded-lg shadow-xl">
+                    <p className="text-gray-400 text-xs">
+                      {formatTime(payload[0].payload.timestamp)}
+                    </p>
+                    <p className="text-blue-400 font-semibold">
+                      {formatPrice(payload[0].value as number)} {symbol}
+                    </p>
+                  </div>
+                );
+              }
+              return null;
             }}
           />
           <Line
             type="monotone"
             dataKey="price"
-            stroke="#8b5cf6"
+            stroke="#3b82f6"
             strokeWidth={2}
             dot={false}
+            activeDot={{ r: 4, fill: "#3b82f6" }}
           />
         </LineChart>
       </ResponsiveContainer>
-    </Card>
+    </motion.div>
   );
-}
+};
+
+export default PriceChart;

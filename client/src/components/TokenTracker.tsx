@@ -17,6 +17,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { VolumeChart } from './VolumeChart';
 import { useTokenSocialMetricsStore, generateMockSocialMetrics } from '@/lib/social-metrics';
 import { SocialMetrics } from './SocialMetrics';
+import { useTokenPriceStore } from '@/lib/price-history';
+import { PriceChart } from './PriceChart';
 
 // SOL price in USD (this should be fetched from an API in production)
 const SOL_PRICE_USD = 104.23;
@@ -42,6 +44,7 @@ interface VolumeData {
 const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
   const volumeHistory = useTokenVolumeStore(state => state.getVolumeHistory(token.address));
   const socialMetrics = useTokenSocialMetricsStore(state => state.getMetrics(token.address));
+  const priceHistory = useTokenPriceStore(state => state.getPriceHistory(token.address));
   const [isLoadingVolume, setIsLoadingVolume] = useState(false);
   const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
   const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
@@ -63,7 +66,12 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
     if (!socialMetrics && token.address) {
       generateMockSocialMetrics(token.address);
     }
-  }, [token.address, socialMetrics]);
+
+    // Initialize price history if none exists
+    if (!priceHistory.length && token.address && token.price) {
+      useTokenPriceStore.getState().initializePriceHistory(token.address, token.price);
+    }
+  }, [token.address, socialMetrics, priceHistory.length, token.price]);
 
   const imageUrl = token.imageUrl || token.uri || `https://pump.fun/token/${token.address}/image`;
   console.log('[TokenCard] Using image URL:', imageUrl, 'for token:', token.address);
@@ -186,6 +194,13 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
           <div className="mt-4">
             <h4 className="text-sm text-gray-400 mb-2">Trading Volume (24h)</h4>
             <VolumeChart data={volumeHistory} />
+          </div>
+        )}
+
+        {priceHistory.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm text-gray-400 mb-2">Price History (24h)</h4>
+            <PriceChart data={priceHistory} symbol={token.symbol} />
           </div>
         )}
 

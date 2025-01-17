@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { usePumpPortalStore } from './pump-portal-websocket';
+import { useTokenPriceStore } from './price-history';
 
 interface HeliusTokenData {
   mint: string;
@@ -78,6 +79,11 @@ class HeliusWebSocket {
                   const price = transfer.amount && transfer.tokenAmount 
                     ? parseFloat(transfer.amount) / parseFloat(transfer.tokenAmount)
                     : existingToken.price;
+
+                  // Update price history
+                  if (price && !isNaN(price)) {
+                    useTokenPriceStore.getState().addPricePoint(transfer.mint, price);
+                  }
 
                   // Update token data
                   console.log('[Helius WebSocket] Updating token data:', {
