@@ -9,7 +9,12 @@ export default defineConfig({
   out: "./migrations",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL,
+    host: process.env.PGHOST || "",
+    user: process.env.PGUSER || "",
+    password: process.env.PGPASSWORD || "",
+    database: process.env.PGDATABASE || "",
+    port: Number(process.env.PGPORT) || 5432,
+    ssl: true
   },
   strict: true,
   verbose: true,
