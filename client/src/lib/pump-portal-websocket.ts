@@ -70,23 +70,42 @@ const parseTokenMetadata = async (uri: string): Promise<TokenMetadata | null> =>
 };
 
 const processSocialMetrics = async (token: TokenData) => {
-  if (!token.address) return;
+  if (!token.address || !token.metadata?.twitter) return;
 
   try {
-    if (token.metadata?.twitter) {
-      const metrics: TokenMetrics = {
-        twitterFollowers: 0, 
-        twitterMentions24h: 0, 
-        telegramMembers: 0,
-        discordMembers: 0,
-        sentiment: 0,
-        lastUpdated: Date.now()
-      };
+    const twitterUsername = token.metadata.twitter
+      .replace('https://twitter.com/', '')
+      .replace('https://x.com/', '')
+      .replace('@', '')
+      .split('?')[0];
 
-      useTokenSocialMetricsStore.getState().setMetrics(token.address, metrics);
+    const response = await fetch(`/api/social-metrics?twitter=${twitterUsername}&address=${token.address}`);
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch social metrics');
     }
+
+    const metrics = await response.json();
+
+    useTokenSocialMetricsStore.getState().setMetrics(token.address, {
+      twitterFollowers: metrics.followers_count || 0,
+      twitterMentions24h: metrics.mentions_24h || 0,
+      telegramMembers: metrics.telegram_members || 0,
+      discordMembers: metrics.discord_members || 0,
+      sentiment: metrics.sentiment || 0,
+      lastUpdated: Date.now()
+    });
+
   } catch (error) {
     console.error('[PumpPortal Store] Error processing social metrics:', error);
+    useTokenSocialMetricsStore.getState().setMetrics(token.address, {
+      twitterFollowers: 0,
+      twitterMentions24h: 0,
+      telegramMembers: 0,
+      discordMembers: 0,
+      sentiment: 0,
+      lastUpdated: Date.now()
+    });
   }
 };
 
@@ -113,8 +132,8 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
             parseTokenMetadata(token.uri).then(metadata => {
               if (metadata) {
                 set(state => ({
-                  tokens: state.tokens.map(t => 
-                    t.address === token.address 
+                  tokens: state.tokens.map(t =>
+                    t.address === token.address
                       ? { ...t, metadata }
                       : t
                   )
@@ -137,7 +156,7 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
       return {
         tokens: [...state.tokens, enrichedToken]
           .sort((a, b) => b.marketCapSol - a.marketCapSol)
-          .slice(0, 100), 
+          .slice(0, 100),
       };
     });
   },
@@ -152,13 +171,13 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
 
       return {
         tokens: state.tokens.map((token) =>
-          token.address === address 
-            ? { 
-                ...token, 
-                ...updates, 
+          token.address === address
+            ? {
+                ...token,
+                ...updates,
                 priceChange24h,
-                lastUpdated: Date.now() 
-              } 
+                lastUpdated: Date.now()
+              }
             : token
         ),
       };

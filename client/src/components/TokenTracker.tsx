@@ -37,18 +37,20 @@ const TokenImage: FC<{ token: any }> = memo(({ token }) => {
   const [imageError, setImageError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Get image URL from token metadata or fallback to default sources
   const getImageUrl = () => {
     if (imageError || !token.address) {
       return 'https://cryptologos.cc/logos/solana-sol-logo.png';
     }
 
-    // First try the metadata image URL
     if (token.metadata?.image) {
+      // Handle IPFS URLs
+      if (token.metadata.image.startsWith('ipfs://')) {
+        const ipfsHash = token.metadata.image.replace('ipfs://', '');
+        return `https://ipfs.io/ipfs/${ipfsHash}`;
+      }
       return token.metadata.image;
     }
 
-    // Otherwise use the pump.fun URL as fallback
     return `https://pump.fun/token/${token.address}/image`;
   };
 
@@ -56,14 +58,17 @@ const TokenImage: FC<{ token: any }> = memo(({ token }) => {
     <div className="relative w-12 h-12">
       <img 
         src={getImageUrl()}
-        alt={token.symbol || 'Token'} 
+        alt={token.metadata?.symbol || token.symbol || 'Token'} 
         className={`w-full h-full rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
         onError={() => {
           console.log(`Image load error for token ${token.address}, metadata:`, token.metadata);
           setImageError(true);
           setIsLoading(false);
         }}
-        onLoad={() => setIsLoading(false)}
+        onLoad={() => {
+          console.log(`Image loaded successfully for token ${token.address}`);
+          setIsLoading(false);
+        }}
       />
       {isLoading && (
         <div className="absolute inset-0 bg-gray-900/50 rounded-xl flex items-center justify-center">
