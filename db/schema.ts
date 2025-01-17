@@ -5,7 +5,10 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
+  email: text("email").unique().notNull(),
   password: text("password").notNull(),
+  email_verified: boolean("email_verified").default(false).notNull(),
+  verification_token: text("verification_token"),
   wallet_address: text("wallet_address"),
   subscription_tier: text("subscription_tier").default("basic").notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
@@ -44,7 +47,12 @@ export const paymentHistory = pgTable("payment_history", {
 
 // Schemas
 export const insertUserSchema = createInsertSchema(users, {
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
   subscription_tier: z.enum(["basic", "pro", "enterprise"]).default("basic"),
+  email_verified: z.boolean().default(false),
+  verification_token: z.string().optional(),
 });
 
 export const selectUserSchema = createSelectSchema(users);
