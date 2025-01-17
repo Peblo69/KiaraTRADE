@@ -8,20 +8,14 @@ import {
   ExternalLink, 
   TrendingUp, 
   Users, 
-  Wallet, 
-  Clock,
+  Wallet,
   ArrowUpRight,
   ArrowDownRight,
-  ImageOff,
-  TwitterIcon,
-  Globe
+  Globe,
+  TwitterIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VolumeChart } from './VolumeChart';
-import { useTokenSocialMetricsStore } from '@/lib/social-metrics';
-import { SocialMetrics } from './SocialMetrics';
-import { useTokenPriceStore } from '@/lib/price-history';
-import { PriceChart } from './PriceChart';
 import { TransactionHistory } from './TransactionHistory';
 import { TokenFilters } from './TokenFilters';
 import { useTokenFiltersStore, filterTokens } from '@/lib/token-filters';
@@ -46,7 +40,6 @@ const TokenImage: FC<{ token: any }> = memo(({ token }) => {
     }
 
     if (token.metadata?.image) {
-      // Handle IPFS URLs
       if (token.metadata.image.startsWith('ipfs://')) {
         const ipfsHash = token.metadata.image.replace('ipfs://', '');
         return `https://ipfs.io/ipfs/${ipfsHash}`;
@@ -90,15 +83,13 @@ const TokenImage: FC<{ token: any }> = memo(({ token }) => {
 
 const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => {
   const volumeHistory = useTokenVolumeStore(state => state.getVolumeHistory(token.address));
-  const socialMetrics = useTokenSocialMetricsStore(state => state.getMetrics(token.address));
-  const priceHistory = useTokenPriceStore(state => state.getPriceHistory(token.address));
 
   const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
   const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
 
   // Calculate USD values
   const marketCapUSD = token.marketCapSol * SOL_PRICE_USD;
-  const initialBuyUSD = (token.initialBuy || 0) * SOL_PRICE_USD; 
+  const initialBuyUSD = (token.solAmount || 0) * SOL_PRICE_USD; 
   const volume24hUSD = (token.volume24h || 0) * SOL_PRICE_USD;
 
   return (
@@ -194,7 +185,7 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
               </div>
               <div className="flex flex-col">
                 <span className="text-white font-bold">{formatNumber(initialBuyUSD, true)}</span>
-                <span className="text-xs text-gray-500">{formatNumber(token.initialBuy || 0)} SOL</span>
+                <span className="text-xs text-gray-500">{formatNumber(token.solAmount || 0)} SOL</span>
               </div>
             </div>
           </div>
@@ -211,7 +202,7 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
             </div>
             <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
               <div className="flex items-center gap-2 text-sm mb-1">
-                <Clock size={14} className="text-blue-400" />
+                <TrendingUp size={14} className="text-blue-400" />
                 <span className="text-gray-400">Price</span>
               </div>
               <div className="flex flex-col">
@@ -223,22 +214,13 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
         </div>
 
         {volumeHistory.length > 0 && (
-          <div className="mt-4">
-            <h4 className="text-sm text-gray-400 mb-2">Trading Volume (24h)</h4>
+          <div className="mt-4 border-t border-gray-800 pt-4">
+            <h4 className="text-sm text-gray-400 mb-2">Trading Activity</h4>
             <VolumeChart data={volumeHistory} />
           </div>
         )}
 
-        {priceHistory.length > 0 && (
-          <div className="mt-4">
-            <h4 className="text-sm text-gray-400 mb-2">Price History (24h)</h4>
-            <PriceChart data={priceHistory} symbol={token.symbol} />
-          </div>
-        )}
-
         {token.address && <TransactionHistory tokenAddress={token.address} />}
-
-        {socialMetrics && <SocialMetrics metrics={socialMetrics} tokenAddress={token.address} />}
 
         {token.liquidityAdded && (
           <div className="border-t border-gray-800 pt-3 mt-3">
