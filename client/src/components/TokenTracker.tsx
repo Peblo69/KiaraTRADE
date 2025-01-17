@@ -36,45 +36,34 @@ const formatNumber = (num: number, isCurrency = false) => {
   return `${isCurrency ? '$' : ''}${num.toFixed(2)}`;
 };
 
-interface VolumeData {
-  timestamp: number;
-  volume: number;
-}
-
 const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
   const volumeHistory = useTokenVolumeStore(state => state.getVolumeHistory(token.address));
   const socialMetrics = useTokenSocialMetricsStore(state => state.getMetrics(token.address));
   const priceHistory = useTokenPriceStore(state => state.getPriceHistory(token.address));
-  const [isLoadingVolume, setIsLoadingVolume] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
   const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
 
   useEffect(() => {
-    if (!volumeHistory.length && token.address) {
-      setIsLoadingVolume(true);
-      const mockData = Array.from({ length: 24 }, (_, i) => ({
-        timestamp: Date.now() - (23 - i) * 3600000,
-        volume: Math.random() * token.volume24h / 24
-      }));
-      mockData.forEach(data => {
-        useTokenVolumeStore.getState().addVolumeData(token.address, data.volume);
-      });
-      setIsLoadingVolume(false);
-    }
+    if (!initialized && token.address) {
+      // Initialize data only once per token
+      if (volumeHistory.length === 0) {
+        useTokenVolumeStore.getState().addVolumeData(token.address, token.volume24h || 0);
+      }
 
-    // Generate mock social metrics if none exist
-    if (!socialMetrics && token.address) {
-      generateMockSocialMetrics(token.address);
-    }
+      if (!socialMetrics) {
+        generateMockSocialMetrics(token.address);
+      }
 
-    // Initialize price history if none exists
-    if (!priceHistory.length && token.address && token.price) {
-      useTokenPriceStore.getState().initializePriceHistory(token.address, token.price);
+      if (priceHistory.length === 0 && token.price) {
+        useTokenPriceStore.getState().initializePriceHistory(token.address, token.price);
+      }
+
+      setInitialized(true);
     }
-  }, [token.address, socialMetrics, priceHistory.length, token.price]);
+  }, [token.address, initialized]);
 
   const imageUrl = token.imageUrl || token.uri || `https://pump.fun/token/${token.address}/image`;
-  console.log('[TokenCard] Using image URL:', imageUrl, 'for token:', token.address);
 
   // Calculate USD values
   const marketCapUSD = (token.marketCapSol || token.marketCap || 0) * SOL_PRICE_USD;
@@ -97,7 +86,6 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
                 alt={token.symbol} 
                 className="w-12 h-12 rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover"
                 onError={(e) => {
-                  console.log('[TokenCard] Image load error for token:', token.address);
                   const img = e.target as HTMLImageElement;
                   img.src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
                 }}
