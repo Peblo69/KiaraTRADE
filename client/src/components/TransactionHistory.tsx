@@ -19,46 +19,75 @@ const formatTime = (timestamp: number): string => {
   return `${Math.floor(seconds / 86400)}d ago`;
 };
 
-export const TransactionHistory: FC<TransactionHistoryProps> = memo(({ tokenAddress }) => {
+const TransactionHistory: FC<TransactionHistoryProps> = memo(({ tokenAddress }) => {
+  // Add debug logs to track renders
+  console.log('[TransactionHistory] Rendering:', {
+    tokenAddress,
+    timestamp: Date.now()
+  });
+
+  // Use memoized selector to prevent unnecessary re-renders
   const transactions = useUnifiedTokenStore(
-    useCallback((state) => state.getTransactions(tokenAddress), [tokenAddress])
+    useCallback(
+      (state) => {
+        console.log('[TransactionHistory] Getting transactions:', {
+          tokenAddress,
+          timestamp: Date.now()
+        });
+        return state.getTransactions(tokenAddress);
+      },
+      [tokenAddress]
+    )
   );
 
-  if (!transactions.length) return null;
+  // Only render if we have transactions
+  if (!transactions?.length) {
+    console.log('[TransactionHistory] No transactions found');
+    return null;
+  }
 
   return (
     <div className="mt-4 border-t border-gray-800 pt-4">
       <h4 className="text-sm text-gray-400 mb-3">Recent Transactions</h4>
       <div className="space-y-2">
-        {transactions.map((tx) => (
-          <div key={tx.signature} className="flex items-center justify-between p-2 bg-gray-900/50 rounded-lg text-sm">
-            <div className="flex items-center gap-2">
-              <span className={`text-xs font-medium ${tx.type === 'buy' ? 'text-green-400' : 'text-blue-400'}`}>
-                {tx.type === 'buy' ? 'Buy' : 'Sell'}
-              </span>
-              <a
-                href={`https://solscan.io/account/${tx.buyer}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-blue-400 transition-colors"
-              >
-                {formatAddress(tx.buyer)}
-              </a>
+        {transactions.map((tx) => {
+          // Memoize transaction rendering
+          const timeAgo = formatTime(tx.timestamp);
+          const buyerAddress = formatAddress(tx.buyer);
+
+          return (
+            <div 
+              key={tx.signature} 
+              className="flex items-center justify-between p-2 bg-gray-900/50 rounded-lg text-sm"
+            >
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-medium ${tx.type === 'buy' ? 'text-green-400' : 'text-blue-400'}`}>
+                  {tx.type === 'buy' ? 'Buy' : 'Sell'}
+                </span>
+                <a
+                  href={`https://solscan.io/account/${tx.buyer}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-blue-400 transition-colors"
+                >
+                  {buyerAddress}
+                </a>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-white">{tx.solAmount.toFixed(3)} SOL</span>
+                <span className="text-gray-500 text-xs">{timeAgo}</span>
+                <a
+                  href={`https://solscan.io/tx/${tx.signature}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-blue-400 transition-colors"
+                >
+                  <ExternalLink size={14} />
+                </a>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-white">{tx.solAmount.toFixed(3)} SOL</span>
-              <span className="text-gray-500 text-xs">{formatTime(tx.timestamp)}</span>
-              <a
-                href={`https://solscan.io/tx/${tx.signature}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-blue-400 transition-colors"
-              >
-                <ExternalLink size={14} />
-              </a>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUnifiedTokenStore } from '@/lib/unified-token-store';
-import { TransactionHistory } from './TransactionHistory';
+import TransactionHistory from './TransactionHistory';
 import { CandlestickChart } from './CandlestickChart';
 
 // SOL price in USD (this should be fetched from an API in production)

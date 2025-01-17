@@ -13,6 +13,14 @@ export const useTokenFiltersStore = create<TokenFiltersState>((set) => ({
 }));
 
 export const filterTokens = (tokens: any[], filter: TokenFilterType) => {
+  console.log('[TokenFilters] Applying filter:', {
+    filter,
+    tokenCount: tokens.length,
+    timestamp: Date.now()
+  });
+
+  if (!tokens?.length) return [];
+
   switch (filter) {
     case 'snipers':
       // Show newest tokens (less than 24h old)
