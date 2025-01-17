@@ -13,7 +13,6 @@ import {
 import { motion } from 'framer-motion';
 import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import TransactionHistory from './TransactionHistory';
-import { CandlestickChart } from './CandlestickChart';
 
 // SOL price in USD (this should be fetched from an API in production)
 const SOL_PRICE_USD = 104.23;
@@ -115,46 +114,19 @@ TokenPrice.displayName = 'TokenPrice';
 
 // Main TokenCard component with optimized renders
 const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
-  console.log('[TokenCard] Rendering:', {
-    tokenAddress,
-    index,
-    timestamp: Date.now()
-  });
-
   // Use selector pattern to minimize re-renders
   const token = useUnifiedTokenStore(
     useCallback((state) => {
-      console.log('[TokenCard] Selecting token:', {
-        tokenAddress,
-        timestamp: Date.now()
-      });
       return state.getToken(tokenAddress);
-    }, [tokenAddress])
-  );
-
-  const priceHistory = useUnifiedTokenStore(
-    useCallback((state) => {
-      console.log('[TokenCard] Selecting price history:', {
-        tokenAddress,
-        timestamp: Date.now()
-      });
-      return state.getPriceHistory(tokenAddress);
     }, [tokenAddress])
   );
 
   // Early return if token is not found
   if (!token) {
-    console.log('[TokenCard] Token not found:', tokenAddress);
     return null;
   }
 
-  // Log when memoized values are recalculated
   const { marketCapUSD, initialBuyUSD, volume24hUSD } = useMemo(() => {
-    console.log('[TokenCard] Recalculating derived values:', {
-      tokenAddress,
-      timestamp: Date.now()
-    });
-
     return {
       marketCapUSD: token.marketCapSol * SOL_PRICE_USD,
       initialBuyUSD: (token.solAmount || 0) * SOL_PRICE_USD,
@@ -255,11 +227,6 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
             </div>
             <TokenPrice price={token.price || 0} priceChange24h={token.priceChange24h || 0} />
           </div>
-        </div>
-
-        <div className="mt-4 border-t border-gray-800 pt-4">
-          <h4 className="text-sm text-gray-400 mb-2">Price & Market Cap</h4>
-          {priceHistory.length > 0 && <CandlestickChart data={priceHistory} />}
         </div>
 
         <TransactionHistory tokenAddress={token.address} />
