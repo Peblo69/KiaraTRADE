@@ -106,6 +106,17 @@ export default function Navbar() {
               </Button>
             </Link>
             <Link href="/subscriptions"><Button variant="ghost">Subscriptions</Button></Link>
+            {/* Auth Buttons */}
+            <Link href="/register">
+              <Button variant="outline" className="text-purple-400 hover:text-purple-300">
+                Register
+              </Button>
+            </Link>
+            <Link href="/login">
+              <Button variant="outline" className="text-purple-400 hover:text-purple-300">
+                Login
+              </Button>
+            </Link>
             <Button 
               onClick={handleWalletClick}
               className={`${connected ? 'bg-green-500 hover:bg-green-600' : 'bg-purple-500 hover:bg-purple-600'} text-white`}

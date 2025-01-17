@@ -19,26 +19,51 @@ export const DebugPanel: FC = () => {
     const originalLog = console.log;
     const originalError = console.error;
 
+    const formatValue = (value: any): string => {
+      if (value === null) return 'null';
+      if (value === undefined) return 'undefined';
+      if (typeof value === 'object') {
+        // Skip empty objects
+        if (Object.keys(value).length === 0) return '';
+        try {
+          return JSON.stringify(value, null, 2);
+        } catch (e) {
+          return String(value);
+        }
+      }
+      return String(value);
+    };
+
     console.log = (...args) => {
       originalLog.apply(console, args);
-      setLogs(prev => [...prev, {
-        timestamp: new Date().toLocaleTimeString(),
-        message: args.map(arg => 
-          typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-        ).join(' '),
-        type: 'info'
-      }].slice(-50)); // Keep last 50 logs
+      const formattedMessage = args
+        .map(formatValue)
+        .filter(Boolean) // Remove empty strings
+        .join(' ');
+
+      if (formattedMessage) {
+        setLogs(prev => [...prev, {
+          timestamp: new Date().toLocaleTimeString(),
+          message: formattedMessage,
+          type: 'info'
+        }].slice(-50)); // Keep last 50 logs
+      }
     };
 
     console.error = (...args) => {
       originalError.apply(console, args);
-      setLogs(prev => [...prev, {
-        timestamp: new Date().toLocaleTimeString(),
-        message: args.map(arg => 
-          typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-        ).join(' '),
-        type: 'error'
-      }].slice(-50));
+      const formattedMessage = args
+        .map(formatValue)
+        .filter(Boolean)
+        .join(' ');
+
+      if (formattedMessage) {
+        setLogs(prev => [...prev, {
+          timestamp: new Date().toLocaleTimeString(),
+          message: formattedMessage,
+          type: 'error'
+        }].slice(-50));
+      }
     };
 
     return () => {
@@ -84,7 +109,7 @@ export const DebugPanel: FC = () => {
                   log.type === 'error' ? 'text-red-500 bg-red-950/20' : 
                   log.type === 'success' ? 'text-green-500 bg-green-950/20' : 
                   'text-foreground bg-muted/20'
-                } rounded p-2`}
+                } rounded p-2 whitespace-pre-wrap break-words`}
               >
                 <span className="opacity-50">[{log.timestamp}]</span>
                 <span className="ml-2">
