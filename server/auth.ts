@@ -114,7 +114,7 @@ export function setupAuth(app: Express) {
 
       const { username, email, password } = result.data;
 
-      // Check if user already exists
+      // Check if user or email already exists
       const [existingUser] = await db
         .select()
         .from(users)
@@ -124,6 +124,18 @@ export function setupAuth(app: Express) {
       if (existingUser) {
         console.log("Registration failed: Username exists:", username);
         return res.status(400).json({ message: "Username already exists" });
+      }
+
+      // Check for existing email
+      const [existingEmail] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (existingEmail) {
+        console.log("Registration failed: Email exists:", email);
+        return res.status(400).json({ message: "Email already exists" });
       }
 
       // Hash the password
@@ -171,15 +183,7 @@ export function setupAuth(app: Express) {
   app.post("/api/login", (req, res, next) => {
     console.log("Login attempt:", { username: req.body.username });
 
-    const result = insertUserSchema.safeParse(req.body);
-    if (!result.success) {
-      console.log("Login validation failed:", result.error.issues);
-      return res
-        .status(400)
-        .json({ message: "Invalid input: " + result.error.issues.map(i => i.message).join(", ") });
-    }
-
-    const cb = (err: any, user: Express.User, info: IVerifyOptions) => {
+    passport.authenticate("local", (err: any, user: Express.User | false, info: IVerifyOptions) => {
       if (err) {
         console.error("Login error:", err);
         return next(err);
@@ -207,8 +211,7 @@ export function setupAuth(app: Express) {
           },
         });
       });
-    };
-    passport.authenticate("local", cb)(req, res, next);
+    })(req, res, next);
   });
 
   app.post("/api/logout", (req, res) => {
