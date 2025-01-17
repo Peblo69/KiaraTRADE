@@ -6,66 +6,75 @@ class UnifiedWebSocket {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 5000;
   private heartbeatInterval: NodeJS.Timeout | null = null;
-  private updateQueue = new Map<string, {
-    timeout: NodeJS.Timeout;
-    updates: Array<{
-      price: number;
-      marketCap: number;
-      volume: number;
+  private batchTimeout: NodeJS.Timeout | null = null;
+  private pendingUpdates: Map<string, {
+    price?: number;
+    marketCap?: number;
+    volume?: number;
+    transactions?: Array<{
       signature: string;
       buyer: string;
+      solAmount: number;
       timestamp: number;
     }>;
-  }>();
-  private readonly UPDATE_DEBOUNCE = 2000;
-  private readonly BATCH_SIZE = 5;
+  }> = new Map();
 
-  private async parseTokenMetadata(uri: string) {
-    try {
-      if (!uri) return null;
-      const response = await fetch(uri);
-      if (!response.ok) throw new Error('Failed to fetch metadata');
-      return await response.json();
-    } catch (error) {
-      console.error('[Unified WebSocket] Error fetching token metadata:', error);
-      return null;
-    }
-  }
-
-  private processQueuedUpdates(tokenAddress: string) {
-    const queueData = this.updateQueue.get(tokenAddress);
-    if (!queueData || queueData.updates.length === 0) return;
-
-    const { updates } = queueData;
-    const lastUpdate = updates[updates.length - 1];
+  private processBatchUpdates = () => {
+    if (this.pendingUpdates.size === 0) return;
     const store = useUnifiedTokenStore.getState();
 
-    // Batch update price and transaction data
-    store.addPricePoint(
-      tokenAddress,
-      lastUpdate.price,
-      lastUpdate.marketCap,
-      updates.reduce((sum, u) => sum + u.volume, 0)
-    );
+    this.pendingUpdates.forEach((updates, tokenAddress) => {
+      if (updates.price !== undefined) {
+        // Batch update token state
+        store.updateToken(tokenAddress, {
+          price: updates.price,
+          marketCapSol: updates.marketCap || 0,
+          volume24h: updates.volume || 0,
+        });
 
-    store.addTransaction(tokenAddress, {
-      signature: lastUpdate.signature,
-      buyer: lastUpdate.buyer,
-      solAmount: lastUpdate.volume,
-      tokenAmount: lastUpdate.volume / lastUpdate.price,
-      timestamp: lastUpdate.timestamp,
-      type: 'sell'
+        // Add price point in a single update
+        store.addPricePoint(
+          tokenAddress,
+          updates.price,
+          updates.marketCap || 0,
+          updates.volume || 0
+        );
+      }
+
+      // Process transactions in batch if any
+      if (updates.transactions?.length) {
+        updates.transactions.forEach(tx => {
+          store.addTransaction(tokenAddress, {
+            signature: tx.signature,
+            buyer: tx.buyer,
+            solAmount: tx.solAmount,
+            tokenAmount: tx.solAmount / (updates.price || 1),
+            timestamp: tx.timestamp,
+            type: 'sell'
+          });
+        });
+      }
     });
 
-    // Update token data
-    store.updateToken(tokenAddress, {
-      price: lastUpdate.price,
-      marketCapSol: lastUpdate.marketCap,
-      volume24h: updates.reduce((sum, u) => sum + u.volume, 0)
+    this.pendingUpdates.clear();
+  };
+
+  private scheduleUpdate(tokenAddress: string, updates: any) {
+    const currentUpdates = this.pendingUpdates.get(tokenAddress) || {};
+    this.pendingUpdates.set(tokenAddress, {
+      ...currentUpdates,
+      ...updates,
+      transactions: [
+        ...(currentUpdates.transactions || []),
+        ...(updates.transactions || [])
+      ]
     });
 
-    // Clear the queue
-    this.updateQueue.delete(tokenAddress);
+    if (this.batchTimeout) {
+      clearTimeout(this.batchTimeout);
+    }
+
+    this.batchTimeout = setTimeout(this.processBatchUpdates, 100);
   }
 
   private handleTokenUpdate(data: any) {
@@ -73,37 +82,18 @@ class UnifiedWebSocket {
 
     const tokenAddress = data.mint;
     const price = data.solAmount / (data.tokenAmount || data.initialBuy);
-    const update = {
+
+    this.scheduleUpdate(tokenAddress, {
       price,
       marketCap: data.marketCapSol || 0,
       volume: data.solAmount,
-      signature: data.signature,
-      buyer: data.traderPublicKey,
-      timestamp: Date.now()
-    };
-
-    const queueData = this.updateQueue.get(tokenAddress);
-    if (queueData) {
-      clearTimeout(queueData.timeout);
-      queueData.updates.push(update);
-
-      if (queueData.updates.length >= this.BATCH_SIZE) {
-        this.processQueuedUpdates(tokenAddress);
-      } else {
-        queueData.timeout = setTimeout(() => {
-          this.processQueuedUpdates(tokenAddress);
-        }, this.UPDATE_DEBOUNCE);
-      }
-    } else {
-      const timeout = setTimeout(() => {
-        this.processQueuedUpdates(tokenAddress);
-      }, this.UPDATE_DEBOUNCE);
-
-      this.updateQueue.set(tokenAddress, {
-        timeout,
-        updates: [update]
-      });
-    }
+      transactions: [{
+        signature: data.signature,
+        buyer: data.traderPublicKey,
+        solAmount: data.solAmount,
+        timestamp: Date.now()
+      }]
+    });
   }
 
   connect() {
@@ -152,13 +142,6 @@ class UnifiedWebSocket {
               };
 
               await useUnifiedTokenStore.getState().addToken(token);
-
-              if (token.uri) {
-                const metadata = await this.parseTokenMetadata(token.uri);
-                if (metadata) {
-                  useUnifiedTokenStore.getState().updateToken(token.address, { metadata });
-                }
-              }
             }
           }
         } catch (error) {
@@ -168,7 +151,6 @@ class UnifiedWebSocket {
       };
 
       this.ws.onclose = () => {
-        console.log('[Unified WebSocket] Connection closed');
         this.cleanup();
         this.reconnect();
       };
@@ -209,11 +191,17 @@ class UnifiedWebSocket {
   }
 
   private cleanup() {
-    useUnifiedTokenStore.getState().setConnected(false);
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
     }
+
+    if (this.batchTimeout) {
+      clearTimeout(this.batchTimeout);
+      this.batchTimeout = null;
+    }
+
+    useUnifiedTokenStore.getState().setConnected(false);
   }
 
   private reconnect() {
@@ -223,8 +211,6 @@ class UnifiedWebSocket {
     }
 
     this.reconnectAttempts++;
-    console.log(`[Unified WebSocket] Attempting reconnect (#${this.reconnectAttempts})`);
-
     setTimeout(() => {
       this.connect();
     }, this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1));
@@ -232,7 +218,6 @@ class UnifiedWebSocket {
 
   disconnect() {
     if (this.ws) {
-      console.log('[Unified WebSocket] Disconnecting');
       this.cleanup();
       this.ws.close();
       this.ws = null;
