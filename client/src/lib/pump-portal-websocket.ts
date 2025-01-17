@@ -246,11 +246,29 @@ class PumpPortalWebSocket {
                 timestamp: Date.now(),
                 type: data.txType === 'create' ? 'buy' : 'trade'
               });
+
+              // Update price history
+              if (data.solAmount && (data.tokenAmount || data.initialBuy)) {
+                const price = data.solAmount / (data.tokenAmount || data.initialBuy);
+                useTokenPriceStore.getState().addPricePoint(
+                  data.mint,
+                  price,
+                  data.marketCapSol || 0,
+                  data.solAmount || 0
+                );
+              }
             }
 
             if (data.txType === 'create') {
               // Calculate initial price from SOL amount and tokens
               const initialPrice = data.solAmount / data.initialBuy;
+
+              // Initialize price history for new token
+              useTokenPriceStore.getState().initializePriceHistory(
+                data.mint,
+                initialPrice,
+                data.marketCapSol || 0
+              );
 
               const token: TokenData = {
                 name: data.name || 'Unknown',

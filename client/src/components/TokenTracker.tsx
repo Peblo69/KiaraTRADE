@@ -19,6 +19,8 @@ import { VolumeChart } from './VolumeChart';
 import { TransactionHistory } from './TransactionHistory';
 import { TokenFilters } from './TokenFilters';
 import { useTokenFiltersStore, filterTokens } from '@/lib/token-filters';
+import { CandlestickChart } from './CandlestickChart';
+import { useTokenPriceStore } from '@/lib/price-history';
 
 // SOL price in USD (this should be fetched from an API in production)
 const SOL_PRICE_USD = 104.23;
@@ -83,6 +85,7 @@ const TokenImage: FC<{ token: any }> = memo(({ token }) => {
 
 const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => {
   const volumeHistory = useTokenVolumeStore(state => state.getVolumeHistory(token.address));
+  const priceHistory = useTokenPriceStore(state => state.getPriceHistory(token.address));
 
   const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
   const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
@@ -213,12 +216,10 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
           </div>
         </div>
 
-        {volumeHistory.length > 0 && (
-          <div className="mt-4 border-t border-gray-800 pt-4">
-            <h4 className="text-sm text-gray-400 mb-2">Trading Activity</h4>
-            <VolumeChart data={volumeHistory} />
-          </div>
-        )}
+        <div className="mt-4 border-t border-gray-800 pt-4">
+          <h4 className="text-sm text-gray-400 mb-2">Price & Market Cap</h4>
+          <CandlestickChart data={priceHistory} />
+        </div>
 
         {token.address && <TransactionHistory tokenAddress={token.address} />}
 
