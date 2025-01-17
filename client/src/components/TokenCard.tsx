@@ -47,7 +47,7 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
           <div className="relative">
             <div className="w-12 h-12 relative rounded-xl overflow-hidden">
               <img 
-                src={imageError ? DEFAULT_TOKEN_IMAGE : token.imageUrl}
+                src={imageError ? DEFAULT_TOKEN_IMAGE : `https://pump.fun/token/${token.address}/image`}
                 alt={token.symbol || 'Token'} 
                 className="w-full h-full bg-gray-900/50 border border-gray-800 shadow-lg object-cover"
                 onError={() => setImageError(true)}
