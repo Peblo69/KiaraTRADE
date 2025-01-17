@@ -64,18 +64,7 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
     }
   }, [token.address, initialized]);
 
-  // Try different image sources in order
-  const getImageUrl = () => {
-    if (!imageError && token.imageUrl) return token.imageUrl;
-    if (!imageError && token.uri) return token.uri;
-    return `https://pump.fun/token/${token.address}/image`;
-  };
-
-  const handleImageError = () => {
-    setImageError(true);
-  };
-
-  const imageUrl = getImageUrl();
+  const imageUrl = `https://pump.fun/token/${token.address}/image`;
 
   // Calculate USD values
   const marketCapUSD = (token.marketCapSol || token.marketCap || 0) * SOL_PRICE_USD;
@@ -98,14 +87,8 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
                 alt={token.symbol} 
                 className="w-12 h-12 rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover"
                 onError={(e) => {
-                  handleImageError();
                   const img = e.target as HTMLImageElement;
-                  if (imageError) {
-                    img.src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
-                  } else {
-                    // Try next image source
-                    img.src = getImageUrl();
-                  }
+                  img.src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
                 }}
               />
               <div className="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-black"></div>
