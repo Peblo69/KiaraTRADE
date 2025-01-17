@@ -1,4 +1,4 @@
-import { FC, memo } from 'react';
+import { FC, memo, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { pumpPortalSocket, usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { heliusSocket } from '@/lib/helius-websocket';
@@ -164,7 +164,7 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
           </div>
         )}
 
-        {socialMetrics && <SocialMetrics tokenAddress={token.address} metrics={socialMetrics} />}
+        {socialMetrics && <SocialMetrics metrics={socialMetrics} tokenAddress={token.address} />}
 
         {token.liquidityAdded && (
           <div className="border-t border-gray-800 pt-3 mt-3">
@@ -186,7 +186,7 @@ const initializeTokenData = (token: any) => {
     useTokenVolumeStore.getState().addVolumeData(token.address, token.volume24h || 0);
     useTokenPriceStore.getState().initializePriceHistory(token.address, token.price);
     if (!useTokenSocialMetricsStore.getState().getMetrics(token.address)) {
-      useTokenSocialMetricsStore.getState().generateMockMetrics(token.address); // Assuming generateMockMetrics exists
+      useTokenSocialMetricsStore.getState().generateMockMetrics(token.address);
     }
   }
 };
