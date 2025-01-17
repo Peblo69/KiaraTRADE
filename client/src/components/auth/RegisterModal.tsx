@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Form,
   FormControl,
@@ -30,7 +30,7 @@ interface RegisterModalProps {
 }
 
 export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isEmailSent, setIsEmailSent] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<RegisterForm>({
@@ -53,19 +53,20 @@ export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
         credentials: 'include'
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.details || error.message || "Registration failed");
+        throw new Error(result.message || "Registration failed");
       }
 
-      return response.json();
+      return result;
     },
     onSuccess: () => {
+      setIsEmailSent(true);
       toast({
         title: "Registration successful!",
         description: "Please check your email to verify your account.",
       });
-      onClose();
       form.reset();
     },
     onError: (error: Error) => {
@@ -78,19 +79,34 @@ export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
   });
 
   const onSubmit = async (data: RegisterForm) => {
-    setIsLoading(true);
-    try {
-      await registerMutation.mutateAsync(data);
-    } finally {
-      setIsLoading(false);
-    }
+    await registerMutation.mutateAsync(data);
   };
+
+  if (isEmailSent) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-center">Check Your Email</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-center">
+            <p className="text-muted-foreground">
+              We've sent a verification link to your email address. Please click the link to verify your account.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Don't see the email? Check your spam folder.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-semibold">Create Account</DialogTitle>
+          <DialogTitle className="text-2xl font-bold text-center">Create Account</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -136,9 +152,9 @@ export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading}
+              disabled={registerMutation.isPending}
             >
-              {isLoading ? "Creating account..." : "Create Account"}
+              {registerMutation.isPending ? "Creating account..." : "Create Account"}
             </Button>
           </form>
         </Form>

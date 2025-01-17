@@ -1,12 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "@db";
-import { users, insertUserSchema } from "@db/schema";
+import { users } from "@db/schema";
 import { eq } from "drizzle-orm";
-import session from "express-session";
 import { randomBytes, scrypt } from "crypto";
 import { promisify } from "util";
 import { sendVerificationEmail } from "./services/email";
+import session from "express-session";
 import { generateAIResponse } from "./services/ai";
 import { cryptoService } from "./services/crypto";
 import { log } from "./vite";
@@ -24,12 +24,6 @@ async function comparePasswords(supplied: string, stored: string): Promise<boole
   const hashedPasswordBuf = Buffer.from(hashedPassword, "hex");
   const suppliedPasswordBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
   return hashedPasswordBuf.equals(suppliedPasswordBuf);
-}
-
-interface AuthenticatedRequest extends Request {
-  session: {
-    userId?: number;
-  } & session.Session;
 }
 
 export function registerRoutes(app: Express): Server {
@@ -55,21 +49,19 @@ export function registerRoutes(app: Express): Server {
       const { username, email, password } = req.body;
 
       if (!username || !email || !password) {
-        return res.status(400).json({ 
-          error: "Missing required fields",
-          details: "Username, email, and password are required" 
+        return res.status(400).json({
+          message: "Username, email, and password are required"
         });
       }
 
       // Check if user already exists
       const existingUser = await db.query.users.findFirst({
-        where: eq(users.username, username),
+        where: eq(users.username, username)
       });
 
       if (existingUser) {
-        return res.status(400).json({ 
-          error: "User already exists",
-          details: "Username is already taken" 
+        return res.status(400).json({
+          message: "Username already taken"
         });
       }
 
@@ -89,15 +81,14 @@ export function registerRoutes(app: Express): Server {
       // Send verification email
       await sendVerificationEmail(email, verificationToken);
 
-      res.status(201).json({ 
+      res.status(201).json({
         message: "Registration successful. Please check your email for verification.",
-        userId: user.id 
+        userId: user.id
       });
     } catch (error) {
       console.error("Registration error:", error);
-      res.status(400).json({ 
-        error: "Registration failed",
-        details: error instanceof Error ? error.message : "Unknown error occurred"
+      res.status(500).json({
+        message: "Registration failed. Please try again."
       });
     }
   });
@@ -109,36 +100,35 @@ export function registerRoutes(app: Express): Server {
 
       if (!username || !password) {
         return res.status(400).json({
-          error: "Missing credentials",
-          details: "Username and password are required"
+          message: "Username and password are required"
         });
       }
 
       const user = await db.query.users.findFirst({
-        where: eq(users.username, username),
+        where: eq(users.username, username)
       });
 
       if (!user) {
         return res.status(400).json({
-          error: "Invalid credentials",
-          details: "Username or password is incorrect"
+          message: "Invalid username or password"
         });
       }
 
       const isPasswordValid = await comparePasswords(password, user.password);
       if (!isPasswordValid) {
         return res.status(400).json({
-          error: "Invalid credentials",
-          details: "Username or password is incorrect"
+          message: "Invalid username or password"
         });
       }
 
       if (!user.email_verified) {
         return res.status(400).json({
-          error: "Email not verified",
-          details: "Please verify your email before logging in"
+          message: "Please verify your email before logging in"
         });
       }
+
+      // Set user session
+      (req as any).session.userId = user.id;
 
       res.json({
         message: "Login successful",
@@ -150,24 +140,10 @@ export function registerRoutes(app: Express): Server {
       });
     } catch (error) {
       console.error("Login error:", error);
-      res.status(400).json({
-        error: "Login failed",
-        details: error instanceof Error ? error.message : "Unknown error occurred"
+      res.status(500).json({
+        message: "Login failed. Please try again."
       });
     }
-  });
-
-  // Logout endpoint
-  app.post("/api/logout", (req, res) => {
-    (req as AuthenticatedRequest).session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({
-          error: "Logout failed",
-          details: "Failed to destroy session"
-        });
-      }
-      res.json({ message: "Logged out successfully" });
-    });
   });
 
   // Email verification endpoint
@@ -176,15 +152,14 @@ export function registerRoutes(app: Express): Server {
       const { token } = req.query;
 
       if (!token || typeof token !== 'string') {
-        return res.status(400).json({ 
-          error: "Invalid verification token",
-          details: "A valid verification token is required"
+        return res.status(400).json({
+          message: "Invalid verification token"
         });
       }
 
       const [user] = await db
         .update(users)
-        .set({ 
+        .set({
           email_verified: true,
           verification_token: null
         })
@@ -192,78 +167,33 @@ export function registerRoutes(app: Express): Server {
         .returning();
 
       if (!user) {
-        return res.status(400).json({ 
-          error: "Verification failed",
-          details: "Invalid or expired verification token"
+        return res.status(400).json({
+          message: "Invalid or expired verification token"
         });
       }
 
-      res.json({ 
+      res.json({
         message: "Email verified successfully",
-        userId: user.id 
+        userId: user.id
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log(`Verification error: ${errorMessage}`);
-      res.status(400).json({ 
-        error: "Verification failed",
-        details: errorMessage
+      console.error("Verification error:", error);
+      res.status(500).json({
+        message: "Email verification failed. Please try again."
       });
     }
   });
 
-  // Market overview endpoint
-  app.get("/api/market/overview", async (_req, res) => {
-    try {
-      const marketData = await cryptoService.getMarketOverview();
-      res.json(marketData);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log(`Market overview error: ${errorMessage}`);
-      res.status(500).json({ 
-        error: "Failed to fetch market overview",
-        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
-      });
-    }
-  });
-
-  // Chat endpoint
-  app.post("/api/chat", async (req, res) => {
-    try {
-      const { message, history } = req.body;
-      if (!message) {
-        return res.status(400).json({ 
-          error: "Message is required",
-          details: "Please provide a message to process"
+  // Logout endpoint
+  app.post("/api/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({
+          message: "Logout failed"
         });
       }
-
-      const response = await generateAIResponse(message, history);
-      res.json({ response });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log(`Chat error: ${errorMessage}`);
-      res.status(500).json({ 
-        error: "Failed to process chat message",
-        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
-      });
-    }
-  });
-
-  // Health check endpoint
-  app.get("/api/health", (_req, res) => {
-    try {
-      const cacheStatus = cryptoService.getCacheStatus();
-      res.json({ 
-        status: "ok",
-        openai_configured: !!process.env.OPENAI_API_KEY,
-        crypto_service: cacheStatus
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log(`Health check error: ${errorMessage}`);
-      res.status(500).json({ status: "error", message: errorMessage });
-    }
+      res.json({ message: "Logged out successfully" });
+    });
   });
 
   return httpServer;
