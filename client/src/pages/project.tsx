@@ -21,8 +21,7 @@ const ProjectPage: FC = () => {
                 color: 'transparent',
                 textShadow: '0 0 30px rgba(96, 239, 255, 0.4)',
                 letterSpacing: '0.15em',
-                filter: 'drop-shadow(0 0 10px rgba(96, 239, 255, 0.2))',
-                animation: 'pulse 2s ease-in-out infinite'
+                filter: 'drop-shadow(0 0 10px rgba(96, 239, 255, 0.2))'
               }}
             >
               PumpFun Token Tracker

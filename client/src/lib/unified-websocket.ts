@@ -2,9 +2,6 @@ import { useUnifiedTokenStore } from './unified-token-store';
 
 class UnifiedWebSocket {
   private ws: WebSocket | null = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 5000;
   private heartbeatInterval: NodeJS.Timeout | null = null;
 
   connect() {
@@ -13,18 +10,15 @@ class UnifiedWebSocket {
     }
 
     try {
-      this.ws = new WebSocket('wss://pumpportal.fun/api/data', undefined, {
-        rejectUnauthorized: false
-      });
+      this.ws = new WebSocket('wss://pumpportal.fun/api/data');
 
       this.ws.onopen = () => {
         useUnifiedTokenStore.getState().setConnected(true);
-        this.reconnectAttempts = 0;
         this.startHeartbeat();
         this.subscribeToEvents();
       };
 
-      this.ws.onmessage = async (event) => {
+      this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
 
@@ -46,12 +40,11 @@ class UnifiedWebSocket {
                 price: data.solAmount / data.initialBuy,
                 imageUrl: data.uri,
                 uri: data.uri,
-                signature: data.signature,
                 initialBuy: data.solAmount,
                 solAmount: data.solAmount
               };
 
-              await useUnifiedTokenStore.getState().addToken(token);
+              useUnifiedTokenStore.getState().addToken(token);
             }
           }
         } catch (error) {
@@ -61,25 +54,20 @@ class UnifiedWebSocket {
 
       this.ws.onclose = () => {
         this.cleanup();
-        this.reconnect();
       };
 
       this.ws.onerror = () => {
         useUnifiedTokenStore.getState().setError('WebSocket connection error');
         this.cleanup();
-        this.reconnect();
       };
 
     } catch (error) {
       useUnifiedTokenStore.getState().setError('Failed to establish WebSocket connection');
       this.cleanup();
-      this.reconnect();
     }
   }
 
   private handleTokenUpdate(data: any) {
-    if (!data.mint || !data.solAmount) return;
-
     const tokenAddress = data.mint;
     const price = data.solAmount / (data.tokenAmount || data.initialBuy);
 
@@ -95,7 +83,7 @@ class UnifiedWebSocket {
       solAmount: data.solAmount,
       tokenAmount: data.tokenAmount || data.initialBuy,
       timestamp: Date.now(),
-      type: 'sell'
+      type: data.txType === 'create' ? 'buy' : 'sell'
     });
   }
 
@@ -126,18 +114,6 @@ class UnifiedWebSocket {
     }
 
     useUnifiedTokenStore.getState().setConnected(false);
-  }
-
-  private reconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      useUnifiedTokenStore.getState().setError('Maximum reconnection attempts reached');
-      return;
-    }
-
-    this.reconnectAttempts++;
-    setTimeout(() => {
-      this.connect();
-    }, this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1));
   }
 
   disconnect() {
