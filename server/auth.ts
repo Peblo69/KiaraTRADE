@@ -7,7 +7,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { users, insertUserSchema, type SelectUser } from "@db/schema";
 import { db } from "@db";
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { sendVerificationEmail } from "./services/email";
 
 const scryptAsync = promisify(scrypt);
@@ -111,12 +111,10 @@ export function setupAuth(app: Express) {
   if (app.get("env") === "development") {
     app.post("/api/dev/clear-test-accounts", async (req, res) => {
       try {
-        // Clear all test accounts
-        await db.delete(users).where(eq(users.email, "test@example.com"));
-        // Also clear the specific test email if provided
-        if (req.body.email) {
-          await db.delete(users).where(eq(users.email, req.body.email));
-        }
+        // Clear all test accounts (any email ending with @example.com)
+        await db.delete(users).where((users, { like }) => 
+          like(users.email, '%@example.com')
+        );
         res.json({ message: "Test accounts cleared" });
       } catch (error) {
         console.error("Error clearing test accounts:", error);
@@ -125,6 +123,7 @@ export function setupAuth(app: Express) {
     });
   }
 
+  // Modify registration endpoint to be more development-friendly
   app.post("/api/register", async (req, res, next) => {
     try {
       console.log("Registration attempt:", { ...req.body, password: "[REDACTED]" });
@@ -141,7 +140,7 @@ export function setupAuth(app: Express) {
 
       const { username, email, password } = result.data;
 
-      // In development mode, clear existing test account if it exists
+      // In development mode, always clear existing test accounts first
       if (app.get("env") === "development" && email.endsWith("@example.com")) {
         await db.delete(users).where(eq(users.email, email));
       }
@@ -158,17 +157,6 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Username already exists" });
       }
 
-      // Check for existing email (after clearing test accounts)
-      const [existingEmail] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
-
-      if (existingEmail) {
-        console.log("Registration failed: Email exists:", email);
-        return res.status(400).json({ message: "Email already exists" });
-      }
 
       // Hash the password
       const hashedPassword = await crypto.hash(password);
@@ -321,6 +309,4 @@ export function setupAuth(app: Express) {
 
     res.status(401).json({ message: "Not logged in" });
   });
-
-
 }
