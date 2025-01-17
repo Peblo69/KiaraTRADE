@@ -13,6 +13,7 @@ class UnifiedWebSocket {
       this.ws = new WebSocket('wss://pumpportal.fun/api/data');
 
       this.ws.onopen = () => {
+        console.log('[Unified WebSocket] Connected successfully');
         useUnifiedTokenStore.getState().setConnected(true);
         this.startHeartbeat();
         this.subscribeToEvents();
@@ -23,6 +24,14 @@ class UnifiedWebSocket {
           const data = JSON.parse(event.data);
 
           if (data.txType === 'create' || data.txType === 'trade') {
+            console.log('[Unified WebSocket] Received token data:', {
+              type: data.txType,
+              name: data.name,
+              symbol: data.symbol,
+              mint: data.mint,
+              imageUrl: data.uri || data.metadata?.image,
+            });
+
             if (data.mint && data.traderPublicKey) {
               this.handleTokenUpdate(data);
             }
@@ -38,43 +47,64 @@ class UnifiedWebSocket {
                 volume24h: data.volume24h || 0,
                 address: data.mint,
                 price: data.solAmount / data.initialBuy,
-                imageUrl: data.uri,
+                imageUrl: this.getTokenImageUrl(data),
                 uri: data.uri,
                 initialBuy: data.solAmount,
-                solAmount: data.solAmount
+                solAmount: data.solAmount,
+                metadata: data.metadata || null
               };
+
+              console.log('[Unified WebSocket] Adding new token:', {
+                ...token,
+                address: token.address,
+                imageUrl: token.imageUrl
+              });
 
               useUnifiedTokenStore.getState().addToken(token);
             }
           }
         } catch (error) {
+          console.error('[Unified WebSocket] Failed to process token data:', error);
           useUnifiedTokenStore.getState().setError('Failed to process token data');
         }
       };
 
       this.ws.onclose = () => {
+        console.log('[Unified WebSocket] Connection closed');
         this.cleanup();
       };
 
-      this.ws.onerror = () => {
+      this.ws.onerror = (error) => {
+        console.error('[Unified WebSocket] Connection error:', error);
         useUnifiedTokenStore.getState().setError('WebSocket connection error');
         this.cleanup();
       };
 
     } catch (error) {
+      console.error('[Unified WebSocket] Failed to establish connection:', error);
       useUnifiedTokenStore.getState().setError('Failed to establish WebSocket connection');
       this.cleanup();
     }
+  }
+
+  private getTokenImageUrl(data: any): string {
+    // Try different possible image sources in order of preference
+    return data.uri || 
+           data.metadata?.image || 
+           `https://pump.fun/token/${data.mint}/image` ||
+           'https://cryptologos.cc/logos/solana-sol-logo.png';
   }
 
   private handleTokenUpdate(data: any) {
     const tokenAddress = data.mint;
     const price = data.solAmount / (data.tokenAmount || data.initialBuy);
 
+    // Update token with new data including any image updates
     useUnifiedTokenStore.getState().updateToken(tokenAddress, {
       price,
       marketCapSol: data.marketCapSol || 0,
       volume24h: data.volume24h || 0,
+      imageUrl: this.getTokenImageUrl(data), // Update image URL if available
     });
 
     useUnifiedTokenStore.getState().addTransaction(tokenAddress, {

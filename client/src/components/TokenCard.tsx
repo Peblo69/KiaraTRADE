@@ -1,4 +1,4 @@
-import { FC, memo, useState, useMemo } from 'react';
+import { FC, memo, useState, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { SiSolana } from 'react-icons/si';
 import { 
@@ -8,7 +8,6 @@ import {
   Globe,
   TwitterIcon
 } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import TransactionHistory from './TransactionHistory';
 
@@ -30,15 +29,25 @@ interface TokenCardProps {
 
 const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
   const token = useUnifiedTokenStore(state => state.getToken(tokenAddress));
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    if (token?.imageUrl) {
+      setImageUrl(token.imageUrl);
+      setImageError(false); // Reset error state when new URL is received
+    }
+  }, [token?.imageUrl]);
 
   if (!token) return null;
 
-  const { marketCapUSD, initialBuyUSD, volume24hUSD } = useMemo(() => ({
-    marketCapUSD: token.marketCapSol * SOL_PRICE_USD,
-    initialBuyUSD: (token.solAmount || 0) * SOL_PRICE_USD,
-    volume24hUSD: (token.volume24h || 0) * SOL_PRICE_USD
-  }), [token.marketCapSol, token.solAmount, token.volume24h]);
+  const handleImageError = () => {
+    console.log(`[TokenCard] Image failed to load for token ${tokenAddress}, using fallback`);
+    setImageError(true);
+    setImageUrl(DEFAULT_TOKEN_IMAGE);
+  };
+
+  const displayImageUrl = imageError ? DEFAULT_TOKEN_IMAGE : (imageUrl || `https://pump.fun/token/${tokenAddress}/image`);
 
   return (
     <Card className="p-4 bg-black/40 backdrop-blur-lg border border-gray-800 hover:border-blue-500/50 transition-all duration-300">
@@ -47,10 +56,10 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
           <div className="relative">
             <div className="w-12 h-12 relative rounded-xl overflow-hidden">
               <img 
-                src={imageError ? DEFAULT_TOKEN_IMAGE : `https://pump.fun/token/${token.address}/image`}
+                src={displayImageUrl}
                 alt={token.symbol || 'Token'} 
                 className="w-full h-full bg-gray-900/50 border border-gray-800 shadow-lg object-cover"
-                onError={() => setImageError(true)}
+                onError={handleImageError}
                 loading="lazy"
               />
               <div className="absolute -right-2 -bottom-2 w-6 h-6">
@@ -116,7 +125,7 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
               <span className="text-gray-400">Market Cap</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-white font-bold">{formatNumber(marketCapUSD, true)}</span>
+              <span className="text-white font-bold">{formatNumber(token.marketCapSol * SOL_PRICE_USD, true)}</span>
               <span className="text-xs text-gray-500">{formatNumber(token.marketCapSol)} SOL</span>
             </div>
           </div>
@@ -126,7 +135,7 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
               <span className="text-gray-400">Initial Buy</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-white font-bold">{formatNumber(initialBuyUSD, true)}</span>
+              <span className="text-white font-bold">{formatNumber((token.solAmount || 0) * SOL_PRICE_USD, true)}</span>
               <span className="text-xs text-gray-500">{formatNumber(token.solAmount || 0)} SOL</span>
             </div>
           </div>
@@ -138,7 +147,7 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
               <span className="text-gray-400">Volume 24h</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-white font-bold">{formatNumber(volume24hUSD, true)}</span>
+              <span className="text-white font-bold">{formatNumber((token.volume24h || 0) * SOL_PRICE_USD, true)}</span>
               <span className="text-xs text-gray-500">{formatNumber(token.volume24h || 0)} SOL</span>
             </div>
           </div>
