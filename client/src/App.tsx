@@ -9,10 +9,7 @@ import { WalletContextProvider } from "@/lib/wallet";
 function Router() {
   return (
     <Switch>
-      {/* Make TokenTracker the main route */}
       <Route path="/" component={TokenTracker} />
-
-      {/* Fallback to 404 */}
       <Route component={NotFound} />
     </Switch>
   );
