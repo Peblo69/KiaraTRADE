@@ -1,4 +1,7 @@
 import { create } from 'zustand';
+import { useTokenVolumeStore } from './token-volume';
+import { useTokenPriceStore } from './price-history';
+import { useTokenSocialMetricsStore, generateMockSocialMetrics } from './social-metrics';
 
 interface TokenData {
   name: string;
@@ -44,7 +47,18 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
         lastUpdated: now,
       };
 
-      console.log('[PumpPortal Store] Adding token:', enrichedToken);
+      // Initialize related data stores
+      if (token.address) {
+        try {
+          useTokenVolumeStore.getState().addVolumeData(token.address, token.volume24h || 0);
+          useTokenPriceStore.getState().initializePriceHistory(token.address, token.price);
+          if (!useTokenSocialMetricsStore.getState().getMetrics(token.address)) {
+            generateMockSocialMetrics(token.address);
+          }
+        } catch (error) {
+          console.error('[PumpPortal Store] Error initializing token data:', error);
+        }
+      }
 
       return {
         tokens: [...state.tokens, enrichedToken]

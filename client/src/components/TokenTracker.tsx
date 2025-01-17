@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VolumeChart } from './VolumeChart';
-import { useTokenSocialMetricsStore, generateMockSocialMetrics } from '@/lib/social-metrics';
+import { useTokenSocialMetricsStore } from '@/lib/social-metrics';
 import { SocialMetrics } from './SocialMetrics';
 import { useTokenPriceStore } from '@/lib/price-history';
 import { PriceChart } from './PriceChart';
@@ -180,21 +180,6 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
   );
 });
 
-// Initialize data when token is received from WebSocket
-const initializeTokenData = (token: any) => {
-  if (token.address) {
-    try {
-      useTokenVolumeStore.getState().addVolumeData(token.address, token.volume24h || 0);
-      useTokenPriceStore.getState().initializePriceHistory(token.address, token.price);
-      if (!useTokenSocialMetricsStore.getState().getMetrics(token.address)) {
-        generateMockSocialMetrics(token.address);
-      }
-    } catch (error) {
-      console.error('Error initializing token data:', error);
-    }
-  }
-};
-
 export const TokenTracker: FC = () => {
   const tokens = usePumpPortalStore(state => state.tokens);
 
@@ -203,9 +188,6 @@ export const TokenTracker: FC = () => {
     pumpPortalSocket.connect();
     heliusSocket.connect();
     initializeVolumeTracking();
-
-    // Initialize data for existing tokens
-    tokens.forEach(initializeTokenData);
 
     // Cleanup on unmount
     return () => {
