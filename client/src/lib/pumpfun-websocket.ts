@@ -85,7 +85,12 @@ class PumpFunWebSocket {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('[PumpFun WebSocket] Received message:', data);
+          console.log('[PumpFun WebSocket] Received message:', {
+            timestamp: new Date().toISOString(),
+            type: data.type,
+            rawData: data,
+            tokenCount: this.getTokenCount()
+          });
 
           if (data.type === 'token') {
             const tokenData = data.data;
