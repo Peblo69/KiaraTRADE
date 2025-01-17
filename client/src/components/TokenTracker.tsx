@@ -1,4 +1,4 @@
-import { FC, memo, useEffect } from 'react';
+import { FC, memo, useEffect, useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { pumpPortalSocket, usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { heliusSocket } from '@/lib/helius-websocket';
@@ -11,7 +11,8 @@ import {
   Wallet, 
   Clock,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  ImageOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VolumeChart } from './VolumeChart';
@@ -29,6 +30,52 @@ const formatNumber = (num: number, isCurrency = false) => {
   if (num >= 1000) return `${isCurrency ? '$' : ''}${(num / 1000).toFixed(2)}K`;
   return `${isCurrency ? '$' : ''}${num.toFixed(2)}`;
 };
+
+const TokenImage: FC<{ token: any }> = memo(({ token }) => {
+  const [imageError, setImageError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Try different image sources in order of preference
+  const getImageUrl = () => {
+    if (imageError || !token.address) {
+      return 'https://cryptologos.cc/logos/solana-sol-logo.png'; // Fallback image
+    }
+
+    // If token has a URI property, use that first
+    if (token.uri && !token.uri.includes('undefined')) {
+      return token.uri;
+    }
+
+    // Otherwise use the pump.fun URL
+    return `https://pump.fun/token/${token.address}/image`;
+  };
+
+  return (
+    <div className="relative w-12 h-12">
+      <img 
+        src={getImageUrl()}
+        alt={token.symbol || 'Token'} 
+        className={`w-full h-full rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+        onError={(e) => {
+          console.log(`Image load error for token ${token.address}:`, e);
+          setImageError(true);
+        }}
+        onLoad={() => setIsLoading(false)}
+      />
+      {isLoading && (
+        <div className="absolute inset-0 bg-gray-900/50 rounded-xl flex items-center justify-center">
+          <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      )}
+      {imageError && (
+        <div className="absolute inset-0 bg-gray-900/50 rounded-xl flex items-center justify-center">
+          <ImageOff size={20} className="text-gray-400" />
+        </div>
+      )}
+      <div className="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-black"></div>
+    </div>
+  );
+});
 
 const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => {
   const volumeHistory = useTokenVolumeStore(state => state.getVolumeHistory(token.address));
@@ -53,17 +100,7 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
       <Card className="p-4 bg-black/40 backdrop-blur-lg border border-gray-800 hover:border-blue-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/10">
         <div className="flex justify-between items-start mb-4">
           <div className="flex items-center gap-3">
-            <div className="relative">
-              <img 
-                src={`https://pump.fun/token/${token.address}/image`}
-                alt={token.symbol} 
-                className="w-12 h-12 rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
-                }}
-              />
-              <div className="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-black"></div>
-            </div>
+            <TokenImage token={token} />
             <div>
               <h3 className="text-lg font-bold text-white mb-0.5">{token.name || 'Unknown Token'}</h3>
               <div className="flex items-center gap-2">
