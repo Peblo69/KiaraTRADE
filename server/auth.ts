@@ -76,6 +76,7 @@ export function setupAuth(app: Express) {
         }
         return done(null, user);
       } catch (err) {
+        console.error("Authentication error:", err);
         return done(err);
       }
     })
@@ -94,17 +95,21 @@ export function setupAuth(app: Express) {
         .limit(1);
       done(null, user);
     } catch (err) {
+      console.error("Deserialization error:", err);
       done(err);
     }
   });
 
   app.post("/api/register", async (req, res, next) => {
     try {
+      console.log("Registration attempt:", { ...req.body, password: '[REDACTED]' });
+
       const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
+        console.log("Validation failed:", result.error.issues);
         return res
           .status(400)
-          .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+          .json({ message: "Invalid input: " + result.error.issues.map(i => i.message).join(", ") });
       }
 
       const { username, email, password } = result.data;
@@ -117,7 +122,8 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (existingUser) {
-        return res.status(400).send("Username already exists");
+        console.log("Registration failed: Username exists:", username);
+        return res.status(400).json({ message: "Username already exists" });
       }
 
       // Hash the password
@@ -138,9 +144,12 @@ export function setupAuth(app: Express) {
         })
         .returning();
 
+      console.log("User created successfully:", { id: newUser.id, username: newUser.username });
+
       // Log the user in after registration
       req.login(newUser, (err) => {
         if (err) {
+          console.error("Login after registration failed:", err);
           return next(err);
         }
         return res.json({
@@ -154,32 +163,40 @@ export function setupAuth(app: Express) {
         });
       });
     } catch (error) {
+      console.error("Registration error:", error);
       next(error);
     }
   });
 
   app.post("/api/login", (req, res, next) => {
+    console.log("Login attempt:", { username: req.body.username });
+
     const result = insertUserSchema.safeParse(req.body);
     if (!result.success) {
+      console.log("Login validation failed:", result.error.issues);
       return res
         .status(400)
-        .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+        .json({ message: "Invalid input: " + result.error.issues.map(i => i.message).join(", ") });
     }
 
     const cb = (err: any, user: Express.User, info: IVerifyOptions) => {
       if (err) {
+        console.error("Login error:", err);
         return next(err);
       }
 
       if (!user) {
-        return res.status(400).send(info.message ?? "Login failed");
+        console.log("Login failed:", info.message);
+        return res.status(400).json({ message: info.message ?? "Login failed" });
       }
 
       req.logIn(user, (err) => {
         if (err) {
+          console.error("Login session error:", err);
           return next(err);
         }
 
+        console.log("Login successful:", { id: user.id, username: user.username });
         return res.json({
           message: "Login successful",
           user: {
@@ -195,11 +212,14 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/logout", (req, res) => {
+    const username = req.user?.username;
     req.logout((err) => {
       if (err) {
-        return res.status(500).send("Logout failed");
+        console.error("Logout error:", err);
+        return res.status(500).json({ message: "Logout failed" });
       }
 
+      console.log("Logout successful:", { username });
       res.json({ message: "Logout successful" });
     });
   });
@@ -215,6 +235,6 @@ export function setupAuth(app: Express) {
       });
     }
 
-    res.status(401).send("Not logged in");
+    res.status(401).json({ message: "Not logged in" });
   });
 }
