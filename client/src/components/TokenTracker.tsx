@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VolumeChart } from './VolumeChart';
+import { useTokenSocialMetricsStore, generateMockSocialMetrics } from '@/lib/social-metrics';
+import { SocialMetrics } from './SocialMetrics';
 
 // SOL price in USD (this should be fetched from an API in production)
 const SOL_PRICE_USD = 104.23;
@@ -39,6 +41,7 @@ interface VolumeData {
 
 const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
   const volumeHistory = useTokenVolumeStore(state => state.getVolumeHistory(token.address));
+  const socialMetrics = useTokenSocialMetricsStore(state => state.getMetrics(token.address));
   const [isLoadingVolume, setIsLoadingVolume] = useState(false);
   const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
   const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
@@ -55,7 +58,12 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
       });
       setIsLoadingVolume(false);
     }
-  }, [token.address]);
+
+    // Generate mock social metrics if none exist
+    if (!socialMetrics && token.address) {
+      generateMockSocialMetrics(token.address);
+    }
+  }, [token.address, socialMetrics]);
 
   const imageUrl = token.imageUrl || token.uri || `https://pump.fun/token/${token.address}/image`;
   console.log('[TokenCard] Using image URL:', imageUrl, 'for token:', token.address);
@@ -180,6 +188,8 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
             <VolumeChart data={volumeHistory} />
           </div>
         )}
+
+        {socialMetrics && <SocialMetrics tokenAddress={token.address} metrics={socialMetrics} />}
 
         {token.liquidityAdded && (
           <div className="border-t border-gray-800 pt-3 mt-3">
