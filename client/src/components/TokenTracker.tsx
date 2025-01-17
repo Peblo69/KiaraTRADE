@@ -41,6 +41,7 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
   const socialMetrics = useTokenSocialMetricsStore(state => state.getMetrics(token.address));
   const priceHistory = useTokenPriceStore(state => state.getPriceHistory(token.address));
   const [initialized, setInitialized] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
   const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
 
@@ -63,7 +64,18 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
     }
   }, [token.address, initialized]);
 
-  const imageUrl = token.imageUrl || token.uri || `https://pump.fun/token/${token.address}/image`;
+  // Try different image sources in order
+  const getImageUrl = () => {
+    if (!imageError && token.imageUrl) return token.imageUrl;
+    if (!imageError && token.uri) return token.uri;
+    return `https://pump.fun/token/${token.address}/image`;
+  };
+
+  const handleImageError = () => {
+    setImageError(true);
+  };
+
+  const imageUrl = getImageUrl();
 
   // Calculate USD values
   const marketCapUSD = (token.marketCapSol || token.marketCap || 0) * SOL_PRICE_USD;
@@ -86,8 +98,14 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
                 alt={token.symbol} 
                 className="w-12 h-12 rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover"
                 onError={(e) => {
+                  handleImageError();
                   const img = e.target as HTMLImageElement;
-                  img.src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
+                  if (imageError) {
+                    img.src = 'https://cryptologos.cc/logos/solana-sol-logo.png';
+                  } else {
+                    // Try next image source
+                    img.src = getImageUrl();
+                  }
                 }}
               />
               <div className="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-black"></div>
