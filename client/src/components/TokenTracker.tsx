@@ -23,6 +23,8 @@ import { SocialMetrics } from './SocialMetrics';
 import { useTokenPriceStore } from '@/lib/price-history';
 import { PriceChart } from './PriceChart';
 import { TransactionHistory } from './TransactionHistory';
+import { TokenFilters } from './TokenFilters';
+import { useTokenFiltersStore, filterTokens } from '@/lib/token-filters';
 
 // SOL price in USD (this should be fetched from an API in production)
 const SOL_PRICE_USD = 104.23;
@@ -254,19 +256,20 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
 
 export const TokenTracker: FC = () => {
   const tokens = usePumpPortalStore(state => state.tokens);
+  const activeFilter = useTokenFiltersStore(state => state.activeFilter);
 
   useEffect(() => {
-    // Initialize WebSocket connections once
     pumpPortalSocket.connect();
     heliusSocket.connect();
     initializeVolumeTracking();
 
-    // Cleanup on unmount
     return () => {
       pumpPortalSocket.disconnect();
       heliusSocket.disconnect();
     };
-  }, []); 
+  }, []);
+
+  const filteredTokens = filterTokens(tokens, activeFilter);
 
   return (
     <div className="max-w-7xl mx-auto px-4">
@@ -283,9 +286,11 @@ export const TokenTracker: FC = () => {
         Real-Time Token Tracker
       </h1>
 
+      <TokenFilters />
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence>
-          {tokens.map((token, index) => (
+          {filteredTokens.map((token, index) => (
             <TokenCard key={token.address || index} token={token} index={index} />
           ))}
         </AnimatePresence>
