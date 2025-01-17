@@ -2,24 +2,15 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "@db/schema";
 
-if (!process.env.PGDATABASE || !process.env.PGHOST || !process.env.PGPORT || !process.env.PGUSER || !process.env.PGPASSWORD) {
-  throw new Error("PostgreSQL environment variables are required");
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL must be set. Did you forget to provision a database?");
 }
 
-// Configure the connection for Replit's PostgreSQL
-const client = postgres({
-  host: process.env.PGHOST,
-  port: Number(process.env.PGPORT),
-  database: process.env.PGDATABASE,
-  username: process.env.PGUSER,
-  password: process.env.PGPASSWORD,
-  max: 1,
+const client = postgres(process.env.DATABASE_URL, {
   ssl: {
-    rejectUnauthorized: false,
-    require: true
+    rejectUnauthorized: false
   },
-  idle_timeout: 20,
-  connect_timeout: 10
+  max: 1
 });
 
 export const db = drizzle(client, { schema });
