@@ -95,7 +95,7 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
 
   // Calculate USD values
   const marketCapUSD = token.marketCapSol * SOL_PRICE_USD;
-  const initialBuyUSD = (token.initialBuy || 0) * SOL_PRICE_USD;
+  const initialBuyUSD = (token.initialBuy || 0) * SOL_PRICE_USD; 
   const volume24hUSD = (token.volume24h || 0) * SOL_PRICE_USD;
 
   return (
@@ -263,7 +263,7 @@ export const TokenTracker: FC = () => {
       pumpPortalSocket.disconnect();
       heliusSocket.disconnect();
     };
-  }, []); // Empty dependency array = run once on mount
+  }, []); 
 
   return (
     <div className="max-w-7xl mx-auto px-4">

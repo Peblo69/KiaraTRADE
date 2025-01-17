@@ -56,6 +56,10 @@ interface PumpPortalState {
   setError: (error: string | null) => void;
 }
 
+const calculateTokenPrice = (solAmount: number, tokensTraded: number): number => {
+  return solAmount / tokensTraded;
+};
+
 const parseTokenMetadata = async (uri: string): Promise<TokenMetadata | null> => {
   try {
     if (!uri) return null;
@@ -116,15 +120,22 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
   addToken: async (token) => {
     set((state) => {
       const now = Date.now();
+
+      // Calculate initial price from solAmount and initialBuy
+      const initialPrice = token.solAmount && token.initialBuy 
+        ? calculateTokenPrice(token.solAmount, token.initialBuy)
+        : 0;
+
       const enrichedToken = {
         ...token,
+        price: initialPrice,
         lastUpdated: now,
       };
 
       if (token.address) {
         try {
           useTokenVolumeStore.getState().addVolumeData(token.address, token.volume24h || 0);
-          useTokenPriceStore.getState().initializePriceHistory(token.address, token.price);
+          useTokenPriceStore.getState().initializePriceHistory(token.address, initialPrice);
 
           processSocialMetrics(enrichedToken);
 
@@ -165,6 +176,7 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
       const currentToken = state.tokens.find(token => token.address === address);
       if (!currentToken) return state;
 
+      // Calculate price change percentage
       const priceChange24h = updates.price !== undefined && currentToken.price !== undefined
         ? ((updates.price - currentToken.price) / currentToken.price) * 100
         : currentToken.priceChange24h;
@@ -223,6 +235,9 @@ class PumpPortalWebSocket {
           console.log('[PumpPortal WebSocket] Received message:', data);
 
           if (data.txType === 'create') {
+            // Calculate initial price from SOL amount and tokens
+            const initialPrice = data.solAmount / data.initialBuy;
+
             const token: TokenData = {
               name: data.name || 'Unknown',
               symbol: data.symbol || 'UNKNOWN',
@@ -232,7 +247,7 @@ class PumpPortalWebSocket {
               holders: data.holders || 0,
               volume24h: data.volume24h || 0,
               address: data.mint,
-              price: data.solAmount / (data.initialBuy || 1),
+              price: initialPrice,
               imageUrl: data.uri,
               uri: data.uri,
               signature: data.signature,
