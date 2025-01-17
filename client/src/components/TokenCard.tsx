@@ -115,24 +115,52 @@ TokenPrice.displayName = 'TokenPrice';
 
 // Main TokenCard component with optimized renders
 const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
+  console.log('[TokenCard] Rendering:', {
+    tokenAddress,
+    index,
+    timestamp: Date.now()
+  });
+
   // Use selector pattern to minimize re-renders
   const token = useUnifiedTokenStore(
-    useCallback((state) => state.getToken(tokenAddress), [tokenAddress])
+    useCallback((state) => {
+      console.log('[TokenCard] Selecting token:', {
+        tokenAddress,
+        timestamp: Date.now()
+      });
+      return state.getToken(tokenAddress);
+    }, [tokenAddress])
   );
 
   const priceHistory = useUnifiedTokenStore(
-    useCallback((state) => state.getPriceHistory(tokenAddress), [tokenAddress])
+    useCallback((state) => {
+      console.log('[TokenCard] Selecting price history:', {
+        tokenAddress,
+        timestamp: Date.now()
+      });
+      return state.getPriceHistory(tokenAddress);
+    }, [tokenAddress])
   );
 
   // Early return if token is not found
-  if (!token) return null;
+  if (!token) {
+    console.log('[TokenCard] Token not found:', tokenAddress);
+    return null;
+  }
 
-  // Memoize calculated values
-  const { marketCapUSD, initialBuyUSD, volume24hUSD } = useMemo(() => ({
-    marketCapUSD: token.marketCapSol * SOL_PRICE_USD,
-    initialBuyUSD: (token.solAmount || 0) * SOL_PRICE_USD,
-    volume24hUSD: (token.volume24h || 0) * SOL_PRICE_USD
-  }), [token.marketCapSol, token.solAmount, token.volume24h]);
+  // Log when memoized values are recalculated
+  const { marketCapUSD, initialBuyUSD, volume24hUSD } = useMemo(() => {
+    console.log('[TokenCard] Recalculating derived values:', {
+      tokenAddress,
+      timestamp: Date.now()
+    });
+
+    return {
+      marketCapUSD: token.marketCapSol * SOL_PRICE_USD,
+      initialBuyUSD: (token.solAmount || 0) * SOL_PRICE_USD,
+      volume24hUSD: (token.volume24h || 0) * SOL_PRICE_USD
+    };
+  }, [token.marketCapSol, token.solAmount, token.volume24h]);
 
   return (
     <motion.div
