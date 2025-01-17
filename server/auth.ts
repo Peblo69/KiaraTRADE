@@ -112,6 +112,8 @@ export function setupAuth(app: Express) {
     app.post("/api/dev/clear-test-accounts", async (req, res) => {
       try {
         await db.delete(users).where(eq(users.email, "test@example.com"));
+        // Also clear any existing test emails
+        await db.delete(users).where(eq(users.email, req.body.email));
         res.json({ message: "Test accounts cleared" });
       } catch (error) {
         console.error("Error clearing test accounts:", error);
@@ -134,7 +136,12 @@ export function setupAuth(app: Express) {
 
       const { username, email, password } = result.data;
 
-      // Check if user or email already exists
+      // In development mode, clear existing test account if it exists
+      if (app.get("env") === "development" && email.endsWith("@example.com")) {
+        await db.delete(users).where(eq(users.email, email));
+      }
+
+      // Check if user or email already exists (after clearing test accounts)
       const [existingUser] = await db
         .select()
         .from(users)
