@@ -12,7 +12,6 @@ import { WalletContextProvider } from "@/lib/wallet";
 import Landing from "@/pages/landing";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
-import { Layout } from "@/components/Layout";
 
 // Protected Route component to handle session authentication
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -38,29 +37,19 @@ function Router() {
 
       {/* All other routes require session auth */}
       <Route path="/home">
-        <Layout>
-          <ProtectedRoute component={Home} />
-        </Layout>
+        <ProtectedRoute component={Home} />
       </Route>
       <Route path="/kiara-stage-i">
-        <Layout>
-          <ProtectedRoute component={KiaraStageI} />
-        </Layout>
+        <ProtectedRoute component={KiaraStageI} />
       </Route>
       <Route path="/about">
-        <Layout>
-          <ProtectedRoute component={AboutUs} />
-        </Layout>
+        <ProtectedRoute component={AboutUs} />
       </Route>
       <Route path="/project">
-        <Layout>
-          <ProtectedRoute component={ProjectPage} />
-        </Layout>
+        <ProtectedRoute component={ProjectPage} />
       </Route>
       <Route path="/subscriptions">
-        <Layout>
-          <ProtectedRoute component={SubscriptionsPage} />
-        </Layout>
+        <ProtectedRoute component={SubscriptionsPage} />
       </Route>
       <Route>
         <ProtectedRoute component={NotFound} />
