@@ -1,4 +1,4 @@
-import { FC, memo, useState, useMemo } from 'react';
+import { FC, memo, useState, useMemo, useCallback } from 'react';
 import { Card } from "@/components/ui/card";
 import { SiSolana } from 'react-icons/si';
 import { 
@@ -51,17 +51,23 @@ const TokenImage: FC<{ metadata: any; address: string }> = memo(({ metadata, add
     return `https://pump.fun/token/${address}/image`;
   }, [address, metadata?.image, imageError]);
 
+  const handleError = useCallback(() => {
+    setImageError(true);
+    setIsLoading(false);
+  }, []);
+
+  const handleLoad = useCallback(() => {
+    setIsLoading(false);
+  }, []);
+
   return (
     <div className="relative w-12 h-12">
       <img 
         src={imageUrl}
         alt={metadata?.symbol || 'Token'} 
         className={`w-full h-full rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-        onError={() => {
-          setImageError(true);
-          setIsLoading(false);
-        }}
-        onLoad={() => setIsLoading(false)}
+        onError={handleError}
+        onLoad={handleLoad}
       />
       {isLoading && (
         <div className="absolute inset-0 bg-gray-900/50 rounded-xl flex items-center justify-center">
@@ -94,7 +100,7 @@ const TokenPrice: FC<{ price: number; priceChange24h: number }> = memo(({ price,
       <div className="flex flex-col">
         <span className="text-white font-bold">${(price * SOL_PRICE_USD).toFixed(6)}</span>
         <span className="text-xs text-gray-500">{price.toFixed(6)} SOL</span>
-        {priceChange24h && (
+        {priceChange24h !== 0 && (
           <span className={`text-xs font-semibold flex items-center gap-0.5 mt-1 ${priceChangeColor}`}>
             <PriceChangeIcon size={12} />
             {Math.abs(priceChange24h).toFixed(2)}%
@@ -107,10 +113,16 @@ const TokenPrice: FC<{ price: number; priceChange24h: number }> = memo(({ price,
 
 TokenPrice.displayName = 'TokenPrice';
 
-// Main TokenCard component
+// Main TokenCard component with optimized renders
 const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
-  const token = useUnifiedTokenStore(state => state.getToken(tokenAddress));
-  const priceHistory = useUnifiedTokenStore(state => state.getPriceHistory(tokenAddress));
+  // Use selector pattern to minimize re-renders
+  const token = useUnifiedTokenStore(
+    useCallback((state) => state.getToken(tokenAddress), [tokenAddress])
+  );
+
+  const priceHistory = useUnifiedTokenStore(
+    useCallback((state) => state.getPriceHistory(tokenAddress), [tokenAddress])
+  );
 
   // Early return if token is not found
   if (!token) return null;

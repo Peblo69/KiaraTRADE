@@ -1,5 +1,5 @@
-import { FC } from 'react';
-import { useTransactionHistoryStore } from '@/lib/transaction-history';
+import { FC, memo, useCallback } from 'react';
+import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import { ExternalLink } from 'lucide-react';
 
 interface TransactionHistoryProps {
@@ -19,8 +19,10 @@ const formatTime = (timestamp: number): string => {
   return `${Math.floor(seconds / 86400)}d ago`;
 };
 
-export const TransactionHistory: FC<TransactionHistoryProps> = ({ tokenAddress }) => {
-  const transactions = useTransactionHistoryStore(state => state.getTransactions(tokenAddress));
+export const TransactionHistory: FC<TransactionHistoryProps> = memo(({ tokenAddress }) => {
+  const transactions = useUnifiedTokenStore(
+    useCallback((state) => state.getTransactions(tokenAddress), [tokenAddress])
+  );
 
   if (!transactions.length) return null;
 
@@ -32,7 +34,7 @@ export const TransactionHistory: FC<TransactionHistoryProps> = ({ tokenAddress }
           <div key={tx.signature} className="flex items-center justify-between p-2 bg-gray-900/50 rounded-lg text-sm">
             <div className="flex items-center gap-2">
               <span className={`text-xs font-medium ${tx.type === 'buy' ? 'text-green-400' : 'text-blue-400'}`}>
-                {tx.type === 'buy' ? 'Buy' : 'Trade'}
+                {tx.type === 'buy' ? 'Buy' : 'Sell'}
               </span>
               <a
                 href={`https://solscan.io/account/${tx.buyer}`}
@@ -60,6 +62,8 @@ export const TransactionHistory: FC<TransactionHistoryProps> = ({ tokenAddress }
       </div>
     </div>
   );
-};
+});
+
+TransactionHistory.displayName = 'TransactionHistory';
 
 export default TransactionHistory;
