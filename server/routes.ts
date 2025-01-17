@@ -1,7 +1,7 @@
-import type { Express, Request } from "express";
+import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "@db";
-import { users } from "@db/schema";
+import { users, insertUserSchema } from "@db/schema";
 import { eq } from "drizzle-orm";
 import session from "express-session";
 import { randomBytes, scrypt } from "crypto";
@@ -57,22 +57,19 @@ export function registerRoutes(app: Express): Server {
       if (!username || !email || !password) {
         return res.status(400).json({ 
           error: "Missing required fields",
-          details: "Username, email, and password are required"
+          details: "Username, email, and password are required" 
         });
       }
 
       // Check if user already exists
       const existingUser = await db.query.users.findFirst({
-        where: (users, { or }) => or(
-          eq(users.username, username),
-          eq(users.email, email)
-        ),
+        where: eq(users.username, username),
       });
 
       if (existingUser) {
         return res.status(400).json({ 
           error: "User already exists",
-          details: "Username or email is already registered"
+          details: "Username is already taken" 
         });
       }
 
@@ -97,11 +94,10 @@ export function registerRoutes(app: Express): Server {
         userId: user.id 
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log(`Registration error: ${errorMessage}`);
+      console.error("Registration error:", error);
       res.status(400).json({ 
         error: "Registration failed",
-        details: errorMessage
+        details: error instanceof Error ? error.message : "Unknown error occurred"
       });
     }
   });
@@ -144,23 +140,19 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      // Set user session
-      (req as AuthenticatedRequest).session.userId = user.id;
-
       res.json({
         message: "Login successful",
         user: {
           id: user.id,
           username: user.username,
-          email: user.email,
+          email: user.email
         }
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log(`Login error: ${errorMessage}`);
+      console.error("Login error:", error);
       res.status(400).json({
         error: "Login failed",
-        details: errorMessage
+        details: error instanceof Error ? error.message : "Unknown error occurred"
       });
     }
   });

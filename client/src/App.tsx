@@ -12,7 +12,6 @@ import KiaraStageI from "@/pages/kiara-stage-i";
 import Subscriptions from "@/pages/subscriptions";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
 import Register from "@/pages/auth/register";
-import { DebugPanel } from "@/components/DebugPanel";
 
 function Router() {
   return (
@@ -30,7 +29,6 @@ function Router() {
         if (!token) {
           return <div>Invalid verification link</div>;
         }
-        // The verification will happen automatically when this component mounts
         return <div>Verifying your email...</div>;
       }} />
       <Route component={NotFound} />
@@ -47,7 +45,6 @@ function App() {
           {(match) => match ? null : <Layout />}
         </Route>
         <Router />
-        <DebugPanel />
         <Toaster />
       </div>
     </QueryClientProvider>

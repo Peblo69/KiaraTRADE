@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, decimal, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -7,11 +7,10 @@ export const users = pgTable("users", {
   username: text("username").unique().notNull(),
   email: text("email").unique().notNull(),
   password: text("password").notNull(),
-  email_verified: boolean("email_verified").default(false).notNull(),
   verification_token: text("verification_token"),
-  wallet_address: text("wallet_address"),
-  subscription_tier: text("subscription_tier").default("basic").notNull(),
+  email_verified: boolean("email_verified").default(false).notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const subscriptionPlans = pgTable("subscription_plans", {
@@ -45,14 +44,12 @@ export const paymentHistory = pgTable("payment_history", {
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
-// Schemas
 export const insertUserSchema = createInsertSchema(users, {
   username: z.string().min(3, "Username must be at least 3 characters"),
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  subscription_tier: z.enum(["basic", "pro", "enterprise"]).default("basic"),
-  email_verified: z.boolean().default(false),
   verification_token: z.string().optional(),
+  email_verified: z.boolean().default(false),
 });
 
 export const selectUserSchema = createSelectSchema(users);
@@ -71,11 +68,13 @@ export const insertPaymentHistorySchema = createInsertSchema(paymentHistory, {
 export const selectPaymentHistorySchema = createSelectSchema(paymentHistory);
 
 // Types
-export type InsertUser = typeof users.$inferInsert;
-export type SelectUser = typeof users.$inferSelect;
-export type InsertSubscriptionPlan = typeof subscriptionPlans.$inferInsert;
-export type SelectSubscriptionPlan = typeof subscriptionPlans.$inferSelect;
-export type InsertSubscription = typeof subscriptions.$inferInsert;
-export type SelectSubscription = typeof subscriptions.$inferSelect;
-export type InsertPaymentHistory = typeof paymentHistory.$inferInsert;
-export type SelectPaymentHistory = typeof paymentHistory.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type SelectUser = z.infer<typeof selectUserSchema>;
+export type InsertSubscriptionPlan = z.infer<typeof insertSubscriptionPlanSchema>;
+export type SelectSubscriptionPlan = z.infer<typeof selectSubscriptionPlanSchema>;
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
+export type SelectSubscription = z.infer<typeof selectSubscriptionSchema>;
+export type InsertPaymentHistory = z.infer<typeof insertPaymentHistorySchema>;
+export type SelectPaymentHistory = z.infer<typeof selectPaymentHistorySchema>;
+
+import { integer, decimal } from "drizzle-orm/pg-core";
