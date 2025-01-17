@@ -55,7 +55,7 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
                 onError={handleImageError}
                 loading="lazy"
               />
-              <div className="absolute -right-2 -bottom-2 w-6 h-6">
+              <div className="absolute bottom-0 right-0 w-5 h-5 transform translate-x-[-25%] translate-y-[-25%]">
                 <img
                   src={PUMPFUN_LOGO}
                   alt="PumpFun"
