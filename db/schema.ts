@@ -13,6 +13,18 @@ export const users = pgTable("users", {
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const insertUserSchema = createInsertSchema(users, {
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  verification_token: z.string().optional(),
+  email_verified: z.boolean().default(false),
+});
+
+export const selectUserSchema = createSelectSchema(users);
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type SelectUser = z.infer<typeof selectUserSchema>;
+
 export const subscriptionPlans = pgTable("subscription_plans", {
   id: serial("id").primaryKey(),
   name: text("name").unique().notNull(),
@@ -44,16 +56,6 @@ export const paymentHistory = pgTable("payment_history", {
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const insertUserSchema = createInsertSchema(users, {
-  username: z.string().min(3, "Username must be at least 3 characters"),
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  verification_token: z.string().optional(),
-  email_verified: z.boolean().default(false),
-});
-
-export const selectUserSchema = createSelectSchema(users);
-
 export const insertSubscriptionPlanSchema = createInsertSchema(subscriptionPlans);
 export const selectSubscriptionPlanSchema = createSelectSchema(subscriptionPlans);
 
@@ -68,8 +70,6 @@ export const insertPaymentHistorySchema = createInsertSchema(paymentHistory, {
 export const selectPaymentHistorySchema = createSelectSchema(paymentHistory);
 
 // Types
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type SelectUser = z.infer<typeof selectUserSchema>;
 export type InsertSubscriptionPlan = z.infer<typeof insertSubscriptionPlanSchema>;
 export type SelectSubscriptionPlan = z.infer<typeof selectSubscriptionPlanSchema>;
 export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;

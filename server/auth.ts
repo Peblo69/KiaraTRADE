@@ -8,6 +8,7 @@ import { promisify } from "util";
 import { users, insertUserSchema, type SelectUser } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
+import { sendVerificationEmail } from "./services/email";
 
 const scryptAsync = promisify(scrypt);
 const crypto = {
@@ -74,6 +75,12 @@ export function setupAuth(app: Express) {
         if (!isMatch) {
           return done(null, false, { message: "Incorrect password." });
         }
+
+        // In development, allow login without email verification
+        if (app.get("env") !== "development" && !user.email_verified) {
+          return done(null, false, { message: "Please verify your email first." });
+        }
+
         return done(null, user);
       } catch (err) {
         console.error("Authentication error:", err);
@@ -99,6 +106,19 @@ export function setupAuth(app: Express) {
       done(err);
     }
   });
+
+  // Development only: Clear test accounts
+  if (app.get("env") === "development") {
+    app.post("/api/dev/clear-test-accounts", async (req, res) => {
+      try {
+        await db.delete(users).where(eq(users.email, "test@example.com"));
+        res.json({ message: "Test accounts cleared" });
+      } catch (error) {
+        console.error("Error clearing test accounts:", error);
+        res.status(500).json({ message: "Failed to clear test accounts" });
+      }
+    });
+  }
 
   app.post("/api/register", async (req, res, next) => {
     try {
@@ -144,6 +164,9 @@ export function setupAuth(app: Express) {
       // Create verification token
       const verificationToken = randomBytes(32).toString('hex');
 
+      // In development, auto-verify email
+      const emailVerified = app.get("env") === "development";
+
       // Create the new user
       const [newUser] = await db
         .insert(users)
@@ -151,12 +174,22 @@ export function setupAuth(app: Express) {
           username,
           email,
           password: hashedPassword,
-          verification_token: verificationToken,
-          email_verified: false,
+          verification_token: emailVerified ? null : verificationToken,
+          email_verified: emailVerified,
         })
         .returning();
 
       console.log("User created successfully:", { id: newUser.id, username: newUser.username });
+
+      // In production, send verification email
+      if (app.get("env") !== "development") {
+        try {
+          await sendVerificationEmail(email, verificationToken);
+        } catch (error) {
+          console.error("Failed to send verification email:", error);
+          // Don't fail registration if email fails
+        }
+      }
 
       // Log the user in after registration
       req.login(newUser, (err) => {
@@ -165,7 +198,9 @@ export function setupAuth(app: Express) {
           return next(err);
         }
         return res.json({
-          message: "Registration successful",
+          message: app.get("env") === "development" 
+            ? "Registration successful" 
+            : "Registration successful. Please check your email for verification.",
           user: { 
             id: newUser.id, 
             username: newUser.username,
@@ -239,5 +274,29 @@ export function setupAuth(app: Express) {
     }
 
     res.status(401).json({ message: "Not logged in" });
+  });
+
+  // Email verification endpoint
+  app.get("/api/verify-email/:token", async (req, res) => {
+    try {
+      const token = req.params.token;
+      const [user] = await db
+        .update(users)
+        .set({ 
+          email_verified: true,
+          verification_token: null 
+        })
+        .where(eq(users.verification_token, token))
+        .returning();
+
+      if (!user) {
+        return res.status(400).json({ message: "Invalid or expired verification token" });
+      }
+
+      res.json({ message: "Email verified successfully" });
+    } catch (error) {
+      console.error("Email verification error:", error);
+      res.status(500).json({ message: "Failed to verify email" });
+    }
   });
 }
