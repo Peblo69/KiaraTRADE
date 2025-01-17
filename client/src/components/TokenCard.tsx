@@ -97,15 +97,15 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-blue-400 transition-colors"
               >
-                <SiSolana size={16} />
+                <SiSolana size={20} />
               </a>
               <a 
-                href={`https://pumpfun.fun/token/${token.address}`}
+                href={`https://pump.fun/coin/${token.address}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-blue-400 transition-colors"
               >
-                <div style={{ width: '16px', height: '16px' }}>
+                <div style={{ width: '20px', height: '20px' }}>
                   <img
                     src={PUMPFUN_LOGO}
                     alt="View on PumpFun"
