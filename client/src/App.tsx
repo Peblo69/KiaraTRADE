@@ -4,13 +4,18 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import { TokenTracker } from "@/components/TokenTracker";
+import { Layout } from "@/components/Layout";
 
 function Router() {
   return (
     <Switch>
-      {/* Make TokenTracker the main route */}
-      <Route path="/" component={TokenTracker} />
-      {/* Fallback to 404 */}
+      <Route path="/tokens" component={TokenTracker} />
+      {/* Add other routes here */}
+      <Route path="/">
+        <Layout>
+          <TokenTracker />
+        </Layout>
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -19,7 +24,7 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-gray-900 text-white py-8">
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white">
         <Router />
         <Toaster />
       </div>
