@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { useTokenVolumeStore } from './token-volume';
 import { useTokenPriceStore } from './price-history';
-import { useTokenSocialMetricsStore, generateMockSocialMetrics } from './social-metrics';
+import { useTokenSocialMetricsStore } from './social-metrics';
 
 interface TokenMetadata {
   name: string;
@@ -12,6 +12,14 @@ interface TokenMetadata {
   createdOn?: string;
   twitter?: string;
   website?: string;
+}
+
+interface TokenMetrics {
+  twitterFollowers?: number;
+  twitterMentions24h?: number;
+  telegramMembers?: number;
+  discordMembers?: number;
+  sentiment?: number;
 }
 
 interface TokenData {
@@ -35,6 +43,7 @@ interface TokenData {
   lastUpdated?: number;
   priceChange24h?: number;
   metadata?: TokenMetadata;
+  metrics?: TokenMetrics;
 }
 
 interface PumpPortalState {
@@ -60,6 +69,27 @@ const parseTokenMetadata = async (uri: string): Promise<TokenMetadata | null> =>
   }
 };
 
+const processSocialMetrics = async (token: TokenData) => {
+  if (!token.address) return;
+
+  try {
+    if (token.metadata?.twitter) {
+      const metrics: TokenMetrics = {
+        twitterFollowers: 0, 
+        twitterMentions24h: 0, 
+        telegramMembers: 0,
+        discordMembers: 0,
+        sentiment: 0,
+        lastUpdated: Date.now()
+      };
+
+      useTokenSocialMetricsStore.getState().setMetrics(token.address, metrics);
+    }
+  } catch (error) {
+    console.error('[PumpPortal Store] Error processing social metrics:', error);
+  }
+};
+
 export const usePumpPortalStore = create<PumpPortalState>((set) => ({
   tokens: [],
   isConnected: false,
@@ -72,16 +102,13 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
         lastUpdated: now,
       };
 
-      // Initialize related data stores
       if (token.address) {
         try {
           useTokenVolumeStore.getState().addVolumeData(token.address, token.volume24h || 0);
           useTokenPriceStore.getState().initializePriceHistory(token.address, token.price);
-          if (!useTokenSocialMetricsStore.getState().getMetrics(token.address)) {
-            generateMockSocialMetrics(token.address);
-          }
 
-          // Fetch metadata if URI exists
+          processSocialMetrics(enrichedToken);
+
           if (token.uri) {
             parseTokenMetadata(token.uri).then(metadata => {
               if (metadata) {
@@ -92,6 +119,13 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
                       : t
                   )
                 }));
+
+                if (metadata.twitter) {
+                  processSocialMetrics({
+                    ...enrichedToken,
+                    metadata
+                  });
+                }
               }
             });
           }
@@ -103,7 +137,7 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
       return {
         tokens: [...state.tokens, enrichedToken]
           .sort((a, b) => b.marketCapSol - a.marketCapSol)
-          .slice(0, 100), // Keep only top 100 tokens
+          .slice(0, 100), 
       };
     });
   },
@@ -112,7 +146,6 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
       const currentToken = state.tokens.find(token => token.address === address);
       if (!currentToken) return state;
 
-      // Calculate price change if we have new price data
       const priceChange24h = updates.price !== undefined && currentToken.price !== undefined
         ? ((updates.price - currentToken.price) / currentToken.price) * 100
         : currentToken.priceChange24h;
