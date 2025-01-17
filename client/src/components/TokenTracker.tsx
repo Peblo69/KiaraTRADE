@@ -1,4 +1,4 @@
-import { FC, useEffect, useState, useCallback } from 'react';
+import { FC, memo } from 'react';
 import { Card } from "@/components/ui/card";
 import { pumpPortalSocket, usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { heliusSocket } from '@/lib/helius-websocket';
@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VolumeChart } from './VolumeChart';
-import { useTokenSocialMetricsStore, generateMockSocialMetrics } from '@/lib/social-metrics';
+import { useTokenSocialMetricsStore } from '@/lib/social-metrics';
 import { SocialMetrics } from './SocialMetrics';
 import { useTokenPriceStore } from '@/lib/price-history';
 import { PriceChart } from './PriceChart';
@@ -30,28 +30,13 @@ const formatNumber = (num: number, isCurrency = false) => {
   return `${isCurrency ? '$' : ''}${num.toFixed(2)}`;
 };
 
-const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
+const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => {
   const volumeHistory = useTokenVolumeStore(state => state.getVolumeHistory(token.address));
   const socialMetrics = useTokenSocialMetricsStore(state => state.getMetrics(token.address));
   const priceHistory = useTokenPriceStore(state => state.getPriceHistory(token.address));
 
   const priceChangeColor = token.priceChange24h > 0 ? 'text-green-400' : 'text-red-400';
   const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
-
-  useEffect(() => {
-    // Initialize data only once when component mounts
-    if (token.address) {
-      if (!socialMetrics) {
-        generateMockSocialMetrics(token.address);
-      }
-      if (volumeHistory.length === 0) {
-        useTokenVolumeStore.getState().addVolumeData(token.address, token.volume24h || 0);
-      }
-      if (priceHistory.length === 0 && token.price) {
-        useTokenPriceStore.getState().initializePriceHistory(token.address, token.price);
-      }
-    }
-  }, [token.address]); // Only re-run if token address changes
 
   // Calculate USD values
   const marketCapUSD = (token.marketCapSol || token.marketCap || 0) * SOL_PRICE_USD;
@@ -193,10 +178,25 @@ const TokenCard: FC<{ token: any; index: number }> = ({ token, index }) => {
       </Card>
     </motion.div>
   );
+});
+
+// Initialize data when token is received from WebSocket
+const initializeTokenData = (token: any) => {
+  if (token.address) {
+    useTokenVolumeStore.getState().addVolumeData(token.address, token.volume24h || 0);
+    useTokenPriceStore.getState().initializePriceHistory(token.address, token.price);
+    if (!useTokenSocialMetricsStore.getState().getMetrics(token.address)) {
+      useTokenSocialMetricsStore.getState().generateMockMetrics(token.address); // Assuming generateMockMetrics exists
+    }
+  }
 };
 
 export const TokenTracker: FC = () => {
-  const tokens = usePumpPortalStore(state => state.tokens);
+  const tokens = usePumpPortalStore(state => {
+    // Initialize data for new tokens as they come in
+    state.tokens.forEach(initializeTokenData);
+    return state.tokens;
+  });
 
   useEffect(() => {
     // Initialize WebSocket connections once
