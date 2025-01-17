@@ -121,10 +121,8 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
   addToken: async (token) => {
     set((state) => {
       const now = Date.now();
-
-      // Calculate initial price from solAmount and initialBuy
       const initialPrice = token.solAmount && token.initialBuy
-        ? calculateTokenPrice(token.solAmount, token.initialBuy)
+        ? token.solAmount / token.initialBuy
         : 0;
 
       const enrichedToken = {
@@ -135,8 +133,18 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
 
       if (token.address) {
         try {
-          useTokenVolumeStore.getState().addVolumeData(token.address, token.volume24h || 0);
-          useTokenPriceStore.getState().initializePriceHistory(token.address, initialPrice);
+          // Initialize the price history first
+          useTokenPriceStore.getState().initializePriceHistory(
+            token.address, 
+            initialPrice,
+            token.marketCapSol || 0
+          );
+
+          // Then add volume data
+          useTokenVolumeStore.getState().addVolumeData(
+            token.address, 
+            token.volume24h || 0
+          );
 
           processSocialMetrics(enrichedToken);
 
@@ -182,27 +190,22 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
         ? ((updates.price - currentToken.price) / currentToken.price) * 100
         : currentToken.priceChange24h;
 
+      // Create the updated token data
+      const updatedToken = {
+        ...currentToken,
+        ...updates,
+        priceChange24h,
+        lastUpdated: Date.now()
+      };
+
       return {
         tokens: state.tokens.map((token) =>
-          token.address === address
-            ? {
-                ...token,
-                ...updates,
-                priceChange24h,
-                lastUpdated: Date.now()
-              }
-            : token
+          token.address === address ? updatedToken : token
         ),
       };
     }),
-  setConnected: (status) => {
-    console.log('[PumpPortal Store] Connection status:', status);
-    set({ isConnected: status, connectionError: null });
-  },
-  setError: (error) => {
-    console.log('[PumpPortal Store] Connection error:', error);
-    set({ connectionError: error });
-  }
+  setConnected: (status) => set({ isConnected: status, connectionError: null }),
+  setError: (error) => set({ connectionError: error })
 }));
 
 class PumpPortalWebSocket {
@@ -211,6 +214,8 @@ class PumpPortalWebSocket {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 5000;
   private heartbeatInterval: NodeJS.Timeout | null = null;
+  private updateQueue: Map<string, NodeJS.Timeout> = new Map();
+  private readonly UPDATE_DEBOUNCE = 2000; // 2 second debounce for updates
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -236,40 +241,12 @@ class PumpPortalWebSocket {
           console.log('[PumpPortal WebSocket] Received message:', data);
 
           if (data.txType === 'create' || data.txType === 'trade') {
-            // Process transaction history
             if (data.mint && data.traderPublicKey) {
-              useTransactionHistoryStore.getState().addTransaction(data.mint, {
-                signature: data.signature,
-                buyer: data.traderPublicKey,
-                solAmount: data.solAmount || 0,
-                tokenAmount: data.tokenAmount || data.initialBuy || 0,
-                timestamp: Date.now(),
-                type: data.txType === 'create' ? 'buy' : 'trade'
-              });
-
-              // Update price history
-              if (data.solAmount && (data.tokenAmount || data.initialBuy)) {
-                const price = data.solAmount / (data.tokenAmount || data.initialBuy);
-                useTokenPriceStore.getState().addPricePoint(
-                  data.mint,
-                  price,
-                  data.marketCapSol || 0,
-                  data.solAmount || 0
-                );
-              }
+              this.handleTokenUpdate(data);
             }
 
             if (data.txType === 'create') {
-              // Calculate initial price from SOL amount and tokens
               const initialPrice = data.solAmount / data.initialBuy;
-
-              // Initialize price history for new token
-              useTokenPriceStore.getState().initializePriceHistory(
-                data.mint,
-                initialPrice,
-                data.marketCapSol || 0
-              );
-
               const token: TokenData = {
                 name: data.name || 'Unknown',
                 symbol: data.symbol || 'UNKNOWN',
@@ -283,14 +260,13 @@ class PumpPortalWebSocket {
                 imageUrl: data.uri,
                 uri: data.uri,
                 signature: data.signature,
-                initialBuy: data.solAmount, // Store initial buy in SOL
+                initialBuy: data.solAmount,
                 solAmount: data.solAmount,
                 vTokensInBondingCurve: data.vTokensInBondingCurve,
                 vSolInBondingCurve: data.vSolInBondingCurve,
                 bondingCurveKey: data.bondingCurveKey
               };
 
-              console.log('[PumpPortal WebSocket] Adding new token:', token);
               await usePumpPortalStore.getState().addToken(token);
             }
           }
@@ -369,6 +345,47 @@ class PumpPortalWebSocket {
       this.connect();
     }, this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1));
   }
+
+  private handleTokenUpdate(data: any) {
+    const tokenAddress = data.mint;
+    if (!tokenAddress) return;
+
+    // Clear existing timeout for this token
+    const existingTimeout = this.updateQueue.get(tokenAddress);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+
+    // Debounce the update
+    const timeout = setTimeout(() => {
+      if (data.solAmount && (data.tokenAmount || data.initialBuy)) {
+        const price = data.solAmount / (data.tokenAmount || data.initialBuy);
+
+        // Update price history with debounced value
+        useTokenPriceStore.getState().addPricePoint(
+          tokenAddress,
+          price,
+          data.marketCapSol || 0,
+          data.solAmount || 0
+        );
+
+        // Update transaction history
+        useTransactionHistoryStore.getState().addTransaction(tokenAddress, {
+          signature: data.signature,
+          buyer: data.traderPublicKey,
+          solAmount: data.solAmount || 0,
+          tokenAmount: data.tokenAmount || data.initialBuy || 0,
+          timestamp: Date.now(),
+          type: data.txType === 'create' ? 'buy' : 'sell'
+        });
+      }
+
+      this.updateQueue.delete(tokenAddress);
+    }, this.UPDATE_DEBOUNCE);
+
+    this.updateQueue.set(tokenAddress, timeout);
+  }
+
 
   disconnect() {
     if (this.ws) {
