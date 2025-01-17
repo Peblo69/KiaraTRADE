@@ -57,7 +57,6 @@ interface UnifiedTokenState {
   transactions: Record<string, Transaction[]>;
   isConnected: boolean;
   connectionError: string | null;
-  updateCount: number; // Add update counter
 
   // Actions
   addToken: (token: TokenData) => void;
@@ -75,8 +74,6 @@ interface UnifiedTokenState {
 
 const CANDLE_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
-let updateCount = 0;
-
 export const useUnifiedTokenStore = create<UnifiedTokenState>()(
   devtools(
     (set, get) => ({
@@ -86,26 +83,14 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
       transactions: {},
       isConnected: false,
       connectionError: null,
-      updateCount: 0,
 
       addToken: (token) => {
-        console.log('[UnifiedTokenStore] Adding token:', token.address, {
-          updateCount: ++updateCount,
-          tokensCount: get().tokens.length
-        });
-
         const initialPrice = token.solAmount && token.initialBuy
           ? token.solAmount / token.initialBuy
           : 0;
 
-        // Batch all state updates together
         set((state) => {
           const candleTime = Math.floor(Date.now() / CANDLE_INTERVAL) * CANDLE_INTERVAL;
-          console.log('[UnifiedTokenStore] State update for new token:', {
-            address: token.address,
-            price: initialPrice,
-            candleTime
-          });
 
           return {
             tokens: [...state.tokens, {
@@ -114,7 +99,6 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
               lastUpdated: Date.now(),
             }].sort((a, b) => b.marketCapSol - a.marketCapSol).slice(0, 100),
 
-            // Initialize price history for the new token
             currentCandles: token.address ? {
               ...state.currentCandles,
               [token.address]: {
@@ -126,24 +110,15 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
                 volume: 0,
                 marketCap: token.marketCapSol || 0
               }
-            } : state.currentCandles,
-            updateCount: state.updateCount + 1
+            } : state.currentCandles
           };
         });
       },
 
       updateToken: (address, updates) => {
-        console.log('[UnifiedTokenStore] Updating token:', address, {
-          updates,
-          updateCount: ++updateCount
-        });
-
         set((state) => {
           const currentToken = state.tokens.find(token => token.address === address);
-          if (!currentToken) {
-            console.log('[UnifiedTokenStore] Token not found:', address);
-            return state;
-          }
+          if (!currentToken) return state;
 
           const priceChange24h = updates.price !== undefined && currentToken.price !== undefined
             ? ((updates.price - currentToken.price) / currentToken.price) * 100
@@ -159,31 +134,16 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
                     lastUpdated: Date.now()
                   }
                 : token
-            ),
-            updateCount: state.updateCount + 1
+            )
           };
         });
       },
 
       addPricePoint: (tokenAddress, price, marketCap, volume) => {
-        console.log('[UnifiedTokenStore] Adding price point:', {
-          tokenAddress,
-          price,
-          marketCap,
-          volume,
-          updateCount: ++updateCount
-        });
-
         set((state) => {
           const currentTime = Date.now();
           const candleTime = Math.floor(currentTime / CANDLE_INTERVAL) * CANDLE_INTERVAL;
           const currentCandle = state.currentCandles[tokenAddress];
-
-          console.log('[UnifiedTokenStore] Current candle state:', {
-            currentCandle,
-            candleTime,
-            isNewCandle: !currentCandle || candleTime !== currentCandle.timestamp
-          });
 
           if (!currentCandle || candleTime !== currentCandle.timestamp) {
             // Start a new candle
@@ -210,31 +170,11 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
               currentCandles: {
                 ...state.currentCandles,
                 [tokenAddress]: newCandle
-              },
-              updateCount: state.updateCount + 1
+              }
             };
           }
 
-          // Check if update is actually needed
-          const needsUpdate =
-            currentCandle.high !== Math.max(currentCandle.high, price) ||
-            currentCandle.low !== Math.min(currentCandle.low, price) ||
-            currentCandle.close !== price ||
-            currentCandle.marketCap !== marketCap;
-
-          console.log('[UnifiedTokenStore] Candle update check:', {
-            needsUpdate,
-            currentHigh: currentCandle.high,
-            newHigh: Math.max(currentCandle.high, price),
-            currentLow: currentCandle.low,
-            newLow: Math.min(currentCandle.low, price)
-          });
-
-          if (!needsUpdate) {
-            console.log('[UnifiedTokenStore] Skipping unnecessary update');
-            return state;
-          }
-
+          // Update existing candle
           return {
             currentCandles: {
               ...state.currentCandles,
@@ -246,23 +186,15 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
                 volume: currentCandle.volume + volume,
                 marketCap
               }
-            },
-            updateCount: state.updateCount + 1
+            }
           };
         });
       },
 
       addTransaction: (tokenAddress, transaction) => {
-        console.log('[UnifiedTokenStore] Adding transaction:', {
-          tokenAddress,
-          transaction,
-          updateCount: ++updateCount
-        });
-
         set((state) => {
           const tokenTransactions = state.transactions[tokenAddress] || [];
           if (tokenTransactions.some(tx => tx.signature === transaction.signature)) {
-            console.log('[UnifiedTokenStore] Duplicate transaction, skipping');
             return state;
           }
 
@@ -270,54 +202,32 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
             transactions: {
               ...state.transactions,
               [tokenAddress]: [transaction, ...tokenTransactions].slice(0, 10)
-            },
-            updateCount: state.updateCount + 1
+            }
           };
         });
       },
 
       setConnected: (status) => {
-        console.log('[UnifiedTokenStore] Setting connection status:', status);
-        set({ isConnected: status, connectionError: null, updateCount: get().updateCount +1 });
+        set({ isConnected: status, connectionError: null });
       },
 
       setError: (error) => {
-        console.log('[UnifiedTokenStore] Setting error:', error);
-        set({ connectionError: error, updateCount: get().updateCount + 1 });
+        set({ connectionError: error });
       },
 
-      // Selectors with added logging
       getToken: (address) => {
-        const token = get().tokens.find(token => token.address === address);
-        console.log('[UnifiedTokenStore] Getting token:', {
-          address,
-          found: !!token,
-          updateCount
-        });
-        return token;
+        return get().tokens.find(token => token.address === address);
       },
 
       getPriceHistory: (address) => {
         const state = get();
         const history = state.priceHistory[address] || [];
         const currentCandle = state.currentCandles[address];
-        console.log('[UnifiedTokenStore] Getting price history:', {
-          address,
-          historyLength: history.length,
-          hasCurrentCandle: !!currentCandle,
-          updateCount
-        });
         return currentCandle ? [...history, currentCandle] : history;
       },
 
       getTransactions: (address) => {
-        const transactions = get().transactions[address] || [];
-        console.log('[UnifiedTokenStore] Getting transactions:', {
-          address,
-          count: transactions.length,
-          updateCount
-        });
-        return transactions;
+        return get().transactions[address] || [];
       },
     }),
     { name: 'unified-token-store' }

@@ -20,29 +20,14 @@ const formatTime = (timestamp: number): string => {
 };
 
 const TransactionHistory: FC<TransactionHistoryProps> = memo(({ tokenAddress }) => {
-  // Add debug logs to track renders
-  console.log('[TransactionHistory] Rendering:', {
-    tokenAddress,
-    timestamp: Date.now()
-  });
-
-  // Use memoized selector to prevent unnecessary re-renders
   const transactions = useUnifiedTokenStore(
     useCallback(
-      (state) => {
-        console.log('[TransactionHistory] Getting transactions:', {
-          tokenAddress,
-          timestamp: Date.now()
-        });
-        return state.getTransactions(tokenAddress);
-      },
+      (state) => state.getTransactions(tokenAddress),
       [tokenAddress]
     )
   );
 
-  // Only render if we have transactions
   if (!transactions?.length) {
-    console.log('[TransactionHistory] No transactions found');
     return null;
   }
 
@@ -51,7 +36,6 @@ const TransactionHistory: FC<TransactionHistoryProps> = memo(({ tokenAddress }) 
       <h4 className="text-sm text-gray-400 mb-3">Recent Transactions</h4>
       <div className="space-y-2">
         {transactions.map((tx) => {
-          // Memoize transaction rendering
           const timeAgo = formatTime(tx.timestamp);
           const buyerAddress = formatAddress(tx.buyer);
 

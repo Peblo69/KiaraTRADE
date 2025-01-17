@@ -5,7 +5,6 @@ import { useTokenFiltersStore, filterTokens } from '@/lib/token-filters';
 import TokenCard from './TokenCard';
 import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import { motion, AnimatePresence } from 'framer-motion';
-import DebugPanel from './DebugPanel';
 
 export const TokenTracker: FC = memo(() => {
   const tokens = useUnifiedTokenStore(state => state.tokens);
@@ -22,11 +21,6 @@ export const TokenTracker: FC = memo(() => {
 
   // Memoize filtered tokens to prevent unnecessary recalculations
   const filteredTokens = useMemo(() => {
-    console.log('[TokenTracker] Filtering tokens:', {
-      totalTokens: tokens.length,
-      activeFilter,
-      timestamp: Date.now()
-    });
     return filterTokens(tokens, activeFilter);
   }, [tokens, activeFilter]);
 
@@ -58,8 +52,6 @@ export const TokenTracker: FC = memo(() => {
           ))}
         </AnimatePresence>
       </div>
-
-      <DebugPanel />
     </div>
   );
 });
