@@ -16,7 +16,7 @@ export const Layout: FC<PropsWithChildren> = ({ children }) => {
   const [location] = useLocation();
 
   const menuItems = [
-    { href: "/", icon: <BarChart3 size={20} />, label: "Home" },
+    { href: "/home", icon: <BarChart3 size={20} />, label: "Home" },
     { href: "/project", icon: <LineChart size={20} />, label: "Token Tracker" },
     { href: "/kiara-stage-i", icon: <Wallet size={20} />, label: "Kiara Stage I" },
     { href: "/about", icon: <Settings size={20} />, label: "About Us" },

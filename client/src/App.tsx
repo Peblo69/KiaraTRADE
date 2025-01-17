@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/Layout";
+import Landing from "@/pages/landing";
 import Home from "@/pages/home";
 import About from "@/pages/about";
 import Project from "@/pages/project";
@@ -14,7 +15,8 @@ import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={Landing} />
+      <Route path="/home" component={Home} />
       <Route path="/about" component={About} />
       <Route path="/project" component={Project} />
       <Route path="/kiara-stage-i" component={KiaraStageI} />
@@ -29,9 +31,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white relative">
         <SpaceBackgroundEnhanced />
-        <Layout>
-          <Router />
-        </Layout>
+        <Route path="/">
+          {(match) => match ? null : <Layout />}
+        </Route>
+        <Router />
         <Toaster />
       </div>
     </QueryClientProvider>
