@@ -74,11 +74,7 @@ class PumpFunWebSocket {
         usePumpFunStore.getState().setConnected(true);
         this.reconnectAttempts = 0;
         this.startHeartbeat();
-
-        // Subscribe to new token events
         this.subscribeToNewTokens();
-
-        // Request initial token list
         this.requestInitialTokens();
       };
 
@@ -86,10 +82,13 @@ class PumpFunWebSocket {
         try {
           const data = JSON.parse(event.data);
           console.log('[PumpFun WebSocket] Received message:', {
-            timestamp: new Date().toISOString(),
             type: data.type,
-            rawData: data,
-            tokenCount: this.getTokenCount()
+            data: data.data ? {
+              ...data.data,
+              // Log everything except sensitive data
+              signature: data.data.signature ? '[REDACTED]' : undefined
+            } : null,
+            timestamp: new Date().toISOString()
           });
 
           if (data.type === 'token') {
@@ -105,11 +104,14 @@ class PumpFunWebSocket {
               volume24h: parseFloat(tokenData.volume24h) || 0,
               address: tokenData.address,
               price: parseFloat(tokenData.price) || 0,
-              imageUrl: `https://pump.fun/token/${tokenData.address}/image`,
+              imageUrl: tokenData.uri || `https://pump.fun/token/${tokenData.address}/image`,
               signature: tokenData.signature,
             };
 
-            console.log('[PumpFun WebSocket] Processing token:', token);
+            console.log('[PumpFun WebSocket] Processing token:', {
+              ...token,
+              signature: token.signature ? '[REDACTED]' : undefined
+            });
             usePumpFunStore.getState().addToken(token);
           }
         } catch (error) {
