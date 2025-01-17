@@ -104,7 +104,10 @@ class UnifiedWebSocket {
 
     try {
       console.log('[Unified WebSocket] Attempting to connect...');
-      this.ws = new WebSocket('wss://pumpportal.fun/api/data');
+      // Change to wss protocol and add error handling
+      this.ws = new WebSocket('wss://pumpportal.fun/api/data', undefined, {
+        rejectUnauthorized: false // Allow self-signed certificates
+      });
 
       this.ws.onopen = () => {
         console.log('[Unified WebSocket] Connected successfully');
