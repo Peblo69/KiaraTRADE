@@ -12,7 +12,9 @@ import {
   Clock,
   ArrowUpRight,
   ArrowDownRight,
-  ImageOff
+  ImageOff,
+  TwitterIcon,
+  Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VolumeChart } from './VolumeChart';
@@ -35,39 +37,19 @@ const TokenImage: FC<{ token: any }> = memo(({ token }) => {
   const [imageError, setImageError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Try different image sources in order of preference
+  // Get image URL from token metadata or fallback to default sources
   const getImageUrl = () => {
     if (imageError || !token.address) {
-      return 'https://cryptologos.cc/logos/solana-sol-logo.png'; // Fallback image
+      return 'https://cryptologos.cc/logos/solana-sol-logo.png';
     }
 
-    // If token has a URI property that looks like an image URL, use that first
-    if (token.uri && 
-        (token.uri.endsWith('.png') || 
-         token.uri.endsWith('.jpg') || 
-         token.uri.endsWith('.jpeg') || 
-         token.uri.endsWith('.gif') ||
-         token.uri.startsWith('data:image'))) {
-      return token.uri;
-    }
-
-    // Try the imageUrl if it exists
-    if (token.imageUrl && !token.imageUrl.includes('undefined')) {
-      return token.imageUrl;
+    // First try the metadata image URL
+    if (token.metadata?.image) {
+      return token.metadata.image;
     }
 
     // Otherwise use the pump.fun URL as fallback
     return `https://pump.fun/token/${token.address}/image`;
-  };
-
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    console.log(`Image load error for token ${token.address}:`, {
-      uri: token.uri,
-      imageUrl: token.imageUrl,
-      fallbackUrl: `https://pump.fun/token/${token.address}/image`
-    });
-    setImageError(true);
-    setIsLoading(false);
   };
 
   return (
@@ -76,7 +58,11 @@ const TokenImage: FC<{ token: any }> = memo(({ token }) => {
         src={getImageUrl()}
         alt={token.symbol || 'Token'} 
         className={`w-full h-full rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-        onError={handleImageError}
+        onError={() => {
+          console.log(`Image load error for token ${token.address}, metadata:`, token.metadata);
+          setImageError(true);
+          setIsLoading(false);
+        }}
         onLoad={() => setIsLoading(false)}
       />
       {isLoading && (
@@ -103,7 +89,7 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
   const PriceChangeIcon = token.priceChange24h > 0 ? ArrowUpRight : ArrowDownRight;
 
   // Calculate USD values
-  const marketCapUSD = (token.marketCapSol || token.marketCap || 0) * SOL_PRICE_USD;
+  const marketCapUSD = token.marketCapSol * SOL_PRICE_USD;
   const initialBuyUSD = (token.initialBuy || 0) * SOL_PRICE_USD;
   const volume24hUSD = (token.volume24h || 0) * SOL_PRICE_USD;
 
@@ -119,9 +105,9 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
           <div className="flex items-center gap-3">
             <TokenImage token={token} />
             <div>
-              <h3 className="text-lg font-bold text-white mb-0.5">{token.name || 'Unknown Token'}</h3>
+              <h3 className="text-lg font-bold text-white mb-0.5">{token.metadata?.name || token.name || 'Unknown Token'}</h3>
               <div className="flex items-center gap-2">
-                <p className="text-sm text-blue-400 font-medium">{token.symbol || 'UNKNOWN'}</p>
+                <p className="text-sm text-blue-400 font-medium">{token.metadata?.symbol || token.symbol || 'UNKNOWN'}</p>
                 {token.priceChange24h && (
                   <span className={`text-xs font-semibold flex items-center gap-0.5 ${priceChangeColor}`}>
                     <PriceChangeIcon size={12} />
@@ -132,6 +118,26 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
             </div>
           </div>
           <div className="flex gap-2">
+            {token.metadata?.twitter && (
+              <a 
+                href={token.metadata.twitter}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-400 hover:text-blue-400 transition-colors"
+              >
+                <TwitterIcon size={16} />
+              </a>
+            )}
+            {token.metadata?.website && (
+              <a 
+                href={token.metadata.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-400 hover:text-blue-400 transition-colors"
+              >
+                <Globe size={16} />
+              </a>
+            )}
             {token.signature && (
               <a 
                 href={`https://solscan.io/tx/${token.signature}`}
@@ -157,6 +163,10 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
           </div>
         </div>
 
+        {token.metadata?.description && (
+          <p className="text-sm text-gray-400 mb-4 line-clamp-2">{token.metadata.description}</p>
+        )}
+
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="space-y-3">
             <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
@@ -166,7 +176,7 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
               </div>
               <div className="flex flex-col">
                 <span className="text-white font-bold">{formatNumber(marketCapUSD, true)}</span>
-                <span className="text-xs text-gray-500">{formatNumber(token.marketCapSol || token.marketCap)} SOL</span>
+                <span className="text-xs text-gray-500">{formatNumber(token.marketCapSol)} SOL</span>
               </div>
             </div>
             <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">

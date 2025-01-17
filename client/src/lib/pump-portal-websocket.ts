@@ -3,6 +3,17 @@ import { useTokenVolumeStore } from './token-volume';
 import { useTokenPriceStore } from './price-history';
 import { useTokenSocialMetricsStore, generateMockSocialMetrics } from './social-metrics';
 
+interface TokenMetadata {
+  name: string;
+  symbol: string;
+  description?: string;
+  image: string;
+  showName?: boolean;
+  createdOn?: string;
+  twitter?: string;
+  website?: string;
+}
+
 interface TokenData {
   name: string;
   symbol: string;
@@ -23,6 +34,7 @@ interface TokenData {
   bondingCurveKey?: string;
   lastUpdated?: number;
   priceChange24h?: number;
+  metadata?: TokenMetadata;
 }
 
 interface PumpPortalState {
@@ -35,11 +47,24 @@ interface PumpPortalState {
   setError: (error: string | null) => void;
 }
 
+const parseTokenMetadata = async (uri: string): Promise<TokenMetadata | null> => {
+  try {
+    if (!uri) return null;
+    const response = await fetch(uri);
+    if (!response.ok) throw new Error('Failed to fetch metadata');
+    const metadata = await response.json();
+    return metadata;
+  } catch (error) {
+    console.error('[PumpPortal Store] Error fetching token metadata:', error);
+    return null;
+  }
+};
+
 export const usePumpPortalStore = create<PumpPortalState>((set) => ({
   tokens: [],
   isConnected: false,
   connectionError: null,
-  addToken: (token) =>
+  addToken: async (token) => {
     set((state) => {
       const now = Date.now();
       const enrichedToken = {
@@ -55,6 +80,21 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
           if (!useTokenSocialMetricsStore.getState().getMetrics(token.address)) {
             generateMockSocialMetrics(token.address);
           }
+
+          // Fetch metadata if URI exists
+          if (token.uri) {
+            parseTokenMetadata(token.uri).then(metadata => {
+              if (metadata) {
+                set(state => ({
+                  tokens: state.tokens.map(t => 
+                    t.address === token.address 
+                      ? { ...t, metadata }
+                      : t
+                  )
+                }));
+              }
+            });
+          }
         } catch (error) {
           console.error('[PumpPortal Store] Error initializing token data:', error);
         }
@@ -65,7 +105,8 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
           .sort((a, b) => b.marketCapSol - a.marketCapSol)
           .slice(0, 100), // Keep only top 100 tokens
       };
-    }),
+    });
+  },
   updateToken: (address, updates) =>
     set((state) => {
       const currentToken = state.tokens.find(token => token.address === address);
@@ -124,12 +165,11 @@ class PumpPortalWebSocket {
         this.startHeartbeat();
       };
 
-      this.ws.onmessage = (event) => {
+      this.ws.onmessage = async (event) => {
         try {
           const data = JSON.parse(event.data);
           console.log('[PumpPortal WebSocket] Received message:', data);
 
-          // Handle new token creation
           if (data.txType === 'create') {
             const token: TokenData = {
               name: data.name || 'Unknown',
@@ -152,7 +192,7 @@ class PumpPortalWebSocket {
             };
 
             console.log('[PumpPortal WebSocket] Adding new token:', token);
-            usePumpPortalStore.getState().addToken(token);
+            await usePumpPortalStore.getState().addToken(token);
           }
         } catch (error) {
           console.error('[PumpPortal WebSocket] Error processing message:', error);
