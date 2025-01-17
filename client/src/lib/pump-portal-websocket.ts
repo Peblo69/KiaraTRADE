@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { useTokenVolumeStore } from './token-volume';
 import { useTokenPriceStore } from './price-history';
 import { useTokenSocialMetricsStore } from './social-metrics';
+import { useTransactionHistoryStore } from './transaction-history';
 
 interface TokenMetadata {
   name: string;
@@ -122,7 +123,7 @@ export const usePumpPortalStore = create<PumpPortalState>((set) => ({
       const now = Date.now();
 
       // Calculate initial price from solAmount and initialBuy
-      const initialPrice = token.solAmount && token.initialBuy 
+      const initialPrice = token.solAmount && token.initialBuy
         ? calculateTokenPrice(token.solAmount, token.initialBuy)
         : 0;
 
@@ -234,32 +235,46 @@ class PumpPortalWebSocket {
           const data = JSON.parse(event.data);
           console.log('[PumpPortal WebSocket] Received message:', data);
 
-          if (data.txType === 'create') {
-            // Calculate initial price from SOL amount and tokens
-            const initialPrice = data.solAmount / data.initialBuy;
+          if (data.txType === 'create' || data.txType === 'trade') {
+            // Process transaction history
+            if (data.mint && data.traderPublicKey) {
+              useTransactionHistoryStore.getState().addTransaction(data.mint, {
+                signature: data.signature,
+                buyer: data.traderPublicKey,
+                solAmount: data.solAmount || 0,
+                tokenAmount: data.tokenAmount || data.initialBuy || 0,
+                timestamp: Date.now(),
+                type: data.txType === 'create' ? 'buy' : 'trade'
+              });
+            }
 
-            const token: TokenData = {
-              name: data.name || 'Unknown',
-              symbol: data.symbol || 'UNKNOWN',
-              marketCap: data.marketCapSol || 0,
-              marketCapSol: data.marketCapSol || 0,
-              liquidityAdded: data.pool === "pump",
-              holders: data.holders || 0,
-              volume24h: data.volume24h || 0,
-              address: data.mint,
-              price: initialPrice,
-              imageUrl: data.uri,
-              uri: data.uri,
-              signature: data.signature,
-              initialBuy: data.initialBuy,
-              solAmount: data.solAmount,
-              vTokensInBondingCurve: data.vTokensInBondingCurve,
-              vSolInBondingCurve: data.vSolInBondingCurve,
-              bondingCurveKey: data.bondingCurveKey
-            };
+            if (data.txType === 'create') {
+              // Calculate initial price from SOL amount and tokens
+              const initialPrice = data.solAmount / data.initialBuy;
 
-            console.log('[PumpPortal WebSocket] Adding new token:', token);
-            await usePumpPortalStore.getState().addToken(token);
+              const token: TokenData = {
+                name: data.name || 'Unknown',
+                symbol: data.symbol || 'UNKNOWN',
+                marketCap: data.marketCapSol || 0,
+                marketCapSol: data.marketCapSol || 0,
+                liquidityAdded: data.pool === "pump",
+                holders: data.holders || 0,
+                volume24h: data.volume24h || 0,
+                address: data.mint,
+                price: initialPrice,
+                imageUrl: data.uri,
+                uri: data.uri,
+                signature: data.signature,
+                initialBuy: data.solAmount, // Store initial buy in SOL
+                solAmount: data.solAmount,
+                vTokensInBondingCurve: data.vTokensInBondingCurve,
+                vSolInBondingCurve: data.vSolInBondingCurve,
+                bondingCurveKey: data.bondingCurveKey
+              };
+
+              console.log('[PumpPortal WebSocket] Adding new token:', token);
+              await usePumpPortalStore.getState().addToken(token);
+            }
           }
         } catch (error) {
           console.error('[PumpPortal WebSocket] Error processing message:', error);

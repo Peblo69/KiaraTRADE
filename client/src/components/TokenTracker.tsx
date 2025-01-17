@@ -22,6 +22,7 @@ import { useTokenSocialMetricsStore } from '@/lib/social-metrics';
 import { SocialMetrics } from './SocialMetrics';
 import { useTokenPriceStore } from '@/lib/price-history';
 import { PriceChart } from './PriceChart';
+import { TransactionHistory } from './TransactionHistory';
 
 // SOL price in USD (this should be fetched from an API in production)
 const SOL_PRICE_USD = 104.23;
@@ -232,6 +233,8 @@ const TokenCard: FC<{ token: any; index: number }> = memo(({ token, index }) => 
             <PriceChart data={priceHistory} symbol={token.symbol} />
           </div>
         )}
+
+        {token.address && <TransactionHistory tokenAddress={token.address} />}
 
         {socialMetrics && <SocialMetrics metrics={socialMetrics} tokenAddress={token.address} />}
 
