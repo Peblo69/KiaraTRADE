@@ -2,7 +2,6 @@ import { FC, memo, useState, useMemo } from 'react';
 import { Card } from "@/components/ui/card";
 import { SiSolana } from 'react-icons/si';
 import { 
-  ExternalLink, 
   TrendingUp, 
   Users, 
   Wallet,
@@ -12,8 +11,7 @@ import {
   TwitterIcon
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useTokenVolumeStore } from '@/lib/token-volume';
-import { useTokenPriceStore } from '@/lib/price-history';
+import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import { TransactionHistory } from './TransactionHistory';
 import { CandlestickChart } from './CandlestickChart';
 
@@ -28,36 +26,36 @@ const formatNumber = (num: number, isCurrency = false) => {
 };
 
 interface TokenCardProps {
-  token: any;
+  tokenAddress: string;
   index: number;
 }
 
 // Memoized TokenImage component
-const TokenImage: FC<{ token: any }> = memo(({ token }) => {
+const TokenImage: FC<{ metadata: any; address: string }> = memo(({ metadata, address }) => {
   const [imageError, setImageError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const imageUrl = useMemo(() => {
-    if (imageError || !token.address) {
+    if (imageError || !address) {
       return 'https://cryptologos.cc/logos/solana-sol-logo.png';
     }
 
-    if (token.metadata?.image) {
-      if (token.metadata.image.startsWith('ipfs://')) {
-        const ipfsHash = token.metadata.image.replace('ipfs://', '');
+    if (metadata?.image) {
+      if (metadata.image.startsWith('ipfs://')) {
+        const ipfsHash = metadata.image.replace('ipfs://', '');
         return `https://ipfs.io/ipfs/${ipfsHash}`;
       }
-      return token.metadata.image;
+      return metadata.image;
     }
 
-    return `https://pump.fun/token/${token.address}/image`;
-  }, [token.address, token.metadata?.image, imageError]);
+    return `https://pump.fun/token/${address}/image`;
+  }, [address, metadata?.image, imageError]);
 
   return (
     <div className="relative w-12 h-12">
       <img 
         src={imageUrl}
-        alt={token.metadata?.symbol || token.symbol || 'Token'} 
+        alt={metadata?.symbol || 'Token'} 
         className={`w-full h-full rounded-xl bg-gray-900/50 border border-gray-800 shadow-lg object-cover transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
         onError={() => {
           setImageError(true);
@@ -110,9 +108,12 @@ const TokenPrice: FC<{ price: number; priceChange24h: number }> = memo(({ price,
 TokenPrice.displayName = 'TokenPrice';
 
 // Main TokenCard component
-const TokenCard: FC<TokenCardProps> = memo(({ token, index }) => {
-  // Memoize price history data to prevent unnecessary re-renders
-  const priceHistory = useTokenPriceStore(state => state.getPriceHistory(token.address));
+const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
+  const token = useUnifiedTokenStore(state => state.getToken(tokenAddress));
+  const priceHistory = useUnifiedTokenStore(state => state.getPriceHistory(tokenAddress));
+
+  // Early return if token is not found
+  if (!token) return null;
 
   // Memoize calculated values
   const { marketCapUSD, initialBuyUSD, volume24hUSD } = useMemo(() => ({
@@ -131,7 +132,7 @@ const TokenCard: FC<TokenCardProps> = memo(({ token, index }) => {
       <Card className="p-4 bg-black/40 backdrop-blur-lg border border-gray-800 hover:border-blue-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/10">
         <div className="flex justify-between items-start mb-4">
           <div className="flex items-center gap-3">
-            <TokenImage token={token} />
+            <TokenImage metadata={token.metadata} address={token.address} />
             <div>
               <h3 className="text-lg font-bold text-white mb-0.5">
                 {token.metadata?.name || token.name || 'Unknown Token'}
@@ -221,7 +222,7 @@ const TokenCard: FC<TokenCardProps> = memo(({ token, index }) => {
           {priceHistory.length > 0 && <CandlestickChart data={priceHistory} />}
         </div>
 
-        {token.address && <TransactionHistory tokenAddress={token.address} />}
+        <TransactionHistory tokenAddress={token.address} />
 
         {token.liquidityAdded && (
           <div className="border-t border-gray-800 pt-3 mt-3">

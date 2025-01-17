@@ -1,25 +1,21 @@
 import { FC, memo, useEffect } from 'react';
-import { Card } from "@/components/ui/card";
-import { pumpPortalSocket } from '@/lib/pump-portal-websocket';
-import { heliusSocket } from '@/lib/helius-websocket';
+import { unifiedWebSocket } from '@/lib/unified-websocket';
 import { TokenFilters } from './TokenFilters';
 import { useTokenFiltersStore, filterTokens } from '@/lib/token-filters';
 import TokenCard from './TokenCard';
-import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const TokenTracker: FC = () => {
-  const tokens = usePumpPortalStore(state => state.tokens);
+  const tokens = useUnifiedTokenStore(state => state.tokens);
   const activeFilter = useTokenFiltersStore(state => state.activeFilter);
 
   useEffect(() => {
-    // Connect to WebSockets only once
-    pumpPortalSocket.connect();
-    heliusSocket.connect();
+    // Connect to WebSocket only once
+    unifiedWebSocket.connect();
 
     return () => {
-      pumpPortalSocket.disconnect();
-      heliusSocket.disconnect();
+      unifiedWebSocket.disconnect();
     };
   }, []);
 
@@ -45,7 +41,11 @@ export const TokenTracker: FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence>
           {filteredTokens.map((token, index) => (
-            <TokenCard key={token.address || index} token={token} index={index} />
+            <TokenCard 
+              key={token.address} 
+              tokenAddress={token.address}
+              index={index} 
+            />
           ))}
         </AnimatePresence>
       </div>
