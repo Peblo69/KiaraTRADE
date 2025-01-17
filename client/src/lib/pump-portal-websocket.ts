@@ -129,31 +129,24 @@ export const usePumpPortalStore = create<PumpPortalState>()(
             ? token.solAmount / token.initialBuy
             : 0;
 
+          // Use the standard image URL format for PumpFun tokens
+          const imageUrl = `https://pumpfun.fun/i/${token.address}/image`;
+
           const enrichedToken = {
             ...token,
             price: initialPrice,
             lastUpdated: now,
+            imageUrl, // Set the standard image URL
           };
 
-          // Batch initialize price history and metadata
+          // Initialize price history
           if (token.address) {
             Promise.all([
               useTokenPriceStore.getState().initializePriceHistory(
                 token.address, 
                 initialPrice,
                 token.marketCapSol || 0
-              ),
-              token.uri && parseTokenMetadata(token.uri).then(metadata => {
-                if (metadata) {
-                  set(state => ({
-                    tokens: state.tokens.map(t =>
-                      t.address === token.address
-                        ? { ...t, metadata }
-                        : t
-                    )
-                  }));
-                }
-              })
+              )
             ]).catch(console.error);
           }
 
@@ -177,6 +170,7 @@ export const usePumpPortalStore = create<PumpPortalState>()(
           const updatedToken = {
             ...currentToken,
             ...updates,
+            imageUrl: `https://pumpfun.fun/i/${address}/image`, // Always use the standard image URL
             priceChange24h,
             lastUpdated: Date.now()
           };

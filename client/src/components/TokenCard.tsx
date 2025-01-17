@@ -29,25 +29,18 @@ interface TokenCardProps {
 
 const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
   const token = useUnifiedTokenStore(state => state.getToken(tokenAddress));
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
-
-  useEffect(() => {
-    if (token?.imageUrl) {
-      setImageUrl(token.imageUrl);
-      setImageError(false); // Reset error state when new URL is received
-    }
-  }, [token?.imageUrl]);
 
   if (!token) return null;
 
   const handleImageError = () => {
     console.log(`[TokenCard] Image failed to load for token ${tokenAddress}, using fallback`);
     setImageError(true);
-    setImageUrl(DEFAULT_TOKEN_IMAGE);
   };
 
-  const displayImageUrl = imageError ? DEFAULT_TOKEN_IMAGE : (imageUrl || `https://pump.fun/token/${tokenAddress}/image`);
+  const displayImageUrl = imageError ? 
+    DEFAULT_TOKEN_IMAGE : 
+    `https://pumpfun.fun/i/${token.address}/image`;
 
   return (
     <Card className="p-4 bg-black/40 backdrop-blur-lg border border-gray-800 hover:border-blue-500/50 transition-all duration-300">
