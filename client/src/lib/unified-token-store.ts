@@ -57,7 +57,7 @@ interface UnifiedTokenState {
   transactions: Record<string, Transaction[]>;
   isConnected: boolean;
   connectionError: string | null;
-  
+
   // Actions
   addToken: (token: TokenData) => void;
   updateToken: (address: string, updates: Partial<TokenData>) => void;
@@ -65,7 +65,7 @@ interface UnifiedTokenState {
   addTransaction: (tokenAddress: string, transaction: Transaction) => void;
   setConnected: (status: boolean) => void;
   setError: (error: string | null) => void;
-  
+
   // Selectors
   getToken: (address: string) => TokenData | undefined;
   getPriceHistory: (address: string) => CandleData[];
@@ -89,25 +89,19 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
           ? token.solAmount / token.initialBuy
           : 0;
 
+        // Batch all state updates together
         set((state) => {
-          const enrichedToken = {
-            ...token,
-            price: initialPrice,
-            lastUpdated: Date.now(),
-          };
+          const candleTime = Math.floor(Date.now() / CANDLE_INTERVAL) * CANDLE_INTERVAL;
 
           return {
-            tokens: [...state.tokens, enrichedToken]
-              .sort((a, b) => b.marketCapSol - a.marketCapSol)
-              .slice(0, 100),
-          };
-        });
+            tokens: [...state.tokens, {
+              ...token,
+              price: initialPrice,
+              lastUpdated: Date.now(),
+            }].sort((a, b) => b.marketCapSol - a.marketCapSol).slice(0, 100),
 
-        // Initialize price history
-        if (token.address) {
-          const candleTime = Math.floor(Date.now() / CANDLE_INTERVAL) * CANDLE_INTERVAL;
-          set((state) => ({
-            currentCandles: {
+            // Initialize price history for the new token
+            currentCandles: token.address ? {
               ...state.currentCandles,
               [token.address]: {
                 timestamp: candleTime,
@@ -118,9 +112,9 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
                 volume: 0,
                 marketCap: token.marketCapSol || 0
               }
-            }
-          }));
-        }
+            } : state.currentCandles,
+          };
+        });
       },
 
       updateToken: (address, updates) => {
@@ -182,20 +176,27 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
             };
           }
 
-          // Update existing candle
-          const updatedCandle = {
-            ...currentCandle,
-            high: Math.max(currentCandle.high, price),
-            low: Math.min(currentCandle.low, price),
-            close: price,
-            volume: currentCandle.volume + volume,
-            marketCap
-          };
+          // Update existing candle without triggering unnecessary updates
+          if (
+            currentCandle.high === Math.max(currentCandle.high, price) &&
+            currentCandle.low === Math.min(currentCandle.low, price) &&
+            currentCandle.close === price &&
+            currentCandle.marketCap === marketCap
+          ) {
+            return state;
+          }
 
           return {
             currentCandles: {
               ...state.currentCandles,
-              [tokenAddress]: updatedCandle
+              [tokenAddress]: {
+                ...currentCandle,
+                high: Math.max(currentCandle.high, price),
+                low: Math.min(currentCandle.low, price),
+                close: price,
+                volume: currentCandle.volume + volume,
+                marketCap
+              }
             }
           };
         });
@@ -204,6 +205,10 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
       addTransaction: (tokenAddress, transaction) => {
         set((state) => {
           const tokenTransactions = state.transactions[tokenAddress] || [];
+          if (tokenTransactions.some(tx => tx.signature === transaction.signature)) {
+            return state;
+          }
+
           return {
             transactions: {
               ...state.transactions,
