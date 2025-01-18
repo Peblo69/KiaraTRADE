@@ -261,6 +261,72 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Klines (candlestick) endpoint with configurable timeframe
+  app.get('/api/coins/:symbol/klines', async (req, res) => {
+    try {
+      const symbol = req.params.symbol;
+      const timeframe = req.query.timeframe || '1d';
+
+      // Map frontend timeframes to KuCoin timeframes
+      const timeframeMap: Record<string, string> = {
+        '1m': '1min',
+        '5m': '5min',
+        '15m': '15min',
+        '30m': '30min',
+        '1h': '1hour',
+        '4h': '4hour',
+        '1d': '1day',
+        '1w': '1week'
+      };
+
+      const kucoinTimeframe = timeframeMap[timeframe as string] || '1day';
+
+      // Calculate start time based on timeframe (up to 1500 candles)
+      const now = Math.floor(Date.now() / 1000);
+      let startTime = now;
+
+      switch(timeframe) {
+        case '1m': startTime = now - (60 * 1500); break;       // 1500 minutes
+        case '5m': startTime = now - (300 * 1500); break;      // 5200 minutes
+        case '15m': startTime = now - (900 * 1500); break;     // 15600 minutes
+        case '30m': startTime = now - (1800 * 1500); break;    // 31200 minutes
+        case '1h': startTime = now - (3600 * 1500); break;     // 2.5 months
+        case '4h': startTime = now - (14400 * 1500); break;    // 10 months
+        case '1d': startTime = now - (86400 * 1500); break;    // 4.1 years
+        case '1w': startTime = now - (604800 * 1500); break;   // 28.8 years
+        default: startTime = now - (86400 * 365); // 1 year default
+      }
+
+      const response = await axios.get(`${KUCOIN_API_BASE}/market/candles`, {
+        params: {
+          symbol,
+          type: kucoinTimeframe,
+          startAt: startTime,
+          endAt: now
+        }
+      });
+
+      // KuCoin returns klines in format: [timestamp, open, close, high, low, volume, turnover]
+      const klines = response.data.data.map((kline: string[]) => ({
+        time: parseInt(kline[0]),
+        open: parseFloat(kline[1]),
+        close: parseFloat(kline[2]),
+        high: parseFloat(kline[3]),
+        low: parseFloat(kline[4]),
+        volume: parseFloat(kline[5]),
+        turnover: parseFloat(kline[6])
+      }));
+
+      res.json({ klines });
+    } catch (error: any) {
+      console.error('Klines error:', error.response?.data || error.message);
+      res.status(error.response?.status || 500).json({
+        error: 'Failed to fetch klines data',
+        details: error.response?.data?.msg || error.message
+      });
+    }
+  });
+
   // Chat endpoint
   app.post('/api/chat', async (req, res) => {
     try {

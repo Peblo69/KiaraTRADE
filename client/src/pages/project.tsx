@@ -27,7 +27,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import CoinChart from "@/components/CoinChart";
+import AdvancedChart from '@/components/AdvancedChart'; // Replaced CoinChart import
 import CryptoIcon from "@/components/CryptoIcon";
 import { preloadTokenImages } from "@/lib/token-metadata";
 
@@ -436,11 +436,9 @@ const ProjectPage: FC = () => {
                   </Card>
                 </div>
 
-                <Card className="p-4">
+                <Card className="p-4"> {/* Replaced CoinChart rendering */}
                   <div className="h-[400px]">
-                    {selectedCoinData.chart?.prices && (
-                      <CoinChart prices={selectedCoinData.chart.prices} />
-                    )}
+                    <AdvancedChart symbol={selectedSymbol || ''} /> {/*  AdvancedChart used here */}
                   </div>
                 </Card>
               </div>
