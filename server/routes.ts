@@ -35,66 +35,6 @@ axios.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Basic coin metadata mapping
-const COIN_METADATA: Record<string, { name: string, image: string }> = {
-  'BTC': {
-    name: 'Bitcoin',
-    image: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png'
-  },
-  'ETH': {
-    name: 'Ethereum',
-    image: 'https://assets.coingecko.com/coins/images/279/large/ethereum.png'
-  },
-  'SOL': {
-    name: 'Solana',
-    image: 'https://assets.coingecko.com/coins/images/4128/large/solana.png'
-  },
-  'USDT': {
-    name: 'Tether',
-    image: 'https://assets.coingecko.com/coins/images/325/large/Tether.png'
-  },
-  'XRP': {
-    name: 'XRP',
-    image: 'https://assets.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png'
-  }
-};
-
-// Helper function to get coin metadata
-const getCoinMetadata = (symbol: string) => {
-  const cleanSymbol = symbol.replace('-USDT', '');
-  return COIN_METADATA[cleanSymbol] || {
-    name: cleanSymbol,
-    image: `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/${cleanSymbol.toLowerCase()}.png`
-  };
-};
-
-// Helper function to format KuCoin data to match our frontend expectations
-const formatKuCoinData = (markets: any[]) => {
-  return markets.map(market => {
-    if (!market.symbol.endsWith('-USDT')) return null;
-
-    const symbol = market.symbol.replace('-USDT', '');
-    const metadata = getCoinMetadata(symbol);
-    return {
-      id: symbol.toLowerCase(),
-      symbol: symbol,
-      name: metadata.name,
-      image: metadata.image,
-      current_price: parseFloat(market.last),
-      market_cap: parseFloat(market.volValue),
-      market_cap_rank: null,
-      total_volume: parseFloat(market.vol),
-      high_24h: parseFloat(market.high),
-      low_24h: parseFloat(market.low),
-      price_change_percentage_24h: parseFloat(market.changeRate) * 100,
-      price_change_percentage_1h_in_currency: null,
-      price_change_percentage_7d_in_currency: null,
-      last_updated: new Date(market.time).toISOString(),
-      sparkline_in_7d: { price: [] }
-    };
-  }).filter(Boolean);
-};
-
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
@@ -111,16 +51,13 @@ export function registerRoutes(app: Express): Server {
 
       // Fetch all USDT markets stats
       const response = await axios.get(`${KUCOIN_API_BASE}/market/allTickers`);
-      const markets = response.data.data.ticker.filter((t: any) => t.symbol.endsWith('-USDT'));
-
-      const formattedData = formatKuCoinData(markets);
 
       cache.prices = {
-        data: formattedData,
+        data: response.data,
         timestamp: now
       };
 
-      res.json(formattedData);
+      res.json(response.data);
     } catch (error: any) {
       console.error('Markets error:', error.response?.data || error.message);
       res.status(error.response?.status || 500).json({ 
@@ -133,9 +70,7 @@ export function registerRoutes(app: Express): Server {
   // Single coin details endpoint with price history
   app.get('/api/coins/:symbol', async (req, res) => {
     try {
-      const symbol = `${req.params.symbol.toUpperCase()}-USDT`;
-      const baseSymbol = symbol.replace('-USDT', '');
-      const metadata = getCoinMetadata(baseSymbol);
+      const symbol = req.params.symbol;
 
       const [marketStats, klines] = await Promise.all([
         axios.get(`${KUCOIN_API_BASE}/market/stats`, {
@@ -151,36 +86,15 @@ export function registerRoutes(app: Express): Server {
         })
       ]);
 
-      const stats = marketStats.data.data;
       // KuCoin returns klines in reverse order [timestamp, open, close, high, low, volume, turnover]
       const prices = klines.data.data
         .reverse()
         .map((kline: string[]) => [parseInt(kline[0]) * 1000, parseFloat(kline[2])]);
 
       const response = {
-        id: baseSymbol.toLowerCase(),
-        symbol: baseSymbol,
-        name: metadata.name,
-        image: metadata.image,
-        description: { en: `${metadata.name} (${baseSymbol}) price and market data.` },
-        market_data: {
-          current_price: { usd: parseFloat(stats.last) },
-          market_cap: { usd: parseFloat(stats.volValue) },
-          total_volume: { usd: parseFloat(stats.vol) },
-          high_24h: { usd: parseFloat(stats.high) },
-          low_24h: { usd: parseFloat(stats.low) }
-        },
-        market_chart: {
+        stats: marketStats.data.data,
+        chart: {
           prices
-        },
-        // Add empty links to prevent frontend errors
-        links: {
-          homepage: [],
-          blockchain_site: [],
-          official_forum_url: [],
-          chat_url: [],
-          twitter_screen_name: '',
-          telegram_channel_identifier: ''
         }
       };
 
@@ -284,3 +198,63 @@ export function registerRoutes(app: Express): Server {
 
 // In-memory data structure for chat history
 const chatHistory: Record<string, any[]> = {};
+
+// Basic coin metadata mapping
+const COIN_METADATA: Record<string, { name: string, image: string }> = {
+  'BTC': {
+    name: 'Bitcoin',
+    image: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png'
+  },
+  'ETH': {
+    name: 'Ethereum',
+    image: 'https://assets.coingecko.com/coins/images/279/large/ethereum.png'
+  },
+  'SOL': {
+    name: 'Solana',
+    image: 'https://assets.coingecko.com/coins/images/4128/large/solana.png'
+  },
+  'USDT': {
+    name: 'Tether',
+    image: 'https://assets.coingecko.com/coins/images/325/large/Tether.png'
+  },
+  'XRP': {
+    name: 'XRP',
+    image: 'https://assets.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png'
+  }
+};
+
+// Helper function to get coin metadata
+const getCoinMetadata = (symbol: string) => {
+  const cleanSymbol = symbol.replace('-USDT', '');
+  return COIN_METADATA[cleanSymbol] || {
+    name: cleanSymbol,
+    image: `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/${cleanSymbol.toLowerCase()}.png`
+  };
+};
+
+// Helper function to format KuCoin data to match our frontend expectations
+const formatKuCoinData = (markets: any[]) => {
+  return markets.map(market => {
+    if (!market.symbol.endsWith('-USDT')) return null;
+
+    const symbol = market.symbol.replace('-USDT', '');
+    const metadata = getCoinMetadata(symbol);
+    return {
+      id: symbol.toLowerCase(),
+      symbol: symbol,
+      name: metadata.name,
+      image: metadata.image,
+      current_price: parseFloat(market.last),
+      market_cap: parseFloat(market.volValue),
+      market_cap_rank: null,
+      total_volume: parseFloat(market.vol),
+      high_24h: parseFloat(market.high),
+      low_24h: parseFloat(market.low),
+      price_change_percentage_24h: parseFloat(market.changeRate) * 100,
+      price_change_percentage_1h_in_currency: null,
+      price_change_percentage_7d_in_currency: null,
+      last_updated: new Date(market.time).toISOString(),
+      sparkline_in_7d: { price: [] }
+    };
+  }).filter(Boolean);
+};

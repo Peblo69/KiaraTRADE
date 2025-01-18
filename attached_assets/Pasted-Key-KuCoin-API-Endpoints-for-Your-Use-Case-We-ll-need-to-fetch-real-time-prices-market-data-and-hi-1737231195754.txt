@@ -1,0 +1,153 @@
+Key KuCoin API Endpoints for Your Use Case
+We’ll need to fetch real-time prices, market data, and historical charts. Here’s what KuCoin provides:
+
+Feature	Endpoint	Purpose
+Real-Time Price	/api/v1/market/orderbook/level1	Fetch latest price for a specific symbol.
+24h Market Stats	/api/v1/market/stats	Get stats like high, low, volume, etc.
+All Active Symbols	/api/v1/symbols	Retrieve a list of all available pairs.
+Historical Klines (Charts)	/api/v1/market/candles	Fetch OHLCV data for building charts.
+Top Movers	/api/v1/market/allTickers	Get price data for all tokens.
+2. Update Backend to Use KuCoin
+We’ll replace the CoinGecko structure with KuCoin's structure.
+
+Setup Axios for KuCoin API
+Install Axios if not already:
+
+bash
+Copy
+Edit
+npm install axios
+Create a utility for making KuCoin API requests:
+
+javascript
+Copy
+Edit
+import axios from 'axios';
+
+const kucoinAPI = axios.create({
+  baseURL: 'https://api.kucoin.com',
+  timeout: 5000,
+  headers: { 'Content-Type': 'application/json' },
+});
+
+export default kucoinAPI;
+Example: Fetch Real-Time Prices
+javascript
+Copy
+Edit
+export const fetchRealTimePrice = async (symbol) => {
+  try {
+    const response = await kucoinAPI.get('/api/v1/market/orderbook/level1', {
+      params: { symbol }, // Example: BTC-USDT
+    });
+    return response.data.data;
+  } catch (error) {
+    console.error(`Error fetching price for ${symbol}:`, error.message);
+    throw error;
+  }
+};
+3. Re-Structure the Backend Endpoints
+Here’s how to rebuild your /api endpoints to work with KuCoin:
+
+Global Market Data
+Fetch all tickers and filter results as needed:
+
+javascript
+Copy
+Edit
+app.get('/api/market-data', async (req, res) => {
+  try {
+    const response = await kucoinAPI.get('/api/v1/market/allTickers');
+    const tickers = response.data.data.ticker; // Array of all tokens
+    res.json(tickers);
+  } catch (error) {
+    console.error('Error fetching market data:', error.message);
+    res.status(500).json({ error: 'Failed to fetch market data' });
+  }
+});
+Fetch Detailed Information
+Use /market/stats for 24-hour stats:
+
+javascript
+Copy
+Edit
+app.get('/api/coin-details/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  try {
+    const response = await kucoinAPI.get('/api/v1/market/stats', { params: { symbol } });
+    res.json(response.data.data);
+  } catch (error) {
+    console.error(`Error fetching details for ${symbol}:`, error.message);
+    res.status(500).json({ error: 'Failed to fetch coin details' });
+  }
+});
+Historical Chart Data
+Fetch OHLCV data:
+
+javascript
+Copy
+Edit
+app.get('/api/coin-chart/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  try {
+    const response = await kucoinAPI.get('/api/v1/market/candles', {
+      params: {
+        symbol, // Example: BTC-USDT
+        type: '1hour', // Time interval (e.g., 1min, 1hour, 1day)
+        startAt: Math.floor(Date.now() / 1000) - 7 * 24 * 3600, // Last 7 days
+        endAt: Math.floor(Date.now() / 1000),
+      },
+    });
+    res.json(response.data.data);
+  } catch (error) {
+    console.error(`Error fetching chart data for ${symbol}:`, error.message);
+    res.status(500).json({ error: 'Failed to fetch chart data' });
+  }
+});
+4. Update Frontend to Use KuCoin Data
+Here’s how to adjust your React components or any frontend framework you’re using.
+
+Update State Management
+Adjust your state structure for KuCoin’s response format:
+
+javascript
+Copy
+Edit
+const [tickers, setTickers] = useState([]);
+const [selectedToken, setSelectedToken] = useState(null);
+
+useEffect(() => {
+  const fetchData = async () => {
+    const response = await fetch('/api/market-data');
+    const data = await response.json();
+    setTickers(data);
+  };
+
+  fetchData();
+}, []);
+Token Details and Charts
+When a token is selected, fetch its details and chart data:
+
+javascript
+Copy
+Edit
+const fetchTokenDetails = async (symbol) => {
+  const [details, chart] = await Promise.all([
+    fetch(`/api/coin-details/${symbol}`).then((res) => res.json()),
+    fetch(`/api/coin-chart/${symbol}`).then((res) => res.json()),
+  ]);
+  setSelectedToken({ ...details, chart });
+};
+Render Real-Time Charts
+Use libraries like Chart.js or ApexCharts for rendering charts with the fetched data.
+
+5. Handle Bugs from Old Structure
+Ensure:
+
+Symbol format: KuCoin uses BTC-USDT (not btc or bitcoin).
+Data mapping: Update frontend to match KuCoin’s structure (e.g., ticker.last for prices).
+Caching: Cache responses to avoid API rate limits.
+6. Test Everything
+Fetch top tickers (/api/market-data).
+Click a token to fetch details and charts (/api/coin-details/:symbol and /api/coin-chart/:symbol).
+Ensure smooth updates with real-time price changes.
