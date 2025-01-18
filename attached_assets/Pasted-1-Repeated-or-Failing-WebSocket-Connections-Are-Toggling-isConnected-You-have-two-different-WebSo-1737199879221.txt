@@ -1,0 +1,106 @@
+1. Repeated or Failing WebSocket Connections Are Toggling “isConnected”
+You have two different WebSocket client classes (PumpFunWebSocket and PumpPortalWebSocket), each attempting to reconnect on close/error. Both do something like:
+
+js
+Copy
+ws.onopen = () => {
+  useUnifiedTokenStore.getState().setConnected(true);
+  ...
+};
+ws.onclose = () => {
+  this.cleanup();   // which sets isConnected to false
+  this.reconnect(); // tries to connect again
+};
+ws.onerror = () => {
+  useUnifiedTokenStore.getState().setError('WebSocket connection error');
+  this.cleanup();
+  this.reconnect();
+};
+If the connection never succeeds or quickly fails again, you’ll toggle isConnected from true → false → true → false in quick succession.
+Each toggle is a store update → React re-render → triggers something else that tries to connect again, etc.
+Solution:
+
+Check whether wss://pump.fun/ws/v1 or wss://pumpportal.fun/api/data are truly accessible from your environment. If they fail or quickly drop, you’ll be stuck in a reconnect loop.
+If the websockets indeed fail repeatedly, you might want to set a maximum number of reconnects or only call setConnected(true) once it’s truly stable.
+You could also guard “setConnected” so it only updates if the current store value differs from the new one (i.e., don’t spam true/false if it’s unchanged).
+2. Storing the Same Data Over and Over in the Store
+In multiple places, you do:
+
+js
+Copy
+useUnifiedTokenStore.getState().addToken(...) 
+useUnifiedTokenStore.getState().updateToken(...)
+If the WebSocket or aggregator sends the same token data repeatedly (with no real changes), your store might keep updating anyway, producing new references and re-triggering renders.
+Check:
+
+Do you see console spam like "[PumpFun Store] Adding token: ..." or "[PumpPortal WebSocket] Received message:" with the same data repeating?
+If so, only update the store if something actually changed. For example:
+js
+Copy
+const oldToken = getState().tokens.find(t => t.address === token.address);
+if (oldToken && oldToken.price === token.price && ...) {
+  // skip the update
+}
+Or store a lastUpdated in your aggregator so it only broadcasts truly new data.
+3. TokenTracker Might Re-Add “Test Token” If Tokens Are Wiped Elsewhere
+In your TokenTracker:
+
+js
+Copy
+useEffect(() => {
+  // Add static test token only if there are no tokens
+  if (tokens.length === 0) {
+    useUnifiedTokenStore.getState().addToken({ /* test token data */ }, 'unified');
+  }
+  useUnifiedTokenStore.getState().setConnected(true);
+
+  return () => {
+    useUnifiedTokenStore.getState().setConnected(false);
+  };
+}, []);
+If, for some reason, your store’s tokens array keeps getting cleared or reset by other code, tokens.length might repeatedly be 0, causing addToken in an infinite cycle.
+Then setConnected(true) → unmount or close → setConnected(false) → re-mount → etc.
+Check if some other place empties tokens or if TokenTracker is unmounting/mounting repeatedly.
+
+4. Double WebSocket Subscriptions to the Same PumpPortal Data
+From the code, you have:
+
+server/routes.ts aggregator connecting to 'wss://pumpportal.fun/api/data'
+PumpPortalWebSocket (client code) also connecting to the same 'wss://pumpportal.fun/api/data'
+Potentially PumpFunWebSocket connecting to 'wss://pump.fun/ws/v1'
+If your aggregator is also broadcasting updates to the front end and your front end is simultaneously connecting directly to pumpportal.fun, you might end up processing each trade event twice:
+
+Once from the aggregator’s broadcast (if the front end subscribes to your aggregator’s WebSocket).
+Once directly from pumpportal.fun.
+That can cause repeated store updates if both feeds deliver the same data in quick succession.
+
+Check if you’re actually subscribing to the aggregator’s local WebSocket in your front end. If so, you might not need to connect to pumpportal.fun directly as well. Usually you pick one approach:
+
+Aggregator approach: aggregator → local front-end.
+Direct approach: front end → PumpPortal.
+Not both.
+
+How to Pinpoint the Culprit
+Comment Out All WebSocket Calls (the entire connect logic in PumpPortalWebSocket and PumpFunWebSocket) and see if the infinite loop vanishes.
+
+If the error goes away, re-enable them one at a time:
+
+Just enable PumpFunWebSocket while leaving PumpPortalWebSocket commented out.
+If that’s stable, then comment it out again and try PumpPortalWebSocket.
+Watch for repeated “connect → close → reconnect” logs or repeated “adding token X” logs. That’s the loop.
+Log Your Store:
+
+js
+Copy
+useUnifiedTokenStore.subscribe((newState, prevState) => {
+  console.log('[Unified Store] Updated. Token count:', newState.tokens.length);
+});
+If you see it spamming, then see what triggers it: are we repeatedly “adding” the same token?
+
+Check for repeated “Connection error” or “Reconnection #X” logs in your front end console. That’s a common sign of infinite reconnect toggling isConnected.
+
+Bottom Line
+Your posted code, by itself, doesn’t show a direct unconditional loop.
+The prime suspects are the reconnection logic toggling isConnected back and forth and/or spamming the same token update in the store.
+Comment out the websockets entirely (both PumpPortalWebSocket and PumpFunWebSocket). If that fixes it, then you know it’s a repeated connection or repeated broadcast problem.
+Log everything carefully to see if the same messages keep arriving or if your connection is failing continuously. That will reveal the exact cause.

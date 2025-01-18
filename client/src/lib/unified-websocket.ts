@@ -7,24 +7,31 @@ class UnifiedWebSocket {
   private reconnectDelay = 5000;
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private isReconnecting = false;
+  private isConnecting = false;
 
   connect() {
-    if (this.ws?.readyState === WebSocket.OPEN || this.isReconnecting) {
-      console.log('[Unified WebSocket] Already connected or reconnecting');
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      console.log('[Unified WebSocket] Already connected');
+      return;
+    }
+
+    if (this.isConnecting || this.isReconnecting) {
+      console.log('[Unified WebSocket] Connection attempt already in progress');
       return;
     }
 
     try {
-      this.isReconnecting = true;
+      this.isConnecting = true;
       console.log('[Unified WebSocket] Attempting to connect...');
 
-      // Connect to our server's WebSocket endpoint
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}`;
+
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         console.log('[Unified WebSocket] Connected successfully');
+        this.isConnecting = false;
         this.isReconnecting = false;
         this.reconnectAttempts = 0;
         useUnifiedTokenStore.getState().setConnected(true);
@@ -34,12 +41,18 @@ class UnifiedWebSocket {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('[Unified WebSocket] Received message:', data.type);
 
-          if (data.type === 'token') {
+          if (data.type === 'connection_status') {
+            if (data.status === 'connected') {
+              useUnifiedTokenStore.getState().setConnected(true);
+            } else {
+              useUnifiedTokenStore.getState().setConnected(false);
+            }
+            return;
+          }
+
+          if (data.type === 'token' && data.data) {
             this.handleTokenUpdate(data.data);
-          } else if (data.type === 'connection_status') {
-            console.log('[Unified WebSocket] Connection status:', data.status);
           }
         } catch (error) {
           console.error('[Unified WebSocket] Error processing message:', error);
@@ -47,8 +60,8 @@ class UnifiedWebSocket {
       };
 
       this.ws.onclose = () => {
+        console.log('[Unified WebSocket] Connection closed');
         if (!this.isReconnecting) {
-          console.log('[Unified WebSocket] Connection closed');
           this.cleanup();
           this.reconnect();
         }
@@ -56,6 +69,7 @@ class UnifiedWebSocket {
 
       this.ws.onerror = (error) => {
         console.error('[Unified WebSocket] Connection error:', error);
+        useUnifiedTokenStore.getState().setError('WebSocket connection error');
         if (!this.isReconnecting) {
           this.cleanup();
           this.reconnect();
@@ -64,7 +78,8 @@ class UnifiedWebSocket {
 
     } catch (error) {
       console.error('[Unified WebSocket] Failed to establish connection:', error);
-      this.isReconnecting = false;
+      useUnifiedTokenStore.getState().setError('Failed to establish WebSocket connection');
+      this.isConnecting = false;
       this.cleanup();
       this.reconnect();
     }
@@ -77,12 +92,13 @@ class UnifiedWebSocket {
     }
 
     const store = useUnifiedTokenStore.getState();
-    const existingToken = store.getToken(token.address);
+    const existingToken = store.tokens.find(t => t.address === token.address);
 
     // Only update if data actually changed
     if (!existingToken || 
         existingToken.price !== token.price || 
-        existingToken.marketCapSol !== token.marketCapSol) {
+        existingToken.marketCapSol !== token.marketCapSol ||
+        existingToken.volume24h !== token.volume24h) {
       store.addToken(token);
     }
   }
@@ -90,6 +106,7 @@ class UnifiedWebSocket {
   private startHeartbeat() {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
     }
 
     this.heartbeatInterval = setInterval(() => {
@@ -100,25 +117,25 @@ class UnifiedWebSocket {
   }
 
   private cleanup() {
-    console.log('[Unified WebSocket] Cleaning up connection');
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
     }
-    // Only set disconnected if we're not in the process of reconnecting
+
     if (!this.isReconnecting) {
       useUnifiedTokenStore.getState().setConnected(false);
     }
   }
 
   private reconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts || this.isReconnecting) {
       console.error('[Unified WebSocket] Max reconnection attempts reached');
       this.isReconnecting = false;
       useUnifiedTokenStore.getState().setError('Maximum reconnection attempts reached');
       return;
     }
 
+    this.isReconnecting = true;
     this.reconnectAttempts++;
     console.log(`[Unified WebSocket] Attempting reconnect (#${this.reconnectAttempts})`);
 
@@ -128,10 +145,12 @@ class UnifiedWebSocket {
   }
 
   disconnect() {
+    console.log('[Unified WebSocket] Disconnecting');
+    this.isReconnecting = false;
+    this.isConnecting = false;
+    this.cleanup();
+
     if (this.ws) {
-      console.log('[Unified WebSocket] Disconnecting');
-      this.isReconnecting = false;
-      this.cleanup();
       this.ws.close();
       this.ws = null;
     }

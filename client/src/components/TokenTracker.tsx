@@ -5,9 +5,9 @@ import { unifiedWebSocket } from '@/lib/unified-websocket';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const TokenTracker: FC = () => {
-  // Use separate selectors to avoid unnecessary re-renders
   const tokens = useUnifiedTokenStore(state => state.tokens);
   const isConnected = useUnifiedTokenStore(state => state.isConnected);
+  const connectionError = useUnifiedTokenStore(state => state.connectionError);
 
   // Memoize tokens array to prevent unnecessary re-renders
   const sortedTokens = useMemo(() => {
@@ -18,11 +18,22 @@ export const TokenTracker: FC = () => {
   useEffect(() => {
     console.log('[TokenTracker] Initializing WebSocket connection');
     unifiedWebSocket.connect();
+
     return () => {
       console.log('[TokenTracker] Cleaning up WebSocket connection');
       unifiedWebSocket.disconnect();
     };
   }, []); // Only run once on mount
+
+  if (connectionError) {
+    return (
+      <div className="col-span-3 text-center py-12">
+        <p className="text-red-500">
+          Connection error: {connectionError}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4">

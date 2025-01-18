@@ -1,6 +1,13 @@
 import { Server as HttpServer } from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
 
+// Extend WebSocket type to include isAlive property
+declare module 'ws' {
+  interface WebSocket {
+    isAlive: boolean;
+  }
+}
+
 export class WebSocketManager {
   private wss: WebSocketServer | null = null;
   private clients: Set<WebSocket> = new Set();
@@ -21,7 +28,14 @@ export class WebSocketManager {
       }
 
       console.log('[WebSocket Manager] New client connected');
+
+      // Initialize connection state
+      ws.isAlive = true;
       this.clients.add(ws);
+
+      ws.on('pong', () => {
+        ws.isAlive = true;
+      });
 
       ws.on('close', () => {
         console.log('[WebSocket Manager] Client disconnected');
@@ -34,13 +48,42 @@ export class WebSocketManager {
       });
 
       // Send initial connection success message
-      ws.send(JSON.stringify({
+      this.sendToClient(ws, {
         type: 'connection_status',
         status: 'connected'
-      }));
+      });
+    });
+
+    // Setup heartbeat interval for connection monitoring
+    const heartbeatInterval = setInterval(() => {
+      for (const client of this.clients) {
+        if (client.isAlive === false) {
+          this.clients.delete(client);
+          client.terminate();
+          continue;
+        }
+
+        client.isAlive = false;
+        client.ping();
+      }
+    }, 30000);
+
+    this.wss.on('close', () => {
+      clearInterval(heartbeatInterval);
     });
 
     console.log('[WebSocket Manager] WebSocket server initialized');
+  }
+
+  private sendToClient(client: WebSocket, data: any) {
+    if (client.readyState === WebSocket.OPEN) {
+      try {
+        client.send(JSON.stringify(data));
+      } catch (error) {
+        console.error('[WebSocket Manager] Error sending to client:', error);
+        this.clients.delete(client);
+      }
+    }
   }
 
   broadcast(data: any) {
@@ -50,11 +93,16 @@ export class WebSocketManager {
     }
 
     const message = JSON.stringify(data);
-    this.clients.forEach(client => {
+    for (const client of this.clients) {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(message);
+        try {
+          client.send(message);
+        } catch (error) {
+          console.error('[WebSocket Manager] Error broadcasting to client:', error);
+          this.clients.delete(client);
+        }
       }
-    });
+    }
   }
 
   getConnectedClientsCount(): number {
