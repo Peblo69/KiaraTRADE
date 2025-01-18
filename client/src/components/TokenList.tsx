@@ -14,7 +14,7 @@ export const TokenList: FC = () => {
     return () => {
       pumpFunSocket.disconnect();
     };
-  }, []);
+  }, []); // Empty dependency array to only run once on mount
 
   // Convert tokens Map to array and sort by market cap
   const sortedTokens = Array.from(tokens.values())

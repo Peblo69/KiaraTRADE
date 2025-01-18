@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -13,7 +13,7 @@ export default function Navbar() {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
-  const handleWalletClick = async () => {
+  const handleWalletClick = useCallback(async () => {
     if (connected) {
       try {
         await disconnect();
@@ -58,9 +58,9 @@ export default function Navbar() {
         variant: "destructive",
       });
     }
-  };
+  }, [connected, connect, disconnect, toast]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       const response = await fetch('/api/logout', {
         method: 'POST',
@@ -87,21 +87,26 @@ export default function Navbar() {
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
 
-  const shortenAddress = (address: string) => {
-    return `${address.slice(0, 4)}...${address.slice(-4)}`;
-  };
+  // Memoize derived values
+  const walletDisplayInfo = useCallback(() => {
+    if (!connected || !publicKey) return { text: 'Connect Wallet', shortAddress: '' };
+    const address = publicKey.toBase58();
+    return {
+      text: '',
+      shortAddress: `${address.slice(0, 4)}...${address.slice(-4)}`
+    };
+  }, [connected, publicKey]);
 
-  // Use memoized values for conditional rendering
-  const walletAddress = publicKey?.toBase58() || '';
-  const shortenedAddress = walletAddress ? shortenAddress(walletAddress) : '';
+  const { text, shortAddress } = walletDisplayInfo();
 
   return (
     <>
       <nav className="border-b border-purple-800/20 backdrop-blur-sm">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
+            {/* Logo and Brand */}
             <div className="flex items-center space-x-4">
               <div className="h-16 w-16 flex items-center">
                 <img 
@@ -159,12 +164,13 @@ export default function Navbar() {
                 {connected ? (
                   <span className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse" />
-                    {shortenedAddress}
+                    {shortAddress}
                   </span>
                 ) : (
-                  'Connect Wallet'
+                  text
                 )}
               </Button>
+
               <Button
                 onClick={handleLogout}
                 variant="ghost"

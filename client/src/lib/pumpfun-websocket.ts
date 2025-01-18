@@ -4,23 +4,46 @@ import type { TokenData } from './unified-token-store';
 const WEBSOCKET_URL = 'wss://pump.fun/ws/v1';
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
+const CONNECTION_TIMEOUT = 10000;
 
 class PumpFunWebSocket {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
   private reconnectTimeout: NodeJS.Timeout | null = null;
+  private connectionTimeout: NodeJS.Timeout | null = null;
   private processingQueue: boolean = false;
+  private isConnecting: boolean = false;
 
   connect() {
+    if (this.isConnecting) {
+      console.log('[PumpFun] Connection already in progress');
+      return;
+    }
+
     if (this.ws?.readyState === WebSocket.OPEN) {
       console.log('[PumpFun] WebSocket already connected');
       return;
     }
 
     try {
+      this.isConnecting = true;
       console.log('[PumpFun] Attempting to connect...');
-      this.ws = new WebSocket(WEBSOCKET_URL);
 
+      // Clear any existing connection timeout
+      if (this.connectionTimeout) {
+        clearTimeout(this.connectionTimeout);
+      }
+
+      // Set connection timeout
+      this.connectionTimeout = setTimeout(() => {
+        console.log('[PumpFun] Connection attempt timed out');
+        if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+          this.ws.close();
+          this.handleError(new Error('Connection timeout'));
+        }
+      }, CONNECTION_TIMEOUT);
+
+      this.ws = new WebSocket(WEBSOCKET_URL);
       this.ws.onopen = this.handleOpen;
       this.ws.onmessage = this.handleMessage;
       this.ws.onclose = this.handleClose;
@@ -33,13 +56,21 @@ class PumpFunWebSocket {
 
   private handleOpen = () => {
     console.log('[PumpFun] Connected successfully');
-    useTokenStore.getState().setConnected(true);
+    this.isConnecting = false;
     this.reconnectAttempts = 0;
+
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
+
+    useTokenStore.getState().setConnected(true);
   };
 
   private handleMessage = async (event: MessageEvent) => {
     if (this.processingQueue) {
-      return; // Skip if already processing
+      console.log('[PumpFun] Skipping message processing - queue busy');
+      return;
     }
 
     try {
@@ -67,21 +98,32 @@ class PumpFunWebSocket {
     }
   };
 
-  private handleClose = () => {
-    console.log('[PumpFun] Connection closed');
+  private handleClose = (event: CloseEvent) => {
+    console.log('[PumpFun] Connection closed', event.code, event.reason);
+    this.isConnecting = false;
     useTokenStore.getState().setConnected(false);
     this.cleanup();
-    this.reconnect();
+
+    // Only attempt reconnect for unexpected closures
+    if (event.code !== 1000) {
+      this.reconnect();
+    }
   };
 
   private handleError = (error: any) => {
     console.error('[PumpFun] WebSocket error:', error);
+    this.isConnecting = false;
     useTokenStore.getState().setError('WebSocket connection error');
     this.cleanup();
     this.reconnect();
   };
 
   private cleanup() {
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
+
     if (this.ws) {
       // Remove event listeners first
       this.ws.onopen = null;
@@ -89,10 +131,10 @@ class PumpFunWebSocket {
       this.ws.onclose = null;
       this.ws.onerror = null;
 
-      // Only attempt to close if the connection is still open
+      // Only attempt to close if the connection is still open or connecting
       if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
         try {
-          this.ws.close();
+          this.ws.close(1000, 'Normal closure');
         } catch (error) {
           console.error('[PumpFun] Error closing WebSocket:', error);
         }
@@ -104,6 +146,7 @@ class PumpFunWebSocket {
 
   private reconnect() {
     if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.log('[PumpFun] Maximum reconnection attempts reached');
       useTokenStore.getState().setError('Maximum reconnection attempts reached');
       return;
     }
@@ -116,13 +159,24 @@ class PumpFunWebSocket {
     const delay = RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts - 1);
 
     console.log(`[PumpFun] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
-    this.reconnectTimeout = setTimeout(() => this.connect(), delay);
+    this.reconnectTimeout = setTimeout(() => {
+      if (!this.isConnecting) {
+        this.connect();
+      }
+    }, delay);
   }
 
   disconnect() {
+    console.log('[PumpFun] Disconnecting...');
+
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
+    }
+
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
     }
 
     this.cleanup();
