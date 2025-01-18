@@ -11,6 +11,26 @@ interface TokenMetadata {
 // Cache metadata responses to avoid redundant API calls
 const metadataCache = new Map<string, TokenMetadata>();
 
+// Add new function for cryptocurrency icons
+export function getCryptoIconUrl(symbol: string): string {
+  // Clean symbol (remove -USDT suffix and convert to lowercase)
+  const cleanSymbol = symbol.replace('-USDT', '').toLowerCase();
+
+  // List of possible icon sources in order of preference
+  const possibleSources = [
+    `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/${cleanSymbol}.png`,
+    `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/icon/${cleanSymbol}.png`,
+    `https://s2.coinmarketcap.com/static/img/coins/64x64/${cleanSymbol}.png`,
+    `https://cryptoicons.org/api/icon/${cleanSymbol}/200`,
+    // Add fallback icon from your own assets
+    '/crypto-fallback.svg'
+  ];
+
+  // Return a promise-based image loader function
+  return possibleSources[0]; // We'll handle the fallback in the component
+}
+
+
 export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMetadata | null> {
   // Check cache first
   if (metadataCache.has(mintAddress)) {

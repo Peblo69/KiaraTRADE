@@ -11,13 +11,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
 import {
   Pagination,
@@ -28,6 +28,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import CoinChart from "@/components/CoinChart";
+import CryptoIcon from "@/components/CryptoIcon";
 
 interface KuCoinTicker {
   symbol: string;
@@ -194,7 +195,7 @@ const ProjectPage: FC = () => {
     .slice(0, 5);
 
   // Filter by search query
-  const filteredTickers = sortedByVolume.filter(ticker => 
+  const filteredTickers = sortedByVolume.filter(ticker =>
     ticker.symbol.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -240,10 +241,9 @@ const ProjectPage: FC = () => {
                   onClick={() => handleSymbolSelect(ticker.symbol)}
                 >
                   <div className="flex items-center gap-2">
-                    <img 
-                      src={getIconUrl(ticker.symbol)}
-                      alt={ticker.symbol}
-                      className="w-6 h-6"
+                    <CryptoIcon
+                      symbol={ticker.symbol}
+                      size="sm"
                     />
                     <div>
                       <div className="font-medium">{ticker.symbol.replace('-USDT', '')}</div>
@@ -270,10 +270,9 @@ const ProjectPage: FC = () => {
                   onClick={() => handleSymbolSelect(ticker.symbol)}
                 >
                   <div className="flex items-center gap-2">
-                    <img 
-                      src={getIconUrl(ticker.symbol)}
-                      alt={ticker.symbol}
-                      className="w-6 h-6"
+                    <CryptoIcon
+                      symbol={ticker.symbol}
+                      size="sm"
                     />
                     <div>
                       <div className="font-medium">{ticker.symbol.replace('-USDT', '')}</div>
@@ -325,10 +324,9 @@ const ProjectPage: FC = () => {
                   >
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <img 
-                          src={getIconUrl(ticker.symbol)}
-                          alt={ticker.symbol}
-                          className="w-6 h-6"
+                        <CryptoIcon
+                          symbol={ticker.symbol}
+                          size="sm"
                         />
                         <span className="font-medium">
                           {ticker.symbol.replace('-USDT', '')}
@@ -356,7 +354,7 @@ const ProjectPage: FC = () => {
             <Pagination>
               <PaginationContent>
                 <PaginationItem>
-                  <PaginationPrevious 
+                  <PaginationPrevious
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                     className={`cursor-pointer ${currentPage === 1 ? 'opacity-50' : ''}`}
                   />
@@ -379,7 +377,7 @@ const ProjectPage: FC = () => {
                 ))}
 
                 <PaginationItem>
-                  <PaginationNext 
+                  <PaginationNext
                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                     className={`cursor-pointer ${currentPage === totalPages ? 'opacity-50' : ''}`}
                   />
@@ -400,10 +398,9 @@ const ProjectPage: FC = () => {
               <div className="space-y-4">
                 <DialogHeader>
                   <DialogTitle className="text-2xl flex items-center gap-2">
-                    <img 
-                      src={getIconUrl(selectedSymbol || '')}
-                      alt={selectedSymbol}
-                      className="w-8 h-8"
+                    <CryptoIcon
+                      symbol={selectedSymbol || ''}
+                      size="lg"
                     />
                     {selectedSymbol?.replace('-USDT', '')}/USDT
                     <span className={`text-sm ${parseFloat(selectedCoinData.stats.changeRate) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
