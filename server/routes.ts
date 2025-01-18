@@ -28,12 +28,7 @@ export function registerRoutes(app: Express): Server {
         return res.json(cache.globalMetrics.data);
       }
 
-      const response = await axios.get('https://api.coingecko.com/api/v3/global', {
-        headers: {
-          'x-cg-demo-api-key': process.env.COINGECKO_API_KEY || '',
-          'accept': 'application/json'
-        }
-      });
+      const response = await axios.get('https://api.coingecko.com/api/v3/global');
 
       // Cache the response
       cache.globalMetrics = {
@@ -43,8 +38,8 @@ export function registerRoutes(app: Express): Server {
 
       res.json(response.data);
     } catch (error: any) {
-      console.error('Global metrics error:', error);
-      res.status(500).json({ error: error.message || 'Failed to fetch global metrics' });
+      console.error('Global metrics error:', error.response?.data || error.message);
+      res.status(error.response?.status || 500).json({ error: error.message || 'Failed to fetch global metrics' });
     }
   });
 
@@ -68,10 +63,6 @@ export function registerRoutes(app: Express): Server {
             price_change_percentage: '1h,24h,7d',
             locale: 'en',
             precision: 6
-          },
-          headers: {
-            'x-cg-demo-api-key': process.env.COINGECKO_API_KEY || '',
-            'accept': 'application/json'
           }
         }
       );
@@ -83,8 +74,8 @@ export function registerRoutes(app: Express): Server {
 
       res.json(response.data);
     } catch (error: any) {
-      console.error('Markets error:', error);
-      res.status(500).json({ error: error.message || 'Failed to fetch market data' });
+      console.error('Markets error:', error.response?.data || error.message);
+      res.status(error.response?.status || 500).json({ error: error.message || 'Failed to fetch market data' });
     }
   });
 
@@ -102,10 +93,6 @@ export function registerRoutes(app: Express): Server {
               community_data: true,
               developer_data: true,
               sparkline: true
-            },
-            headers: {
-              'x-cg-demo-api-key': process.env.COINGECKO_API_KEY || '',
-              'accept': 'application/json'
             }
           }
         ),
@@ -116,22 +103,20 @@ export function registerRoutes(app: Express): Server {
               vs_currency: 'usd',
               days: 7,
               interval: 'hourly'
-            },
-            headers: {
-              'x-cg-demo-api-key': process.env.COINGECKO_API_KEY || '',
-              'accept': 'application/json'
             }
           }
         )
       ]);
 
-      res.json({
+      const response = {
         ...coinData.data,
         market_chart: marketChart.data
-      });
+      };
+
+      res.json(response);
     } catch (error: any) {
-      console.error('Coin details error:', error);
-      res.status(500).json({ error: error.message || 'Failed to fetch coin details' });
+      console.error('Coin details error:', error.response?.data || error.message);
+      res.status(error.response?.status || 500).json({ error: error.message || 'Failed to fetch coin details' });
     }
   });
 
@@ -143,12 +128,7 @@ export function registerRoutes(app: Express): Server {
         return res.json(cache.trending.data);
       }
 
-      const response = await axios.get('https://api.coingecko.com/api/v3/search/trending', {
-        headers: {
-          'x-cg-demo-api-key': process.env.COINGECKO_API_KEY || '',
-          'accept': 'application/json'
-        }
-      });
+      const response = await axios.get('https://api.coingecko.com/api/v3/search/trending');
 
       cache.trending = {
         data: response.data,
@@ -157,8 +137,8 @@ export function registerRoutes(app: Express): Server {
 
       res.json(response.data);
     } catch (error: any) {
-      console.error('Trending error:', error);
-      res.status(500).json({ error: error.message || 'Failed to fetch trending coins' });
+      console.error('Trending error:', error.response?.data || error.message);
+      res.status(error.response?.status || 500).json({ error: error.message || 'Failed to fetch trending coins' });
     }
   });
 
