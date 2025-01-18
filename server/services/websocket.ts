@@ -18,15 +18,28 @@ export class WebSocketManager {
       return;
     }
 
-    this.wss = new WebSocketServer({ server });
+    // Create WebSocket server with proper upgrade handling
+    this.wss = new WebSocketServer({ 
+      noServer: true,
+      perMessageDeflate: false
+    });
 
-    this.wss.on('connection', (ws: WebSocket, req) => {
+    // Handle upgrade separately to properly handle vite-hmr
+    server.on('upgrade', (request, socket, head) => {
       // Skip vite-hmr connections
-      if (req.headers['sec-websocket-protocol']?.includes('vite-hmr')) {
+      if (request.headers['sec-websocket-protocol']?.includes('vite-hmr')) {
         console.log('[WebSocket] Skipping vite-hmr connection');
         return;
       }
 
+      if (!this.wss) return;
+
+      this.wss.handleUpgrade(request, socket, head, (ws) => {
+        this.wss!.emit('connection', ws, request);
+      });
+    });
+
+    this.wss.on('connection', (ws: WebSocket) => {
       console.log('[WebSocket Manager] New client connected');
 
       // Initialize connection state
@@ -35,6 +48,17 @@ export class WebSocketManager {
 
       ws.on('pong', () => {
         ws.isAlive = true;
+      });
+
+      ws.on('message', (data) => {
+        try {
+          const message = JSON.parse(data.toString());
+          if (message.type === 'ping') {
+            this.sendToClient(ws, { type: 'pong' });
+          }
+        } catch (error) {
+          console.error('[WebSocket Manager] Error processing message:', error);
+        }
       });
 
       ws.on('close', () => {
