@@ -1,10 +1,11 @@
-import { FC, useState } from "react";
+import { FC, useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, ArrowUp, ArrowDown, TrendingUp, Info, Home, ChartPieIcon, MessagesSquare, BookOpen } from "lucide-react";
 import { formatDistance } from "date-fns";
 import { Link } from "wouter";
 import Navbar from "@/components/Navbar";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -65,25 +66,88 @@ interface CoinDetails {
 const ProjectPage: FC = () => {
   const [selectedCoin, setSelectedCoin] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const { toast } = useToast();
 
-  const { data: marketData, isLoading: isLoadingMarket } = useQuery<Coin[]>({
+  // Debug logs for API calls
+  const { data: marketData, isLoading: isLoadingMarket, error: marketError } = useQuery<Coin[]>({
     queryKey: ['/api/coins/markets'],
     refetchInterval: 30000,
+    onError: (error) => {
+      console.error('Market data fetch error:', error);
+      toast({
+        title: "Error fetching market data",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
-  const { data: selectedCoinData, isLoading: isLoadingCoinDetails } = useQuery<CoinDetails>({
-    queryKey: [`/api/coins/${selectedCoin}`],
-    enabled: !!selectedCoin && dialogOpen,
-  });
-
-  const { data: trendingData, isLoading: isLoadingTrending } = useQuery<{ coins: Array<{ item: any }> }>({
+  const { data: trendingData, isLoading: isLoadingTrending, error: trendingError } = useQuery<{ coins: Array<{ item: any }> }>({
     queryKey: ['/api/trending'],
     refetchInterval: 30000,
+    onError: (error) => {
+      console.error('Trending data fetch error:', error);
+      toast({
+        title: "Error fetching trending data",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
-  // Debug logs
-  console.log('Selected Coin:', selectedCoin);
-  console.log('Selected Coin Data:', selectedCoinData);
+  // Debug selected coin data
+  const { data: selectedCoinData, isLoading: isLoadingCoinDetails, error: coinDetailsError } = useQuery<CoinDetails>({
+    queryKey: [`/api/coins/${selectedCoin}`],
+    enabled: !!selectedCoin && dialogOpen,
+    onSuccess: (data) => {
+      console.log('Selected coin data:', data);
+    },
+    onError: (error) => {
+      console.error('Coin details fetch error:', error);
+      toast({
+        title: "Error fetching coin details",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Debug effect for state changes
+  useEffect(() => {
+    if (selectedCoin) {
+      console.log('Selected coin changed to:', selectedCoin);
+    }
+  }, [selectedCoin]);
+
+  useEffect(() => {
+    if (dialogOpen) {
+      console.log('Dialog opened for coin:', selectedCoin);
+    }
+  }, [dialogOpen]);
+
+  // Debug logs for data processing
+  useEffect(() => {
+    if (marketData) {
+      console.log('Market data updated:', {
+        totalCoins: marketData.length,
+        firstCoin: marketData[0],
+      });
+    }
+  }, [marketData]);
+
+  useEffect(() => {
+    if (trendingData) {
+      console.log('Trending data updated:', {
+        totalTrending: trendingData.coins.length,
+        firstTrending: trendingData.coins[0],
+      });
+    }
+  }, [trendingData]);
+
+  // Error logging for API responses
+  if (marketError) console.error('Market Error:', marketError);
+  if (trendingError) console.error('Trending Error:', trendingError);
+  if (coinDetailsError) console.error('Coin Details Error:', coinDetailsError);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -350,9 +414,9 @@ const ProjectPage: FC = () => {
                 </div>
 
                 <DialogTitle className="text-2xl flex items-center gap-2 pr-32">
-                  <img 
-                    src={coins.find(c => c.id === selectedCoin)?.image} 
-                    alt={selectedCoinData.name} 
+                  <img
+                    src={coins.find(c => c.id === selectedCoin)?.image}
+                    alt={selectedCoinData.name}
                     className="w-8 h-8"
                   />
                   {selectedCoinData.name}
