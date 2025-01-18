@@ -24,23 +24,20 @@ interface CandleData {
   trades: number;
 }
 
-interface TokenPriceState {
-  // Store candles for each timeframe for each token
-  candlesByTimeframe: Record<string, Record<Timeframe, CandleData[]>>;
-  // Store current (incomplete) candles
-  currentCandles: Record<string, Record<Timeframe, CandleData>>;
-  // Methods
+interface PriceHistoryState {
+  priceHistory: Record<string, Record<Timeframe, CandleData[]>>;
+  initialized: Record<string, Record<Timeframe, boolean>>;
+  getPriceHistory: (tokenAddress: string, timeframe: Timeframe) => CandleData[];
   addPricePoint: (
-    tokenAddress: string, 
-    price: number, 
-    marketCap: number, 
+    tokenAddress: string,
+    price: number,
+    marketCap: number,
     volume: number,
     timestamp?: number
   ) => void;
-  getPriceHistory: (tokenAddress: string, timeframe: Timeframe) => CandleData[];
   initializePriceHistory: (
-    tokenAddress: string, 
-    initialPrice: number, 
+    tokenAddress: string,
+    initialPrice: number,
     marketCap: number,
     timestamp?: number
   ) => void;
@@ -49,24 +46,16 @@ interface TokenPriceState {
 // Keep max 1000 candles per timeframe
 const MAX_CANDLES = 1000;
 
-// Update batching configuration
-const UPDATE_BATCH_SIZE = 5;
-const UPDATE_DEBOUNCE = 2000;
-
-const batchUpdates: Record<string, Array<{
-  price: number;
-  marketCap: number;
-  volume: number;
-  timestamp: number;
-}>> = {};
-
-const updateTimeouts: Record<string, NodeJS.Timeout> = {};
-
-export const useTokenPriceStore = create<TokenPriceState>()(
+export const useTokenPriceStore = create<PriceHistoryState>()(
   devtools(
     (set, get) => ({
-      candlesByTimeframe: {},
-      currentCandles: {},
+      priceHistory: {},
+      initialized: {},
+
+      getPriceHistory: (tokenAddress: string, timeframe: Timeframe) => {
+        const state = get();
+        return state.priceHistory[tokenAddress]?.[timeframe] || [];
+      },
 
       addPricePoint: (
         tokenAddress: string,
@@ -75,35 +64,52 @@ export const useTokenPriceStore = create<TokenPriceState>()(
         volume: number,
         timestamp = Date.now()
       ) => {
-        if (!batchUpdates[tokenAddress]) {
-          batchUpdates[tokenAddress] = [];
-        }
+        set((state) => {
+          const newState = { ...state };
 
-        batchUpdates[tokenAddress].push({
-          price,
-          marketCap,
-          volume,
-          timestamp
+          if (!newState.priceHistory[tokenAddress]) {
+            return state; // Skip if not initialized
+          }
+
+          Object.entries(TIMEFRAMES).forEach(([timeframe, interval]) => {
+            const tf = timeframe as Timeframe;
+            const candleTime = Math.floor(timestamp / interval) * interval;
+            const candles = newState.priceHistory[tokenAddress][tf];
+
+            if (!candles) return;
+
+            const lastCandle = candles[candles.length - 1];
+
+            if (lastCandle && lastCandle.timestamp === candleTime) {
+              // Update existing candle
+              lastCandle.high = Math.max(lastCandle.high, price);
+              lastCandle.low = Math.min(lastCandle.low, price);
+              lastCandle.close = price;
+              lastCandle.volume += volume;
+              lastCandle.marketCap = marketCap;
+              lastCandle.trades += 1;
+            } else {
+              // Create new candle
+              candles.push({
+                timestamp: candleTime,
+                open: price,
+                high: price,
+                low: price,
+                close: price,
+                volume,
+                marketCap,
+                trades: 1
+              });
+
+              // Trim history
+              if (candles.length > MAX_CANDLES) {
+                newState.priceHistory[tokenAddress][tf] = candles.slice(-MAX_CANDLES);
+              }
+            }
+          });
+
+          return newState;
         });
-
-        if (updateTimeouts[tokenAddress]) {
-          clearTimeout(updateTimeouts[tokenAddress]);
-        }
-
-        if (batchUpdates[tokenAddress].length >= UPDATE_BATCH_SIZE) {
-          processUpdates(tokenAddress, set, get);
-        } else {
-          updateTimeouts[tokenAddress] = setTimeout(() => {
-            processUpdates(tokenAddress, set, get);
-          }, UPDATE_DEBOUNCE);
-        }
-      },
-
-      getPriceHistory: (tokenAddress: string, timeframe: Timeframe) => {
-        const state = get();
-        const history = state.candlesByTimeframe[tokenAddress]?.[timeframe] || [];
-        const currentCandle = state.currentCandles[tokenAddress]?.[timeframe];
-        return currentCandle ? [...history, currentCandle] : history;
       },
 
       initializePriceHistory: (
@@ -113,17 +119,18 @@ export const useTokenPriceStore = create<TokenPriceState>()(
         timestamp = Date.now()
       ) => {
         set((state) => {
-          if (state.candlesByTimeframe[tokenAddress]) {
+          // Skip if already initialized
+          if (state.initialized[tokenAddress]) {
             return state;
           }
 
-          const newCandles: Record<Timeframe, CandleData> = {} as Record<Timeframe, CandleData>;
+          const newPriceHistory: Record<Timeframe, CandleData[]> = {} as Record<Timeframe, CandleData[]>;
 
-          // Initialize current candles for all timeframes
-          Object.entries(TIMEFRAMES).forEach(([timeframe, interval]) => {
-            const candleTime = Math.floor(timestamp / interval) * interval;
-            newCandles[timeframe as Timeframe] = {
-              timestamp: candleTime,
+          // Initialize empty arrays for all timeframes
+          Object.entries(TIMEFRAMES).forEach(([timeframe]) => {
+            const tf = timeframe as Timeframe;
+            newPriceHistory[tf] = [{
+              timestamp: Math.floor(timestamp / TIMEFRAMES[tf]) * TIMEFRAMES[tf],
               open: initialPrice,
               high: initialPrice,
               low: initialPrice,
@@ -131,95 +138,23 @@ export const useTokenPriceStore = create<TokenPriceState>()(
               volume: 0,
               marketCap,
               trades: 0
-            };
+            }];
           });
 
           return {
-            candlesByTimeframe: {
-              ...state.candlesByTimeframe,
-              [tokenAddress]: Object.fromEntries(
-                Object.keys(TIMEFRAMES).map(tf => [tf, []])
-              )
+            ...state,
+            priceHistory: {
+              ...state.priceHistory,
+              [tokenAddress]: newPriceHistory
             },
-            currentCandles: {
-              ...state.currentCandles,
-              [tokenAddress]: newCandles
+            initialized: {
+              ...state.initialized,
+              [tokenAddress]: true
             }
           };
         });
-      },
+      }
     }),
     { name: 'token-price-store' }
   )
 );
-
-function processUpdates(
-  tokenAddress: string,
-  set: any,
-  get: any
-) {
-  const updates = batchUpdates[tokenAddress];
-  if (!updates?.length) return;
-
-  // Sort updates by timestamp
-  updates.sort((a, b) => a.timestamp - b.timestamp);
-
-  set((state: TokenPriceState) => {
-    const newState = { ...state };
-    const tokenCandles = newState.currentCandles[tokenAddress];
-    if (!tokenCandles) return newState;
-
-    // Process updates for each timeframe
-    Object.entries(TIMEFRAMES).forEach(([timeframe, interval]) => {
-      const tf = timeframe as Timeframe;
-      const currentCandle = tokenCandles[tf];
-
-      updates.forEach(update => {
-        const candleTime = Math.floor(update.timestamp / interval) * interval;
-
-        // If update belongs to a new candle
-        if (candleTime !== currentCandle.timestamp) {
-          // Save current candle to history
-          if (!newState.candlesByTimeframe[tokenAddress][tf]) {
-            newState.candlesByTimeframe[tokenAddress][tf] = [];
-          }
-          newState.candlesByTimeframe[tokenAddress][tf].push(currentCandle);
-
-          // Trim history to keep only MAX_CANDLES
-          if (newState.candlesByTimeframe[tokenAddress][tf].length > MAX_CANDLES) {
-            newState.candlesByTimeframe[tokenAddress][tf] = 
-              newState.candlesByTimeframe[tokenAddress][tf].slice(-MAX_CANDLES);
-          }
-
-          // Start new candle
-          tokenCandles[tf] = {
-            timestamp: candleTime,
-            open: update.price,
-            high: update.price,
-            low: update.price,
-            close: update.price,
-            volume: update.volume,
-            marketCap: update.marketCap,
-            trades: 1
-          };
-        } else {
-          // Update current candle
-          tokenCandles[tf] = {
-            ...tokenCandles[tf],
-            high: Math.max(tokenCandles[tf].high, update.price),
-            low: Math.min(tokenCandles[tf].low, update.price),
-            close: update.price,
-            volume: tokenCandles[tf].volume + update.volume,
-            marketCap: update.marketCap,
-            trades: tokenCandles[tf].trades + 1
-          };
-        }
-      });
-    });
-
-    // Clear processed updates
-    batchUpdates[tokenAddress] = [];
-
-    return newState;
-  });
-}

@@ -1,0 +1,98 @@
+You almost certainly need to look at how your store (or higher-level code) is fetching/updating data. The chart code as shown does not appear to cause an infinite loop by itself. Typically, the error is coming from a repeated store update or misconfigured effect that’s outside the chart.
+
+Below are the key debugging steps and what specifically to look for:
+
+1. Temporarily Remove the Store & Use Static Data
+Comment out everything related to useTokenPriceStore and priceHistory.
+Replace it with static data or an empty array. For instance:
+tsx
+Copy
+// const priceHistory = useTokenPriceStore(...);
+const priceHistory = []; // Hard-code an empty array or sample data
+See if the infinite render/“maximum update depth” error goes away.
+If the error disappears when you remove the store, it proves the store is causing repeated updates (or there’s some fetch logic that’s spamming new data).
+If the error remains even with the store removed, then something else in your component tree is causing the loop (much rarer).
+2. Double-Check Your Fetch or Store Logic
+If the store is to blame, there’s probably a pattern like this:
+
+ts
+Copy
+// Pseudocode: This is what *causes* infinite loops
+function getPriceHistory(tokenAddress, timeframe) {
+  // 1. fetch or setState every time this function is called
+  // 2. returns new data (or triggers side effects) each render
+}
+You want to avoid automatically fetching or calling setState inside getPriceHistory(...) every time it’s accessed.
+
+Safe Pattern Example (Zustand)
+Here’s a “safe” approach for Zustand-like stores:
+
+ts
+Copy
+// store.ts
+import create from 'zustand';
+
+export const useTokenPriceStore = create((set, get) => ({
+  priceHistory: {},
+  
+  // Only fetch if we don't already have data:
+  fetchPriceHistory: async (tokenAddress, timeframe) => {
+    if (get().priceHistory[tokenAddress]?.[timeframe]) return; 
+    // fetch once
+    const data = await actuallyFetchData(tokenAddress, timeframe);
+    set(state => {
+      if (!state.priceHistory[tokenAddress]) {
+        state.priceHistory[tokenAddress] = {};
+      }
+      state.priceHistory[tokenAddress][timeframe] = data;
+    });
+  },
+
+  // Return from store without re-fetching
+  getPriceHistory: (tokenAddress, timeframe) => {
+    return get().priceHistory[tokenAddress]?.[timeframe] ?? [];
+  },
+}));
+Then in the component:
+
+tsx
+Copy
+const TokenChart = ({ tokenAddress }) => {
+  const { fetchPriceHistory, getPriceHistory } = useTokenPriceStore();
+
+  // Only fetch data *once* per timeframe/address
+  useEffect(() => {
+    fetchPriceHistory(tokenAddress, selectedTimeframe);
+  }, [fetchPriceHistory, tokenAddress, selectedTimeframe]);
+
+  // get your data from the store (this does NOT cause a new fetch)
+  const priceHistory = getPriceHistory(tokenAddress, selectedTimeframe);
+
+  // Render chart with priceHistory
+  ...
+};
+This ensures we do not keep triggering fetches or store updates on every single render.
+
+3. Log Store Updates to Verify a Loop
+If you suspect the store is updating constantly, add a console log inside the store or subscribe to changes:
+
+ts
+Copy
+useTokenPriceStore.subscribe((newState, prevState) => {
+  console.log('Store updated');
+});
+If you see that message spamming the console nonstop, your store is definitely re‑updating in a loop.
+
+4. Check for Other Effects or Parent Re-Renders
+If your store is correct, then check:
+
+Parent Components: Are you calling setState in a parent’s useEffect or useLayoutEffect each time the child’s props or some store data changes?
+Timeframe: Are you calling setSelectedTimeframe in some effect that runs every render, effectively toggling it back and forth?
+Use console logs or the React DevTools Profiler to see what triggers re-renders.
+
+Summary
+Remove the store usage temporarily to confirm whether the chart alone is stable.
+If the chart alone works fine, fix your store so it doesn’t cause new fetches or setState calls each time getPriceHistory is invoked.
+Ensure you only fetch once per (tokenAddress, timeframe) change.
+If the store is correct, investigate parent components or other effects that might cause repeated state updates.
+Following these steps should get rid of the infinite loop error.
