@@ -1,7 +1,7 @@
 import { FC, useEffect, useRef, useMemo } from 'react';
-import { createChart, ColorType, CrosshairMode, TimeRange } from 'lightweight-charts';
+import { createChart, type IChartApi, type ISeriesApi, type CandlestickSeriesPartialOptions, type HistogramSeriesPartialOptions } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
-import { useTokenPriceStore, TIMEFRAMES, type Timeframe } from '@/lib/price-history';
+import { useTokenPriceStore, TIMEFRAMES } from '@/lib/price-history';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -10,14 +10,18 @@ interface TokenChartProps {
   height?: number;
 }
 
+type TimeframeKey = keyof typeof TIMEFRAMES;
+
 const TokenChart: FC<TokenChartProps> = ({ 
   tokenAddress,
   height = 400
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<any>(null);
-  const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>('5m');
-  
+  const chartRef = useRef<IChartApi | null>(null);
+  const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const [selectedTimeframe, setSelectedTimeframe] = useState<TimeframeKey>('5m');
+
   const priceHistory = useTokenPriceStore(state => 
     state.getPriceHistory(tokenAddress, selectedTimeframe)
   );
@@ -41,7 +45,7 @@ const TokenChart: FC<TokenChartProps> = ({
     // Initialize chart
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { color: 'transparent' },
+        background: { type: 'solid', color: 'transparent' },
         textColor: '#D9D9D9',
       },
       grid: {
@@ -49,7 +53,7 @@ const TokenChart: FC<TokenChartProps> = ({
         horzLines: { color: 'rgba(42, 46, 57, 0.3)' },
       },
       crosshair: {
-        mode: CrosshairMode.Normal,
+        mode: 1, // CrosshairMode.Normal
       },
       rightPriceScale: {
         borderColor: 'rgba(197, 203, 206, 0.8)',
@@ -78,12 +82,13 @@ const TokenChart: FC<TokenChartProps> = ({
       priceFormat: {
         type: 'volume',
       },
+      overlay: true,
       priceScaleId: '', // Set as an overlay
       scaleMargins: {
         top: 0.8,
         bottom: 0,
       },
-    });
+    } as HistogramSeriesPartialOptions);
 
     // Set the data
     candlestickSeries.setData(chartData);
@@ -98,24 +103,37 @@ const TokenChart: FC<TokenChartProps> = ({
     // Fit content
     chart.timeScale().fitContent();
 
-    // Save reference
+    // Save references
     chartRef.current = chart;
+    candlestickSeriesRef.current = candlestickSeries;
+    volumeSeriesRef.current = volumeSeries;
+
+    // Handle window resize
+    const handleResize = () => {
+      if (containerRef.current && chart) {
+        chart.applyOptions({ 
+          width: containerRef.current.clientWidth 
+        });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
 
     // Cleanup
     return () => {
-      chart.remove();
+      window.removeEventListener('resize', handleResize);
+      if (chart) {
+        chart.remove();
+      }
     };
   }, [containerRef.current, height]);
 
   // Update data when it changes
   useEffect(() => {
-    if (!chartRef.current) return;
+    if (!candlestickSeriesRef.current || !volumeSeriesRef.current) return;
 
-    const candlestickSeries = chartRef.current.getSeries()[0];
-    const volumeSeries = chartRef.current.getSeries()[1];
-
-    candlestickSeries.setData(chartData);
-    volumeSeries.setData(
+    candlestickSeriesRef.current.setData(chartData);
+    volumeSeriesRef.current.setData(
       chartData.map(d => ({
         time: d.time,
         value: d.volume,
@@ -129,7 +147,7 @@ const TokenChart: FC<TokenChartProps> = ({
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-white">Price Chart</h3>
         <div className="flex gap-2">
-          {(Object.keys(TIMEFRAMES) as Timeframe[]).map((tf) => (
+          {(Object.keys(TIMEFRAMES) as TimeframeKey[]).map((tf) => (
             <Button
               key={tf}
               variant={selectedTimeframe === tf ? "default" : "outline"}
