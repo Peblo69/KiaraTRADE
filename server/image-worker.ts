@@ -1,6 +1,6 @@
 import { db } from "@db";
 import { coinImages, coinMappings } from "@db/schema";
-import { eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import axios from 'axios';
 
 // In-memory cache for runtime optimization
@@ -9,8 +9,8 @@ const priorityQueue = new Set<string>();
 let isProcessingQueue = false;
 
 // Configuration
-const RATE_LIMIT = 50; // CoinGecko rate limit: 50 requests per minute
-const DELAY_BETWEEN_REQUESTS = 1200; // 1.2 seconds between requests
+const RATE_LIMIT = 1800; // KuCoin allows 1800 requests per minute
+const DELAY_BETWEEN_REQUESTS = 50; // 50ms between requests (~1200 requests/minute)
 const MAX_RETRIES = 3;
 const RATE_LIMIT_DELAY = 61000; // 61 seconds when rate limit is hit
 
@@ -51,8 +51,6 @@ async function retry<T>(
   try {
     return await operation();
   } catch (error: any) {
-    console.log(`[Image Worker] ${context} - Operation failed:`, error.message);
-
     if (error?.response?.status === 429) {
       console.log(`[Image Worker] ${context} - Rate limit hit, waiting ${RATE_LIMIT_DELAY/1000}s...`);
       await sleep(RATE_LIMIT_DELAY);
@@ -67,6 +65,66 @@ async function retry<T>(
     }
 
     throw error;
+  }
+}
+
+// Fast database-only image check
+async function getStoredImage(symbol: string): Promise<string | null> {
+  try {
+    // Check common tokens first (fastest path)
+    if (COMMON_TOKENS[symbol]) {
+      const coingeckoId = COMMON_TOKENS[symbol];
+
+      // Check memory cache
+      if (imageCache.has(coingeckoId)) {
+        return imageCache.get(coingeckoId) || null;
+      }
+
+      // Check database directly
+      const image = await db
+        .select()
+        .from(coinImages)
+        .where(eq(coinImages.coingecko_id, coingeckoId))
+        .limit(1);
+
+      if (image.length > 0) {
+        imageCache.set(coingeckoId, image[0].image_url);
+        return image[0].image_url;
+      }
+    }
+
+    // Check database for non-common tokens
+    const mapping = await db
+      .select()
+      .from(coinMappings)
+      .where(eq(coinMappings.kucoin_symbol, symbol))
+      .limit(1);
+
+    if (mapping.length > 0) {
+      const coingeckoId = mapping[0].coingecko_id;
+
+      // Check memory cache
+      if (imageCache.has(coingeckoId)) {
+        return imageCache.get(coingeckoId) || null;
+      }
+
+      // Check database
+      const image = await db
+        .select()
+        .from(coinImages)
+        .where(eq(coinImages.coingecko_id, coingeckoId))
+        .limit(1);
+
+      if (image.length > 0) {
+        imageCache.set(coingeckoId, image[0].image_url);
+        return image[0].image_url;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`[Image Worker] Database error for ${symbol}:`, error);
+    return null;
   }
 }
 
@@ -95,9 +153,9 @@ async function processQueue(): Promise<void> {
     const tokens = Array.from(priorityQueue);
     for (const symbol of tokens) {
       try {
-        // Check if already in cache or database before processing
-        const existingImage = await checkExistingImage(symbol);
-        if (existingImage) {
+        // Check if already in database before processing
+        const storedImage = await getStoredImage(symbol);
+        if (storedImage) {
           console.log(`[Image Worker] Image already exists for ${symbol}, skipping processing`);
           priorityQueue.delete(symbol);
           continue;
@@ -114,65 +172,6 @@ async function processQueue(): Promise<void> {
     isProcessingQueue = false;
     console.log('[Image Worker] Queue processing completed');
   }
-}
-
-// Check if image already exists in cache or database
-async function checkExistingImage(symbol: string): Promise<boolean> {
-  // Check common tokens first
-  if (COMMON_TOKENS[symbol]) {
-    const coingeckoId = COMMON_TOKENS[symbol];
-
-    // Check memory cache
-    if (imageCache.has(coingeckoId)) {
-      console.log(`[Image Worker] Found ${symbol} in memory cache`);
-      return true;
-    }
-
-    // Check database
-    const images = await db
-      .select()
-      .from(coinImages)
-      .where(eq(coinImages.coingecko_id, coingeckoId))
-      .limit(1);
-
-    if (images.length > 0) {
-      console.log(`[Image Worker] Found ${symbol} in database`);
-      imageCache.set(coingeckoId, images[0].image_url);
-      return true;
-    }
-  }
-
-  // Check database for non-common tokens
-  const mapping = await db
-    .select()
-    .from(coinMappings)
-    .where(eq(coinMappings.kucoin_symbol, symbol))
-    .limit(1);
-
-  if (mapping.length > 0) {
-    const coingeckoId = mapping[0].coingecko_id;
-
-    // Check memory cache
-    if (imageCache.has(coingeckoId)) {
-      console.log(`[Image Worker] Found ${symbol} in memory cache`);
-      return true;
-    }
-
-    // Check database
-    const images = await db
-      .select()
-      .from(coinImages)
-      .where(eq(coinImages.coingecko_id, coingeckoId))
-      .limit(1);
-
-    if (images.length > 0) {
-      console.log(`[Image Worker] Found ${symbol} in database`);
-      imageCache.set(coingeckoId, images[0].image_url);
-      return true;
-    }
-  }
-
-  return false;
 }
 
 // Process a single token
@@ -196,11 +195,9 @@ async function processToken(symbol: string): Promise<void> {
 
 // Get CoinGecko ID for a symbol
 async function getCoingeckoId(symbol: string): Promise<string | null> {
-  console.log(`[Image Worker] Getting CoinGecko ID for ${symbol}`);
   try {
     // Check common tokens first
     if (COMMON_TOKENS[symbol]) {
-      console.log(`[Image Worker] Found ${symbol} in common tokens mapping`);
       return COMMON_TOKENS[symbol];
     }
 
@@ -212,13 +209,11 @@ async function getCoingeckoId(symbol: string): Promise<string | null> {
       .limit(1);
 
     if (mapping.length > 0) {
-      console.log(`[Image Worker] Found ${symbol} in database mapping`);
       return mapping[0].coingecko_id;
     }
 
     // Fetch from CoinGecko if not in database
     const cleanSymbol = symbol.replace('-USDT', '').toLowerCase();
-    console.log(`[Image Worker] Searching CoinGecko for ${cleanSymbol}`);
 
     const response = await retry(
       async () => axios.get(`https://api.coingecko.com/api/v3/search?query=${cleanSymbol}`),
@@ -243,7 +238,6 @@ async function getCoingeckoId(symbol: string): Promise<string | null> {
       }
 
       if (match) {
-        console.log(`[Image Worker] Found match for ${symbol}: ${match.id}`);
         // Store mapping
         await db.insert(coinMappings).values({
           kucoin_symbol: symbol,
@@ -256,7 +250,6 @@ async function getCoingeckoId(symbol: string): Promise<string | null> {
       }
     }
 
-    console.log(`[Image Worker] No match found for ${symbol}`);
     return null;
   } catch (error) {
     console.error(`[Image Worker] Error getting CoinGecko ID for ${symbol}:`, error);
@@ -266,7 +259,6 @@ async function getCoingeckoId(symbol: string): Promise<string | null> {
 
 // Fetch and store image for a token
 async function fetchAndStoreImage(coingeckoId: string, symbol: string): Promise<void> {
-  console.log(`[Image Worker] Fetching image for ${coingeckoId} (${symbol})`);
   try {
     const response = await retry(
       async () => axios.get(`https://api.coingecko.com/api/v3/coins/${coingeckoId}`),
@@ -280,8 +272,6 @@ async function fetchAndStoreImage(coingeckoId: string, symbol: string): Promise<
       console.log(`[Image Worker] No image found for ${coingeckoId}`);
       return;
     }
-
-    console.log(`[Image Worker] Got image URL for ${coingeckoId}: ${imageUrl}`);
 
     // Store in database
     await db.insert(coinImages).values({
@@ -305,15 +295,29 @@ async function fetchAndStoreImage(coingeckoId: string, symbol: string): Promise<
   }
 }
 
+// Get token image with fast database check
+export async function getTokenImage(symbol: string): Promise<string> {
+  try {
+    // Try to get from database first (fast path)
+    const storedImage = await getStoredImage(symbol);
+    if (storedImage) {
+      return storedImage;
+    }
+
+    // Queue for background processing if not found
+    addPriorityToken(symbol);
+    return '';
+  } catch (error) {
+    console.error(`[Image Worker] Error getting token image for ${symbol}:`, error);
+    return '';
+  }
+}
+
 // Basic initialization function
 export async function startImageWorker(): Promise<void> {
   console.log('[Image Worker] Starting with basic configuration...');
 
   try {
-    // Verify database connection
-    await db.select().from(coinMappings).limit(1);
-    console.log('[Image Worker] Database connection verified');
-
     // Clear existing caches
     imageCache.clear();
     priorityQueue.clear();
@@ -341,82 +345,5 @@ export async function startImageWorker(): Promise<void> {
   } catch (error) {
     console.error('[Image Worker] Initialization error:', error);
     throw error;
-  }
-}
-
-// Get token image with priority queueing
-export async function getTokenImage(symbol: string): Promise<string> {
-  console.log(`[Image Worker] Getting image for ${symbol}`);
-  try {
-    // Check common tokens first
-    if (COMMON_TOKENS[symbol]) {
-      const coingeckoId = COMMON_TOKENS[symbol];
-      console.log(`[Image Worker] Found ${symbol} in common tokens`);
-
-      // Check memory cache
-      if (imageCache.has(coingeckoId)) {
-        console.log(`[Image Worker] Found ${symbol} in memory cache`);
-        return imageCache.get(coingeckoId)!;
-      }
-
-      // Check database
-      const images = await db
-        .select()
-        .from(coinImages)
-        .where(eq(coinImages.coingecko_id, coingeckoId))
-        .limit(1);
-
-      if (images.length > 0) {
-        console.log(`[Image Worker] Found ${symbol} in database`);
-        imageCache.set(coingeckoId, images[0].image_url);
-        return images[0].image_url;
-      }
-
-      // Queue for fetching
-      console.log(`[Image Worker] Queueing ${symbol} for fetching`);
-      addPriorityToken(symbol);
-      return '';
-    }
-
-    const mappings = await db
-      .select()
-      .from(coinMappings)
-      .where(eq(coinMappings.kucoin_symbol, symbol))
-      .limit(1);
-
-    if (mappings.length === 0) {
-      console.log(`[Image Worker] No mapping found for ${symbol}, queueing`);
-      addPriorityToken(symbol);
-      return '';
-    }
-
-    const coingeckoId = mappings[0].coingecko_id;
-
-    // Check memory cache
-    if (imageCache.has(coingeckoId)) {
-      console.log(`[Image Worker] Found ${symbol} in memory cache`);
-      return imageCache.get(coingeckoId)!;
-    }
-
-    // Check database
-    const images = await db
-      .select()
-      .from(coinImages)
-      .where(eq(coinImages.coingecko_id, coingeckoId))
-      .limit(1);
-
-    if (images.length > 0) {
-      console.log(`[Image Worker] Found ${symbol} in database`);
-      imageCache.set(coingeckoId, images[0].image_url);
-      return images[0].image_url;
-    }
-
-    // Queue for fetching if not found
-    console.log(`[Image Worker] Queueing ${symbol} for fetching`);
-    addPriorityToken(symbol);
-    return '';
-  } catch (error) {
-    console.error(`[Image Worker] Error getting token image for ${symbol}:`, error);
-    return '';
   }
 }
