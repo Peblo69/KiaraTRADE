@@ -1,2 +1,2 @@
-// File intentionally emptied - deprecated WebSocket implementation removed
+// Base WebSocket implementation will be added later
 export {};

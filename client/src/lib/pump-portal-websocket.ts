@@ -1,2 +1,2 @@
-// File intentionally emptied - deprecated WebSocket implementation removed
+// Pump Portal WebSocket implementation will be added later
 export {};

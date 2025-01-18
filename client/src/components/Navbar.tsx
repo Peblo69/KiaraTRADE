@@ -12,6 +12,20 @@ export default function Navbar() {
   const [, setLocation] = useLocation();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [displayInfo, setDisplayInfo] = useState({ text: 'Connect Wallet', shortAddress: '' });
+
+  // Update display info when wallet connection changes
+  useEffect(() => {
+    if (!connected || !publicKey) {
+      setDisplayInfo({ text: 'Connect Wallet', shortAddress: '' });
+    } else {
+      const address = publicKey.toBase58();
+      setDisplayInfo({
+        text: '',
+        shortAddress: `${address.slice(0, 4)}...${address.slice(-4)}`
+      });
+    }
+  }, [connected, publicKey]);
 
   const handleWalletClick = useCallback(async () => {
     if (connected) {
@@ -31,7 +45,6 @@ export default function Navbar() {
       return;
     }
 
-    // Check for Phantom wallet
     const phantom = window?.phantom?.solana;
 
     if (!phantom) {
@@ -76,10 +89,9 @@ export default function Navbar() {
         description: "You have been logged out successfully",
       });
 
-      // Clear any session data
       sessionStorage.removeItem('isAuthenticated');
       sessionStorage.removeItem('shouldPlayInteractive');
-      window.location.href = '/';
+      setLocation('/');
     } catch (error) {
       toast({
         title: "Logout failed",
@@ -87,26 +99,13 @@ export default function Navbar() {
         variant: "destructive",
       });
     }
-  }, [toast]);
-
-  // Memoize derived values
-  const walletDisplayInfo = useCallback(() => {
-    if (!connected || !publicKey) return { text: 'Connect Wallet', shortAddress: '' };
-    const address = publicKey.toBase58();
-    return {
-      text: '',
-      shortAddress: `${address.slice(0, 4)}...${address.slice(-4)}`
-    };
-  }, [connected, publicKey]);
-
-  const { text, shortAddress } = walletDisplayInfo();
+  }, [toast, setLocation]);
 
   return (
     <>
       <nav className="border-b border-purple-800/20 backdrop-blur-sm">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
-            {/* Logo and Brand */}
             <div className="flex items-center space-x-4">
               <div className="h-16 w-16 flex items-center">
                 <img 
@@ -124,7 +123,8 @@ export default function Navbar() {
                   backgroundClip: 'text',
                   color: 'transparent',
                   textShadow: '0 0 10px rgba(255, 0, 255, 0.3)',
-                  animation: 'shine 3s linear infinite, float 2s ease-in-out infinite'
+                  letterSpacing: '0.15em',
+                  filter: 'drop-shadow(0 0 10px rgba(96, 239, 255, 0.2))'
                 }}
               >
                 KIARA_AI
@@ -164,10 +164,10 @@ export default function Navbar() {
                 {connected ? (
                   <span className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse" />
-                    {shortAddress}
+                    {displayInfo.shortAddress}
                   </span>
                 ) : (
-                  text
+                  displayInfo.text
                 )}
               </Button>
 

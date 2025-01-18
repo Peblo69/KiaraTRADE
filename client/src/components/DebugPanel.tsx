@@ -1,4 +1,4 @@
-import { FC, useEffect, useState, useRef } from 'react';
+import { FC, useEffect, useState, useRef, useCallback } from 'react';
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -25,14 +25,11 @@ export const DebugPanel: FC = () => {
     stateUpdates: 0,
     queryUpdates: 0,
   });
+
+  const logsRef = useRef<LogMessage[]>([]);
   const metricsRef = useRef(metrics);
 
-  useEffect(() => {
-    // Override console methods to capture logs
-    const originalLog = console.log;
-    const originalError = console.error;
-    const originalWarn = console.warn;
-
+  const addLog = useCallback((type: LogMessage['type'], ...args: any[]) => {
     const formatValue = (value: any): string => {
       if (value === null) return 'null';
       if (value === undefined) return 'undefined';
@@ -50,33 +47,27 @@ export const DebugPanel: FC = () => {
       return String(value);
     };
 
-    const addLog = (type: LogMessage['type'], ...args: any[]) => {
-      const formattedMessage = args
-        .map(formatValue)
-        .filter(Boolean)
-        .join(' ');
+    const formattedMessage = args
+      .map(formatValue)
+      .filter(Boolean)
+      .join(' ');
 
-      if (formattedMessage) {
-        setLogs(prev => [
-          ...prev,
-          {
-            timestamp: new Date().toLocaleTimeString(),
-            message: formattedMessage,
-            type
-          }
-        ].slice(-100)); // Keep last 100 logs
-      }
-    };
-
-    // Track React Query cache updates
-    const unsubscribe = queryClient.getQueryCache().subscribe(() => {
-      metricsRef.current = {
-        ...metricsRef.current,
-        queryUpdates: metricsRef.current.queryUpdates + 1
+    if (formattedMessage) {
+      const newLog = {
+        timestamp: new Date().toLocaleTimeString(),
+        message: formattedMessage,
+        type
       };
-      setMetrics(metricsRef.current);
-      addLog('info', '[React Query] Cache updated');
-    });
+
+      logsRef.current = [...logsRef.current, newLog].slice(-100);
+      setLogs(logsRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalWarn = console.warn;
 
     // Override console methods
     console.log = (...args) => {
@@ -94,7 +85,17 @@ export const DebugPanel: FC = () => {
       addLog('warn', ...args);
     };
 
-    // Track component renders using a custom hook
+    // Track React Query cache updates
+    const unsubscribe = queryClient.getQueryCache().subscribe(() => {
+      metricsRef.current = {
+        ...metricsRef.current,
+        queryUpdates: metricsRef.current.queryUpdates + 1
+      };
+      setMetrics(metricsRef.current);
+      addLog('info', '[React Query] Cache updated');
+    });
+
+    // Track component renders
     const trackRender = (componentName: string) => {
       metricsRef.current = {
         ...metricsRef.current,
@@ -117,9 +118,11 @@ export const DebugPanel: FC = () => {
       delete (window as any).__trackRender;
       unsubscribe();
     };
-  }, []);
+  }, [addLog]);
 
-  const toggleVisibility = () => setIsVisible(!isVisible);
+  const toggleVisibility = useCallback(() => {
+    setIsVisible(prev => !prev);
+  }, []);
 
   if (!isVisible) {
     return (
@@ -134,32 +137,6 @@ export const DebugPanel: FC = () => {
     );
   }
 
-  const renderMetrics = () => (
-    <div className="mb-4 grid grid-cols-2 gap-4">
-      <Card className="p-2 bg-background/80">
-        <div className="flex items-center gap-2 mb-1">
-          <Activity className="h-4 w-4 text-blue-400" />
-          <span className="text-sm font-medium">React Query Updates</span>
-        </div>
-        <span className="text-xl font-bold">{metrics.queryUpdates}</span>
-      </Card>
-      <Card className="p-2 bg-background/80">
-        <div className="flex items-center gap-2 mb-1">
-          <Activity className="h-4 w-4 text-green-400" />
-          <span className="text-sm font-medium">Component Renders</span>
-        </div>
-        <div className="space-y-1">
-          {Object.entries(metrics.renders).map(([component, count]) => (
-            <div key={component} className="text-sm flex justify-between">
-              <span className="text-muted-foreground">{component}:</span>
-              <span className="font-medium">{count}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
-
   return (
     <div className="fixed bottom-4 right-4 z-50 w-[600px]">
       <Card className="p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -173,7 +150,29 @@ export const DebugPanel: FC = () => {
           </Button>
         </div>
 
-        {renderMetrics()}
+        <div className="mb-4 grid grid-cols-2 gap-4">
+          <Card className="p-2 bg-background/80">
+            <div className="flex items-center gap-2 mb-1">
+              <Activity className="h-4 w-4 text-blue-400" />
+              <span className="text-sm font-medium">React Query Updates</span>
+            </div>
+            <span className="text-xl font-bold">{metrics.queryUpdates}</span>
+          </Card>
+          <Card className="p-2 bg-background/80">
+            <div className="flex items-center gap-2 mb-1">
+              <Activity className="h-4 w-4 text-green-400" />
+              <span className="text-sm font-medium">Component Renders</span>
+            </div>
+            <div className="space-y-1">
+              {Object.entries(metrics.renders).map(([component, count]) => (
+                <div key={component} className="text-sm flex justify-between">
+                  <span className="text-muted-foreground">{component}:</span>
+                  <span className="font-medium">{count}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
 
         <ScrollArea className="h-[300px] rounded-md border">
           <div className="p-4 space-y-2">
@@ -189,9 +188,7 @@ export const DebugPanel: FC = () => {
                 } rounded p-2 whitespace-pre-wrap break-words`}
               >
                 <span className="opacity-50">[{log.timestamp}]</span>
-                <span className="ml-2">
-                  {log.message}
-                </span>
+                <span className="ml-2">{log.message}</span>
               </div>
             ))}
             {logs.length === 0 && (
