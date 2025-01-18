@@ -2,7 +2,6 @@ import { FC, useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, ArrowUp, ArrowDown, Search } from "lucide-react";
-import { formatDistance } from "date-fns";
 import Navbar from "@/components/Navbar";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -23,7 +22,6 @@ import {
 import {
   Pagination,
   PaginationContent,
-  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
@@ -67,6 +65,7 @@ interface ChartData {
 }
 
 const ITEMS_PER_PAGE = 20;
+const MAX_VISIBLE_PAGES = 5;
 
 const ProjectPage: FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
@@ -78,7 +77,7 @@ const ProjectPage: FC = () => {
   const { data: marketData, isLoading: isLoadingMarket } = useQuery<{ data: { ticker: KuCoinTicker[] } }>({
     queryKey: ['/api/coins/markets'],
     refetchInterval: 10000,
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Market data fetch error:', error);
       toast({
         title: "Error fetching market data",
@@ -94,7 +93,7 @@ const ProjectPage: FC = () => {
   }>({
     queryKey: [`/api/coins/${selectedSymbol}`],
     enabled: !!selectedSymbol && dialogOpen,
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Coin details fetch error:', error);
       toast({
         title: "Error fetching coin details",
@@ -127,6 +126,11 @@ const ProjectPage: FC = () => {
     return `${numChange >= 0 ? '+' : ''}${(numChange * 100).toFixed(2)}%`;
   };
 
+  const getIconUrl = (symbol: string) => {
+    const cleanSymbol = symbol.replace('-USDT', '').toLowerCase();
+    return `https://assets.staticimg.com/cms/media/1vCIT3bTK0tCY6jLsS0SY8uVGtBGHYFCyGmGGpWLj.svg`;
+  };
+
   const handleSymbolSelect = (symbol: string) => {
     setSelectedSymbol(symbol);
     setDialogOpen(true);
@@ -137,11 +141,39 @@ const ProjectPage: FC = () => {
     setTimeout(() => setSelectedSymbol(null), 300);
   };
 
+  // Generate pagination range with ellipsis
+  const getPaginationRange = (totalPages: number, currentPage: number) => {
+    if (totalPages <= MAX_VISIBLE_PAGES) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    const leftSide = Math.floor(MAX_VISIBLE_PAGES / 2);
+    const rightSide = totalPages - leftSide;
+
+    if (currentPage <= leftSide) {
+      return [...Array.from({ length: MAX_VISIBLE_PAGES - 1 }, (_, i) => i + 1), '...', totalPages];
+    }
+
+    if (currentPage >= rightSide) {
+      return [1, '...', ...Array.from({ length: MAX_VISIBLE_PAGES - 1 }, (_, i) => totalPages - (MAX_VISIBLE_PAGES - 2) + i)];
+    }
+
+    return [
+      1,
+      '...',
+      currentPage - 1,
+      currentPage,
+      currentPage + 1,
+      '...',
+      totalPages
+    ];
+  };
+
   if (isLoadingMarket) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="container mx-auto p-4">
+        <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
@@ -173,12 +205,14 @@ const ProjectPage: FC = () => {
     currentPage * ITEMS_PER_PAGE
   );
 
+  const paginationRange = getPaginationRange(totalPages, currentPage);
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="container mx-auto p-4 space-y-6">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Search Bar */}
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-4 mb-8">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -205,9 +239,16 @@ const ProjectPage: FC = () => {
                   className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg cursor-pointer"
                   onClick={() => handleSymbolSelect(ticker.symbol)}
                 >
-                  <div>
-                    <div className="font-medium">{ticker.symbol.replace('-USDT', '')}</div>
-                    <div className="text-sm text-muted-foreground">{formatPrice(ticker.last)}</div>
+                  <div className="flex items-center gap-2">
+                    <img 
+                      src={getIconUrl(ticker.symbol)}
+                      alt={ticker.symbol}
+                      className="w-6 h-6"
+                    />
+                    <div>
+                      <div className="font-medium">{ticker.symbol.replace('-USDT', '')}</div>
+                      <div className="text-sm text-muted-foreground">{formatPrice(ticker.last)}</div>
+                    </div>
                   </div>
                   <div className="text-green-500">{formatChange(ticker.changeRate)}</div>
                 </div>
@@ -228,9 +269,16 @@ const ProjectPage: FC = () => {
                   className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg cursor-pointer"
                   onClick={() => handleSymbolSelect(ticker.symbol)}
                 >
-                  <div>
-                    <div className="font-medium">{ticker.symbol.replace('-USDT', '')}</div>
-                    <div className="text-sm text-muted-foreground">{formatPrice(ticker.last)}</div>
+                  <div className="flex items-center gap-2">
+                    <img 
+                      src={getIconUrl(ticker.symbol)}
+                      alt={ticker.symbol}
+                      className="w-6 h-6"
+                    />
+                    <div>
+                      <div className="font-medium">{ticker.symbol.replace('-USDT', '')}</div>
+                      <div className="text-sm text-muted-foreground">{formatPrice(ticker.last)}</div>
+                    </div>
                   </div>
                   <div className="text-red-500">{formatChange(ticker.changeRate)}</div>
                 </div>
@@ -249,7 +297,7 @@ const ProjectPage: FC = () => {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">24h Volume</span>
                 <span className="font-medium">
-                  {formatVolume(tickers.reduce((sum, t) => sum + parseFloat(t.volValue), 0))}
+                  {formatVolume(tickers.reduce((sum: number, t) => sum + parseFloat(t.volValue), 0))}
                 </span>
               </div>
             </div>
@@ -263,12 +311,9 @@ const ProjectPage: FC = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Pair</TableHead>
-                  <TableHead className="text-right">Last Price</TableHead>
+                  <TableHead className="text-right">Price</TableHead>
                   <TableHead className="text-right">24h Change</TableHead>
-                  <TableHead className="text-right">24h High</TableHead>
-                  <TableHead className="text-right">24h Low</TableHead>
                   <TableHead className="text-right">24h Volume</TableHead>
-                  <TableHead className="text-right">Market Cap</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -278,8 +323,17 @@ const ProjectPage: FC = () => {
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => handleSymbolSelect(ticker.symbol)}
                   >
-                    <TableCell className="font-medium">
-                      {ticker.symbol.replace('-USDT', '')}
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <img 
+                          src={getIconUrl(ticker.symbol)}
+                          alt={ticker.symbol}
+                          className="w-6 h-6"
+                        />
+                        <span className="font-medium">
+                          {ticker.symbol.replace('-USDT', '')}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       {formatPrice(ticker.last)}
@@ -290,10 +344,7 @@ const ProjectPage: FC = () => {
                         {formatChange(ticker.changeRate)}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right">{formatPrice(ticker.high)}</TableCell>
-                    <TableCell className="text-right">{formatPrice(ticker.low)}</TableCell>
                     <TableCell className="text-right">{formatVolume(ticker.volValue)}</TableCell>
-                    <TableCell className="text-right">{formatVolume(parseFloat(ticker.vol) * parseFloat(ticker.last))}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -301,30 +352,36 @@ const ProjectPage: FC = () => {
           </div>
 
           {/* Pagination */}
-          <div className="py-4">
+          <div className="py-4 flex justify-center">
             <Pagination>
               <PaginationContent>
                 <PaginationItem>
                   <PaginationPrevious 
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    className="cursor-pointer"
+                    className={`cursor-pointer ${currentPage === 1 ? 'opacity-50' : ''}`}
                   />
                 </PaginationItem>
-                {[...Array(totalPages)].map((_, i) => (
-                  <PaginationItem key={i + 1}>
-                    <PaginationLink
-                      onClick={() => setCurrentPage(i + 1)}
-                      isActive={currentPage === i + 1}
-                      className="cursor-pointer"
-                    >
-                      {i + 1}
-                    </PaginationLink>
+
+                {paginationRange.map((pageNum, idx) => (
+                  <PaginationItem key={idx}>
+                    {pageNum === '...' ? (
+                      <span className="px-4">...</span>
+                    ) : (
+                      <PaginationLink
+                        onClick={() => setCurrentPage(Number(pageNum))}
+                        isActive={currentPage === pageNum}
+                        className="cursor-pointer"
+                      >
+                        {pageNum}
+                      </PaginationLink>
+                    )}
                   </PaginationItem>
                 ))}
+
                 <PaginationItem>
                   <PaginationNext 
                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    className="cursor-pointer"
+                    className={`cursor-pointer ${currentPage === totalPages ? 'opacity-50' : ''}`}
                   />
                 </PaginationItem>
               </PaginationContent>
@@ -343,6 +400,11 @@ const ProjectPage: FC = () => {
               <div className="space-y-4">
                 <DialogHeader>
                   <DialogTitle className="text-2xl flex items-center gap-2">
+                    <img 
+                      src={getIconUrl(selectedSymbol || '')}
+                      alt={selectedSymbol}
+                      className="w-8 h-8"
+                    />
                     {selectedSymbol?.replace('-USDT', '')}/USDT
                     <span className={`text-sm ${parseFloat(selectedCoinData.stats.changeRate) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                       {formatChange(selectedCoinData.stats.changeRate)}
