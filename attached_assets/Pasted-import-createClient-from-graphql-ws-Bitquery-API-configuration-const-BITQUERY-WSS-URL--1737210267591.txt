@@ -1,0 +1,189 @@
+import { createClient } from 'graphql-ws';
+
+// Bitquery API configuration
+const BITQUERY_WSS_URL = 'wss://graphql.bitquery.io';
+const BITQUERY_API_KEY = 'YOUR_API_KEY_HERE'; // Replace with your actual API key
+
+// Subscription for new token creation on PumpFun
+const NEW_TOKEN_SUBSCRIPTION = 
+subscription {
+  Solana {
+    Instructions(
+      where: { Instruction: { Program: { Method: { is: "create" }, Name: { is: "pump" } } } }
+    ) {
+      Instruction {
+        Accounts {
+          Address
+          IsWritable
+          Token {
+            Mint
+            Owner
+            ProgramId
+          }
+        }
+        Program {
+          Name
+          Method
+        }
+      }
+      Transaction {
+        Signature
+      }
+    }
+  }
+}
+;
+
+// Query for last 10 trades of a specific token
+const LAST_10_TRADES_QUERY = 
+query ($mintAddress: String!) {
+  Solana {
+    DEXTradeByTokens(
+      orderBy: { descending: Block_Time }
+      limit: { count: 10 }
+      where: {
+        Trade: {
+          Dex: { ProgramAddress: { is: "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P" } }
+          Currency: { MintAddress: { is: $mintAddress } }
+        }
+        Transaction: { Result: { Success: true } }
+      }
+    ) {
+      Block {
+        Time
+      }
+      Trade {
+        Currency {
+          MintAddress
+          Name
+          Symbol
+        }
+        Dex {
+          ProtocolName
+          ProgramAddress
+        }
+        Price
+        PriceInUSD
+      }
+      Transaction {
+        Signature
+      }
+    }
+  }
+}
+;
+
+function startNewTokenSubscription() {
+  const client = createClient({
+    url: BITQUERY_WSS_URL,
+    connectionParams: {
+      headers: {
+        'X-API-KEY': BITQUERY_API_KEY,
+      },
+    },
+  });
+
+  client.subscribe(
+    { query: NEW_TOKEN_SUBSCRIPTION },
+    {
+      next: (data) => {
+        const instructions = data?.data?.Solana?.Instructions || [];
+        instructions.forEach((instruction) => {
+          const token = instruction.Instruction.Accounts.find((acc) => acc.Token?.Mint);
+          if (token) {
+            console.log('=== New Token Created ===');
+            console.log('Mint Address:', token.Token.Mint);
+            console.log('Owner:', token.Token.Owner);
+            console.log('Program ID:', token.Token.ProgramId);
+
+            // Fetch last 10 trades for the new token
+            fetchLast10Trades(token.Token.Mint);
+          }
+        });
+      },
+      error: (err) => {
+        console.error('Subscription error (New Tokens):', err);
+      },
+      complete: () => {
+        console.log('New Token Subscription completed');
+      },
+    }
+  );
+}
+
+async function fetchLast10Trades(mintAddress) {
+  try {
+    const response = await fetch('https://graphql.bitquery.io', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': BITQUERY_API_KEY,
+      },
+      body: JSON.stringify({
+        query: LAST_10_TRADES_QUERY,
+        variables: { mintAddress },
+      }),
+    });
+
+    const result = await response.json();
+    const trades = result?.data?.Solana?.DEXTradeByTokens || [];
+
+    console.log(=== Last 10 Trades for Token: ${mintAddress} ===);
+    trades.forEach((trade, index) => {
+      console.log(Trade ${index + 1}:);
+      console.log('  Timestamp:', trade.Block.Time);
+      console.log('  Price:', trade.Trade.Price);
+      console.log('  Price (USD):', trade.Trade.PriceInUSD);
+      console.log('  Transaction Signature:', trade.Transaction.Signature);
+      console.log('--------------------------------');
+    });
+  } catch (err) {
+    console.error(Error fetching last 10 trades for ${mintAddress}:, err);
+  }
+}
+
+// Start tracking new tokens and their trades
+startNewTokenSubscription();
+
+Key Points for Stability
+Rate Limits:
+
+Ensure your API key has sufficient quota for both subscriptions and queries.
+Use batching for queries if multiple tokens are detected rapidly.
+Error Handling:
+
+Handle both WebSocket and HTTP request errors gracefully.
+Add retry logic for failed queries (e.g., retry after 5 seconds).
+Efficient Logging:
+
+If many tokens are created, limit logs or store data in a database for easier management.
+Scalability:
+
+For a high-traffic scenario, implement queuing or throttling to prevent overload.
+
+
+Sample Output
+When a new token is created, you’ll see:
+
+yaml
+Copy
+Edit
+=== New Token Created ===
+Mint Address: EaqBsvvwF1C9szP6j8SRixc291yWdDRNNiGPf6QJpump
+Owner: 9nG4zw1jVJFpEtSLmbGQpTnpG2TiKfLXWkkTyyRvxTt6
+Program ID: 6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P
+
+=== Last 10 Trades for Token: EaqBsvvwF1C9szP6j8SRixc291yWdDRNNiGPf6QJpump ===
+Trade 1:
+  Timestamp: 2025-01-18T12:34:56Z
+  Price: 0.00012345
+  Price (USD): 0.012345
+  Transaction Signature: 3gR23X...
+
+Trade 2:
+  Timestamp: 2025-01-18T12:33:45Z
+  Price: 0.00012456
+  Price (USD): 0.013456
+  Transaction Signature: 7rT89X...
+...
+--------------------------------

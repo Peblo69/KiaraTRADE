@@ -1,8 +1,24 @@
-import { FC } from "react";
+import { FC, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
+import TokenCard from "@/components/TokenCard";
+import { useUnifiedTokenStore } from "@/lib/unified-token-store";
+import { bitQueryWebSocket } from "@/lib/bitquery-websocket";
 
 const ProjectPage: FC = () => {
+  const tokens = useUnifiedTokenStore((state) => state.tokens);
+  const isConnected = useUnifiedTokenStore((state) => state.isConnected);
+  const error = useUnifiedTokenStore((state) => state.connectionError);
+
+  useEffect(() => {
+    // Connect to BitQuery WebSocket
+    bitQueryWebSocket.connect();
+
+    return () => {
+      bitQueryWebSocket.disconnect();
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
       <SpaceBackgroundEnhanced />
@@ -23,9 +39,29 @@ const ProjectPage: FC = () => {
                 filter: 'drop-shadow(0 0 10px rgba(96, 239, 255, 0.2))'
               }}
             >
-              Project Page
+              Live Token Tracker
             </h1>
-            {/* Token tracker removed */}
+
+            <div className="mb-6 text-center">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-black/40 border border-purple-500/30">
+                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
+                <span className="text-purple-300/80">
+                  {isConnected ? 'Connected to BitQuery' : error || 'Connecting...'}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {tokens.map((token) => (
+                <TokenCard key={token.address} token={token} />
+              ))}
+            </div>
+
+            {tokens.length === 0 && (
+              <div className="text-center text-purple-300/60 mt-8">
+                Waiting for new tokens...
+              </div>
+            )}
           </div>
         </main>
       </div>
