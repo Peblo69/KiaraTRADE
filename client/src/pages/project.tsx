@@ -1,7 +1,7 @@
 import { FC, useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, ArrowUp, ArrowDown, Search, TrendingUp, TrendingDown } from "lucide-react";
+import { Loader2, ArrowUpIcon, ArrowDownIcon, Search } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ import {
 import AdvancedChart from '@/components/AdvancedChart';
 import CryptoIcon from "@/components/CryptoIcon";
 import { preloadTokenImages } from "@/lib/token-metadata";
+import SparklineChart from '@/components/SparklineChart';
 
 interface KuCoinTicker {
   symbol: string;
@@ -234,7 +235,6 @@ const ProjectPage: FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card className="p-4">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <ArrowUp className="h-5 w-5 text-green-500" />
               Top Gainers
             </h3>
             <div className="space-y-3">
@@ -255,7 +255,11 @@ const ProjectPage: FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-green-500" />
+                    <SparklineChart
+                      symbol={ticker.symbol}
+                      color="#22c55e"
+                      height={24}
+                    />
                     <div className="text-green-500 min-w-[80px] text-right">
                       {formatChange(ticker.changeRate)}
                     </div>
@@ -267,7 +271,6 @@ const ProjectPage: FC = () => {
 
           <Card className="p-4">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <ArrowDown className="h-5 w-5 text-red-500" />
               Top Losers
             </h3>
             <div className="space-y-3">
@@ -288,7 +291,11 @@ const ProjectPage: FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <TrendingDown className="h-4 w-4 text-red-500" />
+                    <SparklineChart
+                      symbol={ticker.symbol}
+                      color="#ef4444"
+                      height={24}
+                    />
                     <div className="text-red-500 min-w-[80px] text-right">
                       {formatChange(ticker.changeRate)}
                     </div>
@@ -322,11 +329,11 @@ const ProjectPage: FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {parseFloat(ticker.changeRate) >= 0 ? (
-                      <TrendingUp className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <TrendingDown className="h-4 w-4 text-red-500" />
-                    )}
+                    <SparklineChart
+                      symbol={ticker.symbol}
+                      color={parseFloat(ticker.changeRate) >= 0 ? "#22c55e" : "#ef4444"}
+                      height={24}
+                    />
                     <div className={`min-w-[80px] text-right ${
                       parseFloat(ticker.changeRate) >= 0 ? "text-green-500" : "text-red-500"
                     }`}>
@@ -373,7 +380,7 @@ const ProjectPage: FC = () => {
                     </TableCell>
                     <TableCell className={`text-right ${parseFloat(ticker.changeRate) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                       <span className="flex items-center justify-end gap-1">
-                        {parseFloat(ticker.changeRate) >= 0 ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                        {parseFloat(ticker.changeRate) >= 0 ? <ArrowUpIcon className="h-4 w-4" /> : <ArrowDownIcon className="h-4 w-4" />}
                         {formatChange(ticker.changeRate)}
                       </span>
                     </TableCell>

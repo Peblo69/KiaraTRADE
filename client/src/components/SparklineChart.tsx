@@ -112,12 +112,34 @@ export const SparklineChart: FC<SparklineProps> = ({
   }
 
   return (
-    <div ref={chartContainerRef} className={`inline-block relative ${className}`}>
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-3 h-3 border-2 border-t-transparent border-primary rounded-full animate-spin" />
-        </div>
-      )}
+    <div className="relative inline-block">
+      {/* Chart container */}
+      <div ref={chartContainerRef} className={`relative ${className}`}>
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-3 h-3 border-2 border-t-transparent border-primary rounded-full animate-spin" />
+          </div>
+        )}
+      </div>
+
+      {/* Logo overlay */}
+      <div 
+        className="absolute bottom-0 right-0 bg-background text-xs px-1"
+        style={{ 
+          fontSize: '8px',
+          lineHeight: '10px',
+          zIndex: 2,
+          backgroundColor: 'hsl(var(--card))',
+          borderLeft: '1px solid hsl(var(--border))',
+          borderTop: '1px solid hsl(var(--border))',
+          borderTopLeftRadius: '4px',
+          padding: '2px 4px',
+          minWidth: '32px',
+          textAlign: 'center'
+        }}
+      >
+        KIARA
+      </div>
     </div>
   );
 };
