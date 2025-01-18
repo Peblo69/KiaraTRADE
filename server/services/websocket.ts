@@ -80,16 +80,16 @@ export class WebSocketManager {
 
     // Setup heartbeat interval for connection monitoring
     const heartbeatInterval = setInterval(() => {
-      for (const client of this.clients) {
+      Array.from(this.clients).forEach(client => {
         if (client.isAlive === false) {
           this.clients.delete(client);
           client.terminate();
-          continue;
+          return;
         }
 
         client.isAlive = false;
         client.ping();
-      }
+      });
     }, 30000);
 
     this.wss.on('close', () => {
@@ -117,7 +117,7 @@ export class WebSocketManager {
     }
 
     const message = JSON.stringify(data);
-    for (const client of this.clients) {
+    Array.from(this.clients).forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
         try {
           client.send(message);
@@ -126,7 +126,7 @@ export class WebSocketManager {
           this.clients.delete(client);
         }
       }
-    }
+    });
   }
 
   getConnectedClientsCount(): number {

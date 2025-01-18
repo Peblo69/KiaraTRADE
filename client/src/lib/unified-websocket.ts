@@ -8,6 +8,7 @@ class UnifiedWebSocket {
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private isReconnecting = false;
   private isConnecting = false;
+  private isManualDisconnect = false;
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -22,6 +23,7 @@ class UnifiedWebSocket {
 
     try {
       this.isConnecting = true;
+      this.isManualDisconnect = false;
       console.log('[Unified WebSocket] Attempting to connect...');
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -34,7 +36,6 @@ class UnifiedWebSocket {
         this.isConnecting = false;
         this.isReconnecting = false;
         this.reconnectAttempts = 0;
-        useUnifiedTokenStore.getState().setConnected(true);
         this.startHeartbeat();
       };
 
@@ -43,11 +44,7 @@ class UnifiedWebSocket {
           const data = JSON.parse(event.data);
 
           if (data.type === 'connection_status') {
-            if (data.status === 'connected') {
-              useUnifiedTokenStore.getState().setConnected(true);
-            } else {
-              useUnifiedTokenStore.getState().setConnected(false);
-            }
+            useUnifiedTokenStore.getState().setConnected(data.status === 'connected');
             return;
           }
 
@@ -61,8 +58,9 @@ class UnifiedWebSocket {
 
       this.ws.onclose = () => {
         console.log('[Unified WebSocket] Connection closed');
-        if (!this.isReconnecting) {
-          this.cleanup();
+        this.cleanup();
+
+        if (!this.isManualDisconnect) {
           this.reconnect();
         }
       };
@@ -70,8 +68,9 @@ class UnifiedWebSocket {
       this.ws.onerror = (error) => {
         console.error('[Unified WebSocket] Connection error:', error);
         useUnifiedTokenStore.getState().setError('WebSocket connection error');
-        if (!this.isReconnecting) {
-          this.cleanup();
+        this.cleanup();
+
+        if (!this.isManualDisconnect) {
           this.reconnect();
         }
       };
@@ -81,7 +80,10 @@ class UnifiedWebSocket {
       useUnifiedTokenStore.getState().setError('Failed to establish WebSocket connection');
       this.isConnecting = false;
       this.cleanup();
-      this.reconnect();
+
+      if (!this.isManualDisconnect) {
+        this.reconnect();
+      }
     }
   }
 
@@ -128,6 +130,10 @@ class UnifiedWebSocket {
   }
 
   private reconnect() {
+    if (this.isManualDisconnect) {
+      return;
+    }
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts || this.isReconnecting) {
       console.error('[Unified WebSocket] Max reconnection attempts reached');
       this.isReconnecting = false;
@@ -146,6 +152,7 @@ class UnifiedWebSocket {
 
   disconnect() {
     console.log('[Unified WebSocket] Disconnecting');
+    this.isManualDisconnect = true;
     this.isReconnecting = false;
     this.isConnecting = false;
     this.cleanup();
