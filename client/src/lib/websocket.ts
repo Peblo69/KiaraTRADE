@@ -43,10 +43,6 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_INTERVAL = 5000;
 
-// BitQuery WebSocket configuration
-const BITQUERY_WSS_URL = 'wss://streaming.bitquery.io/graphql';
-const BITQUERY_API_KEY = import.meta.env.VITE_BITQUERY_API_KEY;
-
 function initializeWebSocket() {
   if (typeof window === 'undefined') return;
 
@@ -63,139 +59,98 @@ function initializeWebSocket() {
     try {
       ws.close();
     } catch (e) {
-      console.error('[BitQuery] Error closing WebSocket:', e);
+      console.error('[PumpPortal] Error closing WebSocket:', e);
     }
     ws = null;
   }
 
   try {
-    console.log('[BitQuery] Initializing WebSocket connection...');
-
-    // Create WebSocket with authorization header
-    ws = new WebSocket(BITQUERY_WSS_URL, 'graphql-ws');
+    console.log('[PumpPortal] Initializing WebSocket connection...');
+    ws = new WebSocket('wss://pumpportal.fun/api/data');
 
     ws.onopen = () => {
-      if (!ws) return;
+      console.log('[PumpPortal] Connected to WebSocket');
+      store.setConnected(true);
+      reconnectAttempts = 0; // Reset reconnect attempts on successful connection
 
-      console.log('[BitQuery] Connected to WebSocket');
-
-      // Send connection init message with API key
-      ws.send(JSON.stringify({
-        type: 'connection_init',
-        payload: {
-          headers: {
-            'X-API-KEY': BITQUERY_API_KEY,
-          },
-        },
-      }));
-
-      // Wait for connection acknowledgment
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-
-        if (data.type === 'connection_ack') {
-          console.log('[BitQuery] Connection acknowledged');
-          store.setConnected(true);
-          reconnectAttempts = 0;
-
-          // Subscribe to PumpFun token creation events
-          const subscriptionId = '1';
-          ws?.send(JSON.stringify({
-            id: subscriptionId,
-            type: 'subscribe',
-            payload: {
-              query: `
-                subscription {
-                  Solana {
-                    Instructions(
-                      where: {
-                        Instruction: {
-                          Program: { Method: { is: "create" }, Name: { is: "pump" } }
-                        }
-                      }
-                    ) {
-                      Instruction {
-                        Accounts {
-                          Address
-                          Token {
-                            Mint
-                            Owner
-                            ProgramId
-                          }
-                        }
-                        Program {
-                          Method
-                          Name
-                        }
-                      }
-                      Transaction {
-                        Signature
-                      }
-                    }
-                  }
-                }
-              `
-            }
+      // Subscribe to token creation events
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          // Subscribe to new token creation events
+          ws.send(JSON.stringify({
+            method: "subscribeNewToken"
           }));
+          console.log('[PumpPortal] Subscribed to new token events');
 
-          console.log('[BitQuery] Subscription sent');
-
-          // Update onmessage handler for subscription data
-          ws.onmessage = (event) => {
-            try {
-              const data = JSON.parse(event.data);
-              console.log('[BitQuery] Received message:', data);
-
-              if (data.type === 'data' && data.payload?.data?.Solana?.Instructions) {
-                const instruction = data.payload.data.Solana.Instructions[0];
-                if (instruction?.Instruction?.Program?.Method === 'create') {
-                  const token: Token = {
-                    name: `Token ${instruction.Instruction.Accounts[0].Token.Mint.slice(0, 8)}`,
-                    symbol: `PUMP${instruction.Instruction.Accounts[0].Token.Mint.slice(0, 4)}`,
-                    price: 0,
-                    marketCap: 0,
-                    volume24h: 0,
-                    holders: 0,
-                    createdAt: new Date(),
-                    address: instruction.Instruction.Accounts[0].Token.Mint,
-                    imageUrl: undefined,
-                  };
-                  store.addToken(token);
-                  console.log('[BitQuery] Added new token:', token.name);
-                }
-              }
-            } catch (error) {
-              console.error('[BitQuery] Failed to parse message:', error);
-            }
-          };
+          // Subscribe to all token trades
+          ws.send(JSON.stringify({
+            method: "subscribeTokenTrade",
+            keys: [] // Empty array to subscribe to all token trades
+          }));
+          console.log('[PumpPortal] Subscribed to token trade events');
+        } catch (error) {
+          console.error('[PumpPortal] Error sending subscriptions:', error);
         }
-      };
+      }
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('[PumpPortal] Received event:', data);
+
+        if (data.type === 'newToken' && data.token) {
+          const token: Token = {
+            name: data.token.name || `Token ${data.token.address.slice(0, 8)}`,
+            symbol: data.token.symbol || `PUMP${data.token.address.slice(0, 4)}`,
+            price: Number(data.token.price || 0),
+            marketCap: Number(data.token.price || 0) * 1_000_000_000, // All pump tokens have 1B supply
+            volume24h: 0,
+            holders: 0,
+            createdAt: new Date(),
+            address: data.token.address,
+            imageUrl: data.token.image || undefined,
+          };
+          store.addToken(token);
+          console.log('[PumpPortal] Added new token:', token.name);
+        }
+        else if (data.type === 'tokenTrade' && data.trade) {
+          store.updateToken(data.trade.tokenAddress, {
+            price: Number(data.trade.price || 0),
+            marketCap: Number(data.trade.price || 0) * 1_000_000_000,
+            volume24h: Number(data.trade.volume24h || 0),
+          });
+          console.log('[PumpPortal] Updated token:', data.trade.tokenAddress);
+        }
+      } catch (error) {
+        console.error('[PumpPortal] Failed to parse message:', error);
+      }
     };
 
     ws.onclose = (event) => {
-      console.log('[BitQuery] WebSocket disconnected:', event.code, event.reason);
+      console.log('[PumpPortal] WebSocket disconnected:', event.code, event.reason);
       store.setConnected(false);
 
       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         reconnectAttempts++;
-        console.log(`[BitQuery] Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+        console.log(`[PumpPortal] Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
         reconnectTimeout = setTimeout(initializeWebSocket, RECONNECT_INTERVAL);
       } else {
-        console.error('[BitQuery] Max reconnection attempts reached');
+        console.error('[PumpPortal] Max reconnection attempts reached');
       }
     };
 
     ws.onerror = (error) => {
-      console.error('[BitQuery] WebSocket error:', error);
+      console.error('[PumpPortal] WebSocket error:', error);
       store.setConnected(false);
     };
   } catch (error) {
-    console.error('[BitQuery] Failed to initialize WebSocket:', error);
+    console.error('[PumpPortal] Failed to initialize WebSocket:', error);
     store.setConnected(false);
 
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
       reconnectAttempts++;
-      console.log(`[BitQuery] Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+      console.log(`[PumpPortal] Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
       reconnectTimeout = setTimeout(initializeWebSocket, RECONNECT_INTERVAL);
     }
   }
@@ -209,10 +164,30 @@ if (typeof window !== 'undefined') {
 // Function to fetch initial token data
 export async function fetchRealTimeTokens(): Promise<Token[]> {
   try {
-    // For now, return empty array since we'll get real-time updates via WebSocket
-    return [];
+    const response = await fetch('https://pumpportal.fun/api/tokens/recent');
+    if (!response.ok) {
+      throw new Error('Failed to fetch token data');
+    }
+    const data = await response.json();
+    return data.tokens.slice(0, 8).map((token: any) => ({
+      name: token.name || `Token ${token.address.slice(0, 8)}`,
+      symbol: token.symbol || `PUMP${token.address.slice(0, 4)}`,
+      price: Number(token.price || 0),
+      marketCap: Number(token.price || 0) * 1_000_000_000,
+      volume24h: Number(token.volume24h || 0),
+      holders: Number(token.holders || 0),
+      createdAt: new Date(token.createdAt),
+      address: token.address,
+      imageUrl: token.image || undefined,
+    }));
   } catch (error) {
-    console.error('[BitQuery] Error fetching tokens:', error);
+    console.error('[PumpPortal] Error fetching tokens:', error);
     return [];
   }
 }
+
+// Pre-fetch tokens and add to store
+queryClient.prefetchQuery({
+  queryKey: ['/api/tokens/recent'],
+  queryFn: fetchRealTimeTokens,
+});
