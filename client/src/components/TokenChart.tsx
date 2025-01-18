@@ -11,9 +11,11 @@ import {
   Legend,
   Filler
 } from 'chart.js';
+import 'chartjs-adapter-date-fns';
 import { Card } from '@/components/ui/card';
+import 'chartjs-chart-financial';
 
-// Register ChartJS components including Filler for area charts
+// Register ChartJS components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -52,14 +54,23 @@ const TokenChart: React.FC<TokenChartProps> = ({ tokenAddress, height = 400 }) =
         // Mock data with more realistic price movements
         const mockData: CandleData[] = Array.from({ length: 100 }, (_, i) => {
           const basePrice = 100;
-          const noise = Math.sin(i * 0.1) * 20 + Math.random() * 10;
-          const price = basePrice + noise;
+          const volatility = 10;
+          const trend = Math.sin(i * 0.1) * 20;
+          const noise = (Math.random() - 0.5) * volatility;
+          const price = basePrice + trend + noise;
+
+          // Create more realistic candle data
+          const open = price;
+          const close = price + (Math.random() - 0.5) * volatility;
+          const high = Math.max(open, close) + Math.random() * volatility;
+          const low = Math.min(open, close) - Math.random() * volatility;
+
           return {
-            timestamp: Date.now() - (100 - i) * 3600000,
-            open: price - 1,
-            high: price + 2,
-            low: price - 2,
-            close: price,
+            timestamp: Date.now() - (100 - i) * 300000, // 5-minute candles
+            open,
+            high,
+            low,
+            close,
             volume: 1000 + Math.random() * 5000,
             marketCap: 1000000 + price * 10000,
             trades: 50 + Math.floor(Math.random() * 100)
@@ -79,39 +90,49 @@ const TokenChart: React.FC<TokenChartProps> = ({ tokenAddress, height = 400 }) =
   }, [tokenAddress]);
 
   const data = {
-    labels: chartData.map(c => {
-      const date = new Date(c.timestamp);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }),
-    datasets: [
-      {
-        label: 'Price',
-        data: chartData.map(c => c.close),
-        borderColor: 'rgba(32, 214, 255, 1)',
-        borderWidth: 2,
-        backgroundColor: (context: any) => {
-          const ctx = context.chart.ctx;
-          const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-          gradient.addColorStop(0, 'rgba(32, 214, 255, 0.2)');
-          gradient.addColorStop(1, 'rgba(32, 214, 255, 0)');
-          return gradient;
-        },
-        pointRadius: 0,
-        pointHitRadius: 20,
-        tension: 0.4,
-        fill: true,
-        cubicInterpolationMode: 'monotone'
+    datasets: [{
+      label: 'OHLC',
+      data: chartData.map(candle => ({
+        x: candle.timestamp,
+        o: candle.open,
+        h: candle.high,
+        l: candle.low,
+        c: candle.close
+      })),
+      backgroundColor: (ctx: any) => {
+        if (!ctx.parsed) return 'rgba(0,0,0,0)';
+        return ctx.parsed.c >= ctx.parsed.o ? 
+          'rgba(38, 166, 154, 0.4)' : 
+          'rgba(239, 83, 80, 0.4)';
+      },
+      borderColor: (ctx: any) => {
+        if (!ctx.parsed) return 'rgba(0,0,0,0)';
+        return ctx.parsed.c >= ctx.parsed.o ? 
+          'rgb(38, 166, 154)' : 
+          'rgb(239, 83, 80)';
       }
-    ]
+    }, {
+      type: 'bar',
+      label: 'Volume',
+      data: chartData.map(candle => ({
+        x: candle.timestamp,
+        y: candle.volume
+      })),
+      backgroundColor: (ctx: any) => {
+        if (!ctx.parsed?.y) return 'rgba(0,0,0,0)';
+        const index = ctx.dataIndex;
+        const candle = chartData[index];
+        return candle.close >= candle.open ? 
+          'rgba(38, 166, 154, 0.2)' : 
+          'rgba(239, 83, 80, 0.2)';
+      },
+      yAxisID: 'volume'
+    }]
   };
 
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: {
-      duration: 750,
-      easing: 'easeInOutQuart'
-    },
     interaction: {
       mode: 'index' as const,
       intersect: false,
@@ -132,13 +153,29 @@ const TokenChart: React.FC<TokenChartProps> = ({ tokenAddress, height = 400 }) =
         displayColors: false,
         callbacks: {
           label: function(context: any) {
-            return `Price: $${context.parsed.y.toFixed(2)}`;
+            const index = context.dataIndex;
+            const candle = chartData[index];
+            return [
+              `Open: $${candle.open.toFixed(6)}`,
+              `High: $${candle.high.toFixed(6)}`,
+              `Low: $${candle.low.toFixed(6)}`,
+              `Close: $${candle.close.toFixed(6)}`,
+              `Volume: ${candle.volume.toLocaleString()}`
+            ];
           }
         }
       }
     },
     scales: {
       x: {
+        type: 'time',
+        time: {
+          unit: 'minute',
+          stepSize: 5,
+          displayFormats: {
+            minute: 'HH:mm'
+          }
+        },
         grid: {
           display: false
         },
@@ -156,17 +193,30 @@ const TokenChart: React.FC<TokenChartProps> = ({ tokenAddress, height = 400 }) =
       y: {
         position: 'right' as const,
         grid: {
-          color: 'rgba(255, 255, 255, 0.05)',
-          drawBorder: false
+          color: 'rgba(255, 255, 255, 0.05)'
         },
         ticks: {
           color: 'rgba(255, 255, 255, 0.5)',
           font: {
             size: 11
           },
-          padding: 8,
           callback: function(value: any) {
-            return '$' + value.toFixed(2);
+            return '$' + value.toFixed(6);
+          }
+        },
+        border: {
+          display: false
+        }
+      },
+      volume: {
+        position: 'left' as const,
+        grid: {
+          display: false
+        },
+        ticks: {
+          color: 'rgba(255, 255, 255, 0.5)',
+          font: {
+            size: 11
           }
         },
         border: {
