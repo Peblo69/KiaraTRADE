@@ -69,8 +69,8 @@ export default function AiChat() {
               className="text-xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent"
               style={{ 
                 fontFamily: '"VT323", monospace',
-                letterSpacing: '0.1em',
-                textShadow: '0 0 5px rgba(168, 85, 247, 0.5)'
+                letterSpacing: '0.15em',
+                textShadow: '0 0 5px rgba(168, 85, 247, 0.4)'
               }}
             >
               KIARA AI
@@ -104,23 +104,25 @@ export default function AiChat() {
               <div
                 className={`p-3 rounded-2xl ${
                   msg.role === "user"
-                    ? "bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/20"
+                    ? "bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/20"
                     : "bg-gradient-to-br from-gray-900/90 to-gray-800/90 border border-purple-300/10"
                 } shadow-lg transition-all duration-300 ease-in-out hover:shadow-purple-500/5`}
                 style={{
-                  fontFamily: msg.role === "assistant" ? '"VT323", monospace' : 'inherit',
-                  letterSpacing: msg.role === "assistant" ? '0.05em' : 'inherit',
+                  fontFamily: '"VT323", monospace',
+                  letterSpacing: '0.05em',
                 }}
               >
                 <div 
                   className={
                     msg.role === "assistant" 
                       ? "text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-cyan-300 to-purple-300 animate-gradient-x font-medium tracking-wide"
-                      : "text-white"
+                      : "text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-300 animate-gradient-x font-medium tracking-wide"
                   }
                   style={{
-                    textShadow: msg.role === "assistant" ? '0 0 5px rgba(168, 85, 247, 0.3)' : 'none',
-                    animation: msg.role === "assistant" ? 'textflicker 2s linear infinite' : 'none',
+                    textShadow: msg.role === "assistant" 
+                      ? '0 0 5px rgba(168, 85, 247, 0.3)' 
+                      : '0 0 5px rgba(34, 211, 238, 0.3)',
+                    animation: 'textflicker 2s linear infinite',
                   }}
                 >
                   {msg.content}
