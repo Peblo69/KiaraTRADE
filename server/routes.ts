@@ -3,28 +3,44 @@ import { createServer, type Server } from "http";
 import { wsManager } from './services/websocket';
 import { WebSocket } from 'ws';
 import { generateAIResponse } from './services/ai';
+import axios from 'axios';
 
-interface TokenData {
-  name: string;
-  symbol: string;
-  marketCap: number;
-  marketCapSol: number;
-  liquidityAdded: boolean;
-  holders: number;
-  volume24h: number;
-  address: string;
-  price: number;
-  imageUrl?: string;
-}
-
-// In-memory data structure for chat history
-const chatHistory: Record<string, any[]> = {};
+// Cache for CoinGecko data
+let globalMetricsCache = {
+  data: null,
+  timestamp: 0
+};
+const CACHE_DURATION = 30000; // 30 seconds cache
 
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
   // Initialize WebSocket manager
   wsManager.initialize(httpServer);
+
+  // Global metrics endpoint
+  app.get('/api/global-metrics', async (req, res) => {
+    try {
+      // Check cache
+      const now = Date.now();
+      if (globalMetricsCache.data && (now - globalMetricsCache.timestamp) < CACHE_DURATION) {
+        return res.json(globalMetricsCache.data);
+      }
+
+      const response = await axios.get('https://api.coingecko.com/api/v3/global');
+
+      // Cache the response
+      globalMetricsCache = {
+        data: response.data,
+        timestamp: now
+      };
+
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Global metrics error:', error);
+      res.status(500).json({ error: error.message || 'Failed to fetch global metrics' });
+    }
+  });
 
   // Chat endpoint
   app.post('/api/chat', async (req, res) => {
@@ -63,3 +79,19 @@ export function registerRoutes(app: Express): Server {
 
   return httpServer;
 }
+
+interface TokenData {
+  name: string;
+  symbol: string;
+  marketCap: number;
+  marketCapSol: number;
+  liquidityAdded: boolean;
+  holders: number;
+  volume24h: number;
+  address: string;
+  price: number;
+  imageUrl?: string;
+}
+
+// In-memory data structure for chat history
+const chatHistory: Record<string, any[]> = {};
