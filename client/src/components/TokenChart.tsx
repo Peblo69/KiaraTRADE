@@ -12,8 +12,6 @@ const TokenChart: FC<TokenChartProps> = ({
   tokenAddress,
   height = 400
 }) => {
-  console.log(`[TokenChart] Rendering for token: ${tokenAddress}`);
-
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -24,16 +22,12 @@ const TokenChart: FC<TokenChartProps> = ({
 
   // Get price history with memoized selector
   const priceHistory = useTokenPriceStore(useCallback(
-    state => {
-      console.log(`[TokenChart] Getting price history from store for token: ${tokenAddress}`);
-      return state.getPriceHistory(tokenAddress);
-    },
+    state => state.getPriceHistory(tokenAddress),
     [tokenAddress]
   ));
 
   // Transform chart data
   const chartData = useMemo(() => {
-    console.log(`[TokenChart] Transforming price history for token: ${tokenAddress}, items: ${priceHistory?.length || 0}`);
     if (!priceHistory?.length) return null;
 
     return {
@@ -54,7 +48,6 @@ const TokenChart: FC<TokenChartProps> = ({
 
   // Chart initialization
   useEffect(() => {
-    console.log(`[TokenChart] Chart initialization effect running for token: ${tokenAddress}`);
     if (!containerRef.current || chartRef.current) return;
 
     const chart = createChart(containerRef.current, {
@@ -107,7 +100,6 @@ const TokenChart: FC<TokenChartProps> = ({
     window.addEventListener('resize', handleResize);
 
     return () => {
-      console.log(`[TokenChart] Cleanup effect running for token: ${tokenAddress}`);
       window.removeEventListener('resize', handleResize);
       chart.remove();
       chartRef.current = null;
@@ -117,7 +109,6 @@ const TokenChart: FC<TokenChartProps> = ({
 
   // Update data
   useEffect(() => {
-    console.log(`[TokenChart] Data update effect running for token: ${tokenAddress}`);
     if (!chartRef.current || !chartData || !seriesRef.current.candlestick || !seriesRef.current.volume) return;
 
     seriesRef.current.candlestick.setData(chartData.candles);

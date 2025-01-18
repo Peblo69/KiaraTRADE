@@ -27,17 +27,12 @@ export const useTokenPriceStore = create<PriceHistoryState>()((set, get) => ({
   initialized: new Set(),
 
   getPriceHistory: (tokenAddress) => {
-    console.log(`[PriceStore] Getting price history for token: ${tokenAddress}`);
     return get().data.get(tokenAddress) || [];
   },
 
   initializePriceHistory: (tokenAddress, initialPrice, marketCap) => {
-    console.log(`[PriceStore] Initializing price history for token: ${tokenAddress}`);
     const state = get();
-    if (state.initialized.has(tokenAddress)) {
-      console.log(`[PriceStore] Token ${tokenAddress} already initialized, skipping`);
-      return;
-    }
+    if (state.initialized.has(tokenAddress)) return;
 
     const now = Date.now();
     const candleTime = Math.floor(now / TIMEFRAME) * TIMEFRAME;
@@ -54,7 +49,6 @@ export const useTokenPriceStore = create<PriceHistoryState>()((set, get) => ({
     };
 
     set(state => {
-      console.log(`[PriceStore] Setting initial candle for token: ${tokenAddress}`);
       const newData = new Map(state.data);
       newData.set(tokenAddress, [initialCandle]);
       return {
@@ -65,18 +59,11 @@ export const useTokenPriceStore = create<PriceHistoryState>()((set, get) => ({
   },
 
   addPricePoint: (tokenAddress, price, marketCap, volume) => {
-    console.log(`[PriceStore] Adding price point for token: ${tokenAddress}, price: ${price}`);
     set(state => {
-      if (!state.initialized.has(tokenAddress)) {
-        console.log(`[PriceStore] Token ${tokenAddress} not initialized, skipping price update`);
-        return state;
-      }
+      if (!state.initialized.has(tokenAddress)) return state;
 
       const existingData = state.data.get(tokenAddress);
-      if (!existingData) {
-        console.log(`[PriceStore] No existing data for token ${tokenAddress}, skipping price update`);
-        return state;
-      }
+      if (!existingData) return state;
 
       const now = Date.now();
       const candleTime = Math.floor(now / TIMEFRAME) * TIMEFRAME;
@@ -86,7 +73,6 @@ export const useTokenPriceStore = create<PriceHistoryState>()((set, get) => ({
 
       if (lastCandle && lastCandle.timestamp === candleTime) {
         // Update existing candle
-        console.log(`[PriceStore] Updating existing candle for token: ${tokenAddress}`);
         const updatedCandle = {
           ...lastCandle,
           high: Math.max(lastCandle.high, price),
@@ -99,7 +85,6 @@ export const useTokenPriceStore = create<PriceHistoryState>()((set, get) => ({
         newCandles[newCandles.length - 1] = updatedCandle;
       } else {
         // Create new candle
-        console.log(`[PriceStore] Creating new candle for token: ${tokenAddress}`);
         newCandles.push({
           timestamp: candleTime,
           open: price,
