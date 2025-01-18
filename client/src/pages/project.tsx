@@ -1,143 +1,58 @@
-import { FC, useEffect } from "react";
+import { FC } from "react";
 import Navbar from "@/components/Navbar";
-import DebugConsole from "@/components/DebugConsole";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-import { useTokenStore } from "@/lib/websocket";
-import { formatDistanceToNow } from "date-fns";
 
 const ProjectPage: FC = () => {
-  const { tokens, isConnected } = useTokenStore();
-  const recentTokens = tokens.slice(0, 8); // Only show latest 8 tokens
-
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       <div className="container mx-auto p-4">
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Left Sidebar - Token List */}
-          <div className="lg:w-1/4">
-            <Card className="p-4 h-[calc(100vh-12rem)] overflow-y-auto">
-              <h2 className="text-lg font-semibold mb-4">Latest Tokens</h2>
-              <div className="space-y-2">
-                {recentTokens.map((token) => (
-                  <Card key={token.address} className="p-3 hover:bg-accent transition-colors">
-                    <div className="flex items-center gap-3">
-                      {token.imageUrl && (
-                        <img
-                          src={token.imageUrl}
-                          alt={token.name}
-                          className="w-8 h-8 rounded-full"
-                        />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{token.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {token.symbol}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-medium">${token.price.toFixed(4)}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(token.createdAt, { addSuffix: true })}
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-                {recentTokens.length === 0 && (
-                  <p className="text-center text-muted-foreground py-4">
-                    {isConnected ? "No tokens yet" : "Connecting to PumpPortal..."}
-                  </p>
-                )}
+        <div className="max-w-4xl mx-auto text-center space-y-8">
+          <header className="space-y-4">
+            <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">
+              Stage II
+            </h1>
+            <p className="text-2xl text-muted-foreground">
+              Advanced Token Analytics Coming Soon...
+            </p>
+          </header>
+
+          <Card className="p-8 bg-black/40 backdrop-blur-sm border-purple-500/20">
+            <div className="space-y-6">
+              <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-purple-400 via-cyan-400 to-purple-400 flex items-center justify-center">
+                <span className="text-4xl">II</span>
               </div>
-            </Card>
-          </div>
 
-          {/* Main Content Area */}
-          <div className="flex-1">
-            <header className="space-y-2 mb-6">
-              <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">
-                PumpPortal Token Monitor
-              </h1>
-              <p className="text-muted-foreground">
-                Real-time token tracking and analysis platform
+              <h2 className="text-2xl font-semibold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
+                Enhanced Features Coming Soon
+              </h2>
+
+              <ul className="space-y-4 text-left max-w-lg mx-auto text-gray-300">
+                <li className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-purple-400"></div>
+                  Advanced Token Analytics Dashboard
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
+                  Real-time Market Insights
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-purple-400"></div>
+                  AI-Powered Trading Signals
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
+                  Custom Alert System
+                </li>
+              </ul>
+
+              <p className="text-muted-foreground italic mt-8">
+                We're working hard to bring you the next evolution of crypto intelligence.
+                Stay tuned for updates!
               </p>
-            </header>
-
-            <Tabs defaultValue="live" className="w-full">
-              <TabsList>
-                <TabsTrigger value="live">Live Feed</TabsTrigger>
-                <TabsTrigger value="watchlist">Watchlist</TabsTrigger>
-                <TabsTrigger value="trending">Trending</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="live" className="space-y-4">
-                <Card className="p-4">
-                  <div className="grid grid-cols-7 gap-4 text-sm font-medium text-muted-foreground">
-                    <div>Token</div>
-                    <div>Symbol</div>
-                    <div>Price</div>
-                    <div>Market Cap</div>
-                    <div>Volume (24h)</div>
-                    <div>Holders</div>
-                    <div>Created</div>
-                  </div>
-                  <div className="mt-2 space-y-2">
-                    {tokens.map((token) => (
-                      <div
-                        key={token.address}
-                        className="grid grid-cols-7 gap-4 py-2 text-sm hover:bg-accent/50 rounded-lg px-2 transition-colors"
-                      >
-                        <div className="flex items-center gap-2">
-                          {token.imageUrl && (
-                            <img
-                              src={token.imageUrl}
-                              alt={token.name}
-                              className="w-6 h-6 rounded-full"
-                            />
-                          )}
-                          <span>{token.name}</span>
-                        </div>
-                        <div>{token.symbol}</div>
-                        <div>${token.price.toFixed(4)}</div>
-                        <div>${token.marketCap.toLocaleString()}</div>
-                        <div>${token.volume24h.toLocaleString()}</div>
-                        <div>{token.holders.toLocaleString()}</div>
-                        <div>
-                          {formatDistanceToNow(token.createdAt, { addSuffix: true })}
-                        </div>
-                      </div>
-                    ))}
-                    {tokens.length === 0 && (
-                      <p className="text-center text-muted-foreground py-4">
-                        {isConnected ? "No tokens available" : "Connecting to PumpPortal..."}
-                      </p>
-                    )}
-                  </div>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="watchlist">
-                <Card className="p-4">
-                  <p className="text-center text-muted-foreground">
-                    Your watchlist will appear here
-                  </p>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="trending">
-                <Card className="p-4">
-                  <p className="text-center text-muted-foreground">
-                    Trending tokens will appear here
-                  </p>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          </div>
+            </div>
+          </Card>
         </div>
-
-        <DebugConsole />
       </div>
     </div>
   );
