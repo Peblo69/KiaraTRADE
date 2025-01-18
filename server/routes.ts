@@ -4,6 +4,7 @@ import { wsManager } from './services/websocket';
 import { WebSocket } from 'ws';
 import { generateAIResponse } from './services/ai';
 import axios from 'axios';
+import { getTokenImage } from './image-worker';
 
 // Cache structure for KuCoin data
 const cache = {
@@ -40,6 +41,45 @@ export function registerRoutes(app: Express): Server {
 
   // Initialize WebSocket manager
   wsManager.initialize(httpServer);
+
+  // Token image endpoints
+  app.get('/api/token-image/:symbol', async (req, res) => {
+    try {
+      const symbol = req.params.symbol;
+      const imageUrl = await getTokenImage(symbol);
+      res.json({ imageUrl });
+    } catch (error: any) {
+      console.error('Token image error:', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch token image',
+        details: error.message 
+      });
+    }
+  });
+
+  app.post('/api/token-images/bulk', async (req, res) => {
+    try {
+      const { symbols } = req.body;
+      if (!Array.isArray(symbols)) {
+        return res.status(400).json({ error: 'symbols must be an array' });
+      }
+
+      const images: Record<string, string> = {};
+      await Promise.all(
+        symbols.map(async (symbol) => {
+          images[symbol] = await getTokenImage(symbol);
+        })
+      );
+
+      res.json({ images });
+    } catch (error: any) {
+      console.error('Bulk token images error:', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch bulk token images',
+        details: error.message 
+      });
+    }
+  });
 
   // Market data endpoint
   app.get('/api/coins/markets', async (req, res) => {
@@ -158,7 +198,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Chat endpoint (unchanged)
+  // Chat endpoint
   app.post('/api/chat', async (req, res) => {
     try {
       const { message, sessionId } = req.body;
