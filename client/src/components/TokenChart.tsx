@@ -1,7 +1,7 @@
 import { FC, useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import { createChart } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
-import { useTokenPriceStore, TIMEFRAMES } from '@/lib/price-history';
+import { TIMEFRAMES } from '@/lib/price-history';
 import { Button } from '@/components/ui/button';
 
 type TimeframeKey = keyof typeof TIMEFRAMES;
@@ -10,6 +10,18 @@ interface TokenChartProps {
   tokenAddress: string;
   height?: number;
 }
+
+// Static test data
+const mockPriceHistory = [{
+  timestamp: Date.now() - 3600000, // 1 hour ago
+  open: 1.5,
+  high: 2.0,
+  low: 1.4,
+  close: 1.8,
+  volume: 1000,
+  marketCap: 10000000,
+  trades: 50
+}];
 
 const TokenChart: FC<TokenChartProps> = ({ 
   tokenAddress,
@@ -25,11 +37,8 @@ const TokenChart: FC<TokenChartProps> = ({
     volume: any;
   }>({ candlestick: null, volume: null });
 
-  // Get price history with memoized selector
-  const priceHistory = useTokenPriceStore(
-    useCallback(state => state.getPriceHistory(tokenAddress, selectedTimeframe), 
-    [tokenAddress, selectedTimeframe])
-  );
+  // Use static data instead of store
+  const priceHistory = mockPriceHistory;
 
   // Transform data once when priceHistory changes
   const chartData = useMemo(() => {
@@ -90,6 +99,13 @@ const TokenChart: FC<TokenChartProps> = ({
       },
     });
 
+    // Set initial data
+    if (chartData) {
+      seriesRef.current.candlestick.setData(chartData.candles);
+      seriesRef.current.volume.setData(chartData.volumes);
+      chartRef.current.timeScale().fitContent();
+    }
+
     return () => {
       if (chartRef.current) {
         chartRef.current.remove();
@@ -97,7 +113,7 @@ const TokenChart: FC<TokenChartProps> = ({
         seriesRef.current = { candlestick: null, volume: null };
       }
     };
-  }, []); // Empty deps for one-time initialization
+  }, [height, chartData]);
 
   // Handle resize
   useEffect(() => {
@@ -112,18 +128,6 @@ const TokenChart: FC<TokenChartProps> = ({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  // Update data only when chartData changes
-  useEffect(() => {
-    if (!chartRef.current || !chartData) return;
-
-    const { candlestick, volume } = seriesRef.current;
-    if (!candlestick || !volume) return;
-
-    candlestick.setData(chartData.candles);
-    volume.setData(chartData.volumes);
-    chartRef.current.timeScale().fitContent();
-  }, [chartData]);
 
   // Memoized handler
   const handleTimeframeChange = useCallback((tf: TimeframeKey) => {

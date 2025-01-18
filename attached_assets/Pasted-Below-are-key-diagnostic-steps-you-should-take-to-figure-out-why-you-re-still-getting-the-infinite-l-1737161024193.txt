@@ -1,0 +1,100 @@
+Below are key diagnostic steps you should take to figure out why you’re still getting the infinite loop, even with this new store and chart code. The code you’ve pasted does look correct in isolation, meaning it should not cause an infinite render. That strongly suggests something outside the snippet is triggering repeated state updates.
+
+1. Temporarily Remove the Store Calls in TokenChart
+Why?
+To confirm if TokenChart by itself causes the loop or if the loop is triggered by how the store’s data changes.
+
+How?
+Inside TokenChart.tsx, comment out the line that reads from the store:
+
+tsx
+Copy
+// const priceHistory = useTokenPriceStore(
+//   useCallback(state => state.getPriceHistory(tokenAddress, selectedTimeframe), 
+//   [tokenAddress, selectedTimeframe])
+// );
+
+// Replace with a static array or empty array:
+const priceHistory = []; // or a mock candle or two
+Then everything else remains the same. If the “Maximum update depth exceeded” error disappears when using static data, you know:
+
+The chart component alone is fine.
+The problem lies with how or when the store is updated elsewhere in your code.
+If the loop continues even with static data, the problem might be in a higher-level parent component or your environment.
+
+2. Double-Check How You’re Calling initializePriceHistory or addPricePoint
+Even though your store code is stable, something else could be calling initializePriceHistory(tokenAddress, ...) or addPricePoint(...) repeatedly—possibly on every render.
+
+Common Culprit
+A parent component or effect might look like this:
+
+ts
+Copy
+useEffect(() => {
+  // Oops, calls initialize or addPricePoint on every single render
+  initializePriceHistory(tokenAddress, somePrice, someMarketCap);
+}, [somePrice, someMarketCap, tokenAddress]);
+If somePrice or someMarketCap is derived from store data (or changes slightly each render), you can get stuck in a feedback loop:
+
+initializePriceHistory updates the store → triggers a re-render.
+That re-render re-calls initializePriceHistory, … and so on.
+Check any code that calls these store methods and ensure it only fires once or on a proper schedule, not on every render.
+
+3. Remove or Disable Zustand DevTools Temporarily
+Occasionally, the devtools middleware can amplify extra updates or re-rendering in development. As a test, remove the devtools import:
+
+ts
+Copy
+import { create } from 'zustand';
+// import { devtools } from 'zustand/middleware';
+
+export const useTokenPriceStore = create<PriceHistoryState>((set, get) => ({
+  ...
+}));
+If removing devtools resolves the infinite loop, that means the underlying problem is still a repeated store update somewhere, but devtools is making the loop more obvious. Typically, you’d then fix the underlying repeated update.
+
+4. Add Logging in the Store to See Each Update
+You can hook into Zustand’s subscribe or just put console logs inside your set calls:
+
+ts
+Copy
+set(state => {
+  console.log('addPricePoint: updating store for token:', tokenAddress);
+  ...
+});
+Also:
+
+ts
+Copy
+useTokenPriceStore.subscribe((newState, prevState) => {
+  console.log('Store changed: ', newState);
+});
+If you see constant spam of Store changed: ..., that confirms something is updating state nonstop.
+
+5. Check For a Parent That Renders TokenChart Repeatedly
+Sometimes, if a parent component has a useEffect that does a setParentState(...) every time TokenChart re-renders (or every time store data changes), you get stuck in a loop:
+
+TokenChart re-renders → parent sees that, calls setState.
+setState triggers parent re-render → triggers TokenChart re-render.
+Loop forever.
+Use React DevTools Profiler or add console logs in the parent to see if it’s re-rendering in a loop.
+
+Bottom Line
+Your updated store and TokenChart code look correct in isolation. If you still get infinite updates:
+
+Prove it’s not the chart by removing the store calls.
+Look for external triggers—repeated calls to initializePriceHistory or addPricePoint in a parent.
+Disable devtools and add console logs to see which code path fires repeatedly.
+That’s how you’ll find the real culprit causing the endless re-renders.
+
+
+
+
+
+
+
+
+
+
+
+
