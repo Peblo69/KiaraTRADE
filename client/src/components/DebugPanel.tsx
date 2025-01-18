@@ -44,11 +44,11 @@ export const DebugPanel: FC = () => {
         .join(' ');
 
       if (formattedMessage) {
-        setLogs(prev => [...prev, {
+        setLogs(prev => [...prev.slice(-49), {
           timestamp: new Date().toLocaleTimeString(),
           message: formattedMessage,
-          type: 'info'
-        }].slice(-50)); // Keep last 50 logs
+          type: 'info' as const
+        }]);
       }
     };
 
@@ -60,11 +60,11 @@ export const DebugPanel: FC = () => {
         .join(' ');
 
       if (formattedMessage) {
-        setLogs(prev => [...prev, {
+        setLogs(prev => [...prev.slice(-49), {
           timestamp: new Date().toLocaleTimeString(),
           message: formattedMessage,
-          type: 'error'
-        }].slice(-50));
+          type: 'error' as const
+        }]);
       }
     };
 
@@ -76,21 +76,21 @@ export const DebugPanel: FC = () => {
         .join(' ');
 
       if (formattedMessage) {
-        setLogs(prev => [...prev, {
+        setLogs(prev => [...prev.slice(-49), {
           timestamp: new Date().toLocaleTimeString(),
           message: formattedMessage,
-          type: 'info'
-        }].slice(-50));
+          type: 'info' as const
+        }]);
       }
     };
 
     // Add custom log for WebSocket events
     const addWebSocketLog = (message: string) => {
-      setLogs(prev => [...prev, {
+      setLogs(prev => [...prev.slice(-49), {
         timestamp: new Date().toLocaleTimeString(),
         message: `[WebSocket] ${message}`,
-        type: 'info'
-      }].slice(-50));
+        type: 'info' as const
+      }]);
     };
 
     // Expose the WebSocket logger globally
