@@ -1,5 +1,59 @@
 import { useUnifiedTokenStore } from './unified-token-store';
 
+// Cache for successful image loads
+const imageCache = new Map<string, string>();
+
+export async function getTokenImage(symbol: string): Promise<string> {
+  const cleanSymbol = symbol.replace('-USDT', '').toLowerCase();
+
+  // Check cache first
+  if (imageCache.has(cleanSymbol)) {
+    return imageCache.get(cleanSymbol)!;
+  }
+
+  // Define API sources in priority order
+  const sources = [
+    // CoinGecko
+    `https://api.coingecko.com/api/v3/coins/${cleanSymbol}`,
+    // CryptoLogos
+    `https://cryptologos.cc/logos/${cleanSymbol}-${cleanSymbol}-logo.png`,
+    // Fallback
+    '/fallback.png'
+  ];
+
+  // Try each source until we get a valid image
+  for (const source of sources) {
+    try {
+      if (source.includes('api.coingecko.com')) {
+        // Handle CoinGecko API response
+        const response = await fetch(source);
+        if (response.ok) {
+          const data = await response.json();
+          const imageUrl = data.image?.large || data.image?.thumb;
+          if (imageUrl) {
+            imageCache.set(cleanSymbol, imageUrl);
+            return imageUrl;
+          }
+        }
+      } else {
+        // Handle direct image URLs
+        const response = await fetch(source, { method: 'HEAD' });
+        if (response.ok && response.headers.get('content-type')?.startsWith('image/')) {
+          imageCache.set(cleanSymbol, source);
+          return source;
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to fetch from ${source}:`, error);
+      continue;
+    }
+  }
+
+  // If all sources fail, return null to trigger fallback icon generation
+  return '';
+}
+
+// Keep the existing TokenMetadata interface and other utility functions
 interface TokenMetadata {
   name: string;
   symbol: string;
@@ -11,49 +65,6 @@ interface TokenMetadata {
 // Cache metadata responses to avoid redundant API calls
 const metadataCache = new Map<string, TokenMetadata>();
 
-// Cache successful image URLs to avoid trying failed sources repeatedly
-const imageUrlCache = new Map<string, string>();
-
-// Add new function for cryptocurrency icons
-export function getCryptoIconUrl(symbol: string): string {
-  // If we have a cached successful URL, return it
-  if (imageUrlCache.has(symbol)) {
-    return imageUrlCache.get(symbol)!;
-  }
-
-  // Clean symbol (remove -USDT suffix and convert to lowercase)
-  const cleanSymbol = symbol.replace('-USDT', '').toLowerCase();
-
-  // List of possible icon sources in order of preference
-  const possibleSources = [
-    // CoinGecko - primary source, extensive library
-    `https://assets.coingecko.com/coins/images/${cleanSymbol}/thumb/${cleanSymbol}.png`,
-
-    // CryptoCompare - extensive library
-    `https://www.cryptocompare.com/media/37746251/${cleanSymbol}.png`,
-
-    // GitHub Cryptocurrency Icons - maintained community repository
-    `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/${cleanSymbol}.png`,
-
-    // KuCoin
-    `https://assets.staticimg.com/cms/media/1vCIT3bTK0tCY6jLsS0SY8uVGtBGHYFCyGmGGpWLj.svg`,
-
-    // Local fallback
-    '/crypto-fallback.svg'
-  ];
-
-  return possibleSources[0]; // First source will be tried, fallbacks handled in CryptoIcon component
-}
-
-// Function to preload and validate image URL
-export async function validateImageUrl(url: string): Promise<boolean> {
-  try {
-    const response = await fetch(url, { method: 'HEAD' });
-    return response.ok && response.headers.get('content-type')?.startsWith('image/');
-  } catch {
-    return false;
-  }
-}
 
 export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMetadata | null> {
   // Check cache first
@@ -107,66 +118,24 @@ export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMet
       uri: data.result.uri || '',
     };
 
-    // If we have a URI, try to fetch the actual image URL
+    // If we have a URI, try to fetch the actual image URL using getTokenImage
     if (metadata.uri) {
-      attempts = 0;
-      while (attempts < maxAttempts) {
-        try {
-          console.log(`[Token Metadata] Attempting to fetch URI data (attempt ${attempts + 1}):`, metadata.uri);
-          const uriResponse = await fetch(metadata.uri);
-
-          if (!uriResponse.ok) {
-            throw new Error(`Failed to fetch URI data: ${uriResponse.statusText}`);
-          }
-
+      metadata.image = await getTokenImage(metadata.symbol);
+      if (!metadata.image) {
+        console.warn('[Token Metadata] No valid image URL found, using fallback');
+        metadata.image = 'https://cryptologos.cc/logos/solana-sol-logo.png';
+      }
+      try {
+        const uriResponse = await fetch(metadata.uri);
+        if (uriResponse.ok) {
           const uriData = await uriResponse.json();
-          console.log('[Token Metadata] Received URI data:', uriData);
-
-          // Try different possible image fields in order of preference
-          const possibleImageFields = [
-            uriData.image_url,
-            uriData.image,
-            uriData.imageUrl,
-            uriData.uri,
-            uriData.animation_url,
-            metadata.uri
-          ];
-
-          // Find the first valid image URL
-          for (const imageUrl of possibleImageFields) {
-            if (imageUrl && typeof imageUrl === 'string') {
-              try {
-                const imgResponse = await fetch(getImageUrl(imageUrl));
-                if (imgResponse.ok && imgResponse.headers.get('content-type')?.startsWith('image/')) {
-                  metadata.image = imageUrl;
-                  console.log('[Token Metadata] Valid image URL found:', imageUrl);
-                  break;
-                }
-              } catch (error) {
-                console.warn('[Token Metadata] Failed to validate image URL:', imageUrl, error);
-                continue;
-              }
-            }
-          }
-
-          if (!metadata.image) {
-            console.warn('[Token Metadata] No valid image URL found, using fallback');
-            metadata.image = 'https://cryptologos.cc/logos/solana-sol-logo.png';
-          }
-
           metadata.description = uriData.description;
-          break;
-        } catch (error) {
-          attempts++;
-          console.error(`[Token Metadata] URI fetch attempt ${attempts} failed:`, error);
-          if (attempts === maxAttempts) {
-            console.error('[Token Metadata] All attempts to fetch URI data failed');
-            metadata.image = 'https://cryptologos.cc/logos/solana-sol-logo.png';
-          }
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
         }
+      } catch (error) {
+          console.error("[Token Metadata] Error fetching URI data:", error);
       }
     }
+
 
     // Cache the result
     metadataCache.set(mintAddress, metadata);

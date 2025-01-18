@@ -1,5 +1,5 @@
 import { FC, useState, useEffect } from "react";
-import { getCryptoIconUrl } from "@/lib/token-metadata";
+import { getTokenImage } from "@/lib/token-metadata";
 import { cn } from "@/lib/utils";
 
 interface CryptoIconProps {
@@ -24,7 +24,6 @@ const CryptoIcon: FC<CryptoIconProps> = ({
   };
 
   const generateFallbackIcon = () => {
-    setIsLoading(false);
     const symbol1 = symbol.replace('-USDT', '').charAt(0).toUpperCase();
     const canvas = document.createElement('canvas');
     const size = 32;
@@ -32,7 +31,6 @@ const CryptoIcon: FC<CryptoIconProps> = ({
     canvas.height = size;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      // Generate a color based on the symbol's first character
       const hue = (symbol1.charCodeAt(0) * 137.508) % 360;
       ctx.fillStyle = `hsl(${hue}, 70%, 50%)`;
       ctx.beginPath();
@@ -43,8 +41,9 @@ const CryptoIcon: FC<CryptoIconProps> = ({
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(symbol1, size/2, size/2);
-      setImgSrc(canvas.toDataURL());
+      return canvas.toDataURL();
     }
+    return '';
   };
 
   useEffect(() => {
@@ -54,15 +53,23 @@ const CryptoIcon: FC<CryptoIconProps> = ({
 
     const loadImage = async () => {
       try {
-        // Get initial URL
-        const url = getCryptoIconUrl(symbol);
+        const imageUrl = await getTokenImage(symbol);
 
-        // Create a new image to test loading
+        if (!mounted) return;
+
+        if (!imageUrl) {
+          const fallbackIcon = generateFallbackIcon();
+          setImgSrc(fallbackIcon);
+          setError(true);
+          setIsLoading(false);
+          return;
+        }
+
+        // Test if the image can be loaded
         const img = new Image();
-
         img.onload = () => {
           if (mounted) {
-            setImgSrc(url);
+            setImgSrc(imageUrl);
             setIsLoading(false);
             setError(false);
           }
@@ -70,18 +77,21 @@ const CryptoIcon: FC<CryptoIconProps> = ({
 
         img.onerror = () => {
           if (mounted) {
-            generateFallbackIcon();
+            const fallbackIcon = generateFallbackIcon();
+            setImgSrc(fallbackIcon);
             setError(true);
+            setIsLoading(false);
           }
         };
 
-        img.crossOrigin = "anonymous";
-        img.src = url;
+        img.src = imageUrl;
       } catch (err) {
         console.error(`Error loading icon for ${symbol}:`, err);
         if (mounted) {
-          generateFallbackIcon();
+          const fallbackIcon = generateFallbackIcon();
+          setImgSrc(fallbackIcon);
           setError(true);
+          setIsLoading(false);
         }
       }
     };
@@ -107,7 +117,14 @@ const CryptoIcon: FC<CryptoIconProps> = ({
           isLoading ? "opacity-0" : "opacity-100",
           "transition-opacity duration-200"
         )}
-        crossOrigin="anonymous"
+        onError={(e) => {
+          const target = e.target as HTMLImageElement;
+          if (!error) {
+            const fallbackIcon = generateFallbackIcon();
+            target.src = fallbackIcon;
+            setError(true);
+          }
+        }}
       />
     </div>
   );

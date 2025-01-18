@@ -1,0 +1,124 @@
+1. Set Up the Primary and Fallback API Sources
+Define a priority order of APIs to fetch the images. For example:
+
+Primary API: CoinGecko API (for wide token coverage and reliable data).
+Fallback API: A secondary source like Cryptologos or manual mapping.
+2. Fetch Images from APIs in Sequence
+Implement logic to try fetching an image from the primary API first. If it fails, fallback to the secondary API.
+
+Example Code (Node.js/Express with Axios):
+javascript
+Copy
+Edit
+const axios = require('axios');
+
+const coingeckoBaseURL = 'https://api.coingecko.com/api/v3';
+const cryptologosBaseURL = 'https://cryptologos.cc/logos';
+
+// Fallback image URL
+const placeholderImage = '/path/to/placeholder.png';
+
+// Fetch from CoinGecko
+async function fetchFromCoinGecko(symbol) {
+  try {
+    const response = await axios.get(`${coingeckoBaseURL}/coins/${symbol}`);
+    return response.data.image.large; // Example path for image URL
+  } catch (error) {
+    console.error(`[CoinGecko] Failed to fetch image for ${symbol}:`, error.message);
+    throw error; // Pass the error to trigger fallback
+  }
+}
+
+// Fetch from Cryptologos
+async function fetchFromCryptologos(symbol) {
+  try {
+    // Generate Cryptologos URL manually
+    const imageURL = `${cryptologosBaseURL}/${symbol.toLowerCase()}-logo.png`;
+    const response = await axios.head(imageURL); // Check if the URL exists
+    if (response.status === 200) return imageURL;
+    throw new Error('Cryptologos image not found');
+  } catch (error) {
+    console.error(`[Cryptologos] Failed to fetch image for ${symbol}:`, error.message);
+    throw error; // Pass the error to trigger further fallback
+  }
+}
+
+// Get Token Image with Fallback
+async function getTokenImage(symbol) {
+  try {
+    // Try CoinGecko first
+    return await fetchFromCoinGecko(symbol);
+  } catch {
+    try {
+      // Fallback to Cryptologos
+      return await fetchFromCryptologos(symbol);
+    } catch {
+      // Final fallback to placeholder
+      console.warn(`[Fallback] Using placeholder image for ${symbol}`);
+      return placeholderImage;
+    }
+  }
+}
+
+// Usage Example
+app.get('/api/token-image/:symbol', async (req, res) => {
+  const { symbol } = req.params;
+  try {
+    const imageUrl = await getTokenImage(symbol);
+    res.json({ imageUrl });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch token image' });
+  }
+});
+3. Avoid Errors from Conflicting Requests
+Use dedicated endpoints for each API to avoid overlapping data structures.
+For example:
+/api/images/coingecko → Fetch from CoinGecko.
+/api/images/cryptologos → Fetch from Cryptologos.
+4. Cache Valid Results
+Save successfully fetched image URLs in a cache (e.g., Redis, in-memory, or database) to reduce redundant API calls and improve performance.
+
+Example Cache Structure:
+
+javascript
+Copy
+Edit
+const cache = {};
+
+async function getCachedTokenImage(symbol) {
+  if (cache[symbol]) return cache[symbol]; // Return from cache if available
+  const imageUrl = await getTokenImage(symbol);
+  cache[symbol] = imageUrl; // Save to cache
+  return imageUrl;
+}
+5. Frontend Error Handling
+In case none of the APIs return an image:
+
+Use the fallback image directly in the frontend.
+React Example:
+
+jsx
+Copy
+Edit
+<img
+  src={imageUrl}
+  alt={symbol}
+  onError={(e) => {
+    e.target.onerror = null; // Prevent infinite loop
+    e.target.src = '/path/to/placeholder.png'; // Fallback
+  }}
+/>
+6. Log Failures for Future Fixes
+Track which tokens consistently fail to fetch images and consider manual mapping for them.
+
+Example Log:
+
+javascript
+Copy
+Edit
+console.error(`[Image Failure] Unable to fetch image for ${symbol} from any API`);
+Result
+CoinGecko will be the primary source.
+If it fails, the system will attempt Cryptologos.
+If both fail, a placeholder image will be shown.
+This ensures a seamless experience for the user, with no broken images displayed
