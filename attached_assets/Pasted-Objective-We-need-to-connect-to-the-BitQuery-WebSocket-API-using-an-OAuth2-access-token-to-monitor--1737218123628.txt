@@ -1,0 +1,85 @@
+Objective: We need to connect to the BitQuery WebSocket API using an OAuth2 access token to monitor PumpFun token creation events. The issue is likely with fetching the OAuth token or how it's being used. Let's identify and fix the problems.
+
+What we currently have:
+Client ID: 95f0827e-0b00-411c-95d1-47cdf50d0f05
+Client Secret: mhLJHdYtE7D5PLjR9otGLkhzJZ
+Manually Generated Token:
+Copy
+Edit
+ory_at_ixYL1dO88QEiiFtRbsvvjoW-YJsF7kLLhJFpDwcFPno.5HEEoVYtVCRZ4LWWZpvf5izVGPOGNvJzFUw8TcH8l4c
+This token is valid until 2025-01-23 16:30:30.
+What the AI needs to do:
+Skip Fetching OAuth Token (For Now):
+
+The getAccessToken function should NOT make the OAuth request anymore since we already have a manually generated token.
+Instead, hardcode the manually generated token into the code as a constant for now.
+Use the Token Directly:
+
+Pass the token directly into the WebSocket Authorization header and API requests.
+Ensure that the token is being used for both WebSocket connection and HTTP requests.
+Updated Instructions for the AI:
+Replace the getAccessToken Function:
+
+Replace the entire getAccessToken function with this hardcoded token:
+javascript
+Copy
+Edit
+const MANUAL_ACCESS_TOKEN = 'ory_at_ixYL1dO88QEiiFtRbsvvjoW-YJsF7kLLhJFpDwcFPno.5HEEoVYtVCRZ4LWWZpvf5izVGPOGNvJzFUw8TcH8l4c';
+Use the MANUAL_ACCESS_TOKEN in WebSocket:
+
+Replace getAccessToken calls in the code with MANUAL_ACCESS_TOKEN.
+Update the WebSocket connection code like this:
+javascript
+Copy
+Edit
+const client = createClient({
+  url: 'wss://streaming.bitquery.io/eap',
+  connectionParams: () => {
+    console.log('[BitQuery] Using manually generated token...');
+    return {
+      headers: {
+        'Authorization': `Bearer ${MANUAL_ACCESS_TOKEN}`,
+      },
+    };
+  },
+  on: {
+    connected: () => console.log("[BitQuery] WebSocket connected successfully"),
+    error: (err) => console.error("[BitQuery] WebSocket error:", err),
+    closed: () => console.log("[BitQuery] WebSocket closed"),
+  },
+});
+Remove OAuth Token Fetch Logic:
+
+Remove any unnecessary logic related to OAuth token fetching, including:
+getAccessToken function.
+Any calls to https://oauth2.bitquery.io/oauth2/token.
+Test the WebSocket Connection:
+
+Start with a simple WebSocket query to test the connection. Use this test query:
+graphql
+Copy
+Edit
+subscription {
+  Solana {
+    DEXTrades(limit: 1) {
+      Trade {
+        Dex {
+          ProtocolName
+        }
+        Buy {
+          Currency {
+            Symbol
+            MintAddress
+          }
+        }
+      }
+    }
+  }
+}
+Debug Console Messages:
+
+Add console logs to show success/failure of the WebSocket connection.
+Why This Should Work:
+No OAuth Errors: By using the manually generated token, we skip the OAuth token fetch entirely, avoiding any issues there.
+Valid Token: The manually generated token is valid and active, so it should work for the WebSocket connection and API requests.
+Simplification: This approach removes unnecessary complexity and lets us focus on testing the connection.

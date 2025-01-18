@@ -1,71 +1,22 @@
-import { FC, useEffect, useState } from "react";
+import { FC, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import DebugConsole from "@/components/DebugConsole";
 import { createClient } from 'graphql-ws';
 
 const ProjectPage: FC = () => {
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-
   useEffect(() => {
-    console.log('[BitQuery] Starting OAuth authentication process...');
-    (window as any).debugConsole?.log('Starting OAuth authentication...');
+    console.log('[BitQuery] Starting WebSocket connection...');
+    (window as any).debugConsole?.log('Starting WebSocket connection...');
 
-    // Function to get OAuth token
-    async function getAccessToken() {
-      try {
-        console.log('[BitQuery] Making OAuth token request...');
-        const formData = new URLSearchParams({
-          'grant_type': 'client_credentials',
-          'client_id': "95f0827e-0b00-411c-95d1-47cdf50d0f05",
-          'client_secret': "mhLJHdYtE7D5PLjR9otGLkhzJZ",
-          'scope': 'api'
-        });
-
-        // Simple network connectivity test
-        try {
-          await fetch('https://oauth2.bitquery.io/status');
-          console.log('[BitQuery] OAuth endpoint is reachable');
-        } catch (error) {
-          console.error('[BitQuery] OAuth endpoint connectivity test failed:', error);
-          throw new Error('OAuth endpoint is not reachable');
-        }
-
-        const response = await fetch('https://oauth2.bitquery.io/oauth2/token', {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: formData
-        });
-
-        // Log the response status and headers for debugging
-        console.log('[BitQuery] OAuth Response Status:', response.status);
-        console.log('[BitQuery] OAuth Response Headers:', [...response.headers.entries()]);
-
-        if (!response.ok) {
-          const text = await response.text();
-          console.error('[BitQuery] OAuth Error Response:', text);
-          throw new Error(`OAuth token request failed: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        console.log('[BitQuery] Access token obtained successfully');
-        (window as any).debugConsole?.success('OAuth token obtained successfully');
-        return data.access_token;
-      } catch (error) {
-        console.error('[BitQuery] Failed to get OAuth token:', error);
-        (window as any).debugConsole?.error(`Failed to get OAuth token: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        return null;
-      }
-    }
+    // Manually generated token that is valid until 2025-01-23 16:30:30
+    const MANUAL_ACCESS_TOKEN = 'ory_at_ixYL1dO88QEiiFtRbsvvjoW-YJsF7kLLhJFpDwcFPno.5HEEoVYtVCRZ4LWWZpvf5izVGPOGNvJzFUw8TcH8l4c';
 
     let retryCount = 0;
     const maxRetries = 5;
     let unsubscribe: (() => void) | null = null;
     let connectionTimeout: ReturnType<typeof setTimeout>;
 
-    function connectWebSocket(token: string) {
+    function connectWebSocket() {
       console.log('[BitQuery] Attempting WebSocket connection...');
       (window as any).debugConsole?.log('Attempting to establish WebSocket connection...');
 
@@ -73,16 +24,16 @@ const ProjectPage: FC = () => {
       connectionTimeout = setTimeout(() => {
         console.error('[BitQuery] WebSocket connection timeout after 10s');
         (window as any).debugConsole?.error('WebSocket connection timeout - attempting retry');
-        handleRetry(token);
+        handleRetry();
       }, 10000);
 
       const client = createClient({
         url: 'wss://streaming.bitquery.io/eap',
         connectionParams: () => {
-          console.log('[BitQuery] Setting up connection parameters with OAuth token...');
+          console.log('[BitQuery] Using manually generated token...');
           return {
             headers: {
-              'Authorization': `Bearer ${token}`,
+              'Authorization': `Bearer ${MANUAL_ACCESS_TOKEN}`,
             },
           };
         },
@@ -100,7 +51,7 @@ const ProjectPage: FC = () => {
             clearTimeout(connectionTimeout);
             console.error('[BitQuery] WebSocket connection error:', error);
             (window as any).debugConsole?.error(`WebSocket error: ${error?.message || 'Unknown error'}`);
-            handleRetry(token);
+            handleRetry();
           },
           closed: (event: unknown) => {
             clearTimeout(connectionTimeout);
@@ -108,7 +59,7 @@ const ProjectPage: FC = () => {
             const reason = (event as { reason?: string })?.reason;
             console.warn('[BitQuery] WebSocket connection closed:', { code, reason });
             (window as any).debugConsole?.log(`WebSocket connection closed: Code ${code || 'unknown'}, Reason: ${reason || 'none provided'}`);
-            handleRetry(token);
+            handleRetry();
           },
         },
       });
@@ -116,14 +67,14 @@ const ProjectPage: FC = () => {
       return client;
     }
 
-    function handleRetry(token: string) {
+    function handleRetry() {
       clearTimeout(connectionTimeout);
       if (retryCount < maxRetries) {
         retryCount++;
         const delay = Math.min(1000 * Math.pow(2, retryCount), 30000); // Exponential backoff with 30s max
         console.log(`[BitQuery] Retrying connection in ${delay/1000}s (attempt ${retryCount}/${maxRetries})`);
         (window as any).debugConsole?.log(`Retrying in ${delay/1000}s (attempt ${retryCount}/${maxRetries})`);
-        setTimeout(() => connectWebSocket(token), delay);
+        setTimeout(connectWebSocket, delay);
       } else {
         console.error('[BitQuery] Max retry attempts reached');
         (window as any).debugConsole?.error('Failed to establish WebSocket connection after max retries');
@@ -181,7 +132,7 @@ const ProjectPage: FC = () => {
             error: (error: Error) => {
               console.error('[BitQuery] Test subscription error:', error);
               (window as any).debugConsole?.error(`Subscription error: ${error?.message || 'Unknown error'}`);
-              handleRetry(accessToken!);
+              handleRetry();
             },
             complete: () => {
               console.log('[BitQuery] Test subscription completed');
@@ -193,7 +144,7 @@ const ProjectPage: FC = () => {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         console.error('[BitQuery] Failed to create test subscription:', errorMessage);
         (window as any).debugConsole?.error(`Failed to create test subscription: ${errorMessage}`);
-        handleRetry(accessToken!);
+        handleRetry();
       }
     }
 
@@ -245,7 +196,7 @@ const ProjectPage: FC = () => {
             error: (error: Error) => {
               console.error('[BitQuery] Subscription error:', error);
               (window as any).debugConsole?.error(`Subscription error: ${error?.message || 'Unknown error'}`);
-              handleRetry(accessToken!);
+              handleRetry();
             },
             complete: () => {
               console.log('[BitQuery] Token monitoring subscription completed');
@@ -260,17 +211,8 @@ const ProjectPage: FC = () => {
       }
     }
 
-    // Start the OAuth flow and then connect WebSocket
-    async function initialize() {
-      const token = await getAccessToken();
-      if (token) {
-        setAccessToken(token);
-        connectWebSocket(token);
-      }
-    }
-
-    // Start the initialization process
-    initialize();
+    // Start initial connection
+    connectWebSocket();
 
     // Cleanup on unmount
     return () => {
