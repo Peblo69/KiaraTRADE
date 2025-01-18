@@ -350,9 +350,9 @@ const ProjectPage: FC = () => {
                 </div>
 
                 <DialogTitle className="text-2xl flex items-center gap-2 pr-32">
-                  <img
-                    src={coins.find(c => c.id === selectedCoin)?.image}
-                    alt={selectedCoinData.name}
+                  <img 
+                    src={coins.find(c => c.id === selectedCoin)?.image} 
+                    alt={selectedCoinData.name} 
                     className="w-8 h-8"
                   />
                   {selectedCoinData.name}
