@@ -1,0 +1,126 @@
+Below are the most likely reasons you’re still seeing a “Maximum update depth exceeded” error, even with these revised store and chart components. The new code itself looks logically correct at a glance—meaning the infinite loop is probably coming from something else in your setup:
+
+1. Something Else Is Constantly Updating the Store
+Even though your price-history store code looks fine for passive storage (it doesn’t automatically fetch or update state), an external caller might be calling methods like initializePriceHistory() or addPricePoint() on every render cycle.
+
+What to Check
+Parent or Higher Components:
+
+Is there a useEffect() or some logic in a parent that does initializePriceHistory(tokenAddress, ...) every time the parent renders?
+Do you call addPricePoint() in a loop or on every state change?
+Synchronized States:
+
+If you have some effect that depends on the store data, and that effect in turn calls setState in your React code, you can accidentally create a feedback loop.
+Debug Tip: Add console logs where you call initializePriceHistory() or addPricePoint() from your application code to confirm how often they fire. They should only be called once (or only at well-defined intervals), not on every render.
+
+2. Zustand DevTools Sometimes Causes Extra Renders
+Zustand’s DevTools are generally safe, but in some edge cases (or if incorrectly configured), they can cause repeated state updates. Try removing the devtools middleware to see if the problem goes away:
+
+ts
+Copy
+export const useTokenPriceStore = create<PriceHistoryState>()(
+  // remove `devtools(...)` temporarily
+  (set, get) => ({
+    // same logic
+  })
+);
+If the infinite loop stops, then it’s something about the DevTools usage. Usually it’s still your code that’s re-triggering updates, but eliminating DevTools can help isolate the cause.
+
+3. Type Mismatch in initialized Logic (Less Common, But Worth Checking)
+In your store, you have:
+
+ts
+Copy
+interface PriceHistoryState {
+  initialized: Record<string, Record<Timeframe, boolean>>;
+  ...
+}
+
+// Then in initializePriceHistory:
+if (state.initialized[tokenAddress]) {
+  return state;
+}
+
+// And later:
+initialized: {
+  ...state.initialized,
+  [tokenAddress]: true
+}
+Notice that the TypeScript definition says initialized[tokenAddress] should be a record of timeframes.
+But you’re actually storing a boolean (true).
+This isn’t necessarily a direct cause of an infinite loop, but it’s definitely a mismatch. If some other piece of code tries to read initialized[tokenAddress][someTimeframe] as a boolean, it might crash or re-update. Make sure that code is never stuck in a loop like:
+
+ts
+Copy
+// Pseudocode that *could* cause a loop:
+if (!initialized[tokenAddress]?.[timeframe]) {
+  initializePriceHistory(...);
+}
+But your store never sets initialized[tokenAddress] to an object with [timeframe]. Instead, you set it to true (a boolean). That can cause repeated “re-initialize” calls if any code is expecting a sub-key.
+
+Fix could be something like:
+
+ts
+Copy
+// If you truly want it timeframe-based:
+initialized: {
+  ...state.initialized,
+  [tokenAddress]: {
+    // spread existing timeframes or create an empty object
+    ...(state.initialized[tokenAddress] ?? {}),
+    [someTimeframe]: true
+  }
+}
+Or if you only intend a single boolean per token (not timeframe), then fix the interface to:
+
+ts
+Copy
+interface PriceHistoryState {
+  initialized: Record<string, boolean>;
+  ...
+}
+4. Try Removing the Store Completely in TokenChart (For a Quick Test)
+A quick way to confirm that the infinite loop is not inside the chart code is:
+
+tsx
+Copy
+// Temporarily replace the store read with a static array
+// const priceHistory = useTokenPriceStore(...);
+const priceHistory = [{
+  timestamp: Date.now(),
+  open: 100,
+  high: 105,
+  low: 95,
+  close: 100,
+  volume: 50,
+  marketCap: 1000000,
+  trades: 10
+}];
+If your “maximum update depth” error goes away when you do this, you’ve proven that the store usage (or something that triggers store updates) is the culprit. This also confirms the chart code is fine by itself.
+
+5. Check for a Parent That Re-Renders on Every Child Render
+Sometimes there’s a parent or ancestor component re-rendering the TokenChart on every update. For example:
+
+A parent that tracks a piece of state, sees the child render, and triggers setState in its own useEffect.
+An infinite loop in a custom hook.
+Use the React DevTools Profiler or logs in the parent to see if it’s re-rendering over and over.
+
+Bottom Line
+Your store code and TokenChart look fine for typical usage, so the infinite loop is almost definitely caused by one of these:
+
+An external repeated call to initializePriceHistory() or addPricePoint() in a parent or side effect.
+A mismatch in your initialized logic that triggers re-initialization each time.
+A weird edge case with Zustand devtools.
+A parent re-render loop that triggers the chart to read the store over and over.
+Focus on:
+
+Ensuring you only call store update methods once (or at controlled intervals).
+Fixing initialized logic if it’s incorrectly toggling from “not set” to “set” repeatedly for each timeframe.
+Verifying there’s no parent or external effect that reacts to the store in a way that triggers repeated updates.
+That’s where you’ll find the loop. The TokenChart implementation itself is not to blame anymore.
+
+
+
+
+
+
