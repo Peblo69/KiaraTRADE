@@ -126,19 +126,22 @@ export const SparklineChart: FC<SparklineProps> = ({
       <div 
         className="absolute bottom-0 right-0 bg-background text-xs px-1"
         style={{ 
-          fontSize: '8px',
-          lineHeight: '10px',
+          fontSize: '9px',
+          lineHeight: '12px',
           zIndex: 2,
           backgroundColor: 'hsl(var(--card))',
           borderLeft: '1px solid hsl(var(--border))',
           borderTop: '1px solid hsl(var(--border))',
           borderTopLeftRadius: '4px',
-          padding: '2px 4px',
-          minWidth: '32px',
-          textAlign: 'center'
+          padding: '3px 6px',
+          minWidth: '48px',
+          textAlign: 'center',
+          fontWeight: '500',
+          letterSpacing: '0.02em',
+          transform: 'translateY(-1px)'
         }}
       >
-        KIARA
+        KIARA VISION
       </div>
     </div>
   );
