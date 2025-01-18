@@ -1,7 +1,7 @@
 import { FC, useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, ArrowUp, ArrowDown, Search } from "lucide-react";
+import { Loader2, ArrowUp, ArrowDown, Search, TrendingUp, TrendingDown } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -254,7 +254,12 @@ const ProjectPage: FC = () => {
                       <div className="text-sm text-muted-foreground">{formatPrice(ticker.last)}</div>
                     </div>
                   </div>
-                  <div className="text-green-500">{formatChange(ticker.changeRate)}</div>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-green-500" />
+                    <div className="text-green-500 min-w-[80px] text-right">
+                      {formatChange(ticker.changeRate)}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -282,7 +287,12 @@ const ProjectPage: FC = () => {
                       <div className="text-sm text-muted-foreground">{formatPrice(ticker.last)}</div>
                     </div>
                   </div>
-                  <div className="text-red-500">{formatChange(ticker.changeRate)}</div>
+                  <div className="flex items-center gap-2">
+                    <TrendingDown className="h-4 w-4 text-red-500" />
+                    <div className="text-red-500 min-w-[80px] text-right">
+                      {formatChange(ticker.changeRate)}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -311,8 +321,17 @@ const ProjectPage: FC = () => {
                       </div>
                     </div>
                   </div>
-                  <div className={parseFloat(ticker.changeRate) >= 0 ? "text-green-500" : "text-red-500"}>
-                    {formatChange(ticker.changeRate)}
+                  <div className="flex items-center gap-2">
+                    {parseFloat(ticker.changeRate) >= 0 ? (
+                      <TrendingUp className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4 text-red-500" />
+                    )}
+                    <div className={`min-w-[80px] text-right ${
+                      parseFloat(ticker.changeRate) >= 0 ? "text-green-500" : "text-red-500"
+                    }`}>
+                      {formatChange(ticker.changeRate)}
+                    </div>
                   </div>
                 </div>
               ))}
