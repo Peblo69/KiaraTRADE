@@ -1,5 +1,5 @@
 import { FC, useEffect, useRef, useMemo, useCallback, useState } from 'react';
-import { createChart, type IChartApi, type ISeriesApi, type CandlestickSeriesPartialOptions, type HistogramSeriesPartialOptions } from 'lightweight-charts';
+import { createChart } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import { useTokenPriceStore, TIMEFRAMES } from '@/lib/price-history';
 import { Button } from '@/components/ui/button';
@@ -16,22 +16,22 @@ const TokenChart: FC<TokenChartProps> = ({
   height = 400
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const [selectedTimeframe, setSelectedTimeframe] = useState<TimeframeKey>('5m');
+
+  // Chart refs
+  const chart = useRef<any>(null);
+  const candlestickSeries = useRef<any>(null);
+  const volumeSeries = useRef<any>(null);
 
   // Get price history data
   const priceHistory = useTokenPriceStore(state => 
     state.getPriceHistory(tokenAddress, selectedTimeframe)
   );
 
-  // Memoize chart data transformation
+  // Memoize data transformation
   const chartData = useMemo(() => {
-    if (!priceHistory.length) return [];
-
     return priceHistory.map(candle => ({
-      time: candle.timestamp / 1000,
+      time: Math.floor(candle.timestamp / 1000),
       open: candle.open,
       high: candle.high,
       low: candle.low,
@@ -40,13 +40,13 @@ const TokenChart: FC<TokenChartProps> = ({
     }));
   }, [priceHistory]);
 
-  // Initialize chart once
+  // Initialize chart
   useEffect(() => {
-    if (!containerRef.current || chartRef.current) return;
+    if (!containerRef.current || chart.current) return;
 
-    const chart = createChart(containerRef.current, {
+    chart.current = createChart(containerRef.current, {
       layout: {
-        background: { type: 'solid', color: 'transparent' },
+        background: { color: 'transparent' },
         textColor: '#D9D9D9',
       },
       grid: {
@@ -68,7 +68,7 @@ const TokenChart: FC<TokenChartProps> = ({
       height
     });
 
-    const candlestickSeries = chart.addCandlestickSeries({
+    candlestickSeries.current = chart.current.addCandlestickSeries({
       upColor: '#26a69a',
       downColor: '#ef5350',
       borderVisible: false,
@@ -76,36 +76,33 @@ const TokenChart: FC<TokenChartProps> = ({
       wickDownColor: '#ef5350',
     });
 
-    const volumeSeries = chart.addHistogramSeries({
+    volumeSeries.current = chart.current.addHistogramSeries({
       color: '#26a69a',
       priceFormat: {
         type: 'volume',
       },
-      overlay: true,
       priceScaleId: '',
       scaleMargins: {
         top: 0.8,
         bottom: 0,
       },
-    } as HistogramSeriesPartialOptions);
-
-    chartRef.current = chart;
-    candlestickSeriesRef.current = candlestickSeries;
-    volumeSeriesRef.current = volumeSeries;
+    });
 
     return () => {
-      chart.remove();
-      chartRef.current = null;
-      candlestickSeriesRef.current = null;
-      volumeSeriesRef.current = null;
+      if (chart.current) {
+        chart.current.remove();
+        chart.current = null;
+        candlestickSeries.current = null;
+        volumeSeries.current = null;
+      }
     };
-  }, []); // Empty dependency array for one-time initialization
+  }, [height]);
 
   // Handle window resize
   useEffect(() => {
     const handleResize = () => {
-      if (containerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({ 
+      if (containerRef.current && chart.current) {
+        chart.current.applyOptions({ 
           width: containerRef.current.clientWidth 
         });
       }
@@ -115,25 +112,23 @@ const TokenChart: FC<TokenChartProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Update data only when chartData changes
+  // Update chart data
   useEffect(() => {
-    if (!candlestickSeriesRef.current || !volumeSeriesRef.current || !chartRef.current || !chartData.length) {
+    if (!chart.current || !candlestickSeries.current || !volumeSeries.current || chartData.length === 0) {
       return;
     }
 
-    // Update price data
-    candlestickSeriesRef.current.setData(chartData);
+    candlestickSeries.current.setData(chartData);
 
-    // Update volume data
     const volumeData = chartData.map(d => ({
       time: d.time,
       value: d.volume,
       color: d.close >= d.open ? '#26a69a' : '#ef5350'
     }));
 
-    volumeSeriesRef.current.setData(volumeData);
-    chartRef.current.timeScale().fitContent();
-  }, [chartData]); // Only depend on chartData
+    volumeSeries.current.setData(volumeData);
+    chart.current.timeScale().fitContent();
+  }, [chartData]);
 
   // Memoize timeframe change handler
   const handleTimeframeChange = useCallback((tf: TimeframeKey) => {
@@ -145,12 +140,12 @@ const TokenChart: FC<TokenChartProps> = ({
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-white">Price Chart</h3>
         <div className="flex gap-2">
-          {(Object.keys(TIMEFRAMES) as TimeframeKey[]).map((tf) => (
+          {Object.keys(TIMEFRAMES).map((tf) => (
             <Button
               key={tf}
               variant={selectedTimeframe === tf ? "default" : "outline"}
               size="sm"
-              onClick={() => handleTimeframeChange(tf)}
+              onClick={() => handleTimeframeChange(tf as TimeframeKey)}
             >
               {tf}
             </Button>
