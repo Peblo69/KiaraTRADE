@@ -5,7 +5,7 @@ import { WebSocket } from 'ws';
 import { generateAIResponse } from './services/ai';
 import axios from 'axios';
 
-// Cache structure for Binance data
+// Cache structure for KuCoin data
 const cache = {
   prices: { data: null, timestamp: 0 },
   stats24h: { data: null, timestamp: 0 },
@@ -13,7 +13,7 @@ const cache = {
 };
 
 const CACHE_DURATION = 30000; // 30 seconds cache
-const BINANCE_API_BASE = 'https://api.binance.com/api/v3';
+const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
 
 // Configure axios with timeout and headers
 axios.defaults.timeout = 10000;
@@ -21,7 +21,7 @@ axios.defaults.headers.common['accept'] = 'application/json';
 
 // Add request interceptor for rate limiting
 let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 100; // Minimum 100ms between requests (Binance allows up to 1200 requests per minute)
+const MIN_REQUEST_INTERVAL = 20; // Minimum 20ms between requests (KuCoin allows up to 50 requests per second)
 
 axios.interceptors.request.use(async (config) => {
   const now = Date.now();
@@ -35,27 +35,27 @@ axios.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Helper function to format Binance data to match our frontend expectations
-const formatBinanceData = (prices: any[], stats24h: any[]) => {
-  return prices.map(price => {
-    const stat = stats24h.find(s => s.symbol === price.symbol);
-    if (!stat) return null;
+// Helper function to format KuCoin data to match our frontend expectations
+const formatKuCoinData = (markets: any[]) => {
+  return markets.map(market => {
+    if (!market.symbol.endsWith('-USDT')) return null;
 
+    const symbol = market.symbol.replace('-USDT', '');
     return {
-      id: price.symbol.toLowerCase(),
-      symbol: price.symbol,
-      name: price.symbol, // We'll need to maintain a separate mapping for full names
-      current_price: parseFloat(price.price),
-      market_cap: parseFloat(stat.quoteVolume),
+      id: symbol.toLowerCase(),
+      symbol: symbol,
+      name: symbol,
+      current_price: parseFloat(market.last),
+      market_cap: parseFloat(market.volValue),
       market_cap_rank: null,
-      total_volume: parseFloat(stat.volume),
-      high_24h: parseFloat(stat.highPrice),
-      low_24h: parseFloat(stat.lowPrice),
-      price_change_percentage_24h: parseFloat(stat.priceChangePercent),
-      price_change_percentage_1h_in_currency: null, // Need to calculate from klines
-      price_change_percentage_7d_in_currency: null, // Need to calculate from klines
-      last_updated: new Date(stat.closeTime).toISOString(),
-      sparkline_in_7d: { price: [] } // Need to fetch from klines endpoint
+      total_volume: parseFloat(market.vol),
+      high_24h: parseFloat(market.high),
+      low_24h: parseFloat(market.low),
+      price_change_percentage_24h: parseFloat(market.changeRate) * 100,
+      price_change_percentage_1h_in_currency: null,
+      price_change_percentage_7d_in_currency: null,
+      last_updated: new Date(market.time).toISOString(),
+      sparkline_in_7d: { price: [] }
     };
   }).filter(Boolean);
 };
@@ -74,13 +74,11 @@ export function registerRoutes(app: Express): Server {
         return res.json(cache.prices.data);
       }
 
-      // Fetch both price ticker and 24h stats
-      const [pricesResponse, stats24hResponse] = await Promise.all([
-        axios.get(`${BINANCE_API_BASE}/ticker/price`),
-        axios.get(`${BINANCE_API_BASE}/ticker/24hr`)
-      ]);
+      // Fetch all USDT markets stats
+      const response = await axios.get(`${KUCOIN_API_BASE}/market/allTickers`);
+      const markets = response.data.data.ticker.filter((t: any) => t.symbol.endsWith('-USDT'));
 
-      const formattedData = formatBinanceData(pricesResponse.data, stats24hResponse.data);
+      const formattedData = formatKuCoinData(markets);
 
       cache.prices = {
         data: formattedData,
@@ -92,7 +90,7 @@ export function registerRoutes(app: Express): Server {
       console.error('Markets error:', error.response?.data || error.message);
       res.status(error.response?.status || 500).json({ 
         error: 'Failed to fetch market data',
-        details: error.response?.data?.error || error.message 
+        details: error.response?.data?.msg || error.message 
       });
     }
   });
@@ -100,34 +98,39 @@ export function registerRoutes(app: Express): Server {
   // Single coin details endpoint with price history
   app.get('/api/coins/:symbol', async (req, res) => {
     try {
-      const symbol = req.params.symbol.toUpperCase();
+      const symbol = `${req.params.symbol.toUpperCase()}-USDT`;
 
-      const [ticker24h, klines] = await Promise.all([
-        axios.get(`${BINANCE_API_BASE}/ticker/24hr`, {
+      const [marketStats, klines] = await Promise.all([
+        axios.get(`${KUCOIN_API_BASE}/market/stats`, {
           params: { symbol }
         }),
-        axios.get(`${BINANCE_API_BASE}/klines`, {
+        axios.get(`${KUCOIN_API_BASE}/market/candles`, {
           params: {
             symbol,
-            interval: '1d',
-            limit: 7 // Last 7 days
+            type: '1day',
+            startAt: Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000),
+            endAt: Math.floor(Date.now() / 1000)
           }
         })
       ]);
 
-      const prices = klines.data.map((kline: any[]) => [kline[0], parseFloat(kline[4])]); // [timestamp, close]
+      const stats = marketStats.data.data;
+      // KuCoin returns klines in reverse order [timestamp, open, close, high, low, volume, turnover]
+      const prices = klines.data.data
+        .reverse()
+        .map((kline: string[]) => [parseInt(kline[0]) * 1000, parseFloat(kline[2])]);
 
       const response = {
-        id: symbol.toLowerCase(),
-        symbol: symbol,
-        name: symbol, // Would need mapping for full names
-        description: { en: '' }, // Would need separate mapping
+        id: symbol.replace('-USDT', '').toLowerCase(),
+        symbol: symbol.replace('-USDT', ''),
+        name: symbol.replace('-USDT', ''),
+        description: { en: '' },
         market_data: {
-          current_price: { usd: parseFloat(ticker24h.data.lastPrice) },
-          market_cap: { usd: parseFloat(ticker24h.data.quoteVolume) },
-          total_volume: { usd: parseFloat(ticker24h.data.volume) },
-          high_24h: { usd: parseFloat(ticker24h.data.highPrice) },
-          low_24h: { usd: parseFloat(ticker24h.data.lowPrice) }
+          current_price: { usd: parseFloat(stats.last) },
+          market_cap: { usd: parseFloat(stats.volValue) },
+          total_volume: { usd: parseFloat(stats.vol) },
+          high_24h: { usd: parseFloat(stats.high) },
+          low_24h: { usd: parseFloat(stats.low) }
         },
         market_chart: {
           prices
@@ -139,7 +142,7 @@ export function registerRoutes(app: Express): Server {
       console.error('Coin details error:', error.response?.data || error.message);
       res.status(error.response?.status || 500).json({ 
         error: 'Failed to fetch coin details',
-        details: error.response?.data?.error || error.message 
+        details: error.response?.data?.msg || error.message 
       });
     }
   });
@@ -152,25 +155,29 @@ export function registerRoutes(app: Express): Server {
         return res.json(cache.trending.data);
       }
 
-      const response = await axios.get(`${BINANCE_API_BASE}/ticker/24hr`);
+      const response = await axios.get(`${KUCOIN_API_BASE}/market/allTickers`);
+      const markets = response.data.data.ticker.filter((t: any) => t.symbol.endsWith('-USDT'));
 
       // Sort by volume and take top 10
-      const trending = response.data
-        .sort((a: any, b: any) => parseFloat(b.volume) - parseFloat(a.volume))
+      const trending = markets
+        .sort((a: any, b: any) => parseFloat(b.volValue) - parseFloat(a.volValue))
         .slice(0, 10)
-        .map((coin: any) => ({
-          item: {
-            id: coin.symbol.toLowerCase(),
-            coin_id: coin.symbol.toLowerCase(),
-            name: coin.symbol,
-            symbol: coin.symbol.toLowerCase(),
-            market_cap_rank: null,
-            thumb: '', // Would need separate mapping for images
-            small: '',
-            large: '',
-            score: parseFloat(coin.volume)
-          }
-        }));
+        .map((market: any) => {
+          const symbol = market.symbol.replace('-USDT', '');
+          return {
+            item: {
+              id: symbol.toLowerCase(),
+              coin_id: symbol.toLowerCase(),
+              name: symbol,
+              symbol: symbol.toLowerCase(),
+              market_cap_rank: null,
+              thumb: '',
+              small: '',
+              large: '',
+              score: parseFloat(market.volValue)
+            }
+          };
+        });
 
       const trendingResponse = { coins: trending };
 
@@ -184,7 +191,7 @@ export function registerRoutes(app: Express): Server {
       console.error('Trending error:', error.response?.data || error.message);
       res.status(error.response?.status || 500).json({ 
         error: 'Failed to fetch trending coins',
-        details: error.response?.data?.error || error.message 
+        details: error.response?.data?.msg || error.message 
       });
     }
   });
