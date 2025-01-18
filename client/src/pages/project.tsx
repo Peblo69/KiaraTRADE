@@ -49,7 +49,7 @@ interface CoinDetails {
     low_24h: { usd: number };
   };
   market_chart: {
-    prices: Array<number[]>;
+    prices: Array<[number, number]>;
   };
   links: {
     homepage: string[];
@@ -326,7 +326,9 @@ const ProjectPage: FC = () => {
 
               {/* Price Chart */}
               <div className="mt-4 mb-6">
-                <CoinChart prices={selectedCoinData.market_chart.prices} />
+                {selectedCoinData.market_chart?.prices && (
+                  <CoinChart prices={selectedCoinData.market_chart.prices} />
+                )}
               </div>
 
               <div className="space-y-4">

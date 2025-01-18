@@ -2,7 +2,7 @@ import { FC, useEffect, useRef } from 'react';
 import { createChart, ColorType, IChartApi, Time } from 'lightweight-charts';
 
 interface CoinChartProps {
-  prices: Array<number[]>; // Array of [timestamp, price] pairs
+  prices: Array<[number, number]>; // Array of [timestamp, price] pairs
   theme?: 'light' | 'dark';
 }
 
