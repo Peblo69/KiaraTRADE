@@ -1,5 +1,5 @@
 import { FC, useEffect, useRef, useState } from 'react';
-import { createChart, ColorType, IChartApi } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, HistogramSeriesOptions, SeriesOptionsCommon } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import {
   Select,
@@ -21,9 +21,9 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
-  const updateIntervalRef = useRef<any>(null);
+  const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastKlineRef = useRef<any>(null);
-  const [timeframe, setTimeframe] = useState<TimeFrame>('1d');
+  const [timeframe, setTimeframe] = useState<TimeFrame>('1m');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -35,7 +35,6 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
       });
     };
 
-    // Create chart
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
@@ -53,7 +52,6 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
       },
     });
 
-    // Add candlestick series
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: '#26a69a',
       downColor: '#ef5350',
@@ -62,15 +60,20 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
       wickDownColor: '#ef5350',
     });
 
-    // Add volume series
-    const volumeSeries = chart.addHistogramSeries({
+    const volumeSeriesOptions: HistogramSeriesOptions & SeriesOptionsCommon = {
       color: '#26a69a',
       priceFormat: {
         type: 'volume',
       },
-      priceScaleId: '', // Set as an overlay
+      priceScaleId: '',
+    };
+
+    const volumeSeries = chart.addHistogramSeries(volumeSeriesOptions);
+    volumeSeries.applyOptions({
+      priceFormat: { type: 'volume' },
+      overlay: true,
       scaleMargins: {
-        top: 0.8, // Position the volume series at the bottom 20% of the chart
+        top: 0.8,
         bottom: 0,
       },
     });
@@ -79,7 +82,6 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
     candlestickSeriesRef.current = candlestickSeries;
     volumeSeriesRef.current = volumeSeries;
 
-    // Load initial chart data
     const loadChartData = async (isUpdate = false) => {
       if (!isUpdate) setIsLoading(true);
       try {
@@ -93,45 +95,38 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
           return;
         }
 
-        // For updates, only add new klines
         if (isUpdate && lastKlineRef.current) {
           const lastTime = lastKlineRef.current.time;
           const newKlines = data.klines.filter((k: any) => k.time > lastTime);
 
           if (newKlines.length > 0) {
-            // Update the last kline (it might have changed)
             candlestickSeriesRef.current.update(data.klines[data.klines.length - 2]);
-            // Add the new kline
             candlestickSeriesRef.current.update(data.klines[data.klines.length - 1]);
 
-            // Update volume for the new klines
             const volumeUpdates = newKlines.map((k: any) => ({
               time: k.time,
               value: k.volume,
               color: k.close >= k.open 
-                ? 'rgba(38, 166, 154, 0.5)' // Green for up candles
-                : 'rgba(239, 83, 80, 0.5)'  // Red for down candles
+                ? 'rgba(38, 166, 154, 0.5)'
+                : 'rgba(239, 83, 80, 0.5)'
             }));
             volumeUpdates.forEach(update => volumeSeriesRef.current.update(update));
           }
         } else {
-          // Initial load or timeframe change
           candlestickSeriesRef.current.setData(data.klines);
 
           const volumeData = data.klines.map((k: any) => ({
             time: k.time,
             value: k.volume,
             color: k.close >= k.open 
-              ? 'rgba(38, 166, 154, 0.5)' // Green for up candles
-              : 'rgba(239, 83, 80, 0.5)'  // Red for down candles
+              ? 'rgba(38, 166, 154, 0.5)'
+              : 'rgba(239, 83, 80, 0.5)'
           }));
           volumeSeriesRef.current.setData(volumeData);
 
-          // Fit content on initial load
           chart.timeScale().fitContent();
         }
 
-        // Store the last kline for future updates
         lastKlineRef.current = data.klines[data.klines.length - 1];
       } catch (error) {
         console.error('Failed to load chart data:', error);
@@ -140,10 +135,8 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
       }
     };
 
-    // Load initial data
     loadChartData();
 
-    // Set up periodic updates
     const updateInterval = getUpdateInterval(timeframe);
     updateIntervalRef.current = setInterval(() => loadChartData(true), updateInterval);
 
@@ -158,31 +151,19 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
     };
   }, [symbol, timeframe]);
 
-  // Get appropriate update interval based on timeframe
   const getUpdateInterval = (tf: TimeFrame): number => {
     switch (tf) {
-      case '1m': return 5000;  // 5 seconds
-      case '5m': return 10000; // 10 seconds
-      case '15m': return 15000; // 15 seconds
-      case '30m': return 20000; // 20 seconds
-      case '1h': return 30000; // 30 seconds
-      case '4h': return 60000; // 1 minute
-      case '1d': return 300000; // 5 minutes
-      case '1w': return 900000; // 15 minutes
-      default: return 30000;
+      case '1m': return 5000;   // 5 seconds for 1-minute candles
+      case '5m': return 5000;   // 5 seconds for 5-minute candles
+      case '15m': return 5000;  // 5 seconds for 15-minute candles
+      case '30m': return 10000; // 10 seconds for 30-minute candles
+      case '1h': return 15000;  // 15 seconds for 1-hour candles
+      case '4h': return 30000;  // 30 seconds for 4-hour candles
+      case '1d': return 60000;  // 1 minute for daily candles
+      case '1w': return 300000; // 5 minutes for weekly candles
+      default: return 5000;     // Default to 5 seconds
     }
   };
-
-  const timeframes: { value: TimeFrame; label: string }[] = [
-    { value: '1m', label: '1 minute' },
-    { value: '5m', label: '5 minutes' },
-    { value: '15m', label: '15 minutes' },
-    { value: '30m', label: '30 minutes' },
-    { value: '1h', label: '1 hour' },
-    { value: '4h', label: '4 hours' },
-    { value: '1d', label: '1 day' },
-    { value: '1w', label: '1 week' },
-  ];
 
   return (
     <Card className={`p-4 ${className}`}>
@@ -193,7 +174,16 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
             <SelectValue placeholder="Select timeframe" />
           </SelectTrigger>
           <SelectContent>
-            {timeframes.map((tf) => (
+            {[
+              { value: '1m', label: '1 minute' },
+              { value: '5m', label: '5 minutes' },
+              { value: '15m', label: '15 minutes' },
+              { value: '30m', label: '30 minutes' },
+              { value: '1h', label: '1 hour' },
+              { value: '4h', label: '4 hours' },
+              { value: '1d', label: '1 day' },
+              { value: '1w', label: '1 week' },
+            ].map((tf) => (
               <SelectItem key={tf.value} value={tf.value}>
                 {tf.label}
               </SelectItem>

@@ -27,7 +27,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import AdvancedChart from '@/components/AdvancedChart'; // Replaced CoinChart import
+import AdvancedChart from '@/components/AdvancedChart';
 import CryptoIcon from "@/components/CryptoIcon";
 import { preloadTokenImages } from "@/lib/token-metadata";
 
@@ -79,14 +79,16 @@ const ProjectPage: FC = () => {
   const { data: marketData, isLoading: isLoadingMarket } = useQuery<{ data: { ticker: KuCoinTicker[] } }>({
     queryKey: ['/api/coins/markets'],
     refetchInterval: 10000,
-    onSuccess: async (data) => {
-      // Preload images for all tokens in the list
-      const symbols = data.data.ticker
-        .filter(t => t.symbol.endsWith('-USDT'))
-        .map(t => t.symbol);
-      await preloadTokenImages(symbols);
+    onSettled: async (data) => {
+      if (data) {
+        // Preload images for all tokens in the list
+        const symbols = data.data.ticker
+          .filter(t => t.symbol.endsWith('-USDT'))
+          .map(t => t.symbol);
+        await preloadTokenImages(symbols);
+      }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error('Market data fetch error:', error);
       toast({
         title: "Error fetching market data",
@@ -102,7 +104,7 @@ const ProjectPage: FC = () => {
   }>({
     queryKey: [`/api/coins/${selectedSymbol}`],
     enabled: !!selectedSymbol && dialogOpen,
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error('Coin details fetch error:', error);
       toast({
         title: "Error fetching coin details",
@@ -436,9 +438,9 @@ const ProjectPage: FC = () => {
                   </Card>
                 </div>
 
-                <Card className="p-4"> {/* Replaced CoinChart rendering */}
+                <Card className="p-4">
                   <div className="h-[400px]">
-                    <AdvancedChart symbol={selectedSymbol || ''} /> {/*  AdvancedChart used here */}
+                    <AdvancedChart symbol={selectedSymbol || ''} />
                   </div>
                 </Card>
               </div>
