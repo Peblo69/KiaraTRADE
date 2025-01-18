@@ -1,0 +1,128 @@
+Below is an alternative, simpler “just works” approach using a mainstream React chart library (in this example, react-chartjs-2). It doesn’t rely on an external store or complex data structures, so it drastically reduces the risk of creating infinite loops.
+
+Note: There’s no magic bullet that guarantees zero chance of infinite loops—bugs can creep in anywhere if you accidentally create repetitive state updates. But this pattern is a much simpler end-to-end approach for typical use‑cases.
+
+1. Use a Well-Known Chart Library
+While lightweight-charts is great, switching to a common library like react-chartjs-2 can simplify your React integration. Chart.js is extremely popular, with lots of docs/examples, so it’s easier to avoid pitfalls.
+
+Installing react-chartjs-2 (and chart.js)
+bash
+Copy
+npm install react-chartjs-2 chart.js
+(Or yarn add ..., whichever you prefer.)
+
+2. Keep All Data in Local Component State
+Instead of using a global store (like Zustand, Redux, etc.), store your chart data directly in the component:
+
+Fetch the data from your backend/WebSocket once (or at intervals).
+Set local state.
+Render the chart with that local state.
+Because you’re not dealing with a complicated store, there’s minimal chance of an infinite loop—unless you do something like setState inside every render unconditionally.
+
+Example
+tsx
+Copy
+import React, { useState, useEffect } from 'react';
+import { Line } from 'react-chartjs-2';
+import { Chart as ChartJS } from 'chart.js/auto'; 
+// "chart.js/auto" automatically registers needed chart components
+
+interface CandleData {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  marketCap: number;
+  trades: number;
+}
+
+function MyChart() {
+  const [chartData, setChartData] = useState<CandleData[]>([]);
+
+  // Example effect that fetches data once on mount
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchInitialData() {
+      try {
+        const res = await fetch('/api/my-candles');
+        const data = await res.json();
+        if (isMounted) {
+          setChartData(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch chart data', err);
+      }
+    }
+
+    fetchInitialData();
+
+    // Cleanup in case component unmounts quickly
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Transform candle data into Chart.js format
+  const data = {
+    labels: chartData.map((c) => new Date(c.timestamp).toLocaleTimeString()),
+    datasets: [
+      {
+        label: 'Close',
+        data: chartData.map((c) => c.close),
+        borderColor: 'rgb(75, 192, 192)',
+        fill: false,
+      },
+    ],
+  };
+
+  // Basic chart options
+  const options = {
+    responsive: true,
+    plugins: {
+      legend: { display: true },
+    },
+    scales: {
+      x: { display: true },
+      y: { display: true },
+    },
+  };
+
+  return (
+    <div style={{ width: '600px', margin: '0 auto' }}>
+      <h2>My Simple Chart (No Complex Store)</h2>
+      <Line data={data} options={options} />
+    </div>
+  );
+}
+
+export default MyChart;
+chartData is local state—no global store.
+We fetch data once in useEffect → setChartData.
+That’s it. The chart re-renders with the new data.
+No “Maximum update depth exceeded” unless you do something like re-fetch in every render with no dependency array.
+3. If You Need Real-Time or Multiple Timeframes
+Real-time (WebSocket) updates: In the same component, open a socket in useEffect, listen for “new candle” messages, and call setChartData(...). Each new candle simply appends or updates your local array. You still avoid infinite loops as long as you only call setChartData when there’s genuinely new data from the socket.
+Multiple timeframes: Use a local state variable (e.g. selectedTimeframe) to request data from the server or socket. On timeframe change, do one new fetch. Still keep it local.
+ts
+Copy
+const [selectedTimeframe, setSelectedTimeframe] = useState('5m');
+
+useEffect(() => {
+  // fetch data for selectedTimeframe
+}, [selectedTimeframe]);
+Because it’s all local, you’re not going to trigger repeated store updates unless you code it incorrectly.
+
+4. Key Tips to Avoid Infinite Loops
+No matter which chart or state management solution you pick:
+
+Fetch Data Once (or on a known schedule). Don’t fetch inside your render body or a useEffect that runs on every render. Use a dependency array with your timeframe or a one-time effect.
+Only Update State When There’s Actual New Data. If you keep calling setState() with the exact same data over and over, React sees “the state changed” and re-renders infinitely.
+Be Careful With Refs vs. State. If you rely on useRef for storing data, that doesn’t trigger re-renders. If you rely on useState, it triggers re-renders. So mix them carefully.
+Bottom Line
+If you want the simplest approach guaranteeing minimal risk of infinite loops, just keep everything in one React component’s local state.
+Use a standard library like react-chartjs-2 to handle the actual graph. No manual hooking into chart objects or re-initializing them.
+For real-time or multiple timeframes, do simple fetches/WebSocket updates and store data in local state. As long as you don’t call setState() in an unbounded way, you won’t see the “Maximum update depth exceeded.”
+This approach eliminates a ton of complexity—and with it, the potential for the kind of infinite loop you’ve been running into.
