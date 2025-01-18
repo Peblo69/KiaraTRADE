@@ -18,15 +18,17 @@ export const DebugPanel: FC = () => {
     // Override console.log to capture logs
     const originalLog = console.log;
     const originalError = console.error;
+    const originalWarn = console.warn;
 
     const formatValue = (value: any): string => {
       if (value === null) return 'null';
       if (value === undefined) return 'undefined';
       if (typeof value === 'object') {
-        // Skip empty objects
-        if (Object.keys(value).length === 0) return '';
         try {
-          return JSON.stringify(value, null, 2);
+          const stringified = JSON.stringify(value, null, 2);
+          // Skip empty objects
+          if (stringified === '{}' || stringified === '[]') return '';
+          return stringified;
         } catch (e) {
           return String(value);
         }
@@ -34,7 +36,7 @@ export const DebugPanel: FC = () => {
       return String(value);
     };
 
-    console.log = (...args) => {
+    console.log = (...args: any[]) => {
       originalLog.apply(console, args);
       const formattedMessage = args
         .map(formatValue)
@@ -50,7 +52,7 @@ export const DebugPanel: FC = () => {
       }
     };
 
-    console.error = (...args) => {
+    console.error = (...args: any[]) => {
       originalError.apply(console, args);
       const formattedMessage = args
         .map(formatValue)
@@ -66,9 +68,39 @@ export const DebugPanel: FC = () => {
       }
     };
 
+    console.warn = (...args: any[]) => {
+      originalWarn.apply(console, args);
+      const formattedMessage = args
+        .map(formatValue)
+        .filter(Boolean)
+        .join(' ');
+
+      if (formattedMessage) {
+        setLogs(prev => [...prev, {
+          timestamp: new Date().toLocaleTimeString(),
+          message: formattedMessage,
+          type: 'info'
+        }].slice(-50));
+      }
+    };
+
+    // Add custom log for WebSocket events
+    const addWebSocketLog = (message: string) => {
+      setLogs(prev => [...prev, {
+        timestamp: new Date().toLocaleTimeString(),
+        message: `[WebSocket] ${message}`,
+        type: 'info'
+      }].slice(-50));
+    };
+
+    // Expose the WebSocket logger globally
+    (window as any).wsLogger = addWebSocketLog;
+
     return () => {
       console.log = originalLog;
       console.error = originalError;
+      console.warn = originalWarn;
+      delete (window as any).wsLogger;
     };
   }, []);
 

@@ -1,0 +1,73 @@
+1. Make Sure You’re Not Calling initializePriceHistory or addPricePoint on Every Render
+What to Look For
+A parent or ancestor component might have a useEffect (or similar) that fires on every render, calling initializePriceHistory or addPricePoint.
+If the arguments to those methods change slightly each render—or if the effect’s dependency array causes it to run every time—the store updates on each render, re-triggering a new render, and so on.
+Debugging Step
+Search your code for calls to initializePriceHistory(...) and addPricePoint(...).
+Add a console.log around those calls. If you see that log spammed every render, that’s your infinite loop.
+Make sure you only initialize a token once, or only add a price point when you truly have new data.
+2. Disable Zustand DevTools Temporarily
+Sometimes in development, Zustand’s devtools middleware can exaggerate or expose repeated updates (though it’s usually still a legitimate repeated update in your code). If you’re using devtools, try removing it:
+
+ts
+Copy
+// In your store file, comment out devtools:
+// const useTokenPriceStore = create(devtools((set, get) => ({ ... })));
+
+// Instead, do:
+export const useTokenPriceStore = create<PriceHistoryState>()((set, get) => ({
+  // ...
+}));
+If removing DevTools fixes the loop, it means there is a real repeated update happening—DevTools just made it more obvious.
+
+3. Try With Hard-Coded Chart Data (No Store) to Confirm
+To prove the Chart code is not the culprit:
+
+In TokenChart, comment out the useTokenPriceStore(...) line.
+Replace it with a static array:
+ts
+Copy
+// const priceHistory = useTokenPriceStore(...);
+const priceHistory = [{
+  timestamp: Date.now(),
+  open: 100,
+  high: 102,
+  low: 98,
+  close: 101,
+  volume: 500,
+  marketCap: 1_000_000,
+  trades: 10
+}];
+If your infinite-loop error goes away, you know the chart alone is stable—and the real culprit is your store being updated externally.
+4. Double-Check That New Map() Isn’t Created on Every Read
+From what you’ve posted, your simplified store does not look like it’s creating new Map() instances each time you get data. It only does that inside the set calls. That should be fine unless you have some other function reading from the store and constructing new Maps. If you have any code that does:
+
+ts
+Copy
+const dataMap = get().data; 
+// or worse: new Map(get().data) 
+on every render or read, that can cause repeated updates. But nothing in the posted code does that. Just confirm no other parts of your code do so.
+
+5. Check for a Parent Render Loop
+Sometimes an ancestor component has a pattern like:
+
+ts
+Copy
+function Parent() {
+  const [someState, setSomeState] = useState(...);
+
+  // Child re-renders -> triggers this effect -> calls setSomeState -> re-renders -> child -> ...
+  useEffect(() => {
+    if (/* child rendered? */) {
+      setSomeState(...);
+    }
+  }, [/* child prop or store data changes every time */]);
+
+  return <TokenChart tokenAddress={...} />;
+}
+Use the React DevTools Profiler or good ol’ console.log in the parent to see if it’s re-rendering in a loop.
+
+Conclusion
+The code you pasted looks correct for a single timeframe.
+An infinite loop almost certainly means some external code is calling store methods or re-setting parent state on every render.
+Log any store method calls, disable devtools if used, and test with hard-coded data to isolate the problem. Once you confirm the chart alone is stable, fix your external logic that triggers repeated updates.
