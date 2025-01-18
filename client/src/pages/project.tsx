@@ -5,20 +5,20 @@ import { createClient } from 'graphql-ws';
 
 const ProjectPage: FC = () => {
   useEffect(() => {
-    console.log('Testing BitQuery WebSocket connection...');
+    console.log('[BitQuery] Testing WebSocket connection...');
     (window as any).debugConsole?.log('Starting BitQuery WebSocket test...');
 
     // Debug environment variables (safely)
     const envKeys = Object.keys(import.meta.env);
-    console.log('Available env keys:', envKeys);
+    console.log('[BitQuery] Available env keys:', envKeys);
     (window as any).debugConsole?.log(`Available env keys: ${envKeys.join(', ')}`);
 
     // Log the API key availability (not the actual key)
     const apiKey = import.meta.env.VITE_BITQUERY_API_KEY;
-    console.log('API Key exists:', !!apiKey);
+    console.log('[BitQuery] API Key exists:', !!apiKey);
 
     if (!apiKey) {
-      console.error('BitQuery API key is not available');
+      console.error('[BitQuery] API key is not available');
       (window as any).debugConsole?.error('BitQuery API key is not set in environment variables. Available keys: ' + envKeys.join(', '));
       return;
     }
@@ -35,16 +35,16 @@ const ProjectPage: FC = () => {
       },
       on: {
         connected: () => {
-          console.log('WebSocket connected successfully');
+          console.log('[BitQuery] WebSocket connected successfully');
           (window as any).debugConsole?.success('WebSocket connection established');
         },
         error: (error: Error) => {
-          console.error('WebSocket connection error:', error);
-          (window as any).debugConsole?.error(`WebSocket connection error: ${error.message}`);
+          console.error('[BitQuery] WebSocket connection error:', error);
+          (window as any).debugConsole?.error(`WebSocket connection error: ${error?.message || 'Unknown error'}`);
         },
-        closed: () => {
-          console.log('WebSocket connection closed');
-          (window as any).debugConsole?.log('WebSocket connection closed');
+        closed: (code?: number, reason?: string) => {
+          console.warn('[BitQuery] WebSocket connection closed:', { code, reason });
+          (window as any).debugConsole?.log(`WebSocket connection closed: Code ${code || 'unknown'}, Reason: ${reason || 'none provided'}`);
         },
       },
     });
@@ -119,28 +119,29 @@ const ProjectPage: FC = () => {
         },
         {
           next: (data) => {
-            console.log('New token creation event:', data);
+            console.log('[BitQuery] New token creation event:', data);
             (window as any).debugConsole?.success(`New token creation detected: ${JSON.stringify(data, null, 2)}`);
           },
           error: (error: Error) => {
-            console.error('Subscription error:', error);
+            console.error('[BitQuery] Subscription error:', error);
             (window as any).debugConsole?.error(`WebSocket error: ${error.message}`);
           },
           complete: () => {
-            console.log('Subscription completed');
+            console.log('[BitQuery] Subscription completed');
             (window as any).debugConsole?.log('WebSocket subscription completed');
           },
         },
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Failed to create subscription:', errorMessage);
+      console.error('[BitQuery] Failed to create subscription:', errorMessage);
       (window as any).debugConsole?.error(`Failed to create subscription: ${errorMessage}`);
     }
 
     // Cleanup subscription on unmount
     return () => {
       if (unsubscribe) {
+        console.log('[BitQuery] Cleaning up WebSocket subscription');
         unsubscribe();
       }
     };
