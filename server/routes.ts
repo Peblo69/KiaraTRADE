@@ -46,10 +46,14 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/token-image/:symbol', async (req, res) => {
     try {
       const symbol = req.params.symbol;
+      console.log(`[Routes] Fetching image for token: ${symbol}`);
+
       const imageUrl = await getTokenImage(symbol);
+      console.log(`[Routes] Image URL for ${symbol}:`, imageUrl);
+
       res.json({ imageUrl });
     } catch (error: any) {
-      console.error('Token image error:', error);
+      console.error('[Routes] Token image error:', error);
       res.status(500).json({ 
         error: 'Failed to fetch token image',
         details: error.message 
@@ -60,6 +64,8 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/token-images/bulk', async (req, res) => {
     try {
       const { symbols, priority = false } = req.body;
+      console.log(`[Routes] Bulk image request for ${symbols.length} tokens`);
+
       if (!Array.isArray(symbols)) {
         return res.status(400).json({ error: 'symbols must be an array' });
       }
@@ -68,7 +74,10 @@ export function registerRoutes(app: Express): Server {
 
       // Add to priority queue if specified
       if (priority) {
-        symbols.forEach(symbol => addPriorityToken(symbol));
+        symbols.forEach(symbol => {
+          console.log(`[Routes] Adding ${symbol} to priority queue`);
+          addPriorityToken(symbol);
+        });
       }
 
       await Promise.all(
@@ -77,9 +86,10 @@ export function registerRoutes(app: Express): Server {
         })
       );
 
+      console.log(`[Routes] Returning ${Object.keys(images).length} images`);
       res.json({ images });
     } catch (error: any) {
-      console.error('Bulk token images error:', error);
+      console.error('[Routes] Bulk token images error:', error);
       res.status(500).json({ 
         error: 'Failed to fetch bulk token images',
         details: error.message 
