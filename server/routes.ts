@@ -6,9 +6,10 @@ import { generateAIResponse } from './services/ai';
 import axios from 'axios';
 
 // Cache for CoinGecko data
-let globalMetricsCache = {
-  data: null,
-  timestamp: 0
+const cache = {
+  globalMetrics: { data: null, timestamp: 0 },
+  trending: { data: null, timestamp: 0 },
+  topCoins: { data: null, timestamp: 0 }
 };
 const CACHE_DURATION = 30000; // 30 seconds cache
 
@@ -23,14 +24,14 @@ export function registerRoutes(app: Express): Server {
     try {
       // Check cache
       const now = Date.now();
-      if (globalMetricsCache.data && (now - globalMetricsCache.timestamp) < CACHE_DURATION) {
-        return res.json(globalMetricsCache.data);
+      if (cache.globalMetrics.data && (now - cache.globalMetrics.timestamp) < CACHE_DURATION) {
+        return res.json(cache.globalMetrics.data);
       }
 
       const response = await axios.get('https://api.coingecko.com/api/v3/global');
 
       // Cache the response
-      globalMetricsCache = {
+      cache.globalMetrics = {
         data: response.data,
         timestamp: now
       };
@@ -39,6 +40,62 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Global metrics error:', error);
       res.status(500).json({ error: error.message || 'Failed to fetch global metrics' });
+    }
+  });
+
+  // Top coins by market cap endpoint
+  app.get('/api/coins/markets', async (req, res) => {
+    try {
+      const now = Date.now();
+      if (cache.topCoins.data && (now - cache.topCoins.timestamp) < CACHE_DURATION) {
+        return res.json(cache.topCoins.data);
+      }
+
+      const response = await axios.get(
+        'https://api.coingecko.com/api/v3/coins/markets',
+        {
+          params: {
+            vs_currency: 'usd',
+            order: 'market_cap_desc',
+            per_page: 100,
+            page: 1,
+            sparkline: true,
+            price_change_percentage: '24h'
+          }
+        }
+      );
+
+      cache.topCoins = {
+        data: response.data,
+        timestamp: now
+      };
+
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Markets error:', error);
+      res.status(500).json({ error: error.message || 'Failed to fetch market data' });
+    }
+  });
+
+  // Trending coins endpoint
+  app.get('/api/trending', async (req, res) => {
+    try {
+      const now = Date.now();
+      if (cache.trending.data && (now - cache.trending.timestamp) < CACHE_DURATION) {
+        return res.json(cache.trending.data);
+      }
+
+      const response = await axios.get('https://api.coingecko.com/api/v3/search/trending');
+
+      cache.trending = {
+        data: response.data,
+        timestamp: now
+      };
+
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Trending error:', error);
+      res.status(500).json({ error: error.message || 'Failed to fetch trending coins' });
     }
   });
 
@@ -78,19 +135,6 @@ export function registerRoutes(app: Express): Server {
   });
 
   return httpServer;
-}
-
-interface TokenData {
-  name: string;
-  symbol: string;
-  marketCap: number;
-  marketCapSol: number;
-  liquidityAdded: boolean;
-  holders: number;
-  volume24h: number;
-  address: string;
-  price: number;
-  imageUrl?: string;
 }
 
 // In-memory data structure for chat history
