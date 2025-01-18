@@ -76,11 +76,18 @@ const ProjectPage: FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
 
-  // Market data query with faster refresh rate
   const { data: marketData, isLoading: isLoadingMarket } = useQuery<{ data: { ticker: KuCoinTicker[] } }>({
     queryKey: ['/api/coins/markets'],
-    refetchInterval: 2000, // Update every 2 seconds
-    refetchIntervalInBackground: true,
+    refetchInterval: 10000,
+    onSettled: async (data) => {
+      if (data) {
+        // Preload images for all tokens in the list
+        const symbols = data.data.ticker
+          .filter(t => t.symbol.endsWith('-USDT'))
+          .map(t => t.symbol);
+        await preloadTokenImages(symbols);
+      }
+    },
     onError: (error: Error) => {
       console.error('Market data fetch error:', error);
       toast({
@@ -88,18 +95,15 @@ const ProjectPage: FC = () => {
         description: error.message,
         variant: "destructive",
       });
-    }
+    },
   });
 
-  // Selected coin details with faster refresh for active dialog
   const { data: selectedCoinData, isLoading: isLoadingCoinDetails } = useQuery<{
     stats: KuCoinStats;
     chart: ChartData;
   }>({
     queryKey: [`/api/coins/${selectedSymbol}`],
     enabled: !!selectedSymbol && dialogOpen,
-    refetchInterval: dialogOpen ? 2000 : false, // Update every 2 seconds when dialog is open
-    refetchIntervalInBackground: true,
     onError: (error: Error) => {
       console.error('Coin details fetch error:', error);
       toast({
@@ -109,16 +113,6 @@ const ProjectPage: FC = () => {
       });
     },
   });
-
-  // Preload images when market data is received
-  useEffect(() => {
-    if (marketData?.data.ticker) {
-      const symbols = marketData.data.ticker
-        .filter(t => t.symbol.endsWith('-USDT'))
-        .map(t => t.symbol);
-      preloadTokenImages(symbols).catch(console.error);
-    }
-  }, [marketData?.data.ticker]);
 
   const formatPrice = (price: string | number) => {
     const numPrice = typeof price === 'string' ? parseFloat(price) : price;
@@ -141,6 +135,11 @@ const ProjectPage: FC = () => {
   const formatChange = (change: string) => {
     const numChange = parseFloat(change);
     return `${numChange >= 0 ? '+' : ''}${(numChange * 100).toFixed(2)}%`;
+  };
+
+  const getIconUrl = (symbol: string) => {
+    const cleanSymbol = symbol.replace('-USDT', '').toLowerCase();
+    return `https://assets.staticimg.com/cms/media/1vCIT3bTK0tCY6jLsS0SY8uVGtBGHYFCyGmGGpWLj.svg`;
   };
 
   const handleSymbolSelect = (symbol: string) => {
@@ -307,7 +306,7 @@ const ProjectPage: FC = () => {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">24h Volume</span>
                 <span className="font-medium">
-                  {formatVolume(tickers.reduce((sum, t) => sum + parseFloat(t.volValue), 0))}
+                  {formatVolume(tickers.reduce((sum: number, t) => sum + parseFloat(t.volValue), 0))}
                 </span>
               </div>
             </div>
