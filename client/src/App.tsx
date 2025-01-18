@@ -12,6 +12,7 @@ import KiaraStageI from "@/pages/kiara-stage-i";
 import Subscriptions from "@/pages/subscriptions";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
 import VerifyEmailPage from "@/pages/auth/verify-email";
+import DebugPanel from "@/components/DebugPanel";
 
 function Router() {
   return (
@@ -38,6 +39,7 @@ function App() {
         </Route>
         <Router />
         <Toaster />
+        <DebugPanel />
       </div>
     </QueryClientProvider>
   );
