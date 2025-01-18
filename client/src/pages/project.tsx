@@ -25,12 +25,26 @@ const ProjectPage: FC = () => {
 
     (window as any).debugConsole?.log('API Key found, initializing WebSocket connection...');
 
-    // Create WebSocket client
+    // Create WebSocket client with correct streaming URL
     const client = createClient({
-      url: 'wss://graphql.bitquery.io',
+      url: 'wss://streaming.bitquery.io/eap',
       connectionParams: {
         headers: {
           'X-API-KEY': apiKey,
+        },
+      },
+      on: {
+        connected: () => {
+          console.log('WebSocket connected successfully');
+          (window as any).debugConsole?.success('WebSocket connection established');
+        },
+        error: (error: Error) => {
+          console.error('WebSocket connection error:', error);
+          (window as any).debugConsole?.error(`WebSocket connection error: ${error.message}`);
+        },
+        closed: () => {
+          console.log('WebSocket connection closed');
+          (window as any).debugConsole?.log('WebSocket connection closed');
         },
       },
     });
