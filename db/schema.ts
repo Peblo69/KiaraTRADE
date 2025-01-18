@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, integer, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -77,4 +77,33 @@ export type SelectSubscription = z.infer<typeof selectSubscriptionSchema>;
 export type InsertPaymentHistory = z.infer<typeof insertPaymentHistorySchema>;
 export type SelectPaymentHistory = z.infer<typeof selectPaymentHistorySchema>;
 
-import { integer, decimal } from "drizzle-orm/pg-core";
+
+export const coinMappings = pgTable("coin_mappings", {
+  id: serial("id").primaryKey(),
+  kucoin_symbol: text("kucoin_symbol").unique().notNull(),
+  coingecko_id: text("coingecko_id").notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const coinImages = pgTable("coin_images", {
+  id: serial("id").primaryKey(),
+  coingecko_id: text("coingecko_id").unique().notNull(),
+  image_url: text("image_url").notNull(),
+  last_fetched: timestamp("last_fetched").defaultNow().notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Create schemas for the new tables
+export const insertCoinMappingSchema = createInsertSchema(coinMappings);
+export const selectCoinMappingSchema = createSelectSchema(coinMappings);
+
+export const insertCoinImageSchema = createInsertSchema(coinImages);
+export const selectCoinImageSchema = createSelectSchema(coinImages);
+
+// Export types for the new tables
+export type InsertCoinMapping = z.infer<typeof insertCoinMappingSchema>;
+export type SelectCoinMapping = z.infer<typeof selectCoinMappingSchema>;
+export type InsertCoinImage = z.infer<typeof insertCoinImageSchema>;
+export type SelectCoinImage = z.infer<typeof selectCoinImageSchema>;

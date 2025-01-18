@@ -1,0 +1,158 @@
+Goal: Use CoinGecko's API to fetch token image links once for each token.
+Solution: Build a system that:
+Fetches token images from CoinGecko for new tokens (ones not already stored).
+Saves the fetched image links locally in a database or file storage, mapped to the respective token.
+Uses the stored image links for tokens already in the database, avoiding repeated API calls.
+Optimizes the 50 requests/minute limit by focusing only on tokens that don’t yet have image links.
+This ensures you only fetch new image links while efficiently reusing stored data for previously fetched tokens.
+
+How to Implement This
+1. Database for Token Images
+Create a database or in-memory cache to store token symbols and their corresponding image URLs.
+Example Table Structure:
+Token Symbol	Image URL
+BTC	https://assets.coingecko.com/coins/images/1.png
+ETH	https://assets.coingecko.com/coins/images/2.png
+2. Fetch New Images Using CoinGecko
+Use the /coins/markets or /coins/{id} endpoint to fetch images for new tokens.
+Logic:
+Query the database to check if the token's image is already stored.
+If it’s not found, fetch the image link using CoinGecko and save it to the database.
+3. Rate-Limit Optimization
+Use a queue system to ensure you don’t exceed the 50 requests/minute limit.
+Prioritize fetching images for tokens that are actively displayed on the website.
+4. Display Images from Database
+On the frontend, retrieve the stored image link for each token from the database.
+If the image is missing (e.g., for a new token), show a placeholder until the backend fetches and updates the image link.
+Code Implementation
+Backend (Node.js/Express)
+javascript
+Copy
+Edit
+const axios = require('axios');
+const db = {}; // Simple in-memory database (replace with a proper DB)
+
+// Fetch image from CoinGecko
+async function fetchTokenImageFromAPI(tokenSymbol) {
+  try {
+    const response = await axios.get(`https://api.coingecko.com/api/v3/coins/markets`, {
+      params: {
+        vs_currency: 'usd',
+        ids: tokenSymbol.toLowerCase()
+      }
+    });
+
+    const imageUrl = response.data[0]?.image;
+    if (imageUrl) {
+      db[tokenSymbol] = imageUrl; // Save to "database"
+      console.log(`Fetched and saved image for ${tokenSymbol}: ${imageUrl}`);
+      return imageUrl;
+    } else {
+      throw new Error(`Image not found for token: ${tokenSymbol}`);
+    }
+  } catch (error) {
+    console.error(`Failed to fetch image for ${tokenSymbol}:`, error.message);
+    return null;
+  }
+}
+
+// Get token image (with fallback to API)
+async function getTokenImage(tokenSymbol) {
+  if (db[tokenSymbol]) {
+    return db[tokenSymbol]; // Return from database
+  }
+
+  // Fetch from CoinGecko if not in database
+  const imageUrl = await fetchTokenImageFromAPI(tokenSymbol);
+  return imageUrl || '/path/to/placeholder.png'; // Fallback to placeholder
+}
+
+// Queue system to fetch images without exceeding rate limits
+const fetchQueue = [];
+let isFetching = false;
+
+async function processQueue() {
+  if (isFetching || fetchQueue.length === 0) return;
+  isFetching = true;
+
+  const { tokenSymbol, resolve } = fetchQueue.shift();
+  const imageUrl = await getTokenImage(tokenSymbol);
+  resolve(imageUrl);
+
+  isFetching = false;
+
+  // Continue processing
+  setTimeout(processQueue, 1200); // Wait ~1 second between requests (50/minute limit)
+}
+
+// Add token to queue
+function enqueueTokenFetch(tokenSymbol) {
+  return new Promise((resolve) => {
+    fetchQueue.push({ tokenSymbol, resolve });
+    processQueue();
+  });
+}
+
+// API endpoint for frontend
+app.get('/api/token-image/:symbol', async (req, res) => {
+  const tokenSymbol = req.params.symbol.toUpperCase();
+  const imageUrl = await enqueueTokenFetch(tokenSymbol);
+  res.json({ imageUrl });
+});
+Frontend (React)
+jsx
+Copy
+Edit
+import { useState, useEffect } from 'react';
+
+const CryptoIcon = ({ symbol }) => {
+  const [imgSrc, setImgSrc] = useState('');
+  const placeholder = '/path/to/placeholder.png';
+
+  useEffect(() => {
+    const fetchImage = async () => {
+      try {
+        const response = await fetch(`/api/token-image/${symbol}`);
+        const data = await response.json();
+        setImgSrc(data.imageUrl || placeholder);
+      } catch (error) {
+        console.error(`Error fetching image for ${symbol}:`, error);
+        setImgSrc(placeholder);
+      }
+    };
+
+    fetchImage();
+  }, [symbol]);
+
+  return (
+    <img
+      src={imgSrc}
+      alt={`${symbol} icon`}
+      onError={(e) => (e.target.src = placeholder)} // Fallback to placeholder
+    />
+  );
+};
+
+export default CryptoIcon;
+Workflow Explanation
+Frontend Requests:
+
+The frontend calls the /api/token-image/:symbol endpoint to get the image URL for a token.
+Backend Checks Cache:
+
+If the image URL is in the database, return it immediately.
+If not, add the token to the queue for fetching from CoinGecko.
+Queue Processing:
+
+The backend processes the queue, fetching images from CoinGecko without exceeding the rate limit.
+Cache Updates:
+
+Fetched image URLs are stored in the database, so subsequent requests don’t hit the API.
+Fallbacks:
+
+If the image isn’t available, a placeholder is shown.
+Benefits of This Approach
+Efficient: Limits API calls to only fetch new tokens.
+Scalable: Supports thousands of tokens with minimal API usage.
+Fast: Tokens already in the database load instantly.
+Fallback: Ensures no broken images by using placeholders.

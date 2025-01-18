@@ -1,0 +1,107 @@
+The goal is for the system to continuously work in the background, fetching images for all tokens on your website, storing them persistently, and stopping API calls once all tokens have their images stored. This ensures:
+
+All images are preloaded and permanently stored.
+No repeated API calls for existing tokens.
+The system only fetches new images when new tokens are added to the website.
+How the System Should Work
+Initialization:
+
+When the server starts, check the database (coin_images table) for tokens missing image URLs.
+Add all tokens without images to a queue for fetching.
+Continuous Image Fetching:
+
+Use a background worker to fetch images from CoinGecko one at a time, respecting the API’s rate limit.
+Once an image is fetched, store it in the coin_images table (mapped to its token).
+Stop When Complete:
+
+If all tokens have images stored, stop API calls.
+If a new token is added to the website, it will be automatically queued for fetching.
+Frontend Image Handling:
+
+When rendering a token, retrieve its image URL from the coin_images table.
+If no image exists (e.g., for newly added tokens), display a placeholder until the background worker fetches it.
+Implementation Steps
+1. Database Design
+Create two tables:
+a) coin_mappings: Maps token symbols (from your website) to CoinGecko IDs.
+
+Columns: id, token_symbol, coingecko_id.
+b) coin_images: Stores token symbols and their corresponding image URLs.
+
+Columns: id, token_symbol, image_url.
+2. Background Worker for Fetching Images
+Pseudo-Code:
+
+javascript
+Copy
+Edit
+const fetchQueue = [];
+let isFetching = false;
+
+// Add tokens to the queue
+function enqueueTokensForFetching(tokens) {
+  fetchQueue.push(...tokens);
+  processQueue();
+}
+
+// Fetch images for tokens in the queue
+async function processQueue() {
+  if (isFetching || fetchQueue.length === 0) return;
+
+  isFetching = true;
+  const token = fetchQueue.shift();
+
+  try {
+    // Fetch image from CoinGecko
+    const imageUrl = await fetchImageFromCoinGecko(token.symbol);
+    if (imageUrl) {
+      // Store in database
+      await saveImageToDatabase(token.symbol, imageUrl);
+      console.log(`Fetched and stored image for ${token.symbol}`);
+    } else {
+      console.warn(`Image not found for ${token.symbol}`);
+    }
+  } catch (err) {
+    console.error(`Error fetching image for ${token.symbol}:`, err);
+  } finally {
+    isFetching = false;
+
+    // Continue processing the queue
+    if (fetchQueue.length > 0) {
+      setTimeout(processQueue, 1200); // Wait ~1 second to respect rate limits
+    }
+  }
+}
+
+// Fetch image from CoinGecko
+async function fetchImageFromCoinGecko(symbol) {
+  try {
+    const response = await axios.get(`https://api.coingecko.com/api/v3/coins/${symbol}`);
+    return response.data.image?.large || null;
+  } catch (err) {
+    console.error(`Failed to fetch image from CoinGecko for ${symbol}`, err);
+    return null;
+  }
+}
+
+// Save image to the database
+async function saveImageToDatabase(symbol, imageUrl) {
+  // Example query: INSERT INTO coin_images (token_symbol, image_url) VALUES (?, ?)
+}
+3. API Endpoint for Missing Tokens
+Create an API endpoint that returns all tokens without images (SELECT token_symbol FROM coin_images WHERE image_url IS NULL).
+Use this endpoint to populate the queue when the server starts.
+4. Frontend Integration
+Fetch the image URL for a token from the coin_images table.
+If no image exists, show a placeholder.
+How It Will Work in Practice
+First Run:
+
+The system fetches images for all tokens on your website, storing them in the database.
+Subsequent Runs:
+
+No API calls are made for tokens with stored images.
+Only newly added tokens are queued for fetching.
+Frontend:
+
+Always loads images directly from the database, ensuring fast performance and no broken links.
