@@ -1,8 +1,7 @@
-import { FC, useEffect, useRef, useMemo } from 'react';
+import { FC, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createChart, type IChartApi, type ISeriesApi, type CandlestickSeriesPartialOptions, type HistogramSeriesPartialOptions } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import { useTokenPriceStore, TIMEFRAMES } from '@/lib/price-history';
-import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface TokenChartProps {
@@ -22,24 +21,26 @@ const TokenChart: FC<TokenChartProps> = ({
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const [selectedTimeframe, setSelectedTimeframe] = useState<TimeframeKey>('5m');
 
+  // Get price history data
   const priceHistory = useTokenPriceStore(state => 
     state.getPriceHistory(tokenAddress, selectedTimeframe)
   );
 
-  // Memoize chart data to prevent unnecessary recalculations
-  const chartData = useMemo(() => 
-    priceHistory.map(candle => ({
+  // Memoize chart data transformation
+  const chartData = useMemo(() => {
+    if (!priceHistory.length) return [];
+
+    return priceHistory.map(candle => ({
       time: candle.timestamp / 1000,
       open: candle.open,
       high: candle.high,
       low: candle.low,
       close: candle.close,
-      value: candle.close,
       volume: candle.volume
-    }))
-  , [priceHistory]);
+    }));
+  }, [priceHistory]);
 
-  // Initialize chart only once
+  // Initialize chart once
   useEffect(() => {
     if (!containerRef.current || chartRef.current) return;
 
@@ -67,7 +68,6 @@ const TokenChart: FC<TokenChartProps> = ({
       height
     });
 
-    // Create series
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: '#26a69a',
       downColor: '#ef5350',
@@ -89,32 +89,17 @@ const TokenChart: FC<TokenChartProps> = ({
       },
     } as HistogramSeriesPartialOptions);
 
-    // Store references
     chartRef.current = chart;
     candlestickSeriesRef.current = candlestickSeries;
     volumeSeriesRef.current = volumeSeries;
 
-    // Initial data update
-    if (chartData.length > 0) {
-      candlestickSeries.setData(chartData);
-      volumeSeries.setData(
-        chartData.map(d => ({
-          time: d.time,
-          value: d.volume,
-          color: d.close >= d.open ? '#26a69a' : '#ef5350'
-        }))
-      );
-      chart.timeScale().fitContent();
-    }
-
-    // Cleanup
     return () => {
       chart.remove();
       chartRef.current = null;
       candlestickSeriesRef.current = null;
       volumeSeriesRef.current = null;
     };
-  }, []);
+  }, []); // Empty dependency array for one-time initialization
 
   // Handle window resize
   useEffect(() => {
@@ -130,25 +115,27 @@ const TokenChart: FC<TokenChartProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Update data when chartData changes
+  // Update data only when chartData changes
   useEffect(() => {
-    if (!candlestickSeriesRef.current || !volumeSeriesRef.current || !chartRef.current) return;
-
-    candlestickSeriesRef.current.setData(chartData);
-    volumeSeriesRef.current.setData(
-      chartData.map(d => ({
-        time: d.time,
-        value: d.volume,
-        color: d.close >= d.open ? '#26a69a' : '#ef5350'
-      }))
-    );
-
-    // Only fit content if we have data
-    if (chartData.length > 0) {
-      chartRef.current.timeScale().fitContent();
+    if (!candlestickSeriesRef.current || !volumeSeriesRef.current || !chartRef.current || !chartData.length) {
+      return;
     }
-  }, [chartData]);
 
+    // Update price data
+    candlestickSeriesRef.current.setData(chartData);
+
+    // Update volume data
+    const volumeData = chartData.map(d => ({
+      time: d.time,
+      value: d.volume,
+      color: d.close >= d.open ? '#26a69a' : '#ef5350'
+    }));
+
+    volumeSeriesRef.current.setData(volumeData);
+    chartRef.current.timeScale().fitContent();
+  }, [chartData]); // Only depend on chartData
+
+  // Memoize timeframe change handler
   const handleTimeframeChange = useCallback((tf: TimeframeKey) => {
     setSelectedTimeframe(tf);
   }, []);
