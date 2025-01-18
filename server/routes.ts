@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 
 // In-memory data structure for candles
 const tokenCandles: Record<string, Array<{
@@ -27,9 +27,11 @@ export function registerRoutes(app: Express): Server {
   httpServer.on('upgrade', (request, socket, head) => {
     // Skip vite HMR connections
     if (request.headers['sec-websocket-protocol'] === 'vite-hmr') {
+      console.log('[WebSocket] Skipping vite-hmr connection');
       return;
     }
 
+    console.log('[WebSocket] Handling upgrade request');
     wss.handleUpgrade(request, socket, head, (ws) => {
       wss.emit('connection', ws, request);
     });
@@ -37,22 +39,24 @@ export function registerRoutes(app: Express): Server {
 
   // Handle WebSocket connections
   wss.on('connection', (ws) => {
-    console.log('Client connected to aggregator WebSocket');
+    console.log('[WebSocket] Client connected to aggregator');
 
     // Connect to PumpFun WebSocket
     const pumpFunWs = new WebSocket('wss://pumpportal.fun/api/data');
 
-    pumpFunWs.on('open', () => {
-      console.log('Connected to PumpFun WebSocket');
+    pumpFunWs.addEventListener('open', () => {
+      console.log('[PumpFun] WebSocket connected');
       // Subscribe to new token events
       pumpFunWs.send(JSON.stringify({
         method: "subscribeNewToken"
       }));
     });
 
-    pumpFunWs.on('message', (data) => {
+    pumpFunWs.addEventListener('message', (event) => {
       try {
-        const message = JSON.parse(data.toString());
+        const message = JSON.parse(event.data.toString());
+        console.log('[PumpFun] Received message:', message.txType);
+
         if (message.txType === 'create' || message.txType === 'trade') {
           const trade: Trade = {
             tokenAddress: message.mint,
@@ -60,6 +64,12 @@ export function registerRoutes(app: Express): Server {
             volume: message.solAmount,
             timestamp: Date.now()
           };
+
+          console.log('[PumpFun] Processing trade:', {
+            tokenAddress: trade.tokenAddress,
+            price: trade.price,
+            volume: trade.volume
+          });
 
           updateCandle(trade);
 
@@ -74,19 +84,30 @@ export function registerRoutes(app: Express): Server {
           }
         }
       } catch (error) {
-        console.error('Error processing PumpFun message:', error);
+        console.error('[PumpFun] Error processing message:', error);
       }
     });
 
+    pumpFunWs.addEventListener('error', (error) => {
+      console.error('[PumpFun] WebSocket error:', error);
+    });
+
+    pumpFunWs.addEventListener('close', () => {
+      console.log('[PumpFun] WebSocket closed');
+    });
+
     ws.on('close', () => {
-      console.log('Client disconnected from aggregator WebSocket');
-      pumpFunWs.close();
+      console.log('[WebSocket] Client disconnected from aggregator');
+      if (pumpFunWs.readyState === WebSocket.OPEN) {
+        pumpFunWs.close();
+      }
     });
   });
 
   // REST endpoint for historical candles
   app.get('/api/tokens/:address/candles', (req, res) => {
     const { address } = req.params;
+    console.log('[REST] Fetching candles for token:', address);
     const candles = tokenCandles[address] || [];
     res.json(candles);
   });
@@ -117,12 +138,14 @@ function updateCandle(trade: Trade) {
       volume: trade.volume
     };
     candles.push(currentCandle);
+    console.log('[Candles] Created new candle for token:', trade.tokenAddress);
   } else {
     // Update existing candle
     currentCandle.high = Math.max(currentCandle.high, trade.price);
     currentCandle.low = Math.min(currentCandle.low, trade.price);
     currentCandle.close = trade.price;
     currentCandle.volume += trade.volume;
+    console.log('[Candles] Updated existing candle for token:', trade.tokenAddress);
   }
 
   // Keep only last 24 hours of candles
@@ -136,9 +159,18 @@ function getCurrentCandle(tokenAddress: string) {
 }
 
 function broadcast(wss: WebSocketServer, data: any) {
+  const message = JSON.stringify(data);
+  let clientCount = 0;
+
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(data));
+      client.send(message);
+      clientCount++;
     }
+  });
+
+  console.log(`[WebSocket] Broadcasted update to ${clientCount} clients:`, {
+    type: data.type,
+    tokenAddress: data.tokenAddress
   });
 }

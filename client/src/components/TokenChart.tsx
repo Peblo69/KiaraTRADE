@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, ISeriesApi, Time } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 
 interface TokenChartProps {
@@ -32,7 +32,7 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
     fetch(`/api/tokens/${tokenAddress}/candles`)
       .then(res => res.json())
       .then(data => {
-        console.log('[TokenChart] Initial candle data:', data);
+        console.log('[TokenChart] Received initial candle data:', data);
         setCandles(data);
       })
       .catch(error => {
@@ -42,17 +42,21 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
     // Connect to aggregator WebSocket
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}`;
+    console.log('[TokenChart] Connecting to WebSocket:', wsUrl);
+
     ws.current = new WebSocket(wsUrl);
 
     ws.current.onopen = () => {
-      console.log('[TokenChart] Connected to aggregator WebSocket');
+      console.log('[TokenChart] WebSocket connected');
     };
 
     ws.current.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        console.log('[TokenChart] Received WebSocket message:', data);
+
         if (data.type === 'candle_update' && data.tokenAddress === tokenAddress) {
-          console.log('[TokenChart] Received candle update:', data.candle);
+          console.log('[TokenChart] Processing candle update:', data.candle);
           setCandles(prevCandles => {
             const updatedCandles = [...prevCandles];
             const existingIndex = updatedCandles.findIndex(
@@ -73,7 +77,16 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
       }
     };
 
+    ws.current.onerror = (error) => {
+      console.error('[TokenChart] WebSocket error:', error);
+    };
+
+    ws.current.onclose = () => {
+      console.log('[TokenChart] WebSocket connection closed');
+    };
+
     return () => {
+      console.log('[TokenChart] Cleaning up WebSocket connection');
       if (ws.current) {
         ws.current.close();
         ws.current = null;
@@ -172,7 +185,7 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
     console.log('[TokenChart] Updating chart with candles:', candles);
 
     const chartData = candles.map(candle => ({
-      time: candle.timestamp / 1000,
+      time: candle.timestamp / 1000 as Time,
       open: candle.open,
       high: candle.high,
       low: candle.low,
@@ -180,7 +193,7 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
     }));
 
     const volumeData = candles.map(candle => ({
-      time: candle.timestamp / 1000,
+      time: candle.timestamp / 1000 as Time,
       value: candle.volume,
       color: candle.close >= candle.open ? 
         'rgba(38, 166, 154, 0.5)' : 
@@ -194,8 +207,8 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
     if (chart.current && candles.length > 0) {
       const lastTimestamp = candles[candles.length - 1].timestamp / 1000;
       chart.current.timeScale().setVisibleRange({
-        from: lastTimestamp - 3600,
-        to: lastTimestamp
+        from: (lastTimestamp - 3600) as Time,
+        to: lastTimestamp as Time
       });
     }
   }, [candles]);
