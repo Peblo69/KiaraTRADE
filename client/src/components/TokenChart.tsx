@@ -11,6 +11,7 @@ import {
   Legend,
   Filler
 } from 'chart.js';
+import { Card } from '@/components/ui/card';
 
 // Register ChartJS components including Filler for area charts
 ChartJS.register(
