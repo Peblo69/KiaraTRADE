@@ -28,31 +28,47 @@ const ProjectPage: FC = () => {
     let retryCount = 0;
     const maxRetries = 5;
     let unsubscribe: (() => void) | null = null;
+    let connectionTimeout: ReturnType<typeof setTimeout>;
 
     function connectWebSocket() {
-      // Create WebSocket client with correct streaming URL
+      console.log('[BitQuery] Attempting WebSocket connection...');
+      (window as any).debugConsole?.log('Attempting to establish WebSocket connection...');
+
+      // Set connection timeout
+      connectionTimeout = setTimeout(() => {
+        console.error('[BitQuery] WebSocket connection timeout after 10s');
+        (window as any).debugConsole?.error('WebSocket connection timeout - attempting retry');
+        handleRetry();
+      }, 10000);
+
       const client = createClient({
         url: 'wss://streaming.bitquery.io/eap',
-        connectionParams: {
-          headers: {
-            'X-API-KEY': apiKey,
-          },
+        connectionParams: () => {
+          console.log('[BitQuery] Setting up connection parameters...');
+          return {
+            headers: {
+              'X-API-KEY': apiKey,
+            },
+          };
         },
         on: {
           connected: () => {
+            clearTimeout(connectionTimeout);
             console.log('[BitQuery] WebSocket connected successfully');
             (window as any).debugConsole?.success('WebSocket connection established');
             retryCount = 0; // Reset retry count on successful connection
 
-            // Start subscription after successful connection
-            startSubscription(client);
+            // Start with a simple test subscription
+            startTestSubscription(client);
           },
           error: (error: Error) => {
+            clearTimeout(connectionTimeout);
             console.error('[BitQuery] WebSocket connection error:', error);
             (window as any).debugConsole?.error(`WebSocket error: ${error?.message || 'Unknown error'}`);
             handleRetry();
           },
           closed: (event: unknown) => {
+            clearTimeout(connectionTimeout);
             const code = (event as { code?: number })?.code;
             const reason = (event as { reason?: string })?.reason;
             console.warn('[BitQuery] WebSocket connection closed:', { code, reason });
@@ -61,9 +77,12 @@ const ProjectPage: FC = () => {
           },
         },
       });
+
+      return client;
     }
 
     function handleRetry() {
+      clearTimeout(connectionTimeout);
       if (retryCount < maxRetries) {
         retryCount++;
         const delay = Math.min(1000 * Math.pow(2, retryCount), 30000); // Exponential backoff with 30s max
@@ -76,8 +95,59 @@ const ProjectPage: FC = () => {
       }
     }
 
-    function startSubscription(client: ReturnType<typeof createClient>) {
+    function startTestSubscription(client: ReturnType<typeof createClient>) {
       try {
+        console.log('[BitQuery] Starting test subscription...');
+        (window as any).debugConsole?.log('Starting test subscription...');
+
+        // Start with a simpler test subscription
+        unsubscribe = client.subscribe(
+          {
+            query: `
+              subscription {
+                Solana {
+                  Instructions(limit: 1) {
+                    Transaction {
+                      Signature
+                    }
+                  }
+                }
+              }
+            `,
+          },
+          {
+            next: (data) => {
+              console.log('[BitQuery] Test subscription data received:', data);
+              (window as any).debugConsole?.success(`Test subscription working: ${JSON.stringify(data, null, 2)}`);
+
+              // If test subscription works, start the real subscription
+              if (unsubscribe) {
+                unsubscribe();
+                startMainSubscription(client);
+              }
+            },
+            error: (error: Error) => {
+              console.error('[BitQuery] Test subscription error:', error);
+              (window as any).debugConsole?.error(`Subscription error: ${error?.message || 'Unknown error'}`);
+              handleRetry();
+            },
+            complete: () => {
+              console.log('[BitQuery] Test subscription completed');
+              (window as any).debugConsole?.log('Test subscription completed normally');
+            },
+          },
+        );
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        console.error('[BitQuery] Failed to create test subscription:', errorMessage);
+        (window as any).debugConsole?.error(`Failed to create test subscription: ${errorMessage}`);
+        handleRetry();
+      }
+    }
+
+    function startMainSubscription(client: ReturnType<typeof createClient>) {
+      try {
+        console.log('[BitQuery] Starting main token subscription...');
         unsubscribe = client.subscribe(
           {
             query: `
@@ -117,7 +187,7 @@ const ProjectPage: FC = () => {
             error: (error: Error) => {
               console.error('[BitQuery] Subscription error:', error);
               (window as any).debugConsole?.error(`Subscription error: ${error?.message || 'Unknown error'}`);
-              handleRetry(); // Retry on subscription errors too
+              handleRetry();
             },
             complete: () => {
               console.log('[BitQuery] Subscription completed');
@@ -127,16 +197,17 @@ const ProjectPage: FC = () => {
         );
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        console.error('[BitQuery] Failed to create subscription:', errorMessage);
-        (window as any).debugConsole?.error(`Failed to create subscription: ${errorMessage}`);
+        console.error('[BitQuery] Failed to create main subscription:', errorMessage);
+        (window as any).debugConsole?.error(`Failed to create main subscription: ${errorMessage}`);
       }
     }
 
     // Start initial connection
     connectWebSocket();
 
-    // Cleanup subscription on unmount
+    // Cleanup on unmount
     return () => {
+      clearTimeout(connectionTimeout);
       if (unsubscribe) {
         console.log('[BitQuery] Cleaning up WebSocket subscription');
         unsubscribe();
