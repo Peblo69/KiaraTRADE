@@ -55,12 +55,15 @@ export const usePumpFunStore = create<PumpFunState>((set) => ({
   }
 }));
 
+type TokenUpdateHandler = (data: any) => void;
+
 class PumpFunWebSocket {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 5000;
   private heartbeatInterval: NodeJS.Timeout | null = null;
+  private subscribers = new Set<TokenUpdateHandler>();
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -84,23 +87,7 @@ class PumpFunWebSocket {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          // Log the full raw message data for debugging
-          console.log('[PumpFun WebSocket] Raw message data:', {
-            type: data.type,
-            data: {
-              ...data.data,
-              signature: data.data?.signature ? '[REDACTED]' : undefined,
-              name: data.data?.name,
-              symbol: data.data?.symbol,
-              marketCap: data.data?.marketCap,
-              address: data.data?.address,
-              price: data.data?.price,
-              uri: data.data?.uri, // Important for image URL
-              metadata: data.data?.metadata,
-              imageUrl: data.data?.imageUrl
-            },
-            timestamp: new Date().toISOString()
-          });
+          console.log('[PumpFun WebSocket] Received message:', data);
 
           if (data.type === 'token') {
             const tokenData = data.data;
@@ -121,9 +108,18 @@ class PumpFunWebSocket {
 
             console.log('[PumpFun WebSocket] Processing token:', {
               ...token,
-              signature: token.signature ? '[REDACTED]' : undefined,
-              imageSource: tokenData.uri ? 'uri' : tokenData.metadata?.image ? 'metadata' : 'default'
+              signature: token.signature ? '[REDACTED]' : undefined
             });
+
+            // Notify all subscribers
+            this.subscribers.forEach(handler => {
+              try {
+                handler(token);
+              } catch (error) {
+                console.error('[PumpFun WebSocket] Error in subscriber handler:', error);
+              }
+            });
+
             usePumpFunStore.getState().addToken(token);
           }
         } catch (error) {
@@ -151,6 +147,15 @@ class PumpFunWebSocket {
       this.cleanup();
       this.reconnect();
     }
+  }
+
+  subscribe(handler: TokenUpdateHandler) {
+    console.log('[PumpFun WebSocket] Adding subscriber');
+    this.subscribers.add(handler);
+    return () => {
+      console.log('[PumpFun WebSocket] Removing subscriber');
+      this.subscribers.delete(handler);
+    };
   }
 
   private startHeartbeat() {

@@ -16,25 +16,75 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
   const candlestickSeries = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeries = useRef<ISeriesApi<"Histogram"> | null>(null);
 
-  // Load initial data once
+  // Load initial data and setup WebSocket
   useEffect(() => {
     console.log('[TokenChart] Loading initial data for token:', tokenAddress);
+
+    // Get initial price data
     const initialData = useTokenPriceStore.getState().getPriceHistory(tokenAddress, '5m');
     console.log('[TokenChart] Initial data from store:', initialData);
 
     if (initialData && initialData.length > 0) {
-      console.log('[TokenChart] Setting initial candles');
+      console.log('[TokenChart] Setting initial candles:', initialData);
       setCandles(initialData);
     } else {
       console.log('[TokenChart] No initial data available');
+      // Create initial candle with current time
+      const currentTime = Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000);
+      setCandles([{
+        timestamp: currentTime,
+        open: 0,
+        high: 0,
+        low: 0,
+        close: 0,
+        volume: 0
+      }]);
     }
 
-    // Initialize WebSocket connection
-    console.log('[TokenChart] Initializing PumpFun WebSocket');
+    // Connect to WebSocket
     pumpFunSocket.connect();
+
+    // Subscribe to updates
+    const unsubscribe = pumpFunSocket.subscribe((data) => {
+      console.log('[TokenChart] Received update:', data);
+      if (data.address !== tokenAddress) return;
+
+      setCandles(prevCandles => {
+        const currentTime = Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000);
+        const lastCandle = prevCandles[prevCandles.length - 1];
+
+        // Update existing candle if in same time window
+        if (lastCandle && Math.floor(lastCandle.timestamp / (5 * 60 * 1000)) === Math.floor(currentTime / (5 * 60 * 1000))) {
+          const updatedCandle = {
+            ...lastCandle,
+            high: Math.max(lastCandle.high, data.price),
+            low: Math.min(lastCandle.low, data.price),
+            close: data.price,
+            volume: lastCandle.volume + (data.volume || 0)
+          };
+          return [...prevCandles.slice(0, -1), updatedCandle];
+        }
+
+        // Create new candle
+        const newCandle = {
+          timestamp: currentTime,
+          open: data.price,
+          high: data.price,
+          low: data.price,
+          close: data.price,
+          volume: data.volume || 0
+        };
+
+        return [...prevCandles, newCandle];
+      });
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [tokenAddress]);
 
-  // Initialize chart once
+  // Initialize chart
   useEffect(() => {
     if (!chartContainerRef.current || chart.current) return;
 
@@ -96,7 +146,6 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
       },
     });
 
-    // Handle resize
     const handleResize = () => {
       if (chartContainerRef.current && chart.current) {
         chart.current.applyOptions({ 
@@ -116,78 +165,10 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
     };
   }, [height]);
 
-  // Subscribe to WebSocket for real-time updates
-  useEffect(() => {
-    let mounted = true;
-
-    const handleTokenUpdate = (data: any) => {
-      console.log('[TokenChart] Received token update:', data);
-      if (!mounted || data.mint !== tokenAddress) return;
-
-      setCandles(prevCandles => {
-        console.log('[TokenChart] Previous candles:', prevCandles);
-        const currentTime = Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000);
-        const currentCandle = prevCandles[prevCandles.length - 1];
-
-        // If we have no candles yet, create initial candle
-        if (!currentCandle) {
-          console.log('[TokenChart] Creating first candle');
-          return [{
-            timestamp: currentTime,
-            open: data.price,
-            high: data.price,
-            low: data.price,
-            close: data.price,
-            volume: data.volume || 0
-          }];
-        }
-
-        // If this trade belongs to the current candle, update it
-        if (Math.floor(currentCandle.timestamp / (5 * 60 * 1000)) === Math.floor(currentTime / (5 * 60 * 1000))) {
-          console.log('[TokenChart] Updating existing candle');
-          const updatedCandle = {
-            ...currentCandle,
-            high: Math.max(currentCandle.high, data.price),
-            low: Math.min(currentCandle.low, data.price),
-            close: data.price,
-            volume: (currentCandle.volume || 0) + (data.volume || 0)
-          };
-          return [...prevCandles.slice(0, -1), updatedCandle];
-        }
-
-        // Otherwise create a new candle
-        console.log('[TokenChart] Creating new candle');
-        const newCandle = {
-          timestamp: currentTime,
-          open: data.price,
-          high: data.price,
-          low: data.price,
-          close: data.price,
-          volume: data.volume || 0
-        };
-        return [...prevCandles, newCandle];
-      });
-    };
-
-    // Subscribe to token updates
-    console.log('[TokenChart] Setting up token update subscription');
-    const unsubscribe = pumpFunSocket.subscribe(handleTokenUpdate);
-
-    return () => {
-      mounted = false;
-      unsubscribe?.();
-    };
-  }, [tokenAddress]);
-
   // Update chart when candles change
   useEffect(() => {
-    if (!candlestickSeries.current || !volumeSeries.current) {
-      console.log('[TokenChart] Chart series not initialized yet');
-      return;
-    }
-
-    if (!candles.length) {
-      console.log('[TokenChart] No candle data available');
+    if (!candlestickSeries.current || !volumeSeries.current || !candles.length) {
+      console.log('[TokenChart] Chart series not ready or no candles');
       return;
     }
 
