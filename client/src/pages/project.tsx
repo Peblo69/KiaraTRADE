@@ -7,13 +7,22 @@ const ProjectPage: FC = () => {
     console.log('Testing BitQuery API connection...');
     (window as any).debugConsole?.log('Starting BitQuery API test...');
 
+    // Debug environment variables (safely)
+    const envKeys = Object.keys(import.meta.env);
+    console.log('Available env keys:', envKeys);
+    (window as any).debugConsole?.log(`Available env keys: ${envKeys.join(', ')}`);
+
     // Log the API key availability (not the actual key)
     const apiKey = import.meta.env.VITE_BITQUERY_API_KEY;
+    console.log('API Key exists:', !!apiKey);
+
     if (!apiKey) {
       console.error('BitQuery API key is not available');
-      (window as any).debugConsole?.error('BitQuery API key is not set in environment variables');
+      (window as any).debugConsole?.error('BitQuery API key is not set in environment variables. Available keys: ' + envKeys.join(', '));
       return;
     }
+
+    (window as any).debugConsole?.log('API Key found, testing connection...');
 
     fetch('https://graphql.bitquery.io', {
       method: 'POST',
@@ -50,13 +59,16 @@ const ProjectPage: FC = () => {
       .then(async (res) => {
         // Handle unauthorized error
         if (res.status === 401) {
-          throw new Error('Unauthorized: Invalid or missing API key');
+          const error = new Error('Unauthorized: Invalid or missing API key');
+          (window as any).debugConsole?.error(`API call failed: ${error.message}`);
+          throw error;
         }
 
         // Log raw response for debugging if not OK
         if (!res.ok) {
           const text = await res.text();
           console.error('Raw error response:', text);
+          (window as any).debugConsole?.error(`API Error Response: ${text}`);
           throw new Error(`HTTP error! status: ${res.status}`);
         }
 
