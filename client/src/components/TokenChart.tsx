@@ -1,7 +1,8 @@
-import { FC, useEffect, useRef, useMemo, useCallback } from 'react';
+import { FC, useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import { createChart } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
-import { useTokenPriceStore } from '@/lib/price-history';
+import { Button } from '@/components/ui/button';
+import { useTokenPriceStore, TIMEFRAMES, type TimeframeKey } from '@/lib/price-history';
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -18,10 +19,13 @@ const TokenChart: FC<TokenChartProps> = ({
   const candlestickRef = useRef<any>(null);
   const volumeRef = useRef<any>(null);
 
+  // Local state for timeframe selection
+  const [selectedTimeframe, setSelectedTimeframe] = useState<TimeframeKey>('5m');
+
   // Get price history with memoized selector
   const priceHistory = useTokenPriceStore(useCallback(
-    state => state.getPriceHistory(tokenAddress),
-    [tokenAddress]
+    state => state.getPriceHistory(tokenAddress, selectedTimeframe),
+    [tokenAddress, selectedTimeframe]
   ));
 
   // Transform data once when priceHistory changes
@@ -114,10 +118,27 @@ const TokenChart: FC<TokenChartProps> = ({
     }
   }, [chartData, height]); // Only re-run if data or height changes
 
+  // Memoized timeframe change handler
+  const handleTimeframeChange = useCallback((tf: TimeframeKey) => {
+    setSelectedTimeframe(tf);
+  }, []);
+
   return (
     <Card className="p-4 bg-black/40 backdrop-blur-lg border border-gray-800">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-white">Price Chart</h3>
+        <div className="flex gap-2">
+          {(Object.keys(TIMEFRAMES) as TimeframeKey[]).map((tf) => (
+            <Button
+              key={tf}
+              variant={selectedTimeframe === tf ? "default" : "outline"}
+              size="sm"
+              onClick={() => handleTimeframeChange(tf)}
+            >
+              {tf}
+            </Button>
+          ))}
+        </div>
       </div>
       <div ref={containerRef} />
     </Card>

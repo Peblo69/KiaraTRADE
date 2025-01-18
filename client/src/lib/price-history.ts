@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
 
 // Supported timeframes in milliseconds
 export const TIMEFRAMES = {
@@ -11,7 +10,7 @@ export const TIMEFRAMES = {
   '1d': 24 * 60 * 60 * 1000
 } as const;
 
-type TimeframeKey = keyof typeof TIMEFRAMES;
+export type TimeframeKey = keyof typeof TIMEFRAMES;
 
 interface CandleData {
   timestamp: number;
@@ -25,9 +24,9 @@ interface CandleData {
 }
 
 interface PriceHistoryState {
-  data: Map<string, CandleData[]>;
+  data: Map<string, Map<TimeframeKey, CandleData[]>>;
   initialized: Set<string>;
-  getPriceHistory: (tokenAddress: string) => CandleData[] | undefined;
+  getPriceHistory: (tokenAddress: string, timeframe: TimeframeKey) => CandleData[];
   initializePriceHistory: (tokenAddress: string, initialPrice: number, marketCap: number) => void;
   addPricePoint: (tokenAddress: string, price: number, marketCap: number, volume: number) => void;
 }
@@ -38,8 +37,9 @@ export const useTokenPriceStore = create<PriceHistoryState>()((set, get) => ({
   data: new Map(),
   initialized: new Set(),
 
-  getPriceHistory: (tokenAddress) => {
-    return get().data.get(tokenAddress);
+  getPriceHistory: (tokenAddress, timeframe) => {
+    const tokenData = get().data.get(tokenAddress);
+    return tokenData?.get(timeframe) || [];
   },
 
   initializePriceHistory: (tokenAddress, initialPrice, marketCap) => {
@@ -48,80 +48,88 @@ export const useTokenPriceStore = create<PriceHistoryState>()((set, get) => ({
     // Skip if already initialized
     if (state.initialized.has(tokenAddress)) return;
 
-    // Create initial candle
-    const initialCandle: CandleData = {
-      timestamp: Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000), // 5min default
-      open: initialPrice,
-      high: initialPrice,
-      low: initialPrice,
-      close: initialPrice,
-      volume: 0,
-      marketCap,
-      trades: 0
-    };
+    const now = Date.now();
+    const newTokenData = new Map<TimeframeKey, CandleData[]>();
 
-    // Update state immutably
-    set((state) => {
+    // Initialize candles for each timeframe
+    Object.entries(TIMEFRAMES).forEach(([timeframe, interval]) => {
+      const candleTime = Math.floor(now / interval) * interval;
+      const initialCandle: CandleData = {
+        timestamp: candleTime,
+        open: initialPrice,
+        high: initialPrice,
+        low: initialPrice,
+        close: initialPrice,
+        volume: 0,
+        marketCap,
+        trades: 0
+      };
+      newTokenData.set(timeframe as TimeframeKey, [initialCandle]);
+    });
+
+    set(state => {
       const newData = new Map(state.data);
-      newData.set(tokenAddress, [initialCandle]);
-      const newInitialized = new Set(state.initialized);
-      newInitialized.add(tokenAddress);
-
+      newData.set(tokenAddress, newTokenData);
       return {
         data: newData,
-        initialized: newInitialized
+        initialized: new Set([...state.initialized, tokenAddress])
       };
     });
   },
 
   addPricePoint: (tokenAddress, price, marketCap, volume) => {
-    set((state) => {
-      // Skip if not initialized
+    set(state => {
       if (!state.initialized.has(tokenAddress)) return state;
 
-      const existingData = state.data.get(tokenAddress);
-      if (!existingData) return state;
+      const tokenData = state.data.get(tokenAddress);
+      if (!tokenData) return state;
 
       const now = Date.now();
-      const candleTime = Math.floor(now / (5 * 60 * 1000)) * (5 * 60 * 1000);
-      const lastCandle = existingData[existingData.length - 1];
+      const newTokenData = new Map(tokenData);
 
-      let newCandles = [...existingData];
+      // Update candles for each timeframe
+      Object.entries(TIMEFRAMES).forEach(([timeframe, interval]) => {
+        const tf = timeframe as TimeframeKey;
+        const candleTime = Math.floor(now / interval) * interval;
+        const candles = [...(tokenData.get(tf) || [])];
+        const lastCandle = candles[candles.length - 1];
 
-      if (lastCandle && lastCandle.timestamp === candleTime) {
-        // Update existing candle
-        const updatedCandle = {
-          ...lastCandle,
-          high: Math.max(lastCandle.high, price),
-          low: Math.min(lastCandle.low, price),
-          close: price,
-          volume: lastCandle.volume + volume,
-          marketCap,
-          trades: lastCandle.trades + 1
-        };
-        newCandles[newCandles.length - 1] = updatedCandle;
-      } else {
-        // Create new candle
-        newCandles.push({
-          timestamp: candleTime,
-          open: price,
-          high: price,
-          low: price,
-          close: price,
-          volume,
-          marketCap,
-          trades: 1
-        });
+        if (lastCandle && lastCandle.timestamp === candleTime) {
+          // Update existing candle
+          const updatedCandle = {
+            ...lastCandle,
+            high: Math.max(lastCandle.high, price),
+            low: Math.min(lastCandle.low, price),
+            close: price,
+            volume: lastCandle.volume + volume,
+            marketCap,
+            trades: lastCandle.trades + 1
+          };
+          candles[candles.length - 1] = updatedCandle;
+        } else {
+          // Create new candle
+          candles.push({
+            timestamp: candleTime,
+            open: price,
+            high: price,
+            low: price,
+            close: price,
+            volume,
+            marketCap,
+            trades: 1
+          });
 
-        // Trim history if needed
-        if (newCandles.length > MAX_CANDLES) {
-          newCandles = newCandles.slice(-MAX_CANDLES);
+          // Trim history if needed
+          if (candles.length > MAX_CANDLES) {
+            candles.splice(0, candles.length - MAX_CANDLES);
+          }
         }
-      }
 
-      // Update state immutably
+        newTokenData.set(tf, candles);
+      });
+
       const newData = new Map(state.data);
-      newData.set(tokenAddress, newCandles);
+      newData.set(tokenAddress, newTokenData);
 
       return { ...state, data: newData };
     });
