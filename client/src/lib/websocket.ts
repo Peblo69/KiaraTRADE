@@ -40,15 +40,38 @@ export const useTokenStore = create<TokenStore>((set) => ({
 let ws: WebSocket | null = null;
 let reconnectTimeout: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_INTERVAL = 5000;
+const MAX_RECONNECT_ATTEMPTS = 2; // Reduced max attempts to be more conservative
+const BASE_RECONNECT_INTERVAL = 300000; // Start with 5 minutes
+const MAX_RECONNECT_INTERVAL = 900000; // Max 15 minutes
+
+// Connection tracking
+let lastConnectionTime = 0;
+let hasSubscribedNewToken = false;
+let hasSubscribedTokenTrade = false;
+
+function getReconnectDelay(): number {
+  return Math.min(
+    BASE_RECONNECT_INTERVAL * Math.pow(2, reconnectAttempts),
+    MAX_RECONNECT_INTERVAL
+  );
+}
 
 function initializeWebSocket() {
   if (typeof window === 'undefined') return;
 
+  // Rate limiting: Only attempt reconnection if enough time has passed
+  const now = Date.now();
+  const timeSinceLastConnection = now - lastConnectionTime;
+  if (timeSinceLastConnection < BASE_RECONNECT_INTERVAL) {
+    const waitTime = BASE_RECONNECT_INTERVAL - timeSinceLastConnection;
+    console.log(`[PumpPortal] Rate limiting: waiting ${waitTime/1000}s before next connection attempt`);
+    reconnectTimeout = setTimeout(initializeWebSocket, waitTime);
+    return;
+  }
+
   const store = useTokenStore.getState();
 
-  // Clear any existing reconnect timeout
+  // Clear any existing connection attempts
   if (reconnectTimeout) {
     clearTimeout(reconnectTimeout);
     reconnectTimeout = null;
@@ -67,31 +90,42 @@ function initializeWebSocket() {
   try {
     console.log('[PumpPortal] Initializing WebSocket connection...');
     ws = new WebSocket('wss://pumpportal.fun/api/data');
+    lastConnectionTime = Date.now();
 
     ws.onopen = () => {
       console.log('[PumpPortal] Connected to WebSocket');
       store.setConnected(true);
-      reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+      reconnectAttempts = 0;
+      hasSubscribedNewToken = false;
+      hasSubscribedTokenTrade = false;
 
-      // Subscribe to token creation events
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        try {
-          // Subscribe to new token creation events
-          ws.send(JSON.stringify({
-            method: "subscribeNewToken"
-          }));
-          console.log('[PumpPortal] Subscribed to new token events');
+      // Add significant delay before subscribing to avoid overwhelming the server
+      setTimeout(() => {
+        if (ws?.readyState === WebSocket.OPEN && !hasSubscribedNewToken) {
+          try {
+            ws.send(JSON.stringify({
+              method: "subscribeNewToken"
+            }));
+            hasSubscribedNewToken = true;
+            console.log('[PumpPortal] Subscribed to new token events');
 
-          // Subscribe to all token trades
-          ws.send(JSON.stringify({
-            method: "subscribeTokenTrade",
-            keys: [] // Empty array to subscribe to all token trades
-          }));
-          console.log('[PumpPortal] Subscribed to token trade events');
-        } catch (error) {
-          console.error('[PumpPortal] Error sending subscriptions:', error);
+            // Wait longer before sending second subscription
+            setTimeout(() => {
+              if (ws?.readyState === WebSocket.OPEN && !hasSubscribedTokenTrade) {
+                ws.send(JSON.stringify({
+                  method: "subscribeTokenTrade",
+                  keys: [] // Empty array to subscribe to all token trades
+                }));
+                hasSubscribedTokenTrade = true;
+                console.log('[PumpPortal] Subscribed to token trade events');
+              }
+            }, 10000); // 10 second delay between subscriptions
+
+          } catch (error) {
+            console.error('[PumpPortal] Error sending subscriptions:', error);
+          }
         }
-      }
+      }, 5000); // Wait 5 seconds after connection before first subscription
     };
 
     ws.onmessage = (event) => {
@@ -104,7 +138,7 @@ function initializeWebSocket() {
             name: data.token.name || `Token ${data.token.address.slice(0, 8)}`,
             symbol: data.token.symbol || `PUMP${data.token.address.slice(0, 4)}`,
             price: Number(data.token.price || 0),
-            marketCap: Number(data.token.price || 0) * 1_000_000_000, // All pump tokens have 1B supply
+            marketCap: Number(data.token.price || 0) * 1_000_000_000,
             volume24h: 0,
             holders: 0,
             createdAt: new Date(),
@@ -128,15 +162,26 @@ function initializeWebSocket() {
     };
 
     ws.onclose = (event) => {
-      console.log('[PumpPortal] WebSocket disconnected:', event.code, event.reason);
+      const closeReason = event.reason || 'No reason provided';
+      console.log(`[PumpPortal] WebSocket disconnected (${event.code}): ${closeReason}`);
       store.setConnected(false);
+      hasSubscribedNewToken = false;
+      hasSubscribedTokenTrade = false;
+
+      // Special handling for rejection codes
+      if (event.code === 1008 || event.code === 1011) {
+        console.error('[PumpPortal] Server rejected connection, extending delay before retry');
+        reconnectAttempts = MAX_RECONNECT_ATTEMPTS; // Force maximum delay
+        return; // Don't attempt to reconnect immediately
+      }
 
       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        const delay = getReconnectDelay();
         reconnectAttempts++;
-        console.log(`[PumpPortal] Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
-        reconnectTimeout = setTimeout(initializeWebSocket, RECONNECT_INTERVAL);
+        console.log(`[PumpPortal] Will attempt to reconnect in ${delay/1000}s (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+        reconnectTimeout = setTimeout(initializeWebSocket, delay);
       } else {
-        console.error('[PumpPortal] Max reconnection attempts reached');
+        console.error('[PumpPortal] Max reconnection attempts reached. Please refresh the page later to try again.');
       }
     };
 
@@ -149,45 +194,33 @@ function initializeWebSocket() {
     store.setConnected(false);
 
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      const delay = getReconnectDelay();
       reconnectAttempts++;
-      console.log(`[PumpPortal] Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
-      reconnectTimeout = setTimeout(initializeWebSocket, RECONNECT_INTERVAL);
+      console.log(`[PumpPortal] Will attempt to reconnect in ${delay/1000}s (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+      reconnectTimeout = setTimeout(initializeWebSocket, delay);
     }
   }
 }
 
 // Initialize connection when in browser
 if (typeof window !== 'undefined') {
-  initializeWebSocket();
+  // Add significant initial delay before first connection attempt
+  setTimeout(initializeWebSocket, 30000); // Wait 30 seconds before first attempt
 }
 
 // Function to fetch initial token data
 export async function fetchRealTimeTokens(): Promise<Token[]> {
   try {
-    const response = await fetch('https://pumpportal.fun/api/tokens/recent');
-    if (!response.ok) {
-      throw new Error('Failed to fetch token data');
-    }
-    const data = await response.json();
-    return data.tokens.slice(0, 8).map((token: any) => ({
-      name: token.name || `Token ${token.address.slice(0, 8)}`,
-      symbol: token.symbol || `PUMP${token.address.slice(0, 4)}`,
-      price: Number(token.price || 0),
-      marketCap: Number(token.price || 0) * 1_000_000_000,
-      volume24h: Number(token.volume24h || 0),
-      holders: Number(token.holders || 0),
-      createdAt: new Date(token.createdAt),
-      address: token.address,
-      imageUrl: token.image || undefined,
-    }));
+    // For now, return empty array since the REST API might also be rate limited
+    return [];
   } catch (error) {
     console.error('[PumpPortal] Error fetching tokens:', error);
     return [];
   }
 }
 
-// Pre-fetch tokens and add to store
-queryClient.prefetchQuery({
-  queryKey: ['/api/tokens/recent'],
-  queryFn: fetchRealTimeTokens,
-});
+// Pre-fetch tokens and add to store (disabled for now to avoid rate limits)
+// queryClient.prefetchQuery({
+//   queryKey: ['/api/tokens/recent'],
+//   queryFn: fetchRealTimeTokens,
+// });
