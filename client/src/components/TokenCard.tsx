@@ -1,15 +1,15 @@
-import { FC, memo, useState } from 'react';
+import { FC, memo, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { SiSolana } from 'react-icons/si';
+import { SiSolana } from "react-icons/si";
 import { 
   TrendingUp, 
   Users, 
   Wallet,
   Globe,
   TwitterIcon
-} from 'lucide-react';
-import { useUnifiedTokenStore } from '@/lib/unified-token-store';
-import TransactionHistory from './TransactionHistory';
+} from "lucide-react";
+import { useUnifiedTokenStore } from "@/lib/unified-token-store";
+import TransactionHistory from "./TransactionHistory";
 
 const SOL_PRICE_USD = 104.23;
 const PUMPFUN_LOGO = "https://files.catbox.moe/beba90.png";
@@ -109,8 +109,8 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
                   src={PUMPFUN_LOGO}
                   alt="View on PumpFun"
                   style={{
-                    width: '20px',
-                    height: '20px',
+                    width: '30px',
+                    height: '30px',
                     objectFit: 'contain'
                   }}
                 />
