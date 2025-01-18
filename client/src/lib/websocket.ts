@@ -1,2 +1,2 @@
-// This file is now deprecated. We use unified-websocket.ts for all WebSocket connections.
+// File intentionally emptied - deprecated WebSocket implementation removed
 export {};
