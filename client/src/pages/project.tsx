@@ -46,7 +46,7 @@ const ProjectPage: FC = () => {
     let unsubscribe: (() => void) | null = null;
     let connectionTimeout: ReturnType<typeof setTimeout>;
 
-    async function connectWebSocket(token: string) {
+    function connectWebSocket(token: string) {
       console.log('[BitQuery] Attempting WebSocket connection...');
       (window as any).debugConsole?.log('Attempting to establish WebSocket connection...');
 
