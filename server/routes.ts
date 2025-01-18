@@ -28,7 +28,12 @@ export function registerRoutes(app: Express): Server {
         return res.json(cache.globalMetrics.data);
       }
 
-      const response = await axios.get('https://api.coingecko.com/api/v3/global');
+      const response = await axios.get('https://api.coingecko.com/api/v3/global', {
+        headers: {
+          'x-cg-demo-api-key': process.env.COINGECKO_API_KEY || '',
+          'accept': 'application/json'
+        }
+      });
 
       // Cache the response
       cache.globalMetrics = {
@@ -63,6 +68,10 @@ export function registerRoutes(app: Express): Server {
             price_change_percentage: '1h,24h,7d',
             locale: 'en',
             precision: 6
+          },
+          headers: {
+            'x-cg-demo-api-key': process.env.COINGECKO_API_KEY || '',
+            'accept': 'application/json'
           }
         }
       );
@@ -93,6 +102,10 @@ export function registerRoutes(app: Express): Server {
               community_data: true,
               developer_data: true,
               sparkline: true
+            },
+            headers: {
+              'x-cg-demo-api-key': process.env.COINGECKO_API_KEY || '',
+              'accept': 'application/json'
             }
           }
         ),
@@ -103,6 +116,10 @@ export function registerRoutes(app: Express): Server {
               vs_currency: 'usd',
               days: 7,
               interval: 'hourly'
+            },
+            headers: {
+              'x-cg-demo-api-key': process.env.COINGECKO_API_KEY || '',
+              'accept': 'application/json'
             }
           }
         )
@@ -126,7 +143,12 @@ export function registerRoutes(app: Express): Server {
         return res.json(cache.trending.data);
       }
 
-      const response = await axios.get('https://api.coingecko.com/api/v3/search/trending');
+      const response = await axios.get('https://api.coingecko.com/api/v3/search/trending', {
+        headers: {
+          'x-cg-demo-api-key': process.env.COINGECKO_API_KEY || '',
+          'accept': 'application/json'
+        }
+      });
 
       cache.trending = {
         data: response.data,
