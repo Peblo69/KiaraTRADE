@@ -1,16 +1,29 @@
 import { FC, useEffect } from 'react';
 import { unifiedWebSocket } from '@/lib/unified-websocket';
+import { pumpFunSocket } from '@/lib/pumpfun-websocket';
 import TokenCard from './TokenCard';
 import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import { motion } from 'framer-motion';
 
 export const TokenTracker: FC = () => {
   const tokens = useUnifiedTokenStore(state => state.tokens);
+  const isConnected = useUnifiedTokenStore(state => state.isConnected);
 
   useEffect(() => {
+    console.log('[TokenTracker] Initializing WebSocket connections');
+    // Connect to both WebSocket services
     unifiedWebSocket.connect();
-    return () => unifiedWebSocket.disconnect();
+    pumpFunSocket.connect();
+
+    return () => {
+      console.log('[TokenTracker] Cleaning up WebSocket connections');
+      unifiedWebSocket.disconnect();
+      pumpFunSocket.disconnect();
+    };
   }, []);
+
+  console.log('[TokenTracker] Current token count:', tokens.length);
+  console.log('[TokenTracker] Connection status:', isConnected);
 
   return (
     <div className="max-w-7xl mx-auto px-4">
@@ -28,7 +41,9 @@ export const TokenTracker: FC = () => {
         ))}
         {tokens.length === 0 && (
           <div className="col-span-3 text-center py-12">
-            <p className="text-gray-500">Loading tokens...</p>
+            <p className="text-gray-500">
+              {isConnected ? 'Waiting for token data...' : 'Connecting to token services...'}
+            </p>
           </div>
         )}
       </div>

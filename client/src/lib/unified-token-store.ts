@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 
 interface Transaction {
   signature: string;
@@ -36,6 +37,8 @@ interface TokenData {
   solAmount?: number;
   priceChange24h?: number;
   metadata?: TokenMetadata;
+  source?: 'pumpfun' | 'unified';
+  lastUpdated?: number;
 }
 
 interface UnifiedTokenState {
@@ -44,7 +47,7 @@ interface UnifiedTokenState {
   isConnected: boolean;
   connectionError: string | null;
 
-  addToken: (token: TokenData) => void;
+  addToken: (token: TokenData, source: 'pumpfun' | 'unified') => void;
   updateToken: (address: string, updates: Partial<TokenData>) => void;
   addTransaction: (tokenAddress: string, transaction: Transaction) => void;
   setConnected: (status: boolean) => void;
@@ -54,52 +57,111 @@ interface UnifiedTokenState {
   getTransactions: (address: string) => Transaction[];
 }
 
-export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
-  tokens: [],
-  transactions: {},
-  isConnected: false,
-  connectionError: null,
+export const useUnifiedTokenStore = create<UnifiedTokenState>()(
+  devtools(
+    (set, get) => ({
+      tokens: [],
+      transactions: {},
+      isConnected: false,
+      connectionError: null,
 
-  addToken: (token) => {
-    set((state) => ({
-      tokens: [
-        ...state.tokens,
-        {
-          ...token,
-          lastUpdated: Date.now(),
-        }
-      ].sort((a, b) => b.marketCapSol - a.marketCapSol).slice(0, 100)
-    }));
-  },
+      addToken: (token, source) => {
+        console.log(`[UnifiedTokenStore] Adding token from ${source}:`, {
+          address: token.address,
+          name: token.name,
+          symbol: token.symbol
+        });
 
-  updateToken: (address, updates) => {
-    set((state) => {
-      const tokens = state.tokens.map((token) =>
-        token.address === address
-          ? { ...token, ...updates }
-          : token
-      );
-      return { tokens };
-    });
-  },
+        set((state) => {
+          // Check if token already exists
+          const existingToken = state.tokens.find(t => t.address === token.address);
+          if (existingToken) {
+            // Update existing token
+            return {
+              tokens: state.tokens.map(t => 
+                t.address === token.address
+                  ? { 
+                      ...t, 
+                      ...token,
+                      source,
+                      lastUpdated: Date.now()
+                    }
+                  : t
+              )
+            };
+          }
 
-  addTransaction: (tokenAddress, transaction) => {
-    set((state) => {
-      const transactions = state.transactions[tokenAddress] || [];
-      if (transactions.some(tx => tx.signature === transaction.signature)) {
-        return state;
-      }
-      return {
-        transactions: {
-          ...state.transactions,
-          [tokenAddress]: [transaction, ...transactions].slice(0, 10)
-        }
-      };
-    });
-  },
+          // Add new token
+          return {
+            tokens: [
+              ...state.tokens,
+              {
+                ...token,
+                source,
+                lastUpdated: Date.now(),
+              }
+            ].sort((a, b) => b.marketCapSol - a.marketCapSol).slice(0, 100)
+          };
+        });
+      },
 
-  setConnected: (status) => set({ isConnected: status, connectionError: null }),
-  setError: (error) => set({ connectionError: error }),
-  getToken: (address) => get().tokens.find(token => token.address === address),
-  getTransactions: (address) => get().transactions[address] || [],
-}));
+      updateToken: (address, updates) => {
+        console.log('[UnifiedTokenStore] Updating token:', {
+          address,
+          updates
+        });
+
+        set((state) => {
+          const currentToken = state.tokens.find(token => token.address === address);
+          if (!currentToken) return state;
+
+          const updatedTokens = state.tokens.map((token) =>
+            token.address === address
+              ? {
+                  ...token,
+                  ...updates,
+                  lastUpdated: Date.now(),
+                  priceChange24h: updates.price !== undefined && token.price !== undefined
+                    ? ((updates.price - token.price) / token.price) * 100
+                    : token.priceChange24h
+                }
+              : token
+          );
+
+          return { 
+            tokens: updatedTokens.sort((a, b) => b.marketCapSol - a.marketCapSol)
+          };
+        });
+      },
+
+      addTransaction: (tokenAddress, transaction) => {
+        set((state) => {
+          const transactions = state.transactions[tokenAddress] || [];
+          if (transactions.some(tx => tx.signature === transaction.signature)) {
+            return state;
+          }
+          return {
+            transactions: {
+              ...state.transactions,
+              [tokenAddress]: [transaction, ...transactions].slice(0, 10)
+            }
+          };
+        });
+      },
+
+      setConnected: (status) => {
+        console.log('[UnifiedTokenStore] Connection status:', status);
+        set({ isConnected: status, connectionError: null });
+      },
+
+      setError: (error) => {
+        console.log('[UnifiedTokenStore] Error:', error);
+        set({ connectionError: error });
+      },
+
+      getToken: (address) => get().tokens.find(token => token.address === address),
+      getTransactions: (address) => get().transactions[address] || [],
+    }),
+    { name: 'unified-token-store' }
+  )
+);

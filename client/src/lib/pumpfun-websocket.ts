@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useUnifiedTokenStore } from './unified-token-store';
 
 interface TokenData {
   name: string;
@@ -63,7 +64,7 @@ class PumpFunWebSocket {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 5000;
   private heartbeatInterval: NodeJS.Timeout | null = null;
-  private subscribers = new Set<TokenUpdateHandler>();
+  private subscribers = new Set<(data: any) => void>();
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -77,7 +78,7 @@ class PumpFunWebSocket {
 
       this.ws.onopen = () => {
         console.log('[PumpFun WebSocket] Connected successfully');
-        usePumpFunStore.getState().setConnected(true);
+        useUnifiedTokenStore.getState().setConnected(true);
         this.reconnectAttempts = 0;
         this.startHeartbeat();
         this.subscribeToNewTokens();
@@ -106,12 +107,17 @@ class PumpFunWebSocket {
               signature: tokenData.signature,
             };
 
-            console.log('[PumpFun WebSocket] Processing token:', {
-              ...token,
-              signature: token.signature ? '[REDACTED]' : undefined
-            });
+            // Add token to unified store
+            useUnifiedTokenStore.getState().addToken(
+              {
+                ...token,
+                marketCapSol: token.marketCap, // Ensure marketCapSol is set for sorting
+                source: 'pumpfun'
+              },
+              'pumpfun'
+            );
 
-            // Notify all subscribers
+            // Notify subscribers
             this.subscribers.forEach(handler => {
               try {
                 handler(token);
@@ -119,12 +125,10 @@ class PumpFunWebSocket {
                 console.error('[PumpFun WebSocket] Error in subscriber handler:', error);
               }
             });
-
-            usePumpFunStore.getState().addToken(token);
           }
         } catch (error) {
           console.error('[PumpFun WebSocket] Error processing message:', error);
-          usePumpFunStore.getState().setError('Failed to process token data');
+          useUnifiedTokenStore.getState().setError('Failed to process token data');
         }
       };
 
@@ -136,20 +140,20 @@ class PumpFunWebSocket {
 
       this.ws.onerror = (error) => {
         console.error('[PumpFun WebSocket] Connection error:', error);
-        usePumpFunStore.getState().setError('WebSocket connection error');
+        useUnifiedTokenStore.getState().setError('WebSocket connection error');
         this.cleanup();
         this.reconnect();
       };
 
     } catch (error) {
       console.error('[PumpFun WebSocket] Failed to establish connection:', error);
-      usePumpFunStore.getState().setError('Failed to establish WebSocket connection');
+      useUnifiedTokenStore.getState().setError('Failed to establish WebSocket connection');
       this.cleanup();
       this.reconnect();
     }
   }
 
-  subscribe(handler: TokenUpdateHandler) {
+  subscribe(handler: (data: any) => void) {
     console.log('[PumpFun WebSocket] Adding subscriber');
     this.subscribers.add(handler);
     return () => {
@@ -202,7 +206,7 @@ class PumpFunWebSocket {
 
   private cleanup() {
     console.log('[PumpFun WebSocket] Cleaning up connection');
-    usePumpFunStore.getState().setConnected(false);
+    useUnifiedTokenStore.getState().setConnected(false);
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
@@ -212,7 +216,7 @@ class PumpFunWebSocket {
   private reconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('[PumpFun WebSocket] Max reconnection attempts reached');
-      usePumpFunStore.getState().setError('Maximum reconnection attempts reached');
+      useUnifiedTokenStore.getState().setError('Maximum reconnection attempts reached');
       return;
     }
 
