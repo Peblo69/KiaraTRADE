@@ -2,6 +2,7 @@ import { createClient } from 'graphql-ws';
 import { useUnifiedTokenStore } from './unified-token-store';
 
 const BITQUERY_WSS_URL = 'wss://graphql.bitquery.io';
+const BITQUERY_API_KEY = 'BQYSaASLeyNPxRf38DGgENQ1mVHxNypq'; // Hardcode for now to test
 
 // Subscription for new token creation on PumpFun
 const NEW_TOKEN_SUBSCRIPTION = `
@@ -82,21 +83,14 @@ class BitQueryWebSocket {
       return;
     }
 
-    const apiKey = import.meta.env.VITE_BITQUERY_API_KEY;
-    if (!apiKey) {
-      console.error('[BitQuery] API key not found');
-      useUnifiedTokenStore.getState().setError('BitQuery API key not configured');
-      return;
-    }
-
-    console.log('[BitQuery] Connecting to BitQuery...');
+    console.log('[BitQuery] Initializing connection with API key:', BITQUERY_API_KEY.substring(0, 5) + '...');
 
     try {
       this.client = createClient({
         url: BITQUERY_WSS_URL,
         connectionParams: {
           headers: {
-            'X-API-KEY': apiKey,
+            'X-API-KEY': BITQUERY_API_KEY,
           },
         },
         on: {
@@ -132,6 +126,7 @@ class BitQueryWebSocket {
         { query: NEW_TOKEN_SUBSCRIPTION },
         {
           next: (data: any) => {
+            console.log('[BitQuery] Received token data:', data);
             const instructions = data?.data?.Solana?.Instructions || [];
             instructions.forEach((instruction: any) => {
               const token = instruction.Instruction.Accounts.find((acc: any) => acc.Token?.Mint);
@@ -157,18 +152,12 @@ class BitQueryWebSocket {
 
   private async handleNewToken(token: any) {
     try {
-      const apiKey = import.meta.env.VITE_BITQUERY_API_KEY;
-      if (!apiKey) {
-        console.error('[BitQuery] API key not found');
-        return;
-      }
-
       // Fetch last 10 trades for new token
       const response = await fetch('https://graphql.bitquery.io', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-KEY': apiKey,
+          'X-API-KEY': BITQUERY_API_KEY,
         },
         body: JSON.stringify({
           query: LAST_10_TRADES_QUERY,
@@ -177,6 +166,7 @@ class BitQueryWebSocket {
       });
 
       const result = await response.json();
+      console.log('[BitQuery] Trades fetch result:', result);
       const trades = result?.data?.Solana?.DEXTradeByTokens || [];
 
       // Add token to store with trade history
