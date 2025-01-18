@@ -30,20 +30,24 @@ const CryptoIcon: FC<CryptoIconProps> = ({
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext('2d');
-    if (ctx) {
-      const hue = (symbol1.charCodeAt(0) * 137.508) % 360;
-      ctx.fillStyle = `hsl(${hue}, 70%, 50%)`;
-      ctx.beginPath();
-      ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 16px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(symbol1, size/2, size/2);
-      return canvas.toDataURL();
-    }
-    return '';
+
+    if (!ctx) return '';
+
+    // Generate a unique color based on the symbol
+    const hue = (symbol1.charCodeAt(0) * 137.508) % 360;
+    ctx.fillStyle = `hsl(${hue}, 70%, 50%)`;
+    ctx.beginPath();
+    ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Add text
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(symbol1, size/2, size/2);
+
+    return canvas.toDataURL();
   };
 
   useEffect(() => {
@@ -51,15 +55,14 @@ const CryptoIcon: FC<CryptoIconProps> = ({
     setIsLoading(true);
     setError(false);
 
-    const loadImage = async () => {
+    async function loadImage() {
       try {
         const imageUrl = await getTokenImage(symbol);
 
         if (!mounted) return;
 
         if (!imageUrl) {
-          const fallbackIcon = generateFallbackIcon();
-          setImgSrc(fallbackIcon);
+          setImgSrc(generateFallbackIcon());
           setError(true);
           setIsLoading(false);
           return;
@@ -71,13 +74,12 @@ const CryptoIcon: FC<CryptoIconProps> = ({
       } catch (err) {
         console.error(`Error loading icon for ${symbol}:`, err);
         if (mounted) {
-          const fallbackIcon = generateFallbackIcon();
-          setImgSrc(fallbackIcon);
+          setImgSrc(generateFallbackIcon());
           setError(true);
           setIsLoading(false);
         }
       }
-    };
+    }
 
     loadImage();
 
@@ -103,8 +105,7 @@ const CryptoIcon: FC<CryptoIconProps> = ({
         onError={(e) => {
           const target = e.target as HTMLImageElement;
           if (!error) {
-            const fallbackIcon = generateFallbackIcon();
-            target.src = fallbackIcon;
+            target.src = generateFallbackIcon();
             setError(true);
           }
         }}
