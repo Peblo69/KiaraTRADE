@@ -76,8 +76,14 @@ query ($mintAddress: String!) {
 class BitQueryWebSocket {
   private client: ReturnType<typeof createClient> | null = null;
   private unsubscribe: (() => void) | null = null;
+  private isConnecting = false;
 
   connect() {
+    if (this.isConnecting) {
+      console.log('[BitQuery] Connection attempt already in progress');
+      return;
+    }
+
     if (this.client) {
       console.log('[BitQuery] Already connected');
       return;
@@ -86,6 +92,8 @@ class BitQueryWebSocket {
     console.log('[BitQuery] Initializing connection with API key:', BITQUERY_API_KEY.substring(0, 5) + '...');
 
     try {
+      this.isConnecting = true;
+
       this.client = createClient({
         url: BITQUERY_WSS_URL,
         connectionParams: {
@@ -96,14 +104,17 @@ class BitQueryWebSocket {
         on: {
           connected: () => {
             console.log('[BitQuery] Connected successfully');
+            this.isConnecting = false;
             useUnifiedTokenStore.getState().setConnected(true);
           },
           closed: () => {
             console.log('[BitQuery] Connection closed');
+            this.isConnecting = false;
             useUnifiedTokenStore.getState().setConnected(false);
           },
           error: (error) => {
             console.error('[BitQuery] Connection error:', error);
+            this.isConnecting = false;
             useUnifiedTokenStore.getState().setError('BitQuery connection failed');
           }
         }
@@ -112,17 +123,21 @@ class BitQueryWebSocket {
       this.subscribeToNewTokens();
     } catch (error) {
       console.error('[BitQuery] Connection error:', error);
+      this.isConnecting = false;
       useUnifiedTokenStore.getState().setError('BitQuery connection failed');
     }
   }
 
   private subscribeToNewTokens() {
-    if (!this.client) return;
+    if (!this.client) {
+      console.error('[BitQuery] Cannot subscribe, client not initialized');
+      return;
+    }
 
     console.log('[BitQuery] Subscribing to new tokens...');
 
     try {
-      this.unsubscribe = this.client.subscribe(
+      let subscription = this.client.subscribe(
         { query: NEW_TOKEN_SUBSCRIPTION },
         {
           next: (data: any) => {
@@ -144,6 +159,16 @@ class BitQueryWebSocket {
           },
         }
       );
+
+      this.unsubscribe = () => {
+        try {
+          if (subscription) {
+            subscription.unsubscribe();
+          }
+        } catch (error) {
+          console.error('[BitQuery] Error unsubscribing:', error);
+        }
+      };
     } catch (error) {
       console.error('[BitQuery] Subscription error:', error);
       useUnifiedTokenStore.getState().setError('BitQuery subscription failed');
@@ -194,17 +219,21 @@ class BitQueryWebSocket {
   }
 
   disconnect() {
+    console.log('[BitQuery] Disconnecting');
+
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = null;
     }
 
     if (this.client) {
+      // Use dispose() as that's the correct method for graphql-ws client
       this.client.dispose();
       this.client = null;
     }
 
     useUnifiedTokenStore.getState().setConnected(false);
+    this.isConnecting = false;
     console.log('[BitQuery] Disconnected');
   }
 }

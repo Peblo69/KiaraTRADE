@@ -12,10 +12,19 @@ const ProjectPage: FC = () => {
 
   useEffect(() => {
     // Connect to BitQuery WebSocket
-    bitQueryWebSocket.connect();
+    try {
+      bitQueryWebSocket.connect();
+    } catch (error) {
+      console.error('[Project] Failed to connect to BitQuery:', error);
+    }
 
+    // Cleanup function
     return () => {
-      bitQueryWebSocket.disconnect();
+      try {
+        bitQueryWebSocket.disconnect();
+      } catch (error) {
+        console.error('[Project] Error during cleanup:', error);
+      }
     };
   }, []);
 
@@ -59,7 +68,7 @@ const ProjectPage: FC = () => {
 
             {tokens.length === 0 && (
               <div className="text-center text-purple-300/60 mt-8">
-                Waiting for new tokens...
+                {isConnected ? 'Waiting for new tokens...' : 'Connecting to BitQuery...'}
               </div>
             )}
           </div>
