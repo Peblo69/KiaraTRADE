@@ -151,17 +151,18 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
     };
   }, [symbol, timeframe]);
 
+  // Updated for more frequent updates based on KuCoin's higher rate limits
   const getUpdateInterval = (tf: TimeFrame): number => {
     switch (tf) {
-      case '1m': return 5000;   // 5 seconds for 1-minute candles
-      case '5m': return 5000;   // 5 seconds for 5-minute candles
-      case '15m': return 5000;  // 5 seconds for 15-minute candles
-      case '30m': return 10000; // 10 seconds for 30-minute candles
-      case '1h': return 15000;  // 15 seconds for 1-hour candles
-      case '4h': return 30000;  // 30 seconds for 4-hour candles
-      case '1d': return 60000;  // 1 minute for daily candles
-      case '1w': return 300000; // 5 minutes for weekly candles
-      default: return 5000;     // Default to 5 seconds
+      case '1m': return 2000;    // 2 seconds for 1-minute candles
+      case '5m': return 2000;    // 2 seconds for 5-minute candles
+      case '15m': return 2000;   // 2 seconds for 15-minute candles
+      case '30m': return 5000;   // 5 seconds for 30-minute candles
+      case '1h': return 10000;   // 10 seconds for 1-hour candles
+      case '4h': return 15000;   // 15 seconds for 4-hour candles
+      case '1d': return 30000;   // 30 seconds for daily candles
+      case '1w': return 60000;   // 1 minute for weekly candles
+      default: return 2000;      // Default to 2 seconds
     }
   };
 

@@ -9,23 +9,23 @@ import { generateAIResponse } from './services/ai';
 import axios from 'axios';
 import { getTokenImage, addPriorityToken } from './image-worker';
 
-// Cache structure for KuCoin data
+// Cache structure
 const cache = {
   prices: { data: null, timestamp: 0 },
   stats24h: { data: null, timestamp: 0 },
   trending: { data: null, timestamp: 0 }
 };
 
-const CACHE_DURATION = 30000; // 30 seconds cache
+const CACHE_DURATION = 2000; // 2 seconds cache
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
 
-// Configure axios with timeout and headers
+// Configure axios with timeout
 axios.defaults.timeout = 10000;
 axios.defaults.headers.common['accept'] = 'application/json';
 
-// Add request interceptor for rate limiting
+// Add request interceptor for minimal rate limiting
 let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 20; // Minimum 20ms between requests (KuCoin allows up to 50 requests per second)
+const MIN_REQUEST_INTERVAL = 10; // Allow up to 100 requests per second
 
 axios.interceptors.request.use(async (config) => {
   const now = Date.now();
@@ -267,7 +267,6 @@ export function registerRoutes(app: Express): Server {
       const symbol = req.params.symbol;
       const timeframe = req.query.timeframe || '1d';
 
-      // Map frontend timeframes to KuCoin timeframes
       const timeframeMap: Record<string, string> = {
         '1m': '1min',
         '5m': '5min',
@@ -287,7 +286,7 @@ export function registerRoutes(app: Express): Server {
         params: {
           symbol,
           type: kucoinTimeframe,
-          startAt: Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000), // Last 7 days by default
+          startAt: Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000),
           endAt: Math.floor(Date.now() / 1000)
         }
       });
@@ -297,12 +296,10 @@ export function registerRoutes(app: Express): Server {
         return res.json({ klines: [] });
       }
 
-      // KuCoin returns klines in reverse chronological order as arrays:
-      // [timestamp, open, close, high, low, volume, turnover]
       const klines = response.data.data
-        .reverse() // Reverse to get chronological order
+        .reverse()
         .map((k: string[]) => ({
-          time: parseInt(k[0]), // Timestamp in seconds
+          time: parseInt(k[0]),
           open: parseFloat(k[1]),
           close: parseFloat(k[2]),
           high: parseFloat(k[3]),
