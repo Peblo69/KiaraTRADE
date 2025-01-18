@@ -1,16 +1,16 @@
 import { FC, useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, ArrowUp, ArrowDown, Star } from "lucide-react";
+import { Loader2, ArrowUp, ArrowDown, Search } from "lucide-react";
 import { formatDistance } from "date-fns";
 import Navbar from "@/components/Navbar";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { 
   Table, 
@@ -20,11 +20,16 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import CoinChart from "@/components/CoinChart";
-import { Link } from "wouter"; // Added missing import from original
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"; // Added missing import from original
-import { Info, Home, ChartPieIcon, MessagesSquare, BookOpen } from "lucide-react"; // Added missing imports from original
-
 
 interface KuCoinTicker {
   symbol: string;
@@ -61,9 +66,13 @@ interface ChartData {
   prices: Array<[number, number]>;
 }
 
+const ITEMS_PER_PAGE = 20;
+
 const ProjectPage: FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
 
   const { data: marketData, isLoading: isLoadingMarket } = useQuery<{ data: { ticker: KuCoinTicker[] } }>({
@@ -142,15 +151,113 @@ const ProjectPage: FC = () => {
   }
 
   const tickers = marketData?.data.ticker.filter(t => t.symbol.endsWith('-USDT')) || [];
-  const sortedTickers = [...tickers].sort((a, b) => parseFloat(b.volValue) - parseFloat(a.volValue));
+
+  // Sort by volume and get top gainers/losers
+  const sortedByVolume = [...tickers].sort((a, b) => parseFloat(b.volValue) - parseFloat(a.volValue));
+  const topGainers = [...tickers]
+    .sort((a, b) => parseFloat(b.changeRate) - parseFloat(a.changeRate))
+    .slice(0, 5);
+  const topLosers = [...tickers]
+    .sort((a, b) => parseFloat(a.changeRate) - parseFloat(b.changeRate))
+    .slice(0, 5);
+
+  // Filter by search query
+  const filteredTickers = sortedByVolume.filter(ticker => 
+    ticker.symbol.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Paginate results
+  const totalPages = Math.ceil(filteredTickers.length / ITEMS_PER_PAGE);
+  const paginatedTickers = filteredTickers.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="container mx-auto p-4">
-        {/* Market Overview Section */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-4">Market Overview</h2>
+      <div className="container mx-auto p-4 space-y-6">
+        {/* Search Bar */}
+        <div className="flex items-center gap-4 mb-6">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search coins..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        </div>
+
+        {/* Market Overview Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Top Gainers */}
+          <Card className="p-4">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <ArrowUp className="h-5 w-5 text-green-500" />
+              Top Gainers
+            </h3>
+            <div className="space-y-3">
+              {topGainers.map((ticker) => (
+                <div
+                  key={ticker.symbol}
+                  className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg cursor-pointer"
+                  onClick={() => handleSymbolSelect(ticker.symbol)}
+                >
+                  <div>
+                    <div className="font-medium">{ticker.symbol.replace('-USDT', '')}</div>
+                    <div className="text-sm text-muted-foreground">{formatPrice(ticker.last)}</div>
+                  </div>
+                  <div className="text-green-500">{formatChange(ticker.changeRate)}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Top Losers */}
+          <Card className="p-4">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <ArrowDown className="h-5 w-5 text-red-500" />
+              Top Losers
+            </h3>
+            <div className="space-y-3">
+              {topLosers.map((ticker) => (
+                <div
+                  key={ticker.symbol}
+                  className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg cursor-pointer"
+                  onClick={() => handleSymbolSelect(ticker.symbol)}
+                >
+                  <div>
+                    <div className="font-medium">{ticker.symbol.replace('-USDT', '')}</div>
+                    <div className="text-sm text-muted-foreground">{formatPrice(ticker.last)}</div>
+                  </div>
+                  <div className="text-red-500">{formatChange(ticker.changeRate)}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Market Stats */}
+          <Card className="p-4">
+            <h3 className="text-lg font-semibold mb-4">Market Stats</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total Pairs</span>
+                <span className="font-medium">{tickers.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">24h Volume</span>
+                <span className="font-medium">
+                  {formatVolume(tickers.reduce((sum, t) => sum + parseFloat(t.volValue), 0))}
+                </span>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Market Table */}
+        <Card>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -165,7 +272,7 @@ const ProjectPage: FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedTickers.map((ticker) => (
+                {paginatedTickers.map((ticker) => (
                   <TableRow
                     key={ticker.symbol}
                     className="cursor-pointer hover:bg-muted/50"
@@ -192,7 +299,38 @@ const ProjectPage: FC = () => {
               </TableBody>
             </Table>
           </div>
-        </div>
+
+          {/* Pagination */}
+          <div className="py-4">
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    className="cursor-pointer"
+                  />
+                </PaginationItem>
+                {[...Array(totalPages)].map((_, i) => (
+                  <PaginationItem key={i + 1}>
+                    <PaginationLink
+                      onClick={() => setCurrentPage(i + 1)}
+                      isActive={currentPage === i + 1}
+                      className="cursor-pointer"
+                    >
+                      {i + 1}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    className="cursor-pointer"
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        </Card>
 
         {/* Coin Details Dialog */}
         <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
