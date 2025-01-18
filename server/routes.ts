@@ -79,24 +79,39 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get detailed information for a specific coin
+  // Get detailed information for a specific coin with price history
   app.get('/api/coins/:id', async (req, res) => {
     try {
-      const response = await axios.get(
-        `https://api.coingecko.com/api/v3/coins/${req.params.id}`,
-        {
-          params: {
-            localization: false,
-            tickers: true,
-            market_data: true,
-            community_data: true,
-            developer_data: true,
-            sparkline: true
+      const [coinData, marketChart] = await Promise.all([
+        axios.get(
+          `https://api.coingecko.com/api/v3/coins/${req.params.id}`,
+          {
+            params: {
+              localization: false,
+              tickers: true,
+              market_data: true,
+              community_data: true,
+              developer_data: true,
+              sparkline: true
+            }
           }
-        }
-      );
+        ),
+        axios.get(
+          `https://api.coingecko.com/api/v3/coins/${req.params.id}/market_chart`,
+          {
+            params: {
+              vs_currency: 'usd',
+              days: 7,
+              interval: 'hourly'
+            }
+          }
+        )
+      ]);
 
-      res.json(response.data);
+      res.json({
+        ...coinData.data,
+        market_chart: marketChart.data
+      });
     } catch (error: any) {
       console.error('Coin details error:', error);
       res.status(500).json({ error: error.message || 'Failed to fetch coin details' });

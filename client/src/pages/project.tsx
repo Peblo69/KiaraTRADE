@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import CoinChart from "@/components/CoinChart";
 
 interface Coin {
   id: string;
@@ -46,6 +47,9 @@ interface CoinDetails {
     total_volume: { usd: number };
     high_24h: { usd: number };
     low_24h: { usd: number };
+  };
+  market_chart: {
+    prices: Array<number[]>;
   };
   links: {
     homepage: string[];
@@ -296,7 +300,7 @@ const ProjectPage: FC = () => {
 
       {/* Coin Details Dialog */}
       <Dialog open={!!selectedCoin} onOpenChange={() => setSelectedCoin(null)}>
-        <DialogContent className="bg-black/90 border-purple-500/20 text-white max-w-2xl">
+        <DialogContent className="bg-black/90 border-purple-500/20 text-white max-w-4xl">
           {isLoadingCoinDetails ? (
             <div className="flex items-center justify-center p-8">
               <Loader2 className="h-8 w-8 animate-spin text-purple-400" />
@@ -319,6 +323,12 @@ const ProjectPage: FC = () => {
                   {selectedCoinData.description.en.split('. ')[0]}.
                 </DialogDescription>
               </DialogHeader>
+
+              {/* Price Chart */}
+              <div className="mt-4 mb-6">
+                <CoinChart prices={selectedCoinData.market_chart.prices} />
+              </div>
+
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
