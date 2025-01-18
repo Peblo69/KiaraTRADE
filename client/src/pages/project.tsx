@@ -8,53 +8,38 @@ const ProjectPage: FC = () => {
     console.log('[BitQuery] Starting WebSocket connection...');
     (window as any).debugConsole?.log('Starting WebSocket connection...');
 
-    // Manually generated token that is valid until 2025-01-23 16:30:30
+    // Manually generated token valid until 2025-01-23 16:30:30
     const MANUAL_ACCESS_TOKEN = 'ory_at_ixYL1dO88QEiiFtRbsvvjoW-YJsF7kLLhJFpDwcFPno.5HEEoVYtVCRZ4LWWZpvf5izVGPOGNvJzFUw8TcH8l4c';
 
     let retryCount = 0;
     const maxRetries = 5;
     let unsubscribe: (() => void) | null = null;
-    let connectionTimeout: ReturnType<typeof setTimeout>;
 
     function connectWebSocket() {
       console.log('[BitQuery] Attempting WebSocket connection...');
       (window as any).debugConsole?.log('Attempting to establish WebSocket connection...');
 
-      // Set connection timeout
-      connectionTimeout = setTimeout(() => {
-        console.error('[BitQuery] WebSocket connection timeout after 10s');
-        (window as any).debugConsole?.error('WebSocket connection timeout - attempting retry');
-        handleRetry();
-      }, 10000);
-
       const client = createClient({
-        url: 'wss://streaming.bitquery.io/eap',
-        connectionParams: () => {
-          console.log('[BitQuery] Using manually generated token...');
-          return {
-            headers: {
-              'Authorization': `Bearer ${MANUAL_ACCESS_TOKEN}`,
-            },
-          };
+        url: 'wss://streaming.bitquery.io/graphql',
+        connectionParams: {
+          headers: {
+            'Authorization': `Bearer ${MANUAL_ACCESS_TOKEN}`,
+          },
         },
         on: {
           connected: () => {
-            clearTimeout(connectionTimeout);
             console.log('[BitQuery] WebSocket connected successfully');
             (window as any).debugConsole?.success('WebSocket connection established');
-            retryCount = 0; // Reset retry count on successful connection
-
-            // Start with a simple test subscription
-            startTestSubscription(client);
+            retryCount = 0;
+            startSimpleSubscription(client);
           },
-          error: (error: Error) => {
-            clearTimeout(connectionTimeout);
-            console.error('[BitQuery] WebSocket connection error:', error);
-            (window as any).debugConsole?.error(`WebSocket error: ${error?.message || 'Unknown error'}`);
+          error: (error: unknown) => {
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            console.error('[BitQuery] WebSocket error:', errorMsg);
+            (window as any).debugConsole?.error(`WebSocket error: ${errorMsg}`);
             handleRetry();
           },
           closed: (event: unknown) => {
-            clearTimeout(connectionTimeout);
             const code = (event as { code?: number })?.code;
             const reason = (event as { reason?: string })?.reason;
             console.warn('[BitQuery] WebSocket connection closed:', { code, reason });
@@ -62,13 +47,14 @@ const ProjectPage: FC = () => {
             handleRetry();
           },
         },
+        retryAttempts: 0, // We'll handle retries ourselves
+        shouldRetry: () => false,
       });
 
       return client;
     }
 
     function handleRetry() {
-      clearTimeout(connectionTimeout);
       if (retryCount < maxRetries) {
         retryCount++;
         const delay = Math.min(1000 * Math.pow(2, retryCount), 30000); // Exponential backoff with 30s max
@@ -81,27 +67,18 @@ const ProjectPage: FC = () => {
       }
     }
 
-    function startTestSubscription(client: ReturnType<typeof createClient>) {
+    function startSimpleSubscription(client: ReturnType<typeof createClient>) {
       try {
-        console.log('[BitQuery] Starting test subscription...');
+        console.log('[BitQuery] Starting simple test subscription...');
         (window as any).debugConsole?.log('Starting test subscription...');
 
-        // Using a simplified DEXTrades query from the documentation
+        // Simple test subscription from documentation
         unsubscribe = client.subscribe(
           {
             query: `
               subscription {
                 Solana {
-                  DEXTrades(
-                    where: {
-                      Trade: { Dex: { ProtocolName: { is: "pump" } } }
-                      Transaction: { Result: { Success: true } }
-                    }
-                    limit: 1
-                  ) {
-                    Block {
-                      Time
-                    }
+                  DEXTrades(limit: 1) {
                     Trade {
                       Dex {
                         ProtocolName
@@ -120,78 +97,8 @@ const ProjectPage: FC = () => {
           },
           {
             next: (data) => {
-              console.log('[BitQuery] Test subscription data received:', data);
-              (window as any).debugConsole?.success(`Test subscription working: ${JSON.stringify(data, null, 2)}`);
-
-              // If test subscription works, start the token creation monitoring
-              if (unsubscribe) {
-                unsubscribe();
-                startTokenMonitoring(client);
-              }
-            },
-            error: (error: Error) => {
-              console.error('[BitQuery] Test subscription error:', error);
-              (window as any).debugConsole?.error(`Subscription error: ${error?.message || 'Unknown error'}`);
-              handleRetry();
-            },
-            complete: () => {
-              console.log('[BitQuery] Test subscription completed');
-              (window as any).debugConsole?.log('Test subscription completed normally');
-            },
-          },
-        );
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        console.error('[BitQuery] Failed to create test subscription:', errorMessage);
-        (window as any).debugConsole?.error(`Failed to create test subscription: ${errorMessage}`);
-        handleRetry();
-      }
-    }
-
-    function startTokenMonitoring(client: ReturnType<typeof createClient>) {
-      try {
-        console.log('[BitQuery] Starting token monitoring subscription...');
-        unsubscribe = client.subscribe(
-          {
-            query: `
-              subscription {
-                Solana {
-                  Instructions(
-                    where: {
-                      Instruction: {
-                        Program: {
-                          Method: { is: "create" },
-                          Name: { is: "pump" }
-                        }
-                      }
-                    }
-                  ) {
-                    Instruction {
-                      Accounts {
-                        Address
-                        Token {
-                          Mint
-                          Owner
-                          ProgramId
-                        }
-                      }
-                      Program {
-                        Method
-                        Name
-                      }
-                    }
-                    Transaction {
-                      Signature
-                    }
-                  }
-                }
-              }
-            `,
-          },
-          {
-            next: (data) => {
-              console.log('[BitQuery] New token creation event:', data);
-              (window as any).debugConsole?.success(`New token creation detected: ${JSON.stringify(data, null, 2)}`);
+              console.log('[BitQuery] Test data received:', data);
+              (window as any).debugConsole?.success('Subscription working! Received data.');
             },
             error: (error: Error) => {
               console.error('[BitQuery] Subscription error:', error);
@@ -199,15 +106,15 @@ const ProjectPage: FC = () => {
               handleRetry();
             },
             complete: () => {
-              console.log('[BitQuery] Token monitoring subscription completed');
-              (window as any).debugConsole?.log('Token monitoring completed normally');
+              console.log('[BitQuery] Subscription completed');
+              (window as any).debugConsole?.log('Test subscription completed normally');
             },
           },
         );
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        console.error('[BitQuery] Failed to create token monitoring subscription:', errorMessage);
-        (window as any).debugConsole?.error(`Failed to create token monitoring subscription: ${errorMessage}`);
+        console.error('[BitQuery] Failed to create subscription:', errorMessage);
+        (window as any).debugConsole?.error(`Failed to create subscription: ${errorMessage}`);
       }
     }
 
@@ -216,9 +123,8 @@ const ProjectPage: FC = () => {
 
     // Cleanup on unmount
     return () => {
-      clearTimeout(connectionTimeout);
+      console.log('[BitQuery] Cleaning up WebSocket subscription');
       if (unsubscribe) {
-        console.log('[BitQuery] Cleaning up WebSocket subscription');
         unsubscribe();
       }
     };
