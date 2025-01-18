@@ -92,6 +92,20 @@ class BitQueryWebSocket {
             'X-API-KEY': import.meta.env.VITE_BITQUERY_API_KEY,
           },
         },
+        on: {
+          connected: () => {
+            console.log('[BitQuery] Connected successfully');
+            useUnifiedTokenStore.getState().setConnected(true);
+          },
+          closed: () => {
+            console.log('[BitQuery] Connection closed');
+            useUnifiedTokenStore.getState().setConnected(false);
+          },
+          error: (error) => {
+            console.error('[BitQuery] Connection error:', error);
+            useUnifiedTokenStore.getState().setError('BitQuery connection failed');
+          }
+        }
       });
 
       this.subscribeToNewTokens();
@@ -106,27 +120,32 @@ class BitQueryWebSocket {
 
     console.log('[BitQuery] Subscribing to new tokens...');
 
-    this.unsubscribe = this.client.subscribe(
-      { query: NEW_TOKEN_SUBSCRIPTION },
-      {
-        next: (data: any) => {
-          const instructions = data?.data?.Solana?.Instructions || [];
-          instructions.forEach((instruction: any) => {
-            const token = instruction.Instruction.Accounts.find((acc: any) => acc.Token?.Mint);
-            if (token) {
-              this.handleNewToken(token.Token);
-            }
-          });
-        },
-        error: (err) => {
-          console.error('[BitQuery] Subscription error:', err);
-          useUnifiedTokenStore.getState().setError('BitQuery subscription error');
-        },
-        complete: () => {
-          console.log('[BitQuery] Subscription completed');
-        },
-      }
-    );
+    try {
+      this.unsubscribe = this.client.subscribe(
+        { query: NEW_TOKEN_SUBSCRIPTION },
+        {
+          next: (data: any) => {
+            const instructions = data?.data?.Solana?.Instructions || [];
+            instructions.forEach((instruction: any) => {
+              const token = instruction.Instruction.Accounts.find((acc: any) => acc.Token?.Mint);
+              if (token) {
+                this.handleNewToken(token.Token);
+              }
+            });
+          },
+          error: (err) => {
+            console.error('[BitQuery] Subscription error:', err);
+            useUnifiedTokenStore.getState().setError('BitQuery subscription error');
+          },
+          complete: () => {
+            console.log('[BitQuery] Subscription completed');
+          },
+        }
+      );
+    } catch (error) {
+      console.error('[BitQuery] Subscription error:', error);
+      useUnifiedTokenStore.getState().setError('BitQuery subscription failed');
+    }
   }
 
   private async handleNewToken(token: any) {
@@ -178,11 +197,12 @@ class BitQueryWebSocket {
     }
 
     if (this.client) {
-      // @ts-ignore - close method exists but not in types
-      this.client.close();
+      // The client from graphql-ws uses dispose() instead of close()
+      this.client.dispose();
       this.client = null;
     }
 
+    useUnifiedTokenStore.getState().setConnected(false);
     console.log('[BitQuery] Disconnected');
   }
 }

@@ -20,6 +20,13 @@ interface TokenMetadata {
   website?: string;
 }
 
+interface Trade {
+  timestamp: number;
+  price: number;
+  priceUSD: number;
+  signature: string;
+}
+
 interface TokenData {
   name: string;
   symbol: string;
@@ -38,6 +45,7 @@ interface TokenData {
   metadata?: TokenMetadata;
   source?: 'unified';
   lastUpdated?: number;
+  trades?: Trade[];
 }
 
 interface UnifiedTokenState {
