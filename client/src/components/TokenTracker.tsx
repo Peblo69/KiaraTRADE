@@ -1,44 +1,48 @@
-import { FC, useEffect } from 'react';
+import { FC, useEffect, useMemo } from 'react';
 import TokenCard from './TokenCard';
 import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import { motion } from 'framer-motion';
 
 export const TokenTracker: FC = () => {
+  // Use separate selectors to avoid unnecessary re-renders
   const tokens = useUnifiedTokenStore(state => state.tokens);
   const isConnected = useUnifiedTokenStore(state => state.isConnected);
+
+  // Memoize tokens array to prevent unnecessary re-renders
+  const sortedTokens = useMemo(() => {
+    return [...tokens].sort((a, b) => b.marketCapSol - a.marketCapSol);
+  }, [tokens]);
 
   useEffect(() => {
     console.log('[TokenTracker] Initializing with static data');
 
-    // Add static test token
-    useUnifiedTokenStore.getState().addToken({
-      name: "Test Token",
-      symbol: "TEST",
-      marketCap: 1000000,
-      marketCapSol: 1000,
-      liquidityAdded: true,
-      holders: 100,
-      volume24h: 5000,
-      address: "test123",
-      price: 1.5,
-      imageUrl: "https://cryptologos.cc/logos/solana-sol-logo.png"
-    }, 'unified');
+    // Add static test token only if there are no tokens
+    if (tokens.length === 0) {
+      useUnifiedTokenStore.getState().addToken({
+        name: "Test Token",
+        symbol: "TEST",
+        marketCap: 1000000,
+        marketCapSol: 1000,
+        liquidityAdded: true,
+        holders: 100,
+        volume24h: 5000,
+        address: "test123",
+        price: 1.5,
+        imageUrl: "https://cryptologos.cc/logos/solana-sol-logo.png"
+      }, 'unified');
+    }
 
     useUnifiedTokenStore.getState().setConnected(true);
 
     return () => {
-      console.log('[TokenTracker] Cleanup');
       useUnifiedTokenStore.getState().setConnected(false);
     };
-  }, []);
-
-  console.log('[TokenTracker] Current token count:', tokens.length);
-  console.log('[TokenTracker] Connection status:', isConnected);
+  }, []); // Empty dependency array since we only want this to run once
 
   return (
     <div className="max-w-7xl mx-auto px-4">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {tokens.map((token, index) => (
+        {sortedTokens.map((token, index) => (
           <motion.div
             key={token.address}
             initial={{ opacity: 0, y: 20 }}
@@ -49,7 +53,7 @@ export const TokenTracker: FC = () => {
             <TokenCard tokenAddress={token.address} index={index} />
           </motion.div>
         ))}
-        {tokens.length === 0 && (
+        {sortedTokens.length === 0 && (
           <div className="col-span-3 text-center py-12">
             <p className="text-gray-500">
               {isConnected ? 'Waiting for token data...' : 'Connecting to token services...'}

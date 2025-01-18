@@ -46,122 +46,87 @@ interface UnifiedTokenState {
   transactions: Record<string, Transaction[]>;
   isConnected: boolean;
   connectionError: string | null;
-
   addToken: (token: TokenData, source: 'pumpfun' | 'unified') => void;
   updateToken: (address: string, updates: Partial<TokenData>) => void;
   addTransaction: (tokenAddress: string, transaction: Transaction) => void;
   setConnected: (status: boolean) => void;
   setError: (error: string | null) => void;
-
   getToken: (address: string) => TokenData | undefined;
   getTransactions: (address: string) => Transaction[];
 }
 
 export const useUnifiedTokenStore = create<UnifiedTokenState>()(
-  devtools(
-    (set, get) => ({
-      tokens: [],
-      transactions: {},
-      isConnected: false,
-      connectionError: null,
+  (set, get) => ({
+    tokens: [],
+    transactions: {},
+    isConnected: false,
+    connectionError: null,
 
-      addToken: (token, source) => {
-        console.log(`[UnifiedTokenStore] Adding token from ${source}:`, {
-          address: token.address,
-          name: token.name,
-          symbol: token.symbol
-        });
+    addToken: (token, source) => {
+      set((state) => {
+        // Check if token already exists
+        const existingTokenIndex = state.tokens.findIndex(t => t.address === token.address);
 
-        set((state) => {
-          // Check if token already exists
-          const existingToken = state.tokens.find(t => t.address === token.address);
-          if (existingToken) {
-            // Update existing token
-            return {
-              tokens: state.tokens.map(t => 
-                t.address === token.address
-                  ? { 
-                      ...t, 
-                      ...token,
-                      source,
-                      lastUpdated: Date.now()
-                    }
-                  : t
-              )
-            };
-          }
-
-          // Add new token
-          return {
-            tokens: [
-              ...state.tokens,
-              {
-                ...token,
-                source,
-                lastUpdated: Date.now(),
-              }
-            ].sort((a, b) => b.marketCapSol - a.marketCapSol).slice(0, 100)
+        if (existingTokenIndex >= 0) {
+          // Update existing token
+          const updatedTokens = [...state.tokens];
+          updatedTokens[existingTokenIndex] = {
+            ...updatedTokens[existingTokenIndex],
+            ...token,
+            source,
+            lastUpdated: Date.now()
           };
-        });
-      },
+          return { tokens: updatedTokens };
+        }
 
-      updateToken: (address, updates) => {
-        console.log('[UnifiedTokenStore] Updating token:', {
-          address,
-          updates
-        });
-
-        set((state) => {
-          const currentToken = state.tokens.find(token => token.address === address);
-          if (!currentToken) return state;
-
-          const updatedTokens = state.tokens.map((token) =>
-            token.address === address
-              ? {
-                  ...token,
-                  ...updates,
-                  lastUpdated: Date.now(),
-                  priceChange24h: updates.price !== undefined && token.price !== undefined
-                    ? ((updates.price - token.price) / token.price) * 100
-                    : token.priceChange24h
-                }
-              : token
-          );
-
-          return { 
-            tokens: updatedTokens.sort((a, b) => b.marketCapSol - a.marketCapSol)
-          };
-        });
-      },
-
-      addTransaction: (tokenAddress, transaction) => {
-        set((state) => {
-          const transactions = state.transactions[tokenAddress] || [];
-          if (transactions.some(tx => tx.signature === transaction.signature)) {
-            return state;
-          }
-          return {
-            transactions: {
-              ...state.transactions,
-              [tokenAddress]: [transaction, ...transactions].slice(0, 10)
+        // Add new token
+        return {
+          tokens: [
+            ...state.tokens,
+            {
+              ...token,
+              source,
+              lastUpdated: Date.now(),
             }
-          };
-        });
-      },
+          ].sort((a, b) => b.marketCapSol - a.marketCapSol).slice(0, 100)
+        };
+      });
+    },
 
-      setConnected: (status) => {
-        console.log('[UnifiedTokenStore] Connection status:', status);
-        set({ isConnected: status, connectionError: null });
-      },
+    updateToken: (address, updates) => {
+      set((state) => {
+        const tokenIndex = state.tokens.findIndex(token => token.address === address);
+        if (tokenIndex === -1) return state;
 
-      setError: (error) => {
-        console.log('[UnifiedTokenStore] Error:', error);
-        set({ connectionError: error });
-      },
+        const updatedTokens = [...state.tokens];
+        updatedTokens[tokenIndex] = {
+          ...updatedTokens[tokenIndex],
+          ...updates,
+          lastUpdated: Date.now(),
+        };
 
-      getToken: (address) => get().tokens.find(token => token.address === address),
-      getTransactions: (address) => get().transactions[address] || [],
-    }),
-    { name: 'unified-token-store' }
-  )
+        return { tokens: updatedTokens };
+      });
+    },
+
+    addTransaction: (tokenAddress, transaction) => {
+      set((state) => {
+        const existingTransactions = state.transactions[tokenAddress] || [];
+        if (existingTransactions.some(tx => tx.signature === transaction.signature)) {
+          return state;
+        }
+        return {
+          transactions: {
+            ...state.transactions,
+            [tokenAddress]: [transaction, ...existingTransactions].slice(0, 10)
+          }
+        };
+      });
+    },
+
+    setConnected: (status) => set({ isConnected: status, connectionError: null }),
+    setError: (error) => set({ connectionError: error }),
+    getToken: (address) => get().tokens.find(token => token.address === address),
+    getTransactions: (address) => get().transactions[address] || [],
+  })
 );
