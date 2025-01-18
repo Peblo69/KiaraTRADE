@@ -1,8 +1,9 @@
 import { FC, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, ArrowUp, ArrowDown, TrendingUp, Info } from "lucide-react";
+import { Loader2, ArrowUp, ArrowDown, TrendingUp, Info, Home, ChartPieIcon, MessagesSquare, BookOpen } from "lucide-react";
 import { formatDistance } from "date-fns";
+import { Link } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -119,6 +120,36 @@ const ProjectPage: FC = () => {
   if (isLoadingMarket || isLoadingTrending) {
     return (
       <div className="min-h-screen bg-black">
+        <div className="w-full bg-black/40 backdrop-blur-sm border-b border-purple-500/20 p-4">
+          <div className="container mx-auto">
+            <div className="flex items-center justify-end gap-2">
+              <Link href="/">
+                <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
+                  <Home className="h-5 w-5" />
+                  <span className="hidden sm:inline">Home</span>
+                </a>
+              </Link>
+              <Link href="/project">
+                <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
+                  <ChartPieIcon className="h-5 w-5" />
+                  <span className="hidden sm:inline">Project</span>
+                </a>
+              </Link>
+              <Link href="/chat">
+                <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
+                  <MessagesSquare className="h-5 w-5" />
+                  <span className="hidden sm:inline">Chat</span>
+                </a>
+              </Link>
+              <Link href="/about">
+                <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
+                  <BookOpen className="h-5 w-5" />
+                  <span className="hidden sm:inline">About</span>
+                </a>
+              </Link>
+            </div>
+          </div>
+        </div>
         <div className="container mx-auto p-4">
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-purple-400" />
@@ -135,6 +166,36 @@ const ProjectPage: FC = () => {
 
   return (
     <div className="min-h-screen bg-black">
+      <div className="w-full bg-black/40 backdrop-blur-sm border-b border-purple-500/20 p-4">
+        <div className="container mx-auto">
+          <div className="flex items-center justify-end gap-2">
+            <Link href="/">
+              <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
+                <Home className="h-5 w-5" />
+                <span className="hidden sm:inline">Home</span>
+              </a>
+            </Link>
+            <Link href="/project">
+              <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
+                <ChartPieIcon className="h-5 w-5" />
+                <span className="hidden sm:inline">Project</span>
+              </a>
+            </Link>
+            <Link href="/chat">
+              <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
+                <MessagesSquare className="h-5 w-5" />
+                <span className="hidden sm:inline">Chat</span>
+              </a>
+            </Link>
+            <Link href="/about">
+              <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
+                <BookOpen className="h-5 w-5" />
+                <span className="hidden sm:inline">About</span>
+              </a>
+            </Link>
+          </div>
+        </div>
+      </div>
       <div className="container mx-auto p-4">
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Trending Section */}
@@ -145,8 +206,8 @@ const ProjectPage: FC = () => {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {trending.map(({ item }) => (
-                <Card 
-                  key={item.id} 
+                <Card
+                  key={item.id}
                   className="bg-black/40 backdrop-blur-sm border-purple-500/20 p-4 hover:border-purple-500/40 transition-all cursor-pointer"
                   onClick={() => handleCoinSelect(item.id)}
                 >
@@ -183,9 +244,9 @@ const ProjectPage: FC = () => {
                 </thead>
                 <tbody>
                   {coins.slice(0, 10).map((coin) => (
-                    <tr 
-                      key={coin.id} 
-                      className="border-b border-purple-500/10 hover:bg-purple-500/5 cursor-pointer transition-colors" 
+                    <tr
+                      key={coin.id}
+                      className="border-b border-purple-500/10 hover:bg-purple-500/5 cursor-pointer transition-colors"
                       onClick={() => handleCoinSelect(coin.id)}
                     >
                       <td className="py-4 pl-4 text-gray-400">{coin.market_cap_rank}</td>
@@ -251,8 +312,8 @@ const ProjectPage: FC = () => {
               <h2 className="text-2xl font-bold text-white mb-4">Top Gainers (24h)</h2>
               <div className="space-y-4">
                 {gainers.map((coin) => (
-                  <Card 
-                    key={coin.id} 
+                  <Card
+                    key={coin.id}
                     className="bg-black/40 backdrop-blur-sm border-purple-500/20 p-4 cursor-pointer hover:border-purple-500/40"
                     onClick={() => handleCoinSelect(coin.id)}
                   >
@@ -282,8 +343,8 @@ const ProjectPage: FC = () => {
               <h2 className="text-2xl font-bold text-white mb-4">Top Losers (24h)</h2>
               <div className="space-y-4">
                 {losers.map((coin) => (
-                  <Card 
-                    key={coin.id} 
+                  <Card
+                    key={coin.id}
                     className="bg-black/40 backdrop-blur-sm border-purple-500/20 p-4 cursor-pointer hover:border-purple-500/40"
                     onClick={() => handleCoinSelect(coin.id)}
                   >
@@ -320,11 +381,35 @@ const ProjectPage: FC = () => {
             </div>
           ) : selectedCoinData ? (
             <div className="max-h-[80vh] overflow-y-auto p-6">
-              <DialogHeader>
-                <DialogTitle className="text-2xl flex items-center gap-2">
-                  <img 
-                    src={coins.find(c => c.id === selectedCoin)?.image} 
-                    alt={selectedCoinData.name} 
+              <DialogHeader className="relative">
+                {/* Navigation Buttons */}
+                <div className="absolute right-0 top-0 flex items-center gap-2">
+                  <Link href="/">
+                    <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors">
+                      <Home className="h-5 w-5" />
+                    </a>
+                  </Link>
+                  <Link href="/project">
+                    <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors">
+                      <ChartPieIcon className="h-5 w-5" />
+                    </a>
+                  </Link>
+                  <Link href="/chat">
+                    <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors">
+                      <MessagesSquare className="h-5 w-5" />
+                    </a>
+                  </Link>
+                  <Link href="/about">
+                    <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors">
+                      <BookOpen className="h-5 w-5" />
+                    </a>
+                  </Link>
+                </div>
+
+                <DialogTitle className="text-2xl flex items-center gap-2 pr-32">
+                  <img
+                    src={coins.find(c => c.id === selectedCoin)?.image}
+                    alt={selectedCoinData.name}
                     className="w-8 h-8"
                   />
                   {selectedCoinData.name}
