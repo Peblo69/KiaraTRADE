@@ -24,7 +24,7 @@ const ProjectPage: FC = () => {
     <div className="min-h-screen bg-black">
       <Navbar />
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-white text-2xl">BitQuery API Test Page</h1>
+        <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">BitQuery API Test Page</h1>
         <p className="text-gray-400 mt-4">Check the browser console for API test results</p>
       </div>
     </div>
