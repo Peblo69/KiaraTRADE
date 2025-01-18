@@ -39,9 +39,13 @@ export const useTokenStore = create<TokenStore>((set) => ({
 
 let ws: WebSocket | null = null;
 let reconnectTimeout: NodeJS.Timeout | null = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_INTERVAL = 5000;
 
-// Initialize WebSocket connection
 function initializeWebSocket() {
+  if (typeof window === 'undefined') return;
+
   const store = useTokenStore.getState();
 
   // Clear any existing reconnect timeout
@@ -52,73 +56,88 @@ function initializeWebSocket() {
 
   // Close existing connection if any
   if (ws) {
-    ws.close();
+    try {
+      ws.close();
+    } catch (e) {
+      console.error('[PumpPortal] Error closing WebSocket:', e);
+    }
     ws = null;
   }
 
   try {
+    console.log('[PumpPortal] Initializing WebSocket connection...');
     ws = new WebSocket('wss://pumpportal.fun/api/data');
 
     ws.onopen = () => {
       console.log('[PumpPortal] Connected to WebSocket');
       store.setConnected(true);
+      reconnectAttempts = 0; // Reset reconnect attempts on successful connection
 
-      // Only send subscriptions if ws is not null
-      if (ws) {
-        // Subscribe to new token creation events
-        ws.send(JSON.stringify({
-          method: "subscribeNewToken"
-        }));
+      // Subscribe to token creation events
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({
+            method: "subscribeNewToken"
+          }));
+          console.log('[PumpPortal] Subscribed to new token events');
 
-        // Subscribe to all token trades
-        ws.send(JSON.stringify({
-          method: "subscribeTokenTrade",
-          keys: [] // Empty array to subscribe to all token trades
-        }));
+          // Subscribe to all token trades
+          ws.send(JSON.stringify({
+            method: "subscribeTokenTrade",
+            keys: [] // Empty array to subscribe to all token trades
+          }));
+          console.log('[PumpPortal] Subscribed to token trade events');
+        } catch (error) {
+          console.error('[PumpPortal] Error sending subscriptions:', error);
+        }
       }
     };
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('[PumpPortal] Received message:', data.type);
+        console.log('[PumpPortal] Received event:', data);
 
-        // Handle token creation events
-        if (data.type === 'newToken') {
+        if (data.type === 'newToken' && data.token) {
           const token: Token = {
             name: data.token.name || `Token ${data.token.address.slice(0, 8)}`,
             symbol: data.token.symbol || `PUMP${data.token.address.slice(0, 4)}`,
-            price: data.token.price || 0,
-            marketCap: (data.token.price || 0) * 1_000_000_000, // All pump tokens have 1B supply
+            price: Number(data.token.price || 0),
+            marketCap: Number(data.token.price || 0) * 1_000_000_000, // All pump tokens have 1B supply
             volume24h: 0,
             holders: 0,
             createdAt: new Date(),
             address: data.token.address,
-            imageUrl: data.token.image || "https://via.placeholder.com/40",
+            imageUrl: data.token.image || undefined,
           };
           store.addToken(token);
-          console.log('[PumpPortal] New token created:', token.name);
+          console.log('[PumpPortal] Added new token:', token.name);
         }
-
-        // Handle trade updates
-        else if (data.type === 'tokenTrade') {
+        else if (data.type === 'tokenTrade' && data.trade) {
           store.updateToken(data.trade.tokenAddress, {
-            price: data.trade.price,
-            marketCap: data.trade.price * 1_000_000_000,
-            volume24h: data.trade.volume24h || 0,
+            price: Number(data.trade.price || 0),
+            marketCap: Number(data.trade.price || 0) * 1_000_000_000,
+            volume24h: Number(data.trade.volume24h || 0),
           });
-          console.log('[PumpPortal] Trade update for:', data.trade.tokenAddress);
+          console.log('[PumpPortal] Updated token:', data.trade.tokenAddress);
         }
       } catch (error) {
         console.error('[PumpPortal] Failed to parse message:', error);
       }
     };
 
-    ws.onclose = () => {
-      console.log('[PumpPortal] WebSocket disconnected');
+    ws.onclose = (event) => {
+      console.log('[PumpPortal] WebSocket disconnected:', event.code, event.reason);
       store.setConnected(false);
-      // Attempt to reconnect after 5 seconds
-      reconnectTimeout = setTimeout(initializeWebSocket, 5000);
+
+      // Attempt to reconnect if we haven't exceeded max attempts
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        console.log(`[PumpPortal] Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+        reconnectTimeout = setTimeout(initializeWebSocket, RECONNECT_INTERVAL);
+      } else {
+        console.error('[PumpPortal] Max reconnection attempts reached');
+      }
     };
 
     ws.onerror = (error) => {
@@ -127,8 +146,14 @@ function initializeWebSocket() {
     };
   } catch (error) {
     console.error('[PumpPortal] Failed to initialize WebSocket:', error);
-    // Attempt to reconnect after 5 seconds
-    reconnectTimeout = setTimeout(initializeWebSocket, 5000);
+    store.setConnected(false);
+
+    // Attempt to reconnect if we haven't exceeded max attempts
+    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      reconnectAttempts++;
+      console.log(`[PumpPortal] Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+      reconnectTimeout = setTimeout(initializeWebSocket, RECONNECT_INTERVAL);
+    }
   }
 }
 
@@ -136,6 +161,12 @@ function initializeWebSocket() {
 if (typeof window !== 'undefined') {
   initializeWebSocket();
 }
+
+// Pre-fetch tokens and add to store
+queryClient.prefetchQuery({
+  queryKey: ['/api/tokens/recent'],
+  queryFn: fetchRealTimeTokens,
+});
 
 // Function to fetch initial token data
 export async function fetchRealTimeTokens(): Promise<Token[]> {
@@ -145,25 +176,19 @@ export async function fetchRealTimeTokens(): Promise<Token[]> {
       throw new Error('Failed to fetch token data');
     }
     const data = await response.json();
-    return data.tokens.map((token: any) => ({
+    return data.tokens.slice(0, 8).map((token: any) => ({
       name: token.name || `Token ${token.address.slice(0, 8)}`,
       symbol: token.symbol || `PUMP${token.address.slice(0, 4)}`,
-      price: token.price || 0,
-      marketCap: (token.price || 0) * 1_000_000_000,
-      volume24h: token.volume24h || 0,
-      holders: token.holders || 0,
+      price: Number(token.price || 0),
+      marketCap: Number(token.price || 0) * 1_000_000_000,
+      volume24h: Number(token.volume24h || 0),
+      holders: Number(token.holders || 0),
       createdAt: new Date(token.createdAt),
       address: token.address,
-      imageUrl: token.image || "https://via.placeholder.com/40",
+      imageUrl: token.image || undefined,
     }));
   } catch (error) {
     console.error('[PumpPortal] Error fetching tokens:', error);
     return [];
   }
 }
-
-// Pre-fetch tokens and add to store
-queryClient.prefetchQuery({
-  queryKey: ['/api/tokens/recent'],
-  queryFn: fetchRealTimeTokens,
-});

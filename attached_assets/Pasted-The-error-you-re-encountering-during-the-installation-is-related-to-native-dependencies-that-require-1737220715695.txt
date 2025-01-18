@@ -1,0 +1,76 @@
+The error you're encountering during the installation is related to native dependencies that require system-level libraries and tools to compile correctly. Specifically, this error appears to be related to the usb module and its dependency on libudev.h, which is missing on your system.
+
+Here’s why this happens and how you can fix it:
+
+Cause
+Missing system dependencies:
+
+The usb library needs libudev (part of libudev-dev or systemd-dev package) to compile. If this library is not installed, the build will fail.
+Permissions or incomplete cleanup:
+
+If you had a partial installation or failed attempts earlier, some directories might still exist and prevent a clean installation.
+Deprecated or incompatible dependencies:
+
+Some dependencies in your project are deprecated and may not work with the current versions of node or npm.
+Unsupported Node.js version:
+
+The library might not yet support the Node.js version you are using (v20.18.1), which could lead to compatibility issues.
+Fix
+1. Install Required System Packages
+Ensure that you have all the necessary build tools and libraries. Run the following commands based on your operating system:
+
+Ubuntu/Debian:
+
+bash
+Copy
+Edit
+sudo apt update
+sudo apt install -y build-essential libudev-dev python3
+CentOS/RHEL:
+
+bash
+Copy
+Edit
+sudo yum groupinstall "Development Tools"
+sudo yum install -y systemd-devel python3
+macOS: Install Xcode command line tools:
+
+bash
+Copy
+Edit
+xcode-select --install
+2. Use a Compatible Node.js Version
+Some packages might not yet support Node.js 20.x. Consider using a stable LTS version like Node.js 18:
+
+Install and switch to Node.js 18 using nvm:
+bash
+Copy
+Edit
+nvm install 18
+nvm use 18
+3. Clean Up Previous Installations
+Ensure no leftover files interfere with the new installation:
+
+bash
+Copy
+Edit
+rm -rf node_modules package-lock.json
+npm cache clean --force
+4. Reinstall Dependencies
+Re-run the installation with the cleaned environment and updated tools:
+
+bash
+Copy
+Edit
+npm install
+5. Use Updated Dependencies
+Check for updates to the packages you're using. If any dependencies are deprecated (like WalletConnect v1), replace them with newer versions. For example:
+
+bash
+Copy
+Edit
+npm install @walletconnect/client@2
+If Issues Persist
+Share the exact error logs after trying the steps above.
+Let me know your OS and environment (local, Docker, etc.).
+Verify if any custom configurations (like a .npmrc file) are affecting the installation.
