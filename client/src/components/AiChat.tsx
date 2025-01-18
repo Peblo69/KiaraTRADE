@@ -62,13 +62,20 @@ export default function AiChat() {
       <div className="p-4 border-b border-purple-500/30 bg-black/40">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center">
-            <span className="text-white font-bold text-lg">K</span>
+            <span className="text-white font-bold text-lg" style={{ fontFamily: '"VT323", monospace' }}>K</span>
           </div>
           <div>
-            <h2 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">
+            <h2 
+              className="text-xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent"
+              style={{ 
+                fontFamily: '"VT323", monospace',
+                letterSpacing: '0.1em',
+                textShadow: '0 0 5px rgba(168, 85, 247, 0.5)'
+              }}
+            >
               KIARA AI
             </h2>
-            <p className="text-xs text-purple-300/80">Your Crypto Intelligence Assistant</p>
+            <p className="text-xs text-purple-300/80 tracking-wider">Your Crypto Intelligence Assistant</p>
           </div>
         </div>
       </div>
@@ -86,29 +93,64 @@ export default function AiChat() {
             >
               {msg.role === "assistant" && (
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center flex-shrink-0 mt-1">
-                  <span className="text-white font-bold text-sm">K</span>
+                  <span 
+                    className="text-white font-bold text-sm"
+                    style={{ fontFamily: '"VT323", monospace' }}
+                  >
+                    K
+                  </span>
                 </div>
               )}
               <div
                 className={`p-3 rounded-2xl ${
                   msg.role === "user"
-                    ? "bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/20 text-white"
-                    : "bg-gradient-to-br from-gray-900/90 to-gray-800/90 border border-purple-300/10 text-purple-50"
+                    ? "bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/20"
+                    : "bg-gradient-to-br from-gray-900/90 to-gray-800/90 border border-purple-300/10"
                 } shadow-lg transition-all duration-300 ease-in-out hover:shadow-purple-500/5`}
+                style={{
+                  fontFamily: msg.role === "assistant" ? '"VT323", monospace' : 'inherit',
+                  letterSpacing: msg.role === "assistant" ? '0.05em' : 'inherit',
+                }}
               >
-                {msg.content}
+                <div 
+                  className={
+                    msg.role === "assistant" 
+                      ? "text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-cyan-300 to-purple-300 animate-gradient-x font-medium tracking-wide"
+                      : "text-white"
+                  }
+                  style={{
+                    textShadow: msg.role === "assistant" ? '0 0 5px rgba(168, 85, 247, 0.3)' : 'none',
+                    animation: msg.role === "assistant" ? 'textflicker 2s linear infinite' : 'none',
+                  }}
+                >
+                  {msg.content}
+                </div>
               </div>
             </div>
           ))}
           {isTyping && (
             <div className="flex gap-3 items-start mr-auto max-w-[80%]">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center flex-shrink-0 mt-1">
-                <span className="text-white font-bold text-sm">K</span>
+                <span 
+                  className="text-white font-bold text-sm"
+                  style={{ fontFamily: '"VT323", monospace' }}
+                >
+                  K
+                </span>
               </div>
               <div className="p-3 rounded-2xl bg-gradient-to-br from-gray-900/90 to-gray-800/90 border border-purple-300/10 text-purple-50">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-purple-400" />
-                  <span className="text-purple-400">KIARA is composing a response...</span>
+                  <span 
+                    className="text-purple-400"
+                    style={{ 
+                      fontFamily: '"VT323", monospace',
+                      letterSpacing: '0.05em',
+                      textShadow: '0 0 5px rgba(168, 85, 247, 0.3)'
+                    }}
+                  >
+                    KIARA is composing a response...
+                  </span>
                 </div>
               </div>
             </div>
@@ -128,6 +170,7 @@ export default function AiChat() {
           <Button
             onClick={sendMessage}
             className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-semibold px-6 transition-all duration-300 ease-in-out transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-purple-500/25"
+            style={{ fontFamily: '"VT323", monospace' }}
           >
             Send 💫
           </Button>

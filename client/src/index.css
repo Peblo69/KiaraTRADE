@@ -155,8 +155,8 @@
   }
 
   @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   @keyframes textGlow {
@@ -169,7 +169,6 @@
   }
 
   @keyframes float {
-
     0% { transform: translateY(0px); }
     50% { transform: translateY(-3px); }
     100% { transform: translateY(0px); }
@@ -310,4 +309,16 @@ video {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
+}
+
+/* Add gradient text animation */
+@keyframes gradient-x {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient-x {
+  background-size: 200% auto;
+  animation: gradient-x 3s linear infinite;
 }
