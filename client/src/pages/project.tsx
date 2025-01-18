@@ -1,5 +1,4 @@
 import { FC, useState } from "react";
-import Navbar from "@/components/Navbar";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, ArrowUp, ArrowDown, TrendingUp, Info } from "lucide-react";
@@ -63,6 +62,7 @@ interface CoinDetails {
 
 const ProjectPage: FC = () => {
   const [selectedCoin, setSelectedCoin] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const { data: marketData, isLoading: isLoadingMarket } = useQuery<Coin[]>({
     queryKey: ['/api/coins/markets'],
@@ -71,13 +71,17 @@ const ProjectPage: FC = () => {
 
   const { data: selectedCoinData, isLoading: isLoadingCoinDetails } = useQuery<CoinDetails>({
     queryKey: [`/api/coins/${selectedCoin}`],
-    enabled: !!selectedCoin,
+    enabled: !!selectedCoin && dialogOpen,
   });
 
   const { data: trendingData, isLoading: isLoadingTrending } = useQuery<{ coins: Array<{ item: any }> }>({
     queryKey: ['/api/trending'],
     refetchInterval: 30000,
   });
+
+  // Debug logs
+  console.log('Selected Coin:', selectedCoin);
+  console.log('Selected Coin Data:', selectedCoinData);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -101,10 +105,20 @@ const ProjectPage: FC = () => {
     }).format(supply);
   };
 
+  const handleCoinSelect = (coinId: string) => {
+    setSelectedCoin(coinId);
+    setDialogOpen(true);
+  };
+
+  const handleDialogClose = () => {
+    setDialogOpen(false);
+    // Clear selected coin after dialog animation finishes
+    setTimeout(() => setSelectedCoin(null), 300);
+  };
+
   if (isLoadingMarket || isLoadingTrending) {
     return (
       <div className="min-h-screen bg-black">
-        <Navbar />
         <div className="container mx-auto p-4">
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-purple-400" />
@@ -121,7 +135,6 @@ const ProjectPage: FC = () => {
 
   return (
     <div className="min-h-screen bg-black">
-      <Navbar />
       <div className="container mx-auto p-4">
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Trending Section */}
@@ -135,7 +148,7 @@ const ProjectPage: FC = () => {
                 <Card 
                   key={item.id} 
                   className="bg-black/40 backdrop-blur-sm border-purple-500/20 p-4 hover:border-purple-500/40 transition-all cursor-pointer"
-                  onClick={() => setSelectedCoin(item.id)}
+                  onClick={() => handleCoinSelect(item.id)}
                 >
                   <div className="flex items-center gap-3">
                     <img src={item.small} alt={item.name} className="w-8 h-8 rounded-full" />
@@ -172,8 +185,8 @@ const ProjectPage: FC = () => {
                   {coins.slice(0, 10).map((coin) => (
                     <tr 
                       key={coin.id} 
-                      className="border-b border-purple-500/10 hover:bg-purple-500/5 cursor-pointer" 
-                      onClick={() => setSelectedCoin(coin.id)}
+                      className="border-b border-purple-500/10 hover:bg-purple-500/5 cursor-pointer transition-colors" 
+                      onClick={() => handleCoinSelect(coin.id)}
                     >
                       <td className="py-4 pl-4 text-gray-400">{coin.market_cap_rank}</td>
                       <td>
@@ -241,7 +254,7 @@ const ProjectPage: FC = () => {
                   <Card 
                     key={coin.id} 
                     className="bg-black/40 backdrop-blur-sm border-purple-500/20 p-4 cursor-pointer hover:border-purple-500/40"
-                    onClick={() => setSelectedCoin(coin.id)}
+                    onClick={() => handleCoinSelect(coin.id)}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -272,7 +285,7 @@ const ProjectPage: FC = () => {
                   <Card 
                     key={coin.id} 
                     className="bg-black/40 backdrop-blur-sm border-purple-500/20 p-4 cursor-pointer hover:border-purple-500/40"
-                    onClick={() => setSelectedCoin(coin.id)}
+                    onClick={() => handleCoinSelect(coin.id)}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -299,14 +312,14 @@ const ProjectPage: FC = () => {
       </div>
 
       {/* Coin Details Dialog */}
-      <Dialog open={!!selectedCoin} onOpenChange={() => setSelectedCoin(null)}>
+      <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
         <DialogContent className="bg-black/90 border-purple-500/20 text-white max-w-4xl">
           {isLoadingCoinDetails ? (
             <div className="flex items-center justify-center p-8">
               <Loader2 className="h-8 w-8 animate-spin text-purple-400" />
             </div>
           ) : selectedCoinData ? (
-            <>
+            <div className="max-h-[80vh] overflow-y-auto p-6">
               <DialogHeader>
                 <DialogTitle className="text-2xl flex items-center gap-2">
                   <img 
@@ -325,49 +338,49 @@ const ProjectPage: FC = () => {
               </DialogHeader>
 
               {/* Price Chart */}
-              <div className="mt-4 mb-6">
+              <div className="mt-6 mb-8 bg-black/40 rounded-lg p-4 h-[400px]">
                 {selectedCoinData.market_chart?.prices && (
-                  <CoinChart prices={selectedCoinData.market_chart.prices} />
+                  <CoinChart prices={selectedCoinData.market_chart.prices} theme="dark" />
                 )}
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
+                  <div className="bg-black/40 p-4 rounded-lg">
                     <h3 className="text-sm text-purple-400">Price</h3>
-                    <p className="text-xl font-bold">
+                    <p className="text-xl font-bold text-white">
                       {formatPrice(selectedCoinData.market_data.current_price.usd)}
                     </p>
                   </div>
-                  <div>
+                  <div className="bg-black/40 p-4 rounded-lg">
                     <h3 className="text-sm text-purple-400">Market Cap</h3>
-                    <p className="text-xl font-bold">
+                    <p className="text-xl font-bold text-white">
                       {formatMarketCap(selectedCoinData.market_data.market_cap.usd)}
                     </p>
                   </div>
-                  <div>
+                  <div className="bg-black/40 p-4 rounded-lg">
                     <h3 className="text-sm text-purple-400">24h High</h3>
-                    <p className="text-green-400">
+                    <p className="text-lg font-medium text-green-400">
                       {formatPrice(selectedCoinData.market_data.high_24h.usd)}
                     </p>
                   </div>
-                  <div>
+                  <div className="bg-black/40 p-4 rounded-lg">
                     <h3 className="text-sm text-purple-400">24h Low</h3>
-                    <p className="text-red-400">
+                    <p className="text-lg font-medium text-red-400">
                       {formatPrice(selectedCoinData.market_data.low_24h.usd)}
                     </p>
                   </div>
                 </div>
 
-                <div>
-                  <h3 className="text-sm text-purple-400 mb-2">Links</h3>
+                <div className="bg-black/40 p-4 rounded-lg">
+                  <h3 className="text-sm text-purple-400 mb-3">Links</h3>
                   <div className="flex flex-wrap gap-2">
                     {selectedCoinData.links.homepage[0] && (
                       <a
                         href={selectedCoinData.links.homepage[0]}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm bg-purple-500/20 hover:bg-purple-500/30 px-3 py-1 rounded-full"
+                        className="text-sm bg-purple-500/20 hover:bg-purple-500/30 px-3 py-1 rounded-full transition-colors"
                       >
                         Website
                       </a>
@@ -377,7 +390,7 @@ const ProjectPage: FC = () => {
                         href={selectedCoinData.links.blockchain_site[0]}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm bg-purple-500/20 hover:bg-purple-500/30 px-3 py-1 rounded-full"
+                        className="text-sm bg-purple-500/20 hover:bg-purple-500/30 px-3 py-1 rounded-full transition-colors"
                       >
                         Explorer
                       </a>
@@ -387,7 +400,7 @@ const ProjectPage: FC = () => {
                         href={`https://twitter.com/${selectedCoinData.links.twitter_screen_name}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm bg-purple-500/20 hover:bg-purple-500/30 px-3 py-1 rounded-full"
+                        className="text-sm bg-purple-500/20 hover:bg-purple-500/30 px-3 py-1 rounded-full transition-colors"
                       >
                         Twitter
                       </a>
@@ -397,7 +410,7 @@ const ProjectPage: FC = () => {
                         href={`https://t.me/${selectedCoinData.links.telegram_channel_identifier}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm bg-purple-500/20 hover:bg-purple-500/30 px-3 py-1 rounded-full"
+                        className="text-sm bg-purple-500/20 hover:bg-purple-500/30 px-3 py-1 rounded-full transition-colors"
                       >
                         Telegram
                       </a>
@@ -405,7 +418,7 @@ const ProjectPage: FC = () => {
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           ) : null}
         </DialogContent>
       </Dialog>
