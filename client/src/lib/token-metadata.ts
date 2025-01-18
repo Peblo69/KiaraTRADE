@@ -3,25 +3,13 @@ import { useUnifiedTokenStore } from './unified-token-store';
 // Cache for successful image loads
 const imageCache = new Map<string, string>();
 
-// Function to convert image URL to Base64
-async function convertImageToBase64(url: string): Promise<string> {
-  try {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch (error) {
-    console.error('Error converting image to base64:', error);
-    throw error;
-  }
+// Function to convert KuCoin symbol to CoinGecko ID
+function convertToCoinGeckoId(symbol: string): string {
+  return symbol.replace('-USDT', '').toLowerCase();
 }
 
 export async function getTokenImage(symbol: string): Promise<string> {
-  const cleanSymbol = symbol.replace('-USDT', '').toLowerCase();
+  const cleanSymbol = convertToCoinGeckoId(symbol);
 
   // Check memory cache first
   if (imageCache.has(cleanSymbol)) {
@@ -35,51 +23,30 @@ export async function getTokenImage(symbol: string): Promise<string> {
     return storedImage;
   }
 
-  // Define API sources in priority order
-  const sources = [
-    // CoinGecko
-    `https://api.coingecko.com/api/v3/coins/${cleanSymbol}`,
-    // CryptoLogos
-    `https://cryptologos.cc/logos/${cleanSymbol}-${cleanSymbol}-logo.png`,
-    // Fallback
-    '/fallback.png'
-  ];
+  try {
+    // Fetch from CoinGecko markets endpoint
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${cleanSymbol}&per_page=1`
+    );
 
-  // Try each source until we get a valid image
-  for (const source of sources) {
-    try {
-      if (source.includes('api.coingecko.com')) {
-        // Handle CoinGecko API response
-        const response = await fetch(source);
-        if (response.ok) {
-          const data = await response.json();
-          const imageUrl = data.image?.large || data.image?.thumb;
-          if (imageUrl) {
-            // Convert image to base64 and store it
-            const base64Image = await convertImageToBase64(imageUrl);
-            localStorage.setItem(`crypto-icon-${cleanSymbol}`, base64Image);
-            imageCache.set(cleanSymbol, base64Image);
-            return base64Image;
-          }
-        }
-      } else {
-        // Handle direct image URLs
-        const response = await fetch(source, { method: 'HEAD' });
-        if (response.ok && response.headers.get('content-type')?.startsWith('image/')) {
-          // Convert image to base64 and store it
-          const base64Image = await convertImageToBase64(source);
-          localStorage.setItem(`crypto-icon-${cleanSymbol}`, base64Image);
-          imageCache.set(cleanSymbol, base64Image);
-          return base64Image;
-        }
-      }
-    } catch (error) {
-      console.error(`Failed to fetch from ${source}:`, error);
-      continue;
+    if (!response.ok) {
+      throw new Error(`CoinGecko API error: ${response.status}`);
     }
+
+    const data = await response.json();
+
+    if (data && data[0] && data[0].image) {
+      const imageUrl = data[0].image;
+      // Store in both memory cache and localStorage
+      imageCache.set(cleanSymbol, imageUrl);
+      localStorage.setItem(`crypto-icon-${cleanSymbol}`, imageUrl);
+      return imageUrl;
+    }
+  } catch (error) {
+    console.error(`Failed to fetch image for ${symbol}:`, error);
   }
 
-  // If all sources fail, return empty string to trigger fallback icon generation
+  // Return empty string to trigger fallback icon generation
   return '';
 }
 
@@ -94,7 +61,6 @@ interface TokenMetadata {
 
 // Cache metadata responses to avoid redundant API calls
 const metadataCache = new Map<string, TokenMetadata>();
-
 
 export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMetadata | null> {
   // Check cache first
@@ -148,37 +114,15 @@ export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMet
       uri: data.result.uri || '',
     };
 
-    // If we have a URI, try to fetch the actual image URL using getTokenImage
-    if (metadata.uri) {
-      metadata.image = await getTokenImage(metadata.symbol);
-      if (!metadata.image) {
-        console.warn('[Token Metadata] No valid image URL found, using fallback');
-        metadata.image = 'https://cryptologos.cc/logos/solana-sol-logo.png';
-      }
-      try {
-        const uriResponse = await fetch(metadata.uri);
-        if (uriResponse.ok) {
-          const uriData = await uriResponse.json();
-          metadata.description = uriData.description;
-        }
-      } catch (error) {
-        console.error("[Token Metadata] Error fetching URI data:", error);
-      }
+    // Try to get the image using CoinGecko
+    metadata.image = await getTokenImage(metadata.symbol);
+    if (!metadata.image) {
+      console.warn('[Token Metadata] No valid image URL found, using fallback');
+      metadata.image = '/fallback.png';
     }
-
 
     // Cache the result
     metadataCache.set(mintAddress, metadata);
-
-    // Update the token in the store with enriched data
-    const imageUrl = getImageUrl(metadata.image || metadata.uri);
-    console.log('[Token Metadata] Final image URL:', imageUrl);
-
-    useUnifiedTokenStore.getState().updateToken(mintAddress, {
-      name: metadata.name,
-      symbol: metadata.symbol,
-      imageUrl,
-    });
 
     return metadata;
   } catch (error) {

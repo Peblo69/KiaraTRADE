@@ -53,11 +53,11 @@ const CryptoIcon: FC<CryptoIconProps> = ({
 
     const loadImage = async () => {
       try {
-        const base64Image = await getTokenImage(symbol);
+        const imageUrl = await getTokenImage(symbol);
 
         if (!mounted) return;
 
-        if (!base64Image) {
+        if (!imageUrl) {
           const fallbackIcon = generateFallbackIcon();
           setImgSrc(fallbackIcon);
           setError(true);
@@ -65,26 +65,9 @@ const CryptoIcon: FC<CryptoIconProps> = ({
           return;
         }
 
-        // Create a new image to test loading
-        const img = new Image();
-        img.onload = () => {
-          if (mounted) {
-            setImgSrc(base64Image);
-            setIsLoading(false);
-            setError(false);
-          }
-        };
-
-        img.onerror = () => {
-          if (mounted) {
-            const fallbackIcon = generateFallbackIcon();
-            setImgSrc(fallbackIcon);
-            setError(true);
-            setIsLoading(false);
-          }
-        };
-
-        img.src = base64Image;
+        setImgSrc(imageUrl);
+        setIsLoading(false);
+        setError(false);
       } catch (err) {
         console.error(`Error loading icon for ${symbol}:`, err);
         if (mounted) {
