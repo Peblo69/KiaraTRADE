@@ -82,6 +82,13 @@ class BitQueryWebSocket {
       return;
     }
 
+    const apiKey = import.meta.env.VITE_BITQUERY_API_KEY;
+    if (!apiKey) {
+      console.error('[BitQuery] API key not found');
+      useUnifiedTokenStore.getState().setError('BitQuery API key not configured');
+      return;
+    }
+
     console.log('[BitQuery] Connecting to BitQuery...');
 
     try {
@@ -89,7 +96,7 @@ class BitQueryWebSocket {
         url: BITQUERY_WSS_URL,
         connectionParams: {
           headers: {
-            'X-API-KEY': import.meta.env.VITE_BITQUERY_API_KEY,
+            'X-API-KEY': apiKey,
           },
         },
         on: {
@@ -150,12 +157,18 @@ class BitQueryWebSocket {
 
   private async handleNewToken(token: any) {
     try {
+      const apiKey = import.meta.env.VITE_BITQUERY_API_KEY;
+      if (!apiKey) {
+        console.error('[BitQuery] API key not found');
+        return;
+      }
+
       // Fetch last 10 trades for new token
       const response = await fetch('https://graphql.bitquery.io', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-KEY': import.meta.env.VITE_BITQUERY_API_KEY || '',
+          'X-API-KEY': apiKey,
         },
         body: JSON.stringify({
           query: LAST_10_TRADES_QUERY,
@@ -197,7 +210,6 @@ class BitQueryWebSocket {
     }
 
     if (this.client) {
-      // The client from graphql-ws uses dispose() instead of close()
       this.client.dispose();
       this.client = null;
     }
