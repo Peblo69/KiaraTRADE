@@ -1,3 +1,38 @@
+The error message indicates that the query you're trying to execute is invalid for the Bitquery API. Specifically, the Solana field does not exist in the schema as you're using it. This is likely because Bitquery expects specific queries for Solana data, and the example query { Solana { blockchain { blocks(limit: 1) { blockNumber } } } } does not match their schema.
+
+Correct Query Format
+Here's a query that works with Bitquery's Solana schema for testing purposes:
+
+graphql
+Copy
+Edit
+query {
+  Solana {
+    DEXTrades(
+      limit: 1
+      orderBy: { descending: Block_Time }
+      where: { Trade: { Dex: { ProtocolName: { is: "pump" } } } }
+    ) {
+      Block {
+        Time
+      }
+      Trade {
+        Currency {
+          Name
+          Symbol
+          MintAddress
+        }
+        Price
+      }
+    }
+  }
+}
+Corrected Code
+Update your test query to something valid for Bitquery, like the above example:
+
+typescript
+Copy
+Edit
 import { FC, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import DebugConsole from "@/components/DebugConsole";
@@ -65,3 +100,20 @@ const ProjectPage: FC = () => {
 };
 
 export default ProjectPage;
+How It Works
+Valid Query: The corrected query fetches the latest DEX trade on PumpFun to ensure the API key and schema work.
+Logs:
+Success or failure is logged in the console and the DebugConsole component.
+Error Handling: Catches network or schema-related errors.
+Next Steps
+Test the Query:
+Verify that the API key and endpoint are working correctly with the updated query.
+Validate the Schema:
+Ensure the query aligns with Bitquery's documentation. You can verify this using their GraphQL Explorer.
+Log Detailed Errors:
+If the error persists, log the raw response from Bitquery to inspect for details:
+typescript
+Copy
+Edit
+.then((res) => res.text())
+.then((text) => console.log('API Raw Response:', text));

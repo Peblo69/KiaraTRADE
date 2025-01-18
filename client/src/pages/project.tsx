@@ -11,10 +11,32 @@ const ProjectPage: FC = () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-KEY': 'BQYSaASLeyNPxRf38DGgENQ1mVHxNypq',
+        'X-API-KEY': import.meta.env.VITE_BITQUERY_API_KEY,
       },
       body: JSON.stringify({
-        query: `{ Solana { blockchain { blocks(limit: 1) { blockNumber } } } }`,
+        query: `
+          query {
+            Solana {
+              DEXTrades(
+                limit: 1
+                orderBy: { descending: Block_Time }
+                where: { Trade: { Dex: { ProtocolName: { is: "pump" } } } }
+              ) {
+                Block {
+                  Time
+                }
+                Trade {
+                  Currency {
+                    Name
+                    Symbol
+                    MintAddress
+                  }
+                  Price
+                }
+              }
+            }
+          }
+        `,
       }),
     })
       .then((res) => res.json())
