@@ -1,31 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-} from 'chart.js';
-import { Chart } from 'react-chartjs-2';
+import { FC, useEffect, useRef } from 'react';
+import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
-import 'chartjs-adapter-date-fns';
-import 'chartjs-chart-financial';
-
-// Register all required components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-);
 
 interface CandleData {
   timestamp: number;
@@ -43,192 +18,133 @@ interface TokenChartProps {
   height?: number;
 }
 
-const TokenChart: React.FC<TokenChartProps> = ({ tokenAddress, height = 400 }) => {
-  const [chartData, setChartData] = useState<CandleData[]>([]);
+const TokenChart: FC<TokenChartProps> = ({ tokenAddress, height = 400 }) => {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chart = useRef<IChartApi | null>(null);
+  const candlestickSeries = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const volumeSeries = useRef<ISeriesApi<"Histogram"> | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
+    if (!chartContainerRef.current) return;
 
-    async function fetchChartData() {
-      try {
-        // Mock data with more realistic price movements
-        const mockData: CandleData[] = Array.from({ length: 100 }, (_, i) => {
-          const basePrice = 100;
-          const volatility = 10;
-          const trend = Math.sin(i * 0.1) * 20;
-          const noise = (Math.random() - 0.5) * volatility;
-          const price = basePrice + trend + noise;
+    // Initialize chart
+    chart.current = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: height,
+      layout: {
+        background: { type: ColorType.Solid, color: 'transparent' },
+        textColor: 'rgba(255, 255, 255, 0.5)',
+      },
+      grid: {
+        vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
+        horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
+      },
+      crosshair: {
+        mode: 0,
+        vertLine: {
+          width: 1,
+          color: 'rgba(255, 255, 255, 0.1)',
+          style: 3,
+        },
+        horzLine: {
+          width: 1,
+          color: 'rgba(255, 255, 255, 0.1)',
+          style: 3,
+        },
+      },
+      rightPriceScale: {
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+      },
+      timeScale: {
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        timeVisible: true,
+        secondsVisible: false,
+      },
+    });
 
-          // Create more realistic candle data
-          const open = price;
-          const close = price + (Math.random() - 0.5) * volatility;
-          const high = Math.max(open, close) + Math.random() * volatility;
-          const low = Math.min(open, close) - Math.random() * volatility;
+    // Add candlestick series
+    candlestickSeries.current = chart.current.addCandlestickSeries({
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderVisible: false,
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+    });
 
-          return {
-            timestamp: Date.now() - (100 - i) * 300000, // 5-minute candles
-            open,
-            high,
-            low,
-            close,
-            volume: 1000 + Math.random() * 5000,
-            marketCap: 1000000 + price * 10000,
-            trades: 50 + Math.floor(Math.random() * 100)
-          };
+    // Add volume series
+    volumeSeries.current = chart.current.addHistogramSeries({
+      color: '#26a69a',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: 'volume',
+    });
+
+    chart.current.priceScale('volume').applyOptions({
+      scaleMargins: {
+        top: 0.8,
+        bottom: 0,
+      },
+    });
+
+    // Generate mock data
+    const currentTime = Date.now();
+    const mockData = Array.from({ length: 100 }, (_, i) => {
+      const basePrice = 100;
+      const volatility = 10;
+      const trend = Math.sin(i * 0.1) * 20;
+      const noise = (Math.random() - 0.5) * volatility;
+      const price = basePrice + trend + noise;
+
+      const open = price;
+      const close = price + (Math.random() - 0.5) * volatility;
+      const high = Math.max(open, close) + Math.random() * volatility;
+      const low = Math.min(open, close) - Math.random() * volatility;
+      const volume = 1000 + Math.random() * 5000;
+
+      return {
+        time: currentTime / 1000 - (100 - i) * 300,
+        open,
+        high,
+        low,
+        close,
+        volume
+      };
+    });
+
+    // Set the data
+    candlestickSeries.current.setData(mockData);
+    volumeSeries.current.setData(mockData.map(d => ({
+      time: d.time,
+      value: d.volume,
+      color: d.close >= d.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)'
+    })));
+
+    // Handle resize
+    const handleResize = () => {
+      if (chartContainerRef.current && chart.current) {
+        chart.current.applyOptions({ 
+          width: chartContainerRef.current.clientWidth 
         });
-
-        if (isMounted) {
-          setChartData(mockData);
-        }
-      } catch (err) {
-        console.error('Failed to fetch chart data:', err);
       }
-    }
+    };
 
-    fetchChartData();
-    return () => { isMounted = false; };
-  }, [tokenAddress]);
+    window.addEventListener('resize', handleResize);
 
-  const chartOptions = {
-    type: 'candlestick',
-    data: {
-      datasets: [{
-        label: 'OHLC',
-        data: chartData.map(candle => ({
-          x: candle.timestamp,
-          o: candle.open,
-          h: candle.high,
-          l: candle.low,
-          c: candle.close
-        })),
-        backgroundColor: (ctx: any) => {
-          if (!ctx.parsed) return 'rgba(0,0,0,0)';
-          return ctx.parsed.c >= ctx.parsed.o ? 
-            'rgba(38, 166, 154, 0.4)' : 
-            'rgba(239, 83, 80, 0.4)';
-        },
-        borderColor: (ctx: any) => {
-          if (!ctx.parsed) return 'rgba(0,0,0,0)';
-          return ctx.parsed.c >= ctx.parsed.o ? 
-            'rgb(38, 166, 154)' : 
-            'rgb(239, 83, 80)';
-        }
-      }, {
-        type: 'bar',
-        label: 'Volume',
-        data: chartData.map(candle => ({
-          x: candle.timestamp,
-          y: candle.volume
-        })),
-        backgroundColor: (ctx: any) => {
-          if (!ctx.parsed?.y) return 'rgba(0,0,0,0)';
-          const index = ctx.dataIndex;
-          const candle = chartData[index];
-          return candle.close >= candle.open ? 
-            'rgba(38, 166, 154, 0.2)' : 
-            'rgba(239, 83, 80, 0.2)';
-        },
-        yAxisID: 'volume'
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: 'index' as const,
-        intersect: false,
-      },
-      plugins: {
-        legend: {
-          display: false
-        },
-        tooltip: {
-          enabled: true,
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          titleColor: '#fff',
-          bodyColor: '#fff',
-          bodyFont: {
-            size: 13
-          },
-          padding: 12,
-          displayColors: false,
-          callbacks: {
-            label: function(context: any) {
-              const index = context.dataIndex;
-              const candle = chartData[index];
-              return [
-                `Open: $${candle.open.toFixed(6)}`,
-                `High: $${candle.high.toFixed(6)}`,
-                `Low: $${candle.low.toFixed(6)}`,
-                `Close: $${candle.close.toFixed(6)}`,
-                `Volume: ${candle.volume.toLocaleString()}`
-              ];
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          type: 'category',
-          grid: {
-            display: false
-          },
-          ticks: {
-            color: 'rgba(255, 255, 255, 0.5)',
-            font: {
-              size: 11
-            },
-            maxRotation: 0
-          },
-          border: {
-            display: false
-          }
-        },
-        y: {
-          position: 'right' as const,
-          grid: {
-            color: 'rgba(255, 255, 255, 0.05)'
-          },
-          ticks: {
-            color: 'rgba(255, 255, 255, 0.5)',
-            font: {
-              size: 11
-            },
-            callback: function(value: any) {
-              return '$' + value.toFixed(6);
-            }
-          },
-          border: {
-            display: false
-          }
-        },
-        volume: {
-          position: 'left' as const,
-          grid: {
-            display: false
-          },
-          ticks: {
-            color: 'rgba(255, 255, 255, 0.5)',
-            font: {
-              size: 11
-            }
-          },
-          border: {
-            display: false
-          }
-        }
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (chart.current) {
+        chart.current.remove();
       }
-    }
-  };
+    };
+  }, [height, tokenAddress]);
 
   return (
     <Card className="p-4 bg-black/40 backdrop-blur-lg border border-gray-800">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-white">Price Chart</h3>
       </div>
-      <div style={{ height: `${height}px` }}>
-        <Chart {...chartOptions} />
-      </div>
+      <div ref={chartContainerRef} />
     </Card>
   );
 };
