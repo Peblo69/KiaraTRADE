@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
 import axios from "axios";
 import { nanoid } from 'nanoid';
@@ -19,20 +20,13 @@ export default function AiChat() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId] = useState(() => nanoid());
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = () => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  };
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    scrollToBottom();
-    // Additional scroll after a small delay to ensure content is rendered
-    const timeoutId = setTimeout(scrollToBottom, 100);
-    return () => clearTimeout(timeoutId);
-  }, [messages, isTyping]);
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   const sendMessage = async () => {
     if (!input.trim()) return;
@@ -64,7 +58,7 @@ export default function AiChat() {
   };
 
   return (
-    <Card className="flex flex-col min-h-screen bg-gradient-to-br from-black/60 via-purple-900/20 to-black/60 backdrop-blur-lg border-purple-500/30 shadow-lg shadow-purple-500/10">
+    <Card className="flex flex-col h-full bg-gradient-to-br from-black/60 via-purple-900/20 to-black/60 backdrop-blur-lg border-purple-500/30 shadow-lg shadow-purple-500/10">
       <div className="p-4 border-b border-purple-500/30 bg-black/40">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center">
@@ -86,7 +80,7 @@ export default function AiChat() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-2" style={{ scrollBehavior: 'smooth' }}>
+      <ScrollArea className="flex-grow px-4 py-2 min-h-0" ref={scrollAreaRef}>
         <div className="space-y-4">
           {messages.map((msg, i) => (
             <div
@@ -163,9 +157,8 @@ export default function AiChat() {
               </div>
             </div>
           )}
-          <div ref={messagesEndRef} />
         </div>
-      </div>
+      </ScrollArea>
 
       <div className="p-4 border-t border-purple-500/30 bg-black/40">
         <div className="flex gap-2">
