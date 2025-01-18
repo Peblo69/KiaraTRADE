@@ -1,5 +1,5 @@
 import { FC, useEffect, useRef, useState } from 'react';
-import { createChart, ColorType, IChartApi, CandlestickData, Time, UTCTimestamp } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, Time } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import {
   Select,
@@ -42,6 +42,10 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
       },
       width: chartContainerRef.current.clientWidth,
       height: 400,
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+      },
     });
 
     const candlestickSeries = chart.addCandlestickSeries({
@@ -72,27 +76,30 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
       try {
         const response = await fetch(`/api/coins/${symbol}/klines?timeframe=${timeframe}`);
         if (!response.ok) throw new Error('Failed to fetch chart data');
-        
+
         const data = await response.json();
-        
+
+        // Transform klines data for candlestick chart
         const candleData = data.klines.map((k: any) => ({
-          time: k.time as UTCTimestamp,
+          time: k.time as Time,
           open: k.open,
           high: k.high,
           low: k.low,
           close: k.close
         }));
 
+        // Transform klines data for volume chart
         const volumeData = data.klines.map((k: any) => ({
-          time: k.time as UTCTimestamp,
+          time: k.time as Time,
           value: k.volume,
           color: k.close >= k.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)'
         }));
 
+        // Set data for both series
         candlestickSeries.setData(candleData);
         volumeSeries.setData(volumeData);
 
-        // Fit the content
+        // Fit the content and allow scrolling
         chart.timeScale().fitContent();
       } catch (error) {
         console.error('Failed to load chart data:', error);
