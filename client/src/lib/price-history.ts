@@ -25,111 +25,103 @@ interface CandleData {
 }
 
 interface PriceHistoryState {
-  // Store price history data
-  data: Record<string, Record<TimeframeKey, CandleData[]>>;
-  // Track initialization per token (not per timeframe)
+  data: Map<string, CandleData[]>;
   initialized: Set<string>;
-  // Methods
-  getPriceHistory: (tokenAddress: string, timeframe: TimeframeKey) => CandleData[];
+  getPriceHistory: (tokenAddress: string) => CandleData[] | undefined;
   initializePriceHistory: (tokenAddress: string, initialPrice: number, marketCap: number) => void;
   addPricePoint: (tokenAddress: string, price: number, marketCap: number, volume: number) => void;
 }
 
 const MAX_CANDLES = 1000;
 
-export const useTokenPriceStore = create<PriceHistoryState>((set, get) => ({
-  data: {},
+export const useTokenPriceStore = create<PriceHistoryState>()((set, get) => ({
+  data: new Map(),
   initialized: new Set(),
 
-  getPriceHistory: (tokenAddress, timeframe) => {
-    const state = get();
-    return state.data[tokenAddress]?.[timeframe] || [];
+  getPriceHistory: (tokenAddress) => {
+    return get().data.get(tokenAddress);
   },
 
   initializePriceHistory: (tokenAddress, initialPrice, marketCap) => {
     const state = get();
 
     // Skip if already initialized
-    if (state.initialized.has(tokenAddress)) {
-      return;
-    }
+    if (state.initialized.has(tokenAddress)) return;
 
-    const now = Date.now();
-    const initialData: Record<TimeframeKey, CandleData[]> = {} as Record<TimeframeKey, CandleData[]>;
+    // Create initial candle
+    const initialCandle: CandleData = {
+      timestamp: Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000), // 5min default
+      open: initialPrice,
+      high: initialPrice,
+      low: initialPrice,
+      close: initialPrice,
+      volume: 0,
+      marketCap,
+      trades: 0
+    };
 
-    // Initialize with a single candle for each timeframe
-    Object.entries(TIMEFRAMES).forEach(([timeframe, interval]) => {
-      const candleTime = Math.floor(now / interval) * interval;
-      initialData[timeframe as TimeframeKey] = [{
-        timestamp: candleTime,
-        open: initialPrice,
-        high: initialPrice,
-        low: initialPrice,
-        close: initialPrice,
-        volume: 0,
-        marketCap,
-        trades: 0
-      }];
+    // Update state immutably
+    set((state) => {
+      const newData = new Map(state.data);
+      newData.set(tokenAddress, [initialCandle]);
+      const newInitialized = new Set(state.initialized);
+      newInitialized.add(tokenAddress);
+
+      return {
+        data: newData,
+        initialized: newInitialized
+      };
     });
-
-    set(state => ({
-      data: {
-        ...state.data,
-        [tokenAddress]: initialData
-      },
-      initialized: new Set([...state.initialized, tokenAddress])
-    }));
   },
 
   addPricePoint: (tokenAddress, price, marketCap, volume) => {
-    set(state => {
-      // Skip if token not initialized
-      if (!state.initialized.has(tokenAddress)) {
-        return state;
-      }
+    set((state) => {
+      // Skip if not initialized
+      if (!state.initialized.has(tokenAddress)) return state;
+
+      const existingData = state.data.get(tokenAddress);
+      if (!existingData) return state;
 
       const now = Date.now();
-      const newData = { ...state.data };
-      const tokenData = newData[tokenAddress];
+      const candleTime = Math.floor(now / (5 * 60 * 1000)) * (5 * 60 * 1000);
+      const lastCandle = existingData[existingData.length - 1];
 
-      if (!tokenData) return state;
+      let newCandles = [...existingData];
 
-      // Update candles for each timeframe
-      Object.entries(TIMEFRAMES).forEach(([timeframe, interval]) => {
-        const tf = timeframe as TimeframeKey;
-        const candleTime = Math.floor(now / interval) * interval;
-        const candles = [...tokenData[tf]];
-        const lastCandle = candles[candles.length - 1];
+      if (lastCandle && lastCandle.timestamp === candleTime) {
+        // Update existing candle
+        const updatedCandle = {
+          ...lastCandle,
+          high: Math.max(lastCandle.high, price),
+          low: Math.min(lastCandle.low, price),
+          close: price,
+          volume: lastCandle.volume + volume,
+          marketCap,
+          trades: lastCandle.trades + 1
+        };
+        newCandles[newCandles.length - 1] = updatedCandle;
+      } else {
+        // Create new candle
+        newCandles.push({
+          timestamp: candleTime,
+          open: price,
+          high: price,
+          low: price,
+          close: price,
+          volume,
+          marketCap,
+          trades: 1
+        });
 
-        if (lastCandle && lastCandle.timestamp === candleTime) {
-          // Update existing candle
-          lastCandle.high = Math.max(lastCandle.high, price);
-          lastCandle.low = Math.min(lastCandle.low, price);
-          lastCandle.close = price;
-          lastCandle.volume += volume;
-          lastCandle.marketCap = marketCap;
-          lastCandle.trades += 1;
-        } else {
-          // Create new candle
-          candles.push({
-            timestamp: candleTime,
-            open: price,
-            high: price,
-            low: price,
-            close: price,
-            volume,
-            marketCap,
-            trades: 1
-          });
-
-          // Trim history if needed
-          if (candles.length > MAX_CANDLES) {
-            candles.splice(0, candles.length - MAX_CANDLES);
-          }
+        // Trim history if needed
+        if (newCandles.length > MAX_CANDLES) {
+          newCandles = newCandles.slice(-MAX_CANDLES);
         }
+      }
 
-        tokenData[tf] = candles;
-      });
+      // Update state immutably
+      const newData = new Map(state.data);
+      newData.set(tokenAddress, newCandles);
 
       return { ...state, data: newData };
     });
