@@ -297,6 +297,8 @@ export function registerRoutes(app: Express): Server {
         default: startTime = now - (86400 * 365); // 1 year default
       }
 
+      console.log(`[Routes] Fetching klines for ${symbol} with timeframe ${timeframe}`);
+
       const response = await axios.get(`${KUCOIN_API_BASE}/market/candles`, {
         params: {
           symbol,
@@ -306,16 +308,24 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
+      if (!response.data.data || !response.data.data.length) {
+        console.warn(`[Routes] No klines data received for ${symbol}`);
+        return res.json({ klines: [] });
+      }
+
       // KuCoin returns klines in format: [timestamp, open, close, high, low, volume, turnover]
       const klines = response.data.data.map((kline: string[]) => ({
-        time: parseInt(kline[0]),
+        time: parseInt(kline[0]), // Keep as seconds for lightweight-charts
         open: parseFloat(kline[1]),
-        close: parseFloat(kline[2]),
-        high: parseFloat(kline[3]),
+        high: parseFloat(kline[3]), // Note: KuCoin order is different
         low: parseFloat(kline[4]),
+        close: parseFloat(kline[2]),
         volume: parseFloat(kline[5]),
         turnover: parseFloat(kline[6])
       }));
+
+      console.log(`[Routes] Processed ${klines.length} klines for ${symbol}`);
+      console.log('[Routes] Sample kline:', klines[0]);
 
       res.json({ klines });
     } catch (error: any) {

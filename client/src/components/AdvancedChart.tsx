@@ -1,5 +1,5 @@
 import { FC, useEffect, useRef, useState } from 'react';
-import { createChart, ColorType, IChartApi, Time } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import {
   Select,
@@ -48,6 +48,7 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
       },
     });
 
+    // Add candlestick series with proper styling
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: '#26a69a',
       downColor: '#ef5350',
@@ -56,7 +57,7 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
       wickDownColor: '#ef5350',
     });
 
-    // Add volume series
+    // Add volume series below the candlesticks
     const volumeSeries = chart.addHistogramSeries({
       color: '#26a69a',
       priceFormat: {
@@ -64,7 +65,7 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
       },
       priceScaleId: '', // Set as an overlay
       scaleMargins: {
-        top: 0.8,
+        top: 0.8, // Position the volume series at the bottom 20% of the chart
         bottom: 0,
       },
     });
@@ -78,22 +79,33 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
         if (!response.ok) throw new Error('Failed to fetch chart data');
 
         const data = await response.json();
+        console.log('Received klines data:', data); // Debug log
+
+        if (!data.klines || !data.klines.length) {
+          console.warn('No klines data received');
+          return;
+        }
 
         // Transform klines data for candlestick chart
         const candleData = data.klines.map((k: any) => ({
-          time: k.time as Time,
-          open: k.open,
-          high: k.high,
-          low: k.low,
-          close: k.close
+          time: k.time, // KuCoin timestamp is already in seconds
+          open: parseFloat(k.open),
+          high: parseFloat(k.high),
+          low: parseFloat(k.low),
+          close: parseFloat(k.close)
         }));
 
         // Transform klines data for volume chart
         const volumeData = data.klines.map((k: any) => ({
-          time: k.time as Time,
-          value: k.volume,
-          color: k.close >= k.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)'
+          time: k.time,
+          value: parseFloat(k.volume),
+          color: parseFloat(k.close) >= parseFloat(k.open) 
+            ? 'rgba(38, 166, 154, 0.5)' // Green for up candles
+            : 'rgba(239, 83, 80, 0.5)'  // Red for down candles
         }));
+
+        console.log('Processed candle data:', candleData[0]); // Debug log
+        console.log('Processed volume data:', volumeData[0]); // Debug log
 
         // Set data for both series
         candlestickSeries.setData(candleData);
