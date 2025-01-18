@@ -81,7 +81,6 @@ const ProjectPage: FC = () => {
     refetchInterval: 10000,
     onSettled: async (data) => {
       if (data) {
-        // Preload images for all tokens in the list
         const symbols = data.data.ticker
           .filter(t => t.symbol.endsWith('-USDT'))
           .map(t => t.symbol);
@@ -152,7 +151,6 @@ const ProjectPage: FC = () => {
     setTimeout(() => setSelectedSymbol(null), 300);
   };
 
-  // Generate pagination range with ellipsis
   const getPaginationRange = (totalPages: number, currentPage: number) => {
     if (totalPages <= MAX_VISIBLE_PAGES) {
       return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -195,7 +193,6 @@ const ProjectPage: FC = () => {
 
   const tickers = marketData?.data.ticker.filter(t => t.symbol.endsWith('-USDT')) || [];
 
-  // Sort by volume and get top gainers/losers
   const sortedByVolume = [...tickers].sort((a, b) => parseFloat(b.volValue) - parseFloat(a.volValue));
   const topGainers = [...tickers]
     .sort((a, b) => parseFloat(b.changeRate) - parseFloat(a.changeRate))
@@ -204,12 +201,12 @@ const ProjectPage: FC = () => {
     .sort((a, b) => parseFloat(a.changeRate) - parseFloat(b.changeRate))
     .slice(0, 5);
 
-  // Filter by search query
+  const trendingTokens = sortedByVolume.slice(0, 5);
+
   const filteredTickers = sortedByVolume.filter(ticker =>
     ticker.symbol.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Paginate results
   const totalPages = Math.ceil(filteredTickers.length / ITEMS_PER_PAGE);
   const paginatedTickers = filteredTickers.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
@@ -222,7 +219,6 @@ const ProjectPage: FC = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Search Bar */}
         <div className="flex items-center gap-4 mb-8">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -235,9 +231,7 @@ const ProjectPage: FC = () => {
           </div>
         </div>
 
-        {/* Market Overview Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Top Gainers */}
           <Card className="p-4">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <ArrowUp className="h-5 w-5 text-green-500" />
@@ -266,7 +260,6 @@ const ProjectPage: FC = () => {
             </div>
           </Card>
 
-          {/* Top Losers */}
           <Card className="p-4">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <ArrowDown className="h-5 w-5 text-red-500" />
@@ -295,25 +288,38 @@ const ProjectPage: FC = () => {
             </div>
           </Card>
 
-          {/* Market Stats */}
           <Card className="p-4">
-            <h3 className="text-lg font-semibold mb-4">Market Stats</h3>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              🔥 Trending Now
+            </h3>
             <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Pairs</span>
-                <span className="font-medium">{tickers.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">24h Volume</span>
-                <span className="font-medium">
-                  {formatVolume(tickers.reduce((sum: number, t) => sum + parseFloat(t.volValue), 0))}
-                </span>
-              </div>
+              {trendingTokens.map((ticker) => (
+                <div
+                  key={ticker.symbol}
+                  className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg cursor-pointer"
+                  onClick={() => handleSymbolSelect(ticker.symbol)}
+                >
+                  <div className="flex items-center gap-2">
+                    <CryptoIcon
+                      symbol={ticker.symbol}
+                      size="sm"
+                    />
+                    <div>
+                      <div className="font-medium">{ticker.symbol.replace('-USDT', '')}</div>
+                      <div className="text-sm text-muted-foreground">
+                        Vol: {formatVolume(ticker.volValue)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className={parseFloat(ticker.changeRate) >= 0 ? "text-green-500" : "text-red-500"}>
+                    {formatChange(ticker.changeRate)}
+                  </div>
+                </div>
+              ))}
             </div>
           </Card>
         </div>
 
-        {/* Market Table */}
         <Card>
           <div className="overflow-x-auto">
             <Table>
@@ -359,7 +365,6 @@ const ProjectPage: FC = () => {
             </Table>
           </div>
 
-          {/* Pagination */}
           <div className="py-4 flex justify-center">
             <Pagination>
               <PaginationContent>
@@ -397,7 +402,6 @@ const ProjectPage: FC = () => {
           </div>
         </Card>
 
-        {/* Coin Details Dialog */}
         <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
           <DialogContent className="max-w-4xl">
             {isLoadingCoinDetails ? (
