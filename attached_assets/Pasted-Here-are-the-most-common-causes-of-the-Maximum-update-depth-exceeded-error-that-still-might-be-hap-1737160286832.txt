@@ -1,0 +1,131 @@
+Here are the most common causes of the “Maximum update depth exceeded” error that still might be happening with that TokenChart code—and how to fix them:
+
+1. The Store (useTokenPriceStore) Is Refetching/Re-updating on Every Render
+Often, the underlying culprit is that the custom store (Zustand, Redux, or whatever you’re using) triggers a new fetch or a new state update every time getPriceHistory(tokenAddress, selectedTimeframe) is called. That can lead to an endless loop:
+
+Component renders → calls getPriceHistory(...).
+getPriceHistory(...) triggers a store update (e.g. fetch or setState).
+Store update forces another re-render → calls getPriceHistory(...) again.
+Repeat infinitely.
+How to Check/Fix
+Check the implementation of getPriceHistory(). Make sure it does not actually trigger a new fetch or a setState each time it’s called.
+
+If you need to fetch data only once per timeframe, use a stable cached value in the store. For example, in a Zustand store, you might do something like:
+
+ts
+Copy
+// Pseudocode in the store:
+// 1) Keep a record in state of fetched data so we do not re-fetch every render
+const useTokenPriceStore = create((set, get) => ({
+  priceHistory: {}, // { [tokenAddress]: { [timeframe]: CandleData[] } }
+
+  fetchPriceHistory: async (tokenAddress, timeframe) => {
+    // If we already have it, no need to re-fetch:
+    if (get().priceHistory[tokenAddress]?.[timeframe]) {
+      return;
+    }
+    // Otherwise, do one fetch
+    const data = await actuallyFetchData(tokenAddress, timeframe);
+    set((state) => {
+      if (!state.priceHistory[tokenAddress]) {
+        state.priceHistory[tokenAddress] = {};
+      }
+      state.priceHistory[tokenAddress][timeframe] = data;
+    });
+  },
+
+  getPriceHistory: (tokenAddress, timeframe) =>
+    get().priceHistory[tokenAddress]?.[timeframe] ?? [],
+}));
+Then, in your component, trigger the fetch inside a useEffect once for the current (tokenAddress, selectedTimeframe):
+
+tsx
+Copy
+const { fetchPriceHistory } = useTokenPriceStore();
+
+useEffect(() => {
+  fetchPriceHistory(tokenAddress, selectedTimeframe);
+}, [fetchPriceHistory, tokenAddress, selectedTimeframe]);
+
+// And just read the priceHistory (cached) here:
+const priceHistory = useTokenPriceStore(
+  (state) => state.getPriceHistory(tokenAddress, selectedTimeframe)
+);
+This way, you avoid the trap of the store re-firing a fetch or setState on every single render.
+
+2. A Derived Value in the Store Causes Constant New References
+Even if you’re not fetching on each call, a store might be returning a new array reference every time. If your store does something like this:
+
+ts
+Copy
+getPriceHistory: (tokenAddress, timeframe) => {
+  // returns a newly generated array each time
+  return state[tokenAddress][timeframe].map(candle => ...)
+}
+Then that can also cause repeated re-renders. If that’s the case, the useMemo in the component might not help. Instead, return the raw array from the store, or store your transformations in the component with useMemo.
+
+3. The Timeframe Buttons Are Re-triggering State
+Check you haven’t introduced any logic that calls setSelectedTimeframe inside an effect or callback that’s constantly running. A typical pattern is correct:
+
+tsx
+Copy
+const [selectedTimeframe, setSelectedTimeframe] = useState<TimeframeKey>('5m');
+
+const handleTimeframeChange = useCallback((tf: TimeframeKey) => {
+  setSelectedTimeframe(tf);
+}, []);
+But if there’s an extra effect or logic that tries to “correct” or re-set timeframe in a loop, you can get stuck.
+
+4. The Chart Itself Isn’t the Issue, but Continuous Resizing or Another Side Effect Is
+Double-check that:
+
+You’re not continuously resizing or re-initializing the chart.
+
+The code:
+
+tsx
+Copy
+useEffect(() => {
+  if (!containerRef.current || chart.current) return;
+  ...
+}, [height]);
+only runs once (or if height changes). That looks fine.
+
+The window resize listener:
+
+ts
+Copy
+window.addEventListener('resize', handleResize);
+is not going haywire in some environment. Usually it’s fine.
+
+If you suspect resizing triggers a lot of re-renders, log out containerRef.current.clientWidth and see if it’s stable. Usually not an issue, but worth confirming.
+
+5. Confirm You Didn’t Forget an Old setState or useEffect in a Parent Component
+Sometimes the infinite loop actually happens above or outside the TokenChart code. For example, if a parent component is responding to some child callback or store change by re-updating a prop, which then changes the TokenChart prop, which triggers the store, etc.
+
+Debug Steps to Isolate the Issue
+Comment Out the Store: Temporarily remove or mock out the line:
+
+tsx
+Copy
+const priceHistory = useTokenPriceStore(...);
+Replace it with a static array or empty array. If the infinite loop goes away, you know the culprit is definitely in how your store or data fetching is done.
+
+Add Logging:
+
+tsx
+Copy
+console.log('Rendering TokenChart', { priceHistory });
+Watch the logs. If you see the component re-rendering continuously, see if priceHistory is changing every time or if some parent prop is changing.
+
+Check the Store: If you do:
+
+tsx
+Copy
+useTokenPriceStore.subscribe((state) => {
+  console.log("Store updated: ", state);
+});
+and see it spamming your console, that’s a sign the store’s state is being updated constantly.
+
+TL;DR: Most Likely the Store Is Still the Problem
+Even though you have updated the component, the store might be fetching or setting state every render. Fix it by caching the data in the store properly and only fetching once per (tokenAddress, selectedTimeframe). That is almost always the cause of the “Maximum update depth exceeded” error in a chart + store setup. Once you ensure the store is stable and does not continuously update, your chart code should stop hitting the infinite loop.
