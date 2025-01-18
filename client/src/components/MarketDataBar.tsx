@@ -1,35 +1,45 @@
 import { FC, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ArrowUp, ArrowDown } from "lucide-react";
 
-interface GlobalData {
+interface MarketData {
   data: {
-    active_cryptocurrencies: number;
-    markets: number;
-    total_market_cap: {
-      usd: number;
-    };
-    market_cap_change_percentage_24h_usd: number;
-    total_volume: {
-      usd: number;
-    };
-    market_cap_percentage: {
-      btc: number;
-      eth: number;
-    };
+    ticker: Array<{
+      symbol: string;
+      last: string;
+      changeRate: string;
+      volValue: string;
+    }>;
   };
 }
 
 const MarketDataBar: FC = () => {
-  const { data, isLoading } = useQuery<GlobalData>({
-    queryKey: ['/api/global-metrics'],
+  const { data, isLoading } = useQuery<MarketData>({
+    queryKey: ['/api/coins/markets'],
     refetchInterval: 60000, // Refresh every minute
   });
 
-  const formatNumber = (num: number) => {
-    if (num >= 1e12) return `$${(num / 1e12).toFixed(2)}T`;
+  const formatPrice = (price: string | number) => {
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: numPrice < 1 ? 4 : 2,
+      maximumFractionDigits: numPrice < 1 ? 6 : 2,
+    }).format(numPrice);
+  };
+
+  const formatVolume = (volume: string | number) => {
+    const num = typeof volume === 'string' ? parseFloat(volume) : volume;
     if (num >= 1e9) return `$${(num / 1e9).toFixed(2)}B`;
     if (num >= 1e6) return `$${(num / 1e6).toFixed(2)}M`;
-    return `$${num.toLocaleString()}`;
+    if (num >= 1e3) return `$${(num / 1e3).toFixed(2)}K`;
+    return num.toFixed(2);
+  };
+
+  const formatChange = (change: string) => {
+    const numChange = parseFloat(change);
+    return `${numChange >= 0 ? '+' : ''}${(numChange * 100).toFixed(2)}%`;
   };
 
   if (isLoading || !data?.data) {
@@ -44,34 +54,55 @@ const MarketDataBar: FC = () => {
     );
   }
 
-  const marketData = data.data;
+  const tickers = data.data.ticker.filter(t => t.symbol.endsWith('-USDT'));
+  const totalVolume = tickers.reduce((sum, t) => sum + parseFloat(t.volValue), 0);
+  const topGainers = [...tickers]
+    .sort((a, b) => parseFloat(b.changeRate) - parseFloat(a.changeRate))
+    .slice(0, 3);
+  const topLosers = [...tickers]
+    .sort((a, b) => parseFloat(a.changeRate) - parseFloat(b.changeRate))
+    .slice(0, 3);
 
   return (
-    <div className="w-full bg-black/50 backdrop-blur-sm border-b border-purple-800/20 py-1">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-8 text-sm overflow-x-auto">
-          <div className="text-gray-400 whitespace-nowrap">
-            Coins: <span className="text-white">{marketData.active_cryptocurrencies.toLocaleString()}</span>
+    <div className="w-full bg-black/50 backdrop-blur-sm border-b border-purple-800/20 py-1 overflow-hidden">
+      <div className="animate-marquee whitespace-nowrap">
+        <div className="inline-flex gap-8 px-4">
+          <div className="text-gray-400">
+            24h Volume: <span className="text-white">{formatVolume(totalVolume)}</span>
           </div>
-          <div className="text-gray-400 whitespace-nowrap">
-            Exchanges: <span className="text-white">{marketData.markets.toLocaleString()}</span>
+
+          <div className="text-gray-400">
+            Top Gainers:{" "}
+            {topGainers.map((t, i) => (
+              <span key={t.symbol} className={i !== 0 ? "ml-2" : ""}>
+                <span className="text-white">{t.symbol.replace('-USDT', '')}</span>
+                <span className="text-green-400 ml-1">{formatChange(t.changeRate)}</span>
+              </span>
+            ))}
           </div>
-          <div className="text-gray-400 whitespace-nowrap">
-            Market Cap:{" "}
-            <span className={`${marketData.market_cap_change_percentage_24h_usd >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {formatNumber(marketData.total_market_cap.usd)}{" "}
-              {marketData.market_cap_change_percentage_24h_usd >= 0 ? "▲" : "▼"}{" "}
-              {Math.abs(marketData.market_cap_change_percentage_24h_usd).toFixed(1)}%
-            </span>
+
+          <div className="text-gray-400">
+            Top Losers:{" "}
+            {topLosers.map((t, i) => (
+              <span key={t.symbol} className={i !== 0 ? "ml-2" : ""}>
+                <span className="text-white">{t.symbol.replace('-USDT', '')}</span>
+                <span className="text-red-400 ml-1">{formatChange(t.changeRate)}</span>
+              </span>
+            ))}
           </div>
-          <div className="text-gray-400 whitespace-nowrap">
-            24h Vol: <span className="text-white">{formatNumber(marketData.total_volume.usd)}</span>
-          </div>
-          <div className="text-gray-400 whitespace-nowrap">
-            BTC: <span className="text-white">{marketData.market_cap_percentage.btc.toFixed(1)}%</span>
-          </div>
-          <div className="text-gray-400 whitespace-nowrap">
-            ETH: <span className="text-white">{marketData.market_cap_percentage.eth.toFixed(1)}%</span>
+
+          <div className="text-gray-400">
+            Market Leaders:{" "}
+            {tickers
+              .filter(t => ['BTC-USDT', 'ETH-USDT'].includes(t.symbol))
+              .map((t, i) => (
+                <span key={t.symbol} className={i !== 0 ? "ml-2" : ""}>
+                  <span className="text-white">{t.symbol.replace('-USDT', '')}</span>
+                  <span className={`ml-1 ${parseFloat(t.changeRate) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {formatChange(t.changeRate)}
+                  </span>
+                </span>
+              ))}
           </div>
         </div>
       </div>
