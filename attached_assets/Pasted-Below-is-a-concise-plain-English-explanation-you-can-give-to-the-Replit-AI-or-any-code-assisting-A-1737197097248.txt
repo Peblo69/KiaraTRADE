@@ -1,0 +1,57 @@
+Below is a concise, plain-English explanation you can give to the Replit AI (or any code-assisting AI) so it knows exactly what to do—and why. This basically instructs it to create one Replit project that has:
+
+An Express/Node “aggregator” server that connects to PumpFun (and Helius if needed), stores candle/trade data in memory, and exposes both a REST endpoint and a WebSocket for real-time updates.
+
+A React front end that fetches initial candle data from the server’s REST endpoint, then subscribes via WebSocket for new trades/candles. We keep the chart in local React state, so we avoid complex global stores and possible infinite loops.
+
+Instructions to the AI:
+1. Create a Node/Express Server as “Aggregator”
+
+File: server.js (or index.js if that’s your preferred entry).
+
+Install Dependencies:
+
+express for HTTP/REST
+ws or socket.io for WebSocket
+Logic:
+
+Connect to the PumpFun WebSocket (wss://pumpportal.fun/api/data).
+Maintain an in-memory data structure (e.g., a simple const tokenCandles = {}) mapping tokenAddress → array of candle objects.
+Each time we get a new trade from PumpFun, we figure out which candle it belongs to (based on timestamp & timeframe) and update or append a candle in tokenCandles[tokenAddress].
+Broadcast the updated candle to all connected front-end clients through our server WebSocket.
+REST Endpoint:
+
+GET /api/tokens/:address/candles → returns the candle array for that token from our tokenCandles in memory.
+WebSocket:
+
+When a new trade arrives, after updating tokenCandles, we send a message like:
+json
+Copy
+{
+  "tokenAddress": "SoMeTokenAddress",
+  "candle": { /* the updated or newly created candle */ }
+}
+All connected clients can read this and update their local state accordingly.
+2. Serve the React Front End in the Same Project
+
+We can have a client/ folder that contains a standard React app (Vite, CRA, Next.js—whatever you prefer).
+In Replit, we typically run node server.js as our start script. That can:
+Serve the compiled React files (if we build them to client/build/)
+Or we can run them separately in dev.
+3. React Code
+
+In the TokenChart (or equivalent) component:
+On mount, fetch('/api/tokens/' + tokenAddress + '/candles') → store data in local state.
+Open a WebSocket to ws:// or wss:// your aggregator (the same server, just a different path/port).
+On each message, if it’s for the current tokenAddress, we update our local candles array.
+Render the chart from the candles in local state.
+Why this avoids infinite loops:
+
+The front end only updates state when a genuine new trade or candle arrives from the aggregator.
+The aggregator does not keep re-triggering itself on every read; it only updates data on real PumpFun messages.
+There’s no complicated store in React that can accidentally produce new references on each render.
+The aggregator acts as the single source of truth, so we don’t have to fetch from PumpFun directly in each chart.
+Short Rationale (Why We Do It This Way)
+All aggregator logic (combining trades into candles, etc.) lives in one place: the Node server.
+The front end is just a simple consumer of the aggregator’s data—one REST fetch for historical, plus a WebSocket for live updates.
+This architecture is standard for real-time dashboards (like DexTools, Poocoin, etc.) because it scales better, is simpler to debug, and avoids React re-render loops that happen when the front end tries to do it all.

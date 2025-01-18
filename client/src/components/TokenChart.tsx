@@ -1,86 +1,83 @@
 import { useState, useRef, useEffect } from 'react';
 import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
-import { useTokenPriceStore } from '@/lib/price-history';
-import { pumpFunSocket } from '@/lib/pumpfun-websocket';
 
 interface TokenChartProps {
   tokenAddress: string;
   height?: number;
 }
 
+interface Candle {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
 export default function TokenChart({ tokenAddress, height = 400 }: TokenChartProps) {
-  const [candles, setCandles] = useState<any[]>([]);
+  const [candles, setCandles] = useState<Candle[]>([]);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const candlestickSeries = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeries = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const ws = useRef<WebSocket | null>(null);
 
   // Load initial data and setup WebSocket
   useEffect(() => {
     console.log('[TokenChart] Loading initial data for token:', tokenAddress);
 
-    // Get initial price data
-    const initialData = useTokenPriceStore.getState().getPriceHistory(tokenAddress, '5m');
-    console.log('[TokenChart] Initial data from store:', initialData);
-
-    if (initialData && initialData.length > 0) {
-      console.log('[TokenChart] Setting initial candles:', initialData);
-      setCandles(initialData);
-    } else {
-      console.log('[TokenChart] No initial data available');
-      // Create initial candle with current time
-      const currentTime = Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000);
-      setCandles([{
-        timestamp: currentTime,
-        open: 0,
-        high: 0,
-        low: 0,
-        close: 0,
-        volume: 0
-      }]);
-    }
-
-    // Connect to WebSocket
-    pumpFunSocket.connect();
-
-    // Subscribe to updates
-    const unsubscribe = pumpFunSocket.subscribe((data) => {
-      console.log('[TokenChart] Received update:', data);
-      if (data.address !== tokenAddress) return;
-
-      setCandles(prevCandles => {
-        const currentTime = Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000);
-        const lastCandle = prevCandles[prevCandles.length - 1];
-
-        // Update existing candle if in same time window
-        if (lastCandle && Math.floor(lastCandle.timestamp / (5 * 60 * 1000)) === Math.floor(currentTime / (5 * 60 * 1000))) {
-          const updatedCandle = {
-            ...lastCandle,
-            high: Math.max(lastCandle.high, data.price),
-            low: Math.min(lastCandle.low, data.price),
-            close: data.price,
-            volume: lastCandle.volume + (data.volume || 0)
-          };
-          return [...prevCandles.slice(0, -1), updatedCandle];
-        }
-
-        // Create new candle
-        const newCandle = {
-          timestamp: currentTime,
-          open: data.price,
-          high: data.price,
-          low: data.price,
-          close: data.price,
-          volume: data.volume || 0
-        };
-
-        return [...prevCandles, newCandle];
+    // Fetch initial candle data
+    fetch(`/api/tokens/${tokenAddress}/candles`)
+      .then(res => res.json())
+      .then(data => {
+        console.log('[TokenChart] Initial candle data:', data);
+        setCandles(data);
+      })
+      .catch(error => {
+        console.error('[TokenChart] Error fetching initial data:', error);
       });
-    });
+
+    // Connect to aggregator WebSocket
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}`;
+    ws.current = new WebSocket(wsUrl);
+
+    ws.current.onopen = () => {
+      console.log('[TokenChart] Connected to aggregator WebSocket');
+    };
+
+    ws.current.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'candle_update' && data.tokenAddress === tokenAddress) {
+          console.log('[TokenChart] Received candle update:', data.candle);
+          setCandles(prevCandles => {
+            const updatedCandles = [...prevCandles];
+            const existingIndex = updatedCandles.findIndex(
+              c => c.timestamp === data.candle.timestamp
+            );
+
+            if (existingIndex >= 0) {
+              updatedCandles[existingIndex] = data.candle;
+            } else {
+              updatedCandles.push(data.candle);
+            }
+
+            return updatedCandles.sort((a, b) => a.timestamp - b.timestamp);
+          });
+        }
+      } catch (error) {
+        console.error('[TokenChart] Error processing WebSocket message:', error);
+      }
+    };
 
     return () => {
-      unsubscribe();
+      if (ws.current) {
+        ws.current.close();
+        ws.current = null;
+      }
     };
   }, [tokenAddress]);
 
@@ -175,7 +172,7 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
     console.log('[TokenChart] Updating chart with candles:', candles);
 
     const chartData = candles.map(candle => ({
-      time: Math.floor(candle.timestamp / 1000),
+      time: candle.timestamp / 1000,
       open: candle.open,
       high: candle.high,
       low: candle.low,
@@ -183,21 +180,19 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
     }));
 
     const volumeData = candles.map(candle => ({
-      time: Math.floor(candle.timestamp / 1000),
+      time: candle.timestamp / 1000,
       value: candle.volume,
       color: candle.close >= candle.open ? 
         'rgba(38, 166, 154, 0.5)' : 
         'rgba(239, 83, 80, 0.5)'
     }));
 
-    console.log('[TokenChart] Setting chart data:', { chartData, volumeData });
-
     candlestickSeries.current.setData(chartData);
     volumeSeries.current.setData(volumeData);
 
     // Set visible range to last hour
-    if (chart.current) {
-      const lastTimestamp = Math.floor(candles[candles.length - 1].timestamp / 1000);
+    if (chart.current && candles.length > 0) {
+      const lastTimestamp = candles[candles.length - 1].timestamp / 1000;
       chart.current.timeScale().setVisibleRange({
         from: lastTimestamp - 3600,
         to: lastTimestamp
