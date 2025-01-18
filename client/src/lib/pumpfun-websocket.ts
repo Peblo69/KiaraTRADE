@@ -83,10 +83,21 @@ class PumpFunWebSocket {
 
   private cleanup() {
     if (this.ws) {
+      // Remove event listeners first
       this.ws.onopen = null;
       this.ws.onmessage = null;
       this.ws.onclose = null;
       this.ws.onerror = null;
+
+      // Only attempt to close if the connection is still open
+      if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+        try {
+          this.ws.close();
+        } catch (error) {
+          console.error('[PumpFun] Error closing WebSocket:', error);
+        }
+      }
+
       this.ws = null;
     }
   }
@@ -114,10 +125,7 @@ class PumpFunWebSocket {
       this.reconnectTimeout = null;
     }
 
-    if (this.ws) {
-      this.cleanup();
-      this.ws.close();
-    }
+    this.cleanup();
   }
 }
 
