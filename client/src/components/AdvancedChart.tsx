@@ -19,6 +19,10 @@ type TimeFrame = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w';
 export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const candlestickSeriesRef = useRef<any>(null);
+  const volumeSeriesRef = useRef<any>(null);
+  const updateIntervalRef = useRef<any>(null);
+  const lastKlineRef = useRef<any>(null);
   const [timeframe, setTimeframe] = useState<TimeFrame>('1d');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -72,53 +76,102 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
     });
 
     chartRef.current = chart;
+    candlestickSeriesRef.current = candlestickSeries;
+    volumeSeriesRef.current = volumeSeries;
 
-    // Load chart data
-    const loadChartData = async () => {
-      setIsLoading(true);
+    // Load initial chart data
+    const loadChartData = async (isUpdate = false) => {
+      if (!isUpdate) setIsLoading(true);
       try {
         const response = await fetch(`/api/coins/${symbol}/klines?timeframe=${timeframe}`);
         if (!response.ok) throw new Error('Failed to fetch chart data');
 
         const data = await response.json();
-        console.log('Received klines data:', data);
 
         if (!data.klines || !data.klines.length) {
           console.warn('No klines data received');
           return;
         }
 
-        // Set candlestick data
-        candlestickSeries.setData(data.klines);
+        // For updates, only add new klines
+        if (isUpdate && lastKlineRef.current) {
+          const lastTime = lastKlineRef.current.time;
+          const newKlines = data.klines.filter((k: any) => k.time > lastTime);
 
-        // Set volume data
-        const volumeData = data.klines.map((k: any) => ({
-          time: k.time,
-          value: k.volume,
-          color: k.close >= k.open 
-            ? 'rgba(38, 166, 154, 0.5)' // Green for up candles
-            : 'rgba(239, 83, 80, 0.5)'  // Red for down candles
-        }));
-        volumeSeries.setData(volumeData);
+          if (newKlines.length > 0) {
+            // Update the last kline (it might have changed)
+            candlestickSeriesRef.current.update(data.klines[data.klines.length - 2]);
+            // Add the new kline
+            candlestickSeriesRef.current.update(data.klines[data.klines.length - 1]);
 
-        // Fit content
-        chart.timeScale().fitContent();
+            // Update volume for the new klines
+            const volumeUpdates = newKlines.map((k: any) => ({
+              time: k.time,
+              value: k.volume,
+              color: k.close >= k.open 
+                ? 'rgba(38, 166, 154, 0.5)' // Green for up candles
+                : 'rgba(239, 83, 80, 0.5)'  // Red for down candles
+            }));
+            volumeUpdates.forEach(update => volumeSeriesRef.current.update(update));
+          }
+        } else {
+          // Initial load or timeframe change
+          candlestickSeriesRef.current.setData(data.klines);
+
+          const volumeData = data.klines.map((k: any) => ({
+            time: k.time,
+            value: k.volume,
+            color: k.close >= k.open 
+              ? 'rgba(38, 166, 154, 0.5)' // Green for up candles
+              : 'rgba(239, 83, 80, 0.5)'  // Red for down candles
+          }));
+          volumeSeriesRef.current.setData(volumeData);
+
+          // Fit content on initial load
+          chart.timeScale().fitContent();
+        }
+
+        // Store the last kline for future updates
+        lastKlineRef.current = data.klines[data.klines.length - 1];
       } catch (error) {
         console.error('Failed to load chart data:', error);
       } finally {
-        setIsLoading(false);
+        if (!isUpdate) setIsLoading(false);
       }
     };
 
+    // Load initial data
     loadChartData();
+
+    // Set up periodic updates
+    const updateInterval = getUpdateInterval(timeframe);
+    updateIntervalRef.current = setInterval(() => loadChartData(true), updateInterval);
 
     window.addEventListener('resize', handleResize);
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      if (updateIntervalRef.current) {
+        clearInterval(updateIntervalRef.current);
+      }
       chart.remove();
     };
   }, [symbol, timeframe]);
+
+  // Get appropriate update interval based on timeframe
+  const getUpdateInterval = (tf: TimeFrame): number => {
+    switch (tf) {
+      case '1m': return 5000;  // 5 seconds
+      case '5m': return 10000; // 10 seconds
+      case '15m': return 15000; // 15 seconds
+      case '30m': return 20000; // 20 seconds
+      case '1h': return 30000; // 30 seconds
+      case '4h': return 60000; // 1 minute
+      case '1d': return 300000; // 5 minutes
+      case '1w': return 900000; // 15 minutes
+      default: return 30000;
+    }
+  };
 
   const timeframes: { value: TimeFrame; label: string }[] = [
     { value: '1m', label: '1 minute' },
