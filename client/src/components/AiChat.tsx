@@ -22,10 +22,20 @@ export default function AiChat() {
   const [sessionId] = useState(() => nanoid());
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scroll effect when messages change or typing status changes
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
-    }
+    const scrollToBottom = () => {
+      if (scrollAreaRef.current) {
+        const scrollElement = scrollAreaRef.current;
+        scrollElement.scrollTop = scrollElement.scrollHeight;
+      }
+    };
+
+    // Scroll immediately and also after a small delay to ensure content is rendered
+    scrollToBottom();
+    const timeoutId = setTimeout(scrollToBottom, 100);
+
+    return () => clearTimeout(timeoutId);
   }, [messages, isTyping]);
 
   const sendMessage = async () => {
@@ -80,7 +90,10 @@ export default function AiChat() {
         </div>
       </div>
 
-      <ScrollArea className="flex-grow px-4 py-2 min-h-0" ref={scrollAreaRef}>
+      <ScrollArea 
+        className="flex-grow px-4 py-2 min-h-0 overflow-y-auto" 
+        ref={scrollAreaRef}
+      >
         <div className="space-y-4">
           {messages.map((msg, i) => (
             <div
