@@ -16,8 +16,8 @@ const ProjectPage: FC = () => {
         console.log('[BitQuery] Making OAuth token request...');
         const formData = new URLSearchParams({
           'grant_type': 'client_credentials',
-          'client_id': "9f7d5c2f-8291-40b8-b959-d61c12a31e24",
-          'client_secret': ".HYVwV8z.JuuW8SIlTgwj9g~ms",
+          'client_id': "95f0827e-0b00-411c-95d1-47cdf50d0f05",
+          'client_secret': "mhLJHdYtE7D5PLjR9otGLkhzJZ",
           'scope': 'api'
         });
 
