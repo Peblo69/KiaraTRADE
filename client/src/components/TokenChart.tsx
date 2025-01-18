@@ -1,4 +1,4 @@
-import { FC, useEffect, useRef } from 'react';
+import { FC, useEffect, useRef, useCallback } from 'react';
 import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import { useTokenPriceStore, TIMEFRAMES } from '@/lib/price-history';
@@ -15,20 +15,26 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, height = 400 }) => {
   const candlestickSeries = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeries = useRef<ISeriesApi<"Histogram"> | null>(null);
 
-  // Get initial price data from the store
-  const priceHistory = useTokenPriceStore(state => 
-    state.getPriceHistory(tokenAddress, '5m')
+  // Memoize selectors to prevent unnecessary re-renders
+  const getPriceHistory = useCallback(
+    (state: ReturnType<typeof useTokenPriceStore.getState>) => 
+      state.getPriceHistory(tokenAddress, '5m'),
+    [tokenAddress]
   );
 
-  // Subscribe to token updates
-  const token = usePumpPortalStore(state => 
-    state.tokens.find(t => t.address === tokenAddress)
+  const getToken = useCallback(
+    (state: ReturnType<typeof usePumpPortalStore.getState>) => 
+      state.tokens.find(t => t.address === tokenAddress),
+    [tokenAddress]
   );
 
+  const priceHistory = useTokenPriceStore(getPriceHistory);
+  const token = usePumpPortalStore(getToken);
+
+  // Initialize chart once
   useEffect(() => {
-    if (!chartContainerRef.current || !tokenAddress) return;
+    if (!chartContainerRef.current || !tokenAddress || chart.current) return;
 
-    // Initialize chart
     chart.current = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
       height,
@@ -63,7 +69,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, height = 400 }) => {
       },
     });
 
-    // Add candlestick series
     candlestickSeries.current = chart.current.addCandlestickSeries({
       upColor: '#26a69a',
       downColor: '#ef5350',
@@ -72,7 +77,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, height = 400 }) => {
       wickDownColor: '#ef5350',
     });
 
-    // Add volume series
     volumeSeries.current = chart.current.addHistogramSeries({
       color: '#26a69a',
       priceFormat: {
@@ -87,36 +91,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, height = 400 }) => {
         bottom: 0,
       },
     });
-
-    // Set initial data
-    if (priceHistory.length > 0) {
-      candlestickSeries.current.setData(
-        priceHistory.map(candle => ({
-          time: candle.timestamp / 1000,
-          open: candle.open,
-          high: candle.high,
-          low: candle.low,
-          close: candle.close
-        }))
-      );
-
-      volumeSeries.current.setData(
-        priceHistory.map(candle => ({
-          time: candle.timestamp / 1000,
-          value: candle.volume,
-          color: candle.close >= candle.open ? 
-            'rgba(38, 166, 154, 0.5)' : 
-            'rgba(239, 83, 80, 0.5)'
-        }))
-      );
-
-      // Set visible range to last hour
-      const lastTimestamp = priceHistory[priceHistory.length - 1].timestamp / 1000;
-      chart.current.timeScale().setVisibleRange({
-        from: lastTimestamp - 3600, // 1 hour ago
-        to: lastTimestamp
-      });
-    }
 
     // Handle resize
     const handleResize = () => {
@@ -133,35 +107,45 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, height = 400 }) => {
       window.removeEventListener('resize', handleResize);
       if (chart.current) {
         chart.current.remove();
+        chart.current = null;
       }
     };
-  }, [height, tokenAddress, priceHistory]);
+  }, [height, tokenAddress]);
 
-  // Update chart when new price data comes in
+  // Update data when price history changes
   useEffect(() => {
-    if (!token || !candlestickSeries.current || !volumeSeries.current) return;
+    if (!candlestickSeries.current || !volumeSeries.current || !priceHistory.length) return;
 
-    const lastCandle = priceHistory[priceHistory.length - 1];
-    if (!lastCandle) return;
+    // Update all data at once instead of individual updates
+    candlestickSeries.current.setData(
+      priceHistory.map(candle => ({
+        time: Math.floor(candle.timestamp / 1000),
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close
+      }))
+    );
 
-    // Update latest candle
-    candlestickSeries.current.update({
-      time: lastCandle.timestamp / 1000,
-      open: lastCandle.open,
-      high: lastCandle.high,
-      low: lastCandle.low,
-      close: lastCandle.close
-    });
+    volumeSeries.current.setData(
+      priceHistory.map(candle => ({
+        time: Math.floor(candle.timestamp / 1000),
+        value: candle.volume,
+        color: candle.close >= candle.open ? 
+          'rgba(38, 166, 154, 0.5)' : 
+          'rgba(239, 83, 80, 0.5)'
+      }))
+    );
 
-    volumeSeries.current.update({
-      time: lastCandle.timestamp / 1000,
-      value: lastCandle.volume,
-      color: lastCandle.close >= lastCandle.open ? 
-        'rgba(38, 166, 154, 0.5)' : 
-        'rgba(239, 83, 80, 0.5)'
-    });
-
-  }, [token, priceHistory]);
+    // Set visible range to last hour
+    if (chart.current && priceHistory.length > 0) {
+      const lastTimestamp = Math.floor(priceHistory[priceHistory.length - 1].timestamp / 1000);
+      chart.current.timeScale().setVisibleRange({
+        from: lastTimestamp - 3600,
+        to: lastTimestamp
+      });
+    }
+  }, [priceHistory]);
 
   const currentPrice = token?.price ? `$${token.price.toFixed(6)}` : 'Loading...';
   const priceChange = token?.priceChange24h ? `${token.priceChange24h.toFixed(2)}%` : '';
