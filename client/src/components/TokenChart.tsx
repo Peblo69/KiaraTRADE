@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import { useTokenPriceStore } from '@/lib/price-history';
@@ -18,6 +18,7 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
   // Load initial data once
   useEffect(() => {
     const initialData = useTokenPriceStore.getState().getPriceHistory(tokenAddress, '5m');
+    console.log('[TokenChart] Initial data from store:', initialData);
     setCandles(initialData);
   }, [tokenAddress]);
 
@@ -25,6 +26,7 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
   useEffect(() => {
     if (!chartContainerRef.current || chart.current) return;
 
+    console.log('[TokenChart] Initializing chart');
     chart.current = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
       height,
@@ -103,15 +105,22 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
 
   // Subscribe to WebSocket for real-time updates
   useEffect(() => {
+    console.log('[TokenChart] Setting up WebSocket connection');
     const ws = new WebSocket('wss://pumpportal.fun/api/data');
+
+    ws.onopen = () => {
+      console.log('[TokenChart] WebSocket connected');
+    };
 
     ws.onmessage = (event) => {
       const trade = JSON.parse(event.data);
+      console.log('[TokenChart] Received trade:', trade);
 
       // Only process trades for our token
       if (trade.mint !== tokenAddress) return;
 
       setCandles(prevCandles => {
+        console.log('[TokenChart] Updating candles with trade:', trade);
         const currentTime = Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000);
         const currentCandle = prevCandles[prevCandles.length - 1];
 
@@ -140,32 +149,51 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
       });
     };
 
+    ws.onerror = (error) => {
+      console.error('[TokenChart] WebSocket error:', error);
+    };
+
+    ws.onclose = () => {
+      console.log('[TokenChart] WebSocket closed');
+    };
+
     return () => ws.close();
   }, [tokenAddress]);
 
   // Update chart when candles change
   useEffect(() => {
-    if (!candlestickSeries.current || !volumeSeries.current || !candles.length) return;
+    if (!candlestickSeries.current || !volumeSeries.current) {
+      console.log('[TokenChart] Chart series not initialized yet');
+      return;
+    }
 
-    candlestickSeries.current.setData(
-      candles.map(candle => ({
-        time: Math.floor(candle.timestamp / 1000),
-        open: candle.open,
-        high: candle.high,
-        low: candle.low,
-        close: candle.close
-      }))
-    );
+    if (!candles.length) {
+      console.log('[TokenChart] No candle data available');
+      return;
+    }
 
-    volumeSeries.current.setData(
-      candles.map(candle => ({
-        time: Math.floor(candle.timestamp / 1000),
-        value: candle.volume,
-        color: candle.close >= candle.open ? 
-          'rgba(38, 166, 154, 0.5)' : 
-          'rgba(239, 83, 80, 0.5)'
-      }))
-    );
+    console.log('[TokenChart] Updating chart with candles:', candles);
+
+    const chartData = candles.map(candle => ({
+      time: Math.floor(candle.timestamp / 1000),
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close
+    }));
+
+    const volumeData = candles.map(candle => ({
+      time: Math.floor(candle.timestamp / 1000),
+      value: candle.volume,
+      color: candle.close >= candle.open ? 
+        'rgba(38, 166, 154, 0.5)' : 
+        'rgba(239, 83, 80, 0.5)'
+    }));
+
+    console.log('[TokenChart] Setting chart data:', { chartData, volumeData });
+
+    candlestickSeries.current.setData(chartData);
+    volumeSeries.current.setData(volumeData);
 
     // Set visible range to last hour
     if (chart.current) {

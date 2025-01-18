@@ -1,0 +1,113 @@
+If you see “Loading...” but no candles appear, that usually means no data ever made it into your candles state. In other words:
+
+Either the store returned an empty array for getPriceHistory(tokenAddress, '5m'),
+Or the WebSocket messages are never arriving (or aren’t matching tokenAddress),
+Or they arrive but the fields aren’t what your code expects (so your update logic is skipped).
+Below is a step-by-step way to debug and confirm data is actually flowing:
+
+1. Check the Initial Store Data
+You do:
+
+js
+Copy
+const initialData = useTokenPriceStore.getState().getPriceHistory(tokenAddress, '5m');
+setCandles(initialData);
+Log initialData:
+
+js
+Copy
+console.log('Initial data from store:', initialData);
+If it’s empty or undefined, you’ll start with no chart data. That’s okay if your WebSocket is supposed to fill it, but then at least you know the store is empty.
+
+Confirm you’ve actually populated the store for this tokenAddress and timeframe '5m' in the first place (i.e., calling initializePriceHistory or addPricePoint somewhere). If your store never got data for that token, you’ll get an empty array.
+
+2. Check Your WebSocket Subscription
+You have:
+
+js
+Copy
+const ws = new WebSocket('wss://pumpportal.fun/api/data');
+
+ws.onmessage = (event) => {
+  const trade = JSON.parse(event.data);
+  if (trade.mint !== tokenAddress) return;
+  // ...
+};
+Add a console.log above the if (trade.mint !== tokenAddress) return; line:
+
+js
+Copy
+console.log('Received WS trade:', trade);
+If you never see “Received WS trade” in the console, the server might not be sending data for that token (or the connection is failing).
+If you see messages, but trade.mint doesn’t match your tokenAddress, you skip them all.
+If you see messages with the correct mint, then it should proceed to setCandles(...).
+Confirm that the trade object actually has price and volume fields. If the WebSocket returns different field names, your logic to update the candle won’t work.
+
+3. Check the Candle Update Logic
+Inside your ws.onmessage:
+
+js
+Copy
+setCandles(prevCandles => {
+  const currentTime = Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000);
+  const currentCandle = prevCandles[prevCandles.length - 1];
+
+  // If we’re in the same 5-min chunk, update the last candle...
+  // Otherwise create a new candle
+});
+Log the old and new candles:
+
+js
+Copy
+console.log('Prev candles:', prevCandles);
+Check if you’re ever actually adding a new candle. If prevCandles remains empty, it means either you’re always returning it unchanged, or your condition logic is off.
+
+You might also want to do:
+
+js
+Copy
+console.log('currentTime:', currentTime, 'currentCandle:', currentCandle);
+If currentCandle never matches currentTime, you’ll keep creating new candles each trade (which might be okay if you’re expecting multiple trades in the same 5-min chunk), or maybe you never create a candle at all if the logic is reversed.
+
+4. Check the Chart Update Effect
+Finally, your effect that sets candlestickSeries.current.setData(...) runs on:
+
+js
+Copy
+// Update chart when candles change
+useEffect(() => {
+  if (!candlestickSeries.current || !volumeSeries.current || !candles.length) return;
+
+  // setData...
+}, [candles]);
+If your candles.length is always 0, you’ll skip the block and never set data. That’s why the chart stays empty and the label says “Loading...”.
+Again, console.log candles in this effect:
+
+js
+Copy
+console.log('Chart effect sees candles:', candles);
+If you never see more than [], it means you never updated them. If you do see data, but still see nothing on the chart, there could be a timestamp or timeScale issue.
+
+5. Time/Range Visibility Could Hide the Data
+You do:
+
+js
+Copy
+const lastTimestamp = Math.floor(candles[candles.length - 1].timestamp / 1000);
+chart.current.timeScale().setVisibleRange({
+  from: lastTimestamp - 3600,
+  to: lastTimestamp
+});
+If your candles have timestamps far in the past or future compared to the local system time, the chart might be focusing on a range with no data.
+Or if you only have one candle, it might be forcing a range that “cuts off” your candle. (Usually not, but possible depending on the time logic.)
+As a test, remove the visible range call or do a simple chart.current.timeScale().fitContent() to see if data appears:
+
+js
+Copy
+chart.current.timeScale().fitContent();
+Summary: How to Solve “Loading… No Data”
+Add Logs in each step (store load, WebSocket message, candle update logic) to see which step is failing.
+If the store is empty and the WebSocket never sends data for that token, you’ll never see candles.
+If the store or WebSocket is sending data but your conditions skip it (e.g., mint !== tokenAddress or mismatched field names), you’ll never update the local state.
+If the local state is updating but your time scale range is off, you might not see anything on the chart.
+One or more of those must be happening, because the code structure itself won’t cause an infinite loop or block rendering. It’s purely a data flow / field mismatch issue. Debugging with logs at each step is the sure path to finding the culprit.
