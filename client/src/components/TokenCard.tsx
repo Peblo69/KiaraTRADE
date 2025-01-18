@@ -1,4 +1,4 @@
-import { FC, memo, useState } from "react";
+import { FC, memo, useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { SiSolana } from "react-icons/si";
 import { 
@@ -29,10 +29,27 @@ interface TokenCardProps {
 }
 
 const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
+  // Use selector hook only once and memoize the token data
   const token = useUnifiedTokenStore(state => state.getToken(tokenAddress));
   const [imageError, setImageError] = useState(false);
 
-  if (!token) return null;
+  // Memoize computed values
+  const displayValues = useMemo(() => {
+    if (!token) return null;
+
+    return {
+      marketCapUsd: formatNumber(token.marketCapSol * SOL_PRICE_USD, true),
+      marketCapSol: formatNumber(token.marketCapSol),
+      volumeUsd: formatNumber((token.volume24h || 0) * SOL_PRICE_USD, true),
+      volumeSol: formatNumber(token.volume24h || 0),
+      initialBuyUsd: formatNumber((token.solAmount || 0) * SOL_PRICE_USD, true),
+      initialBuySol: formatNumber(token.solAmount || 0),
+      priceUsd: `$${(token.price * SOL_PRICE_USD).toFixed(6)}`,
+      priceSol: token.price.toFixed(6)
+    };
+  }, [token]);
+
+  if (!token || !displayValues) return null;
 
   const handleImageError = () => {
     console.log(`[TokenCard] Image failed to load for token ${tokenAddress}, using fallback`);
@@ -41,7 +58,7 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
 
   const displayImageUrl = imageError ? 
     DEFAULT_TOKEN_IMAGE : 
-    `https://pumpfun.fun/i/${token.address}/image`;
+    token.imageUrl || `https://pumpfun.fun/i/${token.address}/image`;
 
   return (
     <Card className="p-4 bg-black/40 backdrop-blur-lg border border-gray-800 hover:border-blue-500/50 transition-all duration-300">
@@ -90,34 +107,26 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
               <Globe size={20} />
             </a>
           )}
-          {token.address && (
-            <>
-              <a 
-                href={`https://solscan.io/token/${token.address}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-blue-400 transition-colors"
-              >
-                <SiSolana size={20} />
-              </a>
-              <a 
-                href={`https://pump.fun/coin/${token.address}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-blue-400 transition-colors"
-              >
-                <img
-                  src={PUMPFUN_LOGO}
-                  alt="View on PumpFun"
-                  style={{
-                    width: '30px',
-                    height: '30px',
-                    objectFit: 'contain'
-                  }}
-                />
-              </a>
-            </>
-          )}
+          <a 
+            href={`https://solscan.io/token/${token.address}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gray-400 hover:text-blue-400 transition-colors"
+          >
+            <SiSolana size={20} />
+          </a>
+          <a 
+            href={`https://pump.fun/coin/${token.address}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gray-400 hover:text-blue-400 transition-colors"
+          >
+            <img
+              src={PUMPFUN_LOGO}
+              alt="View on PumpFun"
+              className="w-[30px] h-[30px] object-contain"
+            />
+          </a>
         </div>
       </div>
 
@@ -129,8 +138,8 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
               <span className="text-gray-400">Market Cap</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-white font-bold">{formatNumber(token.marketCapSol * SOL_PRICE_USD, true)}</span>
-              <span className="text-xs text-gray-500">{formatNumber(token.marketCapSol)} SOL</span>
+              <span className="text-white font-bold">{displayValues.marketCapUsd}</span>
+              <span className="text-xs text-gray-500">{displayValues.marketCapSol} SOL</span>
             </div>
           </div>
           <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
@@ -139,8 +148,8 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
               <span className="text-gray-400">Initial Buy</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-white font-bold">{formatNumber((token.solAmount || 0) * SOL_PRICE_USD, true)}</span>
-              <span className="text-xs text-gray-500">{formatNumber(token.solAmount || 0)} SOL</span>
+              <span className="text-white font-bold">{displayValues.initialBuyUsd}</span>
+              <span className="text-xs text-gray-500">{displayValues.initialBuySol} SOL</span>
             </div>
           </div>
         </div>
@@ -151,8 +160,8 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
               <span className="text-gray-400">Volume 24h</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-white font-bold">{formatNumber((token.volume24h || 0) * SOL_PRICE_USD, true)}</span>
-              <span className="text-xs text-gray-500">{formatNumber(token.volume24h || 0)} SOL</span>
+              <span className="text-white font-bold">{displayValues.volumeUsd}</span>
+              <span className="text-xs text-gray-500">{displayValues.volumeSol} SOL</span>
             </div>
           </div>
           <div className="p-2 bg-gray-900/50 rounded-lg backdrop-blur-sm">
@@ -161,8 +170,8 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
               <span className="text-gray-400">Price</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-white font-bold">${(token.price * SOL_PRICE_USD).toFixed(6)}</span>
-              <span className="text-xs text-gray-500">{token.price.toFixed(6)} SOL</span>
+              <span className="text-white font-bold">{displayValues.priceUsd}</span>
+              <span className="text-xs text-gray-500">{displayValues.priceSol} SOL</span>
             </div>
           </div>
         </div>
