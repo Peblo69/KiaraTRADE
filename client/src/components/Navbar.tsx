@@ -16,15 +16,18 @@ export default function Navbar() {
 
   // Update display info when wallet connection changes
   useEffect(() => {
-    if (!connected || !publicKey) {
-      setDisplayInfo({ text: 'Connect Wallet', shortAddress: '' });
-    } else {
-      const address = publicKey.toBase58();
-      setDisplayInfo({
-        text: '',
-        shortAddress: `${address.slice(0, 4)}...${address.slice(-4)}`
-      });
-    }
+    // Move state update logic to a callback to avoid render-time updates
+    const updateDisplayInfo = () => {
+      const newDisplayInfo = !connected || !publicKey 
+        ? { text: 'Connect Wallet', shortAddress: '' }
+        : { text: '', shortAddress: `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}` };
+
+      setDisplayInfo(newDisplayInfo);
+    };
+
+    // Execute the update asynchronously
+    const timeoutId = setTimeout(updateDisplayInfo, 0);
+    return () => clearTimeout(timeoutId);
   }, [connected, publicKey]);
 
   const handleWalletClick = useCallback(async () => {
@@ -132,7 +135,7 @@ export default function Navbar() {
             </div>
 
             <div className="hidden md:flex items-center space-x-4">
-              <Link href="/home"><Button variant="ghost">Home</Button></Link>
+              <Link href="/"><Button variant="ghost">Home</Button></Link>
               <Link href="/about"><Button variant="ghost">About Us</Button></Link>
               <Link href="/project"><Button variant="ghost">Project</Button></Link>
               <Link href="/kiara-stage-i">
@@ -161,14 +164,7 @@ export default function Navbar() {
                 onClick={handleWalletClick}
                 className={`${connected ? 'bg-green-500 hover:bg-green-600' : 'bg-purple-500 hover:bg-purple-600'} text-white`}
               >
-                {connected ? (
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse" />
-                    {displayInfo.shortAddress}
-                  </span>
-                ) : (
-                  displayInfo.text
-                )}
+                {displayInfo.shortAddress || displayInfo.text}
               </Button>
 
               <Button

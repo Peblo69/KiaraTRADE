@@ -1,2 +1,2 @@
-// Base WebSocket implementation will be added later
+// Base WebSocket implementation moved to unified-websocket.ts
 export {};

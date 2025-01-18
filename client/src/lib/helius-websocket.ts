@@ -1,2 +1,2 @@
-// Helius WebSocket implementation will be added later
+// We're no longer using Helius WebSocket
 export {};

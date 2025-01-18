@@ -1,15 +1,16 @@
 import { FC, useEffect } from 'react';
 import { useTokenStore } from '@/lib/unified-token-store';
+import { connectWebSocket, closeWebSocket } from '@/lib/unified-websocket';
 import TokenCard from './TokenCard';
 
 export const TokenList: FC = () => {
   const { tokens, isConnected, error, setConnected } = useTokenStore();
 
-  // Set initial connection status
+  // Connect to WebSocket when component mounts
   useEffect(() => {
-    setConnected(true);
-    return () => setConnected(false);
-  }, [setConnected]);
+    connectWebSocket();
+    return () => closeWebSocket();
+  }, []);
 
   // Convert tokens Map to array and sort by market cap
   const sortedTokens = Array.from(tokens.values())
@@ -28,13 +29,13 @@ export const TokenList: FC = () => {
       <div className="flex items-center gap-2 mb-4">
         <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
         <span className="text-sm text-gray-400">
-          {isConnected ? 'Ready' : 'Initializing'}
+          {isConnected ? 'Connected to PumpFun' : 'Connecting...'}
         </span>
       </div>
 
       {sortedTokens.length === 0 ? (
         <div className="text-center py-8 text-gray-400">
-          Token data will be available soon
+          Waiting for new tokens...
         </div>
       ) : (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
