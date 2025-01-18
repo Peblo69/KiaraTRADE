@@ -13,21 +13,40 @@ const ProjectPage: FC = () => {
     // Function to get OAuth token
     async function getAccessToken() {
       try {
+        console.log('[BitQuery] Making OAuth token request...');
+        const formData = new URLSearchParams({
+          'grant_type': 'client_credentials',
+          'client_id': "9f7d5c2f-8291-40b8-b959-d61c12a31e24",
+          'client_secret': ".HYVwV8z.JuuW8SIlTgwj9g~ms",
+          'scope': 'api'
+        });
+
+        // Simple network connectivity test
+        try {
+          await fetch('https://oauth2.bitquery.io/status');
+          console.log('[BitQuery] OAuth endpoint is reachable');
+        } catch (error) {
+          console.error('[BitQuery] OAuth endpoint connectivity test failed:', error);
+          throw new Error('OAuth endpoint is not reachable');
+        }
+
         const response = await fetch('https://oauth2.bitquery.io/oauth2/token', {
           method: 'POST',
           headers: {
+            'Accept': 'application/json',
             'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: new URLSearchParams({
-            'grant_type': 'client_credentials',
-            'client_id': "9f7d5c2f-8291-40b8-b959-d61c12a31e24",
-            'client_secret': ".HYVwV8z.JuuW8SIlTgwj9g~ms",
-            'scope': 'api'
-          })
+          body: formData
         });
 
+        // Log the response status and headers for debugging
+        console.log('[BitQuery] OAuth Response Status:', response.status);
+        console.log('[BitQuery] OAuth Response Headers:', [...response.headers.entries()]);
+
         if (!response.ok) {
-          throw new Error(`OAuth token request failed: ${response.statusText}`);
+          const text = await response.text();
+          console.error('[BitQuery] OAuth Error Response:', text);
+          throw new Error(`OAuth token request failed: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
