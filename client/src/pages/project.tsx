@@ -42,7 +42,7 @@ const ProjectPage: FC = () => {
       }, 10000);
 
       const client = createClient({
-        url: 'wss://streaming.bitquery.io/graphql',
+        url: 'wss://streaming.bitquery.io/eap',  // Changed back to the correct endpoint
         connectionParams: () => {
           console.log('[BitQuery] Setting up connection parameters...');
           return {
