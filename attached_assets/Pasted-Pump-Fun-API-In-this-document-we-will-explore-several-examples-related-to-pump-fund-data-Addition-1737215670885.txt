@@ -1,0 +1,1020 @@
+Pump Fun API
+In this document, we will explore several examples related to pump fund data. Additionally, we have the Moonshot API available, and you can access its documentation here. These APIs can be provided through different streams including Kafka for zero latency requirements. Please contact us on telegram.
+
+If you want fastest data without any latency, we can provide Kafka streams, please fill this form for it. Our Team will reach out.
+
+Top Pump Fun tokens based on Marketcap
+The PumpFun token has a total supply of 1 billion tokens. Therefore, the maximum price is directly related to the market cap, as market cap = Price * 1 billion (for PumpFun).
+
+Here’s the query to retrieve the top tokens based on their price.
+
+{
+  Solana {
+    DEXTrades(
+      limitBy: { by: Trade_Buy_Currency_MintAddress, count: 1 }
+      orderBy: { descending: Trade_Buy_Price }
+      where: {
+        Trade: {
+          Dex: { ProtocolName: { is: "pump" } }
+          Buy: {
+            Currency: {
+              MintAddress: { notIn: ["11111111111111111111111111111111"] }
+            }
+          }
+        }
+        Transaction: { Result: { Success: true } }
+      }
+    ) {
+      # All pump fun token has 1 billion supply,
+      # so multiply price * 1 billion to get marketcap
+      # results are already sorted by price
+      Trade {
+        Buy {
+          Price
+          PriceInUSD
+          Currency {
+            Name
+            Symbol
+            MintAddress
+            Decimals
+            Fungible
+            Uri
+          }
+        }
+      }
+    }
+  }
+}
+
+All Pumpfun Tokens crossed 10k Marketcap
+As all Pump Fun tokens have a 1 billion supply, based on the price itself, you can get all Pump Fun tokens that have crossed a sure market cap. Here is a query that gives all tokens that crossed the 10k marketcap.
+
+{
+  Solana {
+    DEXTrades(
+      limitBy: {count: 1, by: Trade_Buy_Currency_MintAddress}
+      limit: {count: 10}
+      orderBy: {descending: Trade_Buy_Price}
+      where: {Trade: {Buy: {Price: {gt: 0.000001}, Currency: {MintAddress: {notIn: ["11111111111111111111111111111111"]}}}, Dex: {ProtocolName: {is: "pump"}}}, Transaction: {Result: {Success: true}}}
+    ) {
+      Trade {
+        Buy {
+          Currency {
+            Name
+            Symbol
+            MintAddress
+            Decimals
+            Fungible
+            Uri
+          }
+        }
+        Sell {
+          Currency {
+            Name
+            Symbol
+            MintAddress
+            Decimals
+            Fungible
+            Uri
+          }
+        }
+      }
+    }
+  }
+}
+
+
+Pump Fun Trades in Real-Time
+The below query gets real-time information whenever there's a new trade on the Pump.fun including program method called , buy and sell details, details of the currencies involved, and the transaction specifics like signature. You can run the query here
+
+subscription MyQuery {
+  Solana {
+    DEXTrades(
+      where: {
+        Trade: { Dex: { ProtocolName: { is: "pump" } } }
+        Transaction: { Result: { Success: true } }
+      }
+    ) {
+      Instruction {
+        Program {
+          Method
+        }
+      }
+      Trade {
+        Dex {
+          ProtocolFamily
+          ProtocolName
+        }
+        Buy {
+          Amount
+          Account {
+            Address
+          }
+          Currency {
+            Name
+            Symbol
+            MintAddress
+            Decimals
+            Fungible
+            Uri
+          }
+        }
+        Sell {
+          Amount
+          Account {
+            Address
+          }
+          Currency {
+            Name
+            Symbol
+            MintAddress
+            Decimals
+            Fungible
+            Uri
+          }
+        }
+      }
+      Transaction {
+        Signature
+      }
+    }
+  }
+}
+
+Get Buy Volume, Sell Volume, Buys, Sells, Makers, Total Trade Volume, Buyers, Sellers of a specific Token
+The below query gives you the essential stats for a token such as buy volume, sell volume, total buys, total sells, makers, total trade volume, buyers, sellers (in last 5 min, 1 hour) of a specific token. You can run the query here
+
+query MyQuery($token: String!, $side_token: String!, $pair_address: String!, $time_5min_ago: DateTime!, $time_1h_ago: DateTime!) {
+  Solana(dataset: realtime) {
+    DEXTradeByTokens(
+      where: {Transaction: {Result: {Success: true}}, Trade: {Currency: {MintAddress: {is: $token}}, Side: {Currency: {MintAddress: {is: $side_token}}}, Market: {MarketAddress: {is: $pair_address}}}, Block: {Time: {since: $time_1h_ago}}}
+    ) {
+      Trade {
+        Currency {
+          Name
+          MintAddress
+          Symbol
+        }
+        start: PriceInUSD(minimum: Block_Time)
+        min5: PriceInUSD(
+          minimum: Block_Time
+          if: {Block: {Time: {after: $time_5min_ago}}}
+        )
+        end: PriceInUSD(maximum: Block_Time)
+        Dex {
+          ProtocolName
+          ProtocolFamily
+          ProgramAddress
+        }
+        Market {
+          MarketAddress
+        }
+        Side {
+          Currency {
+            Symbol
+            Name
+            MintAddress
+          }
+        }
+      }
+      makers: count(distinct: Transaction_Signer)
+      makers_5min: count(
+        distinct: Transaction_Signer
+        if: {Block: {Time: {after: $time_5min_ago}}}
+      )
+      buyers: count(
+        distinct: Transaction_Signer
+        if: {Trade: {Side: {Type: {is: buy}}}}
+      )
+      buyers_5min: count(
+        distinct: Transaction_Signer
+        if: {Trade: {Side: {Type: {is: buy}}}, Block: {Time: {after: $time_5min_ago}}}
+      )
+      sellers: count(
+        distinct: Transaction_Signer
+        if: {Trade: {Side: {Type: {is: sell}}}}
+      )
+      sellers_5min: count(
+        distinct: Transaction_Signer
+        if: {Trade: {Side: {Type: {is: sell}}}, Block: {Time: {after: $time_5min_ago}}}
+      )
+      trades: count
+      trades_5min: count(if: {Block: {Time: {after: $time_5min_ago}}})
+      traded_volume: sum(of: Trade_Side_AmountInUSD)
+      traded_volume_5min: sum(
+        of: Trade_Side_AmountInUSD
+        if: {Block: {Time: {after: $time_5min_ago}}}
+      )
+      buy_volume: sum(
+        of: Trade_Side_AmountInUSD
+        if: {Trade: {Side: {Type: {is: buy}}}}
+      )
+      buy_volume_5min: sum(
+        of: Trade_Side_AmountInUSD
+        if: {Trade: {Side: {Type: {is: buy}}}, Block: {Time: {after: $time_5min_ago}}}
+      )
+      sell_volume: sum(
+        of: Trade_Side_AmountInUSD
+        if: {Trade: {Side: {Type: {is: sell}}}}
+      )
+      sell_volume_5min: sum(
+        of: Trade_Side_AmountInUSD
+        if: {Trade: {Side: {Type: {is: sell}}}, Block: {Time: {after: $time_5min_ago}}}
+      )
+      buys: count(if: {Trade: {Side: {Type: {is: buy}}}})
+      buys_5min: count(
+        if: {Trade: {Side: {Type: {is: buy}}}, Block: {Time: {after: $time_5min_ago}}}
+      )
+      sells: count(if: {Trade: {Side: {Type: {is: sell}}}})
+      sells_5min: count(
+        if: {Trade: {Side: {Type: {is: sell}}}, Block: {Time: {after: $time_5min_ago}}}
+      )
+    }
+  }
+}
+{
+  "token":"2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump",
+  "side_token": ""So11111111111111111111111111111111111111112",
+  "pair_address: "4AZRPNEfCJ7iw28rJu5aUyeQhYcvdcNm8cswyL51AY9i",
+  "time_5min_ago":"2024-11-06T15:13:00Z",
+  "time_1h_ago": "2024-11-06T14:18:00Z"
+}
+
+
+Get Market Cap. Liquidity and Trade Volume for any Pump Fun Token
+This query returns important trade metrics like marketcap, liquidity and trade volume of a Pump Fun token for a time frame of one hour. This implies the results returns marketcap and liquidity 1 hour ago along with the traded volume in the last one hour. The volume and liquidity are returned against a token which is USDC in this case.
+
+
+query MyQuery($time_1h_ago: DateTime, $token: String, $side: String) {
+  Solana {
+    volume: DEXTradeByTokens(
+      where: {Trade: {Currency: {MintAddress: {is: $token}}, Side: {Currency: {MintAddress: {is: $side}}}}, Block: {Time: {since: $time_1h_ago}}}
+    ) {
+      sum(of: Trade_Side_AmountInUSD)
+    }
+    liquidity: DEXPools(
+      where: {Pool: {Market: {BaseCurrency: {MintAddress: {is: $token}}, QuoteCurrency: {MintAddress: {is: $side}}}}, Block: {Time: {till: $time_1h_ago}}}
+      limit: {count: 1}
+      orderBy: {descending: Block_Time}
+    ) {
+      Pool {
+        Base {
+          PostAmountInUSD
+        }
+      }
+    }
+    marketcap: TokenSupplyUpdates(
+      where: {TokenSupplyUpdate: {Currency: {MintAddress: {is: $token}}}, Block: {Time: {till: $time_1h_ago}}}
+      limitBy: {by: TokenSupplyUpdate_Currency_MintAddress, count: 1}
+      orderBy: {descending: Block_Time}
+    ) {
+      TokenSupplyUpdate {
+        PostBalanceInUSD
+        Currency {
+          Name
+          MintAddress
+          Symbol
+        }
+      }
+    }
+  }
+}
+
+
+
+These are the variables used for running this query.
+
+{
+  "time_1h_ago": "2025-01-10T10:07:00Z",
+  "token": "98mb39tPFKQJ4Bif8iVg9mYb9wsfPZgpgN1sxoVTpump",
+  "side": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+}
+
+Get Latest Trades for a Pump Fun Token
+The below query gets latest trades data of the specified Token FbhypAF9LL93bCZy9atRRfbdBMyJAwBarULfCK3roP93. You can run the query here
+
+query pumpfunTokenLatestTrades($token: String) {
+  Solana {
+    DEXTradeByTokens(
+      orderBy: {descending: Block_Time}
+      limit: {count: 50}
+      where: {Trade: {Currency: {MintAddress: {is: $token}}, Price: {gt: 0}, Dex: {ProtocolName: {is: "pump"}}}, Transaction: {Result: {Success: true}}}
+    ) {
+      Block {
+        allTime: Time
+      }
+      Trade {
+        Account {
+          Address
+          Owner
+        }
+        Side {
+          Type
+          Account {
+            Address
+            Owner
+          }
+        }
+        Price
+        Amount
+        Side {
+          AmountInUSD
+          Amount
+        }
+      }
+    }
+  }
+}
+{
+  "token": "FbhypAF9LL93bCZy9atRRfbdBMyJAwBarULfCK3roP93"
+}
+
+
+image
+
+Check data here on DEXrabbit.
+
+Get newly created Pump Fun tokens and their Metadata
+Now you can track the newly created Pump Fun Tokens along with their metadata and supply. PostBalance will give you the current supply for the token. Check the query here
+
+subscription {
+  Solana {
+    TokenSupplyUpdates(
+      where: {Instruction: {Program: {Address: {is: "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"}, Method: {is: "create"}}}}
+    ) {
+      TokenSupplyUpdate {
+        Amount
+        Currency {
+          Symbol
+          ProgramAddress
+          PrimarySaleHappened
+          Native
+          Name
+          MintAddress
+          MetadataAddress
+          Key
+          IsMutable
+          Fungible
+          EditionNonce
+          Decimals
+          Wrapped
+          VerifiedCollection
+          Uri
+          UpdateAuthority
+          TokenStandard
+        }
+        PostBalance
+      }
+    }
+  }
+}
+
+
+
+Track New Token Creation on Pump Fun
+Get notified about the newly created token and its information on Pump Fun DEX for getting early bird benefits.
+
+Here is the subscription to get the notification of a new token creation event on Pump Fun.
+
+subscription {
+  Solana {
+    Instructions(
+      where: {
+        Instruction: {
+          Program: { Method: { is: "create" }, Name: { is: "pump" } }
+        }
+      }
+    ) {
+      Instruction {
+        Accounts {
+          Address
+          IsWritable
+          Token {
+            Mint
+            Owner
+            ProgramId
+          }
+        }
+        Logs
+        Program {
+          AccountNames
+          Address
+          Arguments {
+            Name
+            Type
+            Value {
+              ... on Solana_ABI_Json_Value_Arg {
+                json
+              }
+              ... on Solana_ABI_Float_Value_Arg {
+                float
+              }
+              ... on Solana_ABI_Boolean_Value_Arg {
+                bool
+              }
+              ... on Solana_ABI_Bytes_Value_Arg {
+                hex
+              }
+              ... on Solana_ABI_BigInt_Value_Arg {
+                bigInteger
+              }
+              ... on Solana_ABI_Address_Value_Arg {
+                address
+              }
+              ... on Solana_ABI_String_Value_Arg {
+                string
+              }
+              ... on Solana_ABI_Integer_Value_Arg {
+                integer
+              }
+            }
+          }
+          Method
+          Name
+        }
+      }
+      Transaction {
+        Signature
+      }
+    }
+  }
+}
+
+Get the creation time & creator of a Pump Fun Token
+The below query fetches the details of Token creation time & Creator of a specific token Edazh5SW6ts7PocPvPgjrdKyqqszcRcqdB22B8tapump. Here you can find saved query.
+
+query MyQuery {
+  Solana(network: solana) {
+    Instructions(
+      where: {Instruction: {Accounts: {includes: {Address: {is: "Edazh5SW6ts7PocPvPgjrdKyqqszcRcqdB22B8tapump"}}}, Program: {Name: {is: "pump"}, Method: {is: "create"}}}}
+    ) {
+      Block{
+        Time
+      }
+      Transaction {
+        Signer
+        Signature
+      }
+      Instruction {
+        Accounts {
+          Address
+        }
+      }
+    }
+  }
+}
+
+
+Top Token Creators on Pump Fun
+The below query fetches details about token creators filtering using the pump program and create method. The descendingByField: "tokens_count": Orders the results in descending order based on the count of tokens created. You can run the query here
+
+query MyQuery {
+  Solana(network: solana) {
+    Instructions(
+      where: {Instruction: {Program: {Name: {is: "pump"}, Method: {is: "create"}}}}
+      orderBy: {descendingByField: "tokens_count"}
+    ) {
+      tokens_count: count
+      Transaction {
+        Signer
+      }
+    }
+  }
+}
+
+Get OHLC Data of a Token on Pump Fun
+The below query gets OHLC data of the specified Token 66VR6bjEV5DPSDhYSQyPAxNsY3dgmH6Lwgi5cyf2pump for 1 minute time interval for last 10 minutes on Pump Fun DEX. You can run the query here
+
+Note - You can only use this API using query keyword, using this API as subscription will give wrong results because aggregation and interval don't work correctly together in subscription.
+
+{
+  Solana {
+    DEXTradeByTokens(
+      limit: { count: 10 }
+      orderBy: { descendingByField: "Block_Timefield" }
+      where: {
+        Trade: {
+          Currency: {
+            MintAddress: { is: "66VR6bjEV5DPSDhYSQyPAxNsY3dgmH6Lwgi5cyf2pump" }
+          }
+          Dex: {
+            ProgramAddress: {
+              is: "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"
+            }
+          }
+          PriceAsymmetry: { lt: 0.1 }
+        }
+      }
+    ) {
+      Block {
+        Timefield: Time(interval: { in: minutes, count: 1 })
+      }
+      volume: sum(of: Trade_Amount)
+      Trade {
+        high: Price(maximum: Trade_Price)
+        low: Price(minimum: Trade_Price)
+        open: Price(minimum: Block_Slot)
+        close: Price(maximum: Block_Slot)
+      }
+      count
+    }
+  }
+}
+
+image
+
+Check data here on DEXrabbit.
+
+Track Price of a Token in Realtime on Pump Fun
+The below query gets real-time price of the specified Token qXqLE8rNJ5zn4g5E5M6zddyhx5NbtrFqfHaBV4Zpump on the Pump Fun DEX. You can run the query here
+
+subscription MyQuery {
+  Solana {
+    DEXTradeByTokens(
+      orderBy: { descending: Block_Time }
+      limit: { count: 10 }
+      where: {
+        Trade: {
+          Dex: {
+            ProgramAddress: {
+              is: "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"
+            }
+          }
+          Currency: {
+            MintAddress: { is: "qXqLE8rNJ5zn4g5E5M6zddyhx5NbtrFqfHaBV4Zpump" }
+          }
+        }
+        Transaction: { Result: { Success: true } }
+      }
+    ) {
+      Block {
+        Time
+      }
+      Trade {
+        Currency {
+          MintAddress
+          Name
+          Symbol
+        }
+        Dex {
+          ProtocolName
+          ProtocolFamily
+          ProgramAddress
+        }
+        Side {
+          Currency {
+            MintAddress
+            Symbol
+            Name
+          }
+        }
+        Price
+        PriceInUSD
+      }
+      Transaction {
+        Signature
+      }
+    }
+  }
+}
+
+Get the Top Token Holders of a specific Token
+This query gives you Top 10 Token Holders for this specific token 2GxdEZQ5d9PsUqyGy43qv4fmNJWrnLp6qY4dTyNepump. The query provides you the top 10 holders addresses and also their balances of this token. You can change the token address in query as per your needs. You can run the query here
+
+query MyQuery {
+  Solana(dataset: realtime) {
+    BalanceUpdates(
+      limit: { count: 10 }
+      orderBy: { descendingByField: "BalanceUpdate_Holding_maximum" }
+      where: {
+        BalanceUpdate: {
+          Currency: {
+            MintAddress: { is: "2GxdEZQ5d9PsUqyGy43qv4fmNJWrnLp6qY4dTyNepump" }
+          }
+        }
+        Transaction: { Result: { Success: true } }
+      }
+    ) {
+      BalanceUpdate {
+        Currency {
+          Name
+          MintAddress
+          Symbol
+        }
+        Account {
+          Address
+        }
+        Holding: PostBalance(maximum: Block_Slot)
+      }
+    }
+  }
+}
+
+image
+
+Check data here on DEXrabbit.
+
+Get the Trading Volume of a specific Token on Pump Fun DEX
+The below query gets the Trading volume of the specified Token HeGMgxcuASNEgGH8pTUBEfb3K4KjgaXwaMK3bs68pump on the Pump Fun DEX in the past 1 hour. You will have to change the time in this Block: { Time: { since: "2024-06-27T06:46:00Z" } } when you try the query yourself. Keep in mind you can use this API only as a query and not a subscription websocket because aggregates don't work with subscription and you will end up getting wrong results. You can run the query here
+
+query MyQuery {
+  Solana {
+    DEXTradeByTokens(
+      where: {
+        Trade: {
+          Currency: {
+            MintAddress: { is: "HeGMgxcuASNEgGH8pTUBEfb3K4KjgaXwaMK3bs68pump" }
+          }
+          Dex: { ProtocolName: { is: "pump" } }
+        }
+        Block: { Time: { since: "2024-06-27T06:46:00Z" } }
+      }
+    ) {
+      Trade {
+        Currency {
+          Name
+          Symbol
+          MintAddress
+        }
+        Dex {
+          ProtocolName
+          ProtocolFamily
+        }
+      }
+      TradeVolume: sum(of: Trade_Amount)
+    }
+  }
+}
+
+Get the Dev's holdings of a token
+The below query retrieves the developer's holdings of the specified Token. To get the dev address first check this out. You can run the query here
+
+query MyQuery ($dev: String, $token:String){
+  Solana {
+    BalanceUpdates(
+      where: {BalanceUpdate: {Account: {Owner: {is: $dev}}, Currency: {MintAddress: {is: $token}}}}
+    ){
+      BalanceUpdate{
+        balance:PostBalance(maximum:Block_Slot)
+      }
+    }
+  }
+}
+{
+  "dev":"8oTWME5BPpudMksqEKfn562pGobrtnEpNsG66hBBgx92",
+  "token":"Edazh5SW6ts7PocPvPgjrdKyqqszcRcqdB22B8tapump"
+}
+
+Get the First 100 buyers of a Pump Fun Token
+The below query retrieves the first 100 buyers of a secified token. You can run the query here
+
+query MyQuery {
+  Solana {
+    DEXTrades(
+      where: {
+        Trade: {
+          Buy: {
+            Currency: {
+              MintAddress: {
+                is: "2Z4FzKBcw48KBD2PaR4wtxo4sYGbS7QqTQCLoQnUpump"
+              }
+            }
+          }
+        }
+      }
+      limit: { count: 100 }
+      orderBy: { ascending: Block_Time }
+    ) {
+      Trade {
+        Buy {
+          Amount
+          Account {
+            Token {
+              Owner
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+Check if first 100 buyers still Holding, Sold all, Bought more
+The below query will give you token holdings for a particular account address but you can pass the array of addresses that you got from just above query. Now you will be able to check if the first 100 buyers still holding their tokens, sold all or bought more. To check if they bought more you can compare with the above first 100 buyers query's amount field.
+
+You can run the query here
+
+query MyQuery {
+  Solana {
+    BalanceUpdates(
+      where: {
+        BalanceUpdate: {
+          Account: {
+            Token: {
+              Owner: {
+                in: [
+                  "ApRJBQEKfmcrViQkH94BkzRFUGWtA8uC71DXu6USdd3n"
+                  "9nG4zw1jVJFpEtSLmbGQpTnpG2TiKfLXWkkTyyRvxTt6"
+                ]
+              }
+            }
+          }
+          Currency: {
+            MintAddress: { is: "2Z4FzKBcw48KBD2PaR4wtxo4sYGbS7QqTQCLoQnUpump" }
+          }
+        }
+      }
+    ) {
+      BalanceUpdate {
+        Account {
+          Token {
+            Owner
+          }
+        }
+        balance: PostBalance(maximum: Block_Slot)
+      }
+    }
+  }
+}
+
+Get Token Metadata
+The below query will get you token metadata. You can use the below query if currency{name, symbol, uri} data fields from query builder gives you empty result for pump fun token metadata. The below query gets the arguments passed during creation of this specific token 2CAETyBJk83aGsmU65uLP3s78pigdUNJv3uRWamFpump which are name, symbol and uri using Bitquery's Solana Instructions API.
+
+You can run the query here
+
+{
+  Solana {
+    Instructions(
+      limit: { count: 10 }
+      where: {
+        Instruction: {
+          Program: {
+            Method: { is: "create" }
+            AccountNames: { includes: { is: "mint" } }
+          }
+          Accounts: {
+            includes: {
+              Address: { in: ["2CAETyBJk83aGsmU65uLP3s78pigdUNJv3uRWamFpump"] }
+            }
+          }
+        }
+      }
+    ) {
+      Transaction {
+        Signature
+      }
+      Instruction {
+        Data
+        Logs
+        Accounts {
+          Address
+          Token {
+            Mint
+            ProgramId
+            Owner
+          }
+        }
+        Program {
+          AccountNames
+          Json
+          Method
+          Arguments {
+            Name
+            Value {
+              __typename
+              ... on Solana_ABI_Integer_Value_Arg {
+                integer
+              }
+              ... on Solana_ABI_String_Value_Arg {
+                string
+              }
+              ... on Solana_ABI_Address_Value_Arg {
+                address
+              }
+              ... on Solana_ABI_BigInt_Value_Arg {
+                bigInteger
+              }
+              ... on Solana_ABI_Bytes_Value_Arg {
+                hex
+              }
+              ... on Solana_ABI_Float_Value_Arg {
+                float
+              }
+              ... on Solana_ABI_Boolean_Value_Arg {
+                bool
+              }
+              ... on Solana_ABI_Json_Value_Arg {
+                json
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+Get the Top Traders of a specific Token on Pump Fun DEX
+The below query gets the Top Traders of the specified Token FbhypAF9LL93bCZy9atRRfbdBMyJAwBarULfCK3roP93 which was launched on pump fun. Keep in mind you can use this API only as a query and not a subscription websocket because aggregates don't work with subscription and you will end up getting wrong results. You can run the query here
+
+query TopTraders($token: String) {
+  Solana {
+    DEXTradeByTokens(
+      orderBy: {descendingByField: "volumeUsd"}
+      limit: {count: 100}
+      where: {Trade: {Currency: {MintAddress: {is: $token}}}, Transaction: {Result: {Success: true}}}
+    ) {
+      Trade {
+        Account {
+          Owner
+        }
+        Side {
+          Account {
+            Address
+          }
+          Type
+        }
+      }
+      bought: sum(of: Trade_Amount, if: {Trade: {Side: {Type: {is: buy}}}})
+      sold: sum(of: Trade_Amount, if: {Trade: {Side: {Type: {is: sell}}}})
+      volume: sum(of: Trade_Amount)
+      volumeUsd: sum(of: Trade_Side_AmountInUSD)
+    }
+  }
+}
+{
+  "token": "FbhypAF9LL93bCZy9atRRfbdBMyJAwBarULfCK3roP93",
+  "pool": "5Ezr4oK1vTV4m8f7g8P1Be1uwtzczhf21AztwNxWcmwM"
+}
+
+image
+
+Check data here on DEXrabbit.
+
+All tokens created by an address
+To get all pump fun tokens created by address use this query.
+
+query MyQuery {
+  Solana(network: solana) {
+    Instructions(
+      where: {Transaction: {Signer: {is: "DEQV8Lc2JcLpuzETfsCfAozqwjPVVGoXbJk2e32jZy6p"}},
+        Instruction: {Program: {Name: {is: "pump"}, Method: {is: "create"}}}}
+    ) {
+      Transaction {
+        Signer
+        Signature
+      }
+      Instruction {
+        Accounts {
+          Address
+        }
+      }
+    }
+  }
+}
+
+Pump Fun Token first and last price
+To check the first and last price to calculate the price change in the last X minutes, use this query. In this query, the from time should be when you need the price change. For example, if you want a price change for the last 10 minutes, then from should be 10 minutes before now.
+
+query PumpFunRecentTrades {
+  Solana {
+    DEXTradeByTokens(
+      limit: {count: 100}
+      orderBy: {descendingByField: "Trade_lastPrice_maximum"}
+      where: {Block: {Time: {since: "2024-08-07T06:50:00Z"}},
+        Trade: {Currency: {Native: false},
+          Dex: {ProtocolName: {is: "pump"}}}, Transaction: {Result: {Success: true}}}
+    ) {
+      Trade {
+        Market {
+          MarketAddress
+        }
+        Currency {
+          Symbol
+          Name
+          MintAddress
+        }
+        lastPrice: Price(maximum: Block_Slot)
+        prePrice: Price(minimum: Block_Slot)
+      }
+    }
+  }
+}
+
+Get Pools details for Pump fun token
+To get pool details (Market address) for Pump fun token use this query.
+
+{
+  Solana {
+    DEXTradeByTokens(
+      where: {Trade: {Dex: {ProtocolName: {is: "pump"}}, Currency: {Symbol: {not: ""}, MintAddress: {in: "WqEwHim2ap9jedL79ydUKF2chD3sgLHCVWDocvVpump"}}}}
+    ) {
+      count
+      Trade {
+        Market {
+          MarketAddress
+        }
+        Currency {
+          MintAddress
+          Symbol
+        }
+      }
+    }
+  }
+}
+
+
+Getting Liquidity for Pump fun tokens
+To get Liquidity of tokens, we will get balance of pools for pool tokens. You can check this query.
+
+{
+  Solana {
+    BalanceUpdates(
+      where: {Block: {Time: {since: "2024-06-25T07:00:00Z"}},
+        BalanceUpdate: {Account: {Token: {Owner: {in: [
+    "BesTLFfCP9tAuUDWnqPdtDXZRu5xK6XD8TrABXGBECuf",
+    "62dvmMKAfnt8jSdT3ToZtxAasx7Ud1tJ6xWsjwwhfaEQ",
+    "73ZzSgNi27V9MdNQYyE39Vs9m1P9ZKgGPCHAJHin5gLd",
+    "DwPwU1PAjTXtYNYkeR6awYMDBdSEk12npKzJWKbDHMta",
+    "FJ4P2a2FqaWmqYpBw9eEfWD6cXV3F2qLPHvAA5jozscS",
+    "6crUHiCoxZsQuxdMAB18VATKrg7ToyTVxt7MbLYmtugu"
+  ]}}},
+          Currency: {Native: false}}}
+    ) {
+      BalanceUpdate {
+        Account {
+          Token {
+            Owner
+          }
+          Address
+        }
+        Currency {
+          MintAddress
+          Native
+        }
+        PostBalance(maximum: Block_Slot)
+      }
+    }
+  }
+}
+
+
+Last Pumpfun Trade before Token Graduate to Raydium
+You can use the following query to get the last trade before token graduates to Raydium.
+
+You can also run this query using this link.
+
+{
+  Solana {
+    DEXPools(
+      where: {
+        Pool: {
+          Dex: { ProtocolName: { is: "pump" } }
+          Base: { PostAmount: { eq: "206900000" } }
+        }
+        Transaction: { Result: { Success: true } }
+      }
+      orderBy: { descending: Block_Time }
+    ) {
+      Transaction {
+        Signer
+        Signature
+      }
+      Instruction {
+        Program {
+          Method
+        }
+      }
+      Pool {
+        Base {
+          ChangeAmount
+          PostAmount
+        }
+        Quote {
+          ChangeAmount
+          ChangeAmountInUSD
+          PostAmount
+          PostAmountInUSD
+          Price
+          PriceInUSD
+        }
+        Dex {
+          ProgramAddress
+          ProtocolFamily
+          ProtocolName
+        }
+        Market {
+          BaseCurrency {
+            Name
+            Symbol
+          }
+          MarketAddress
+          QuoteCurrency {
+            Name
+            Symbol
+          }
+        }
+      }
+    }
+  }
+}

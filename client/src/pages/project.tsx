@@ -42,7 +42,7 @@ const ProjectPage: FC = () => {
       }, 10000);
 
       const client = createClient({
-        url: 'wss://streaming.bitquery.io/eap',
+        url: 'wss://streaming.bitquery.io/graphql',
         connectionParams: () => {
           console.log('[BitQuery] Setting up connection parameters...');
           return {
@@ -100,15 +100,32 @@ const ProjectPage: FC = () => {
         console.log('[BitQuery] Starting test subscription...');
         (window as any).debugConsole?.log('Starting test subscription...');
 
-        // Start with a simpler test subscription
+        // Using a simplified DEXTrades query from the documentation
         unsubscribe = client.subscribe(
           {
             query: `
               subscription {
                 Solana {
-                  Instructions(limit: 1) {
-                    Transaction {
-                      Signature
+                  DEXTrades(
+                    where: {
+                      Trade: { Dex: { ProtocolName: { is: "pump" } } }
+                      Transaction: { Result: { Success: true } }
+                    }
+                    limit: 1
+                  ) {
+                    Block {
+                      Time
+                    }
+                    Trade {
+                      Dex {
+                        ProtocolName
+                      }
+                      Buy {
+                        Currency {
+                          Symbol
+                          MintAddress
+                        }
+                      }
                     }
                   }
                 }
@@ -120,10 +137,10 @@ const ProjectPage: FC = () => {
               console.log('[BitQuery] Test subscription data received:', data);
               (window as any).debugConsole?.success(`Test subscription working: ${JSON.stringify(data, null, 2)}`);
 
-              // If test subscription works, start the real subscription
+              // If test subscription works, start the token creation monitoring
               if (unsubscribe) {
                 unsubscribe();
-                startMainSubscription(client);
+                startTokenMonitoring(client);
               }
             },
             error: (error: Error) => {
@@ -145,21 +162,27 @@ const ProjectPage: FC = () => {
       }
     }
 
-    function startMainSubscription(client: ReturnType<typeof createClient>) {
+    function startTokenMonitoring(client: ReturnType<typeof createClient>) {
       try {
-        console.log('[BitQuery] Starting main token subscription...');
+        console.log('[BitQuery] Starting token monitoring subscription...');
         unsubscribe = client.subscribe(
           {
             query: `
               subscription {
                 Solana {
                   Instructions(
-                    where: {Instruction: {Program: {Method: {is: "create"}, Name: {is: "pump"}}}}
+                    where: {
+                      Instruction: {
+                        Program: {
+                          Method: { is: "create" },
+                          Name: { is: "pump" }
+                        }
+                      }
+                    }
                   ) {
                     Instruction {
                       Accounts {
                         Address
-                        IsWritable
                         Token {
                           Mint
                           Owner
@@ -190,15 +213,15 @@ const ProjectPage: FC = () => {
               handleRetry();
             },
             complete: () => {
-              console.log('[BitQuery] Subscription completed');
-              (window as any).debugConsole?.log('Subscription completed normally');
+              console.log('[BitQuery] Token monitoring subscription completed');
+              (window as any).debugConsole?.log('Token monitoring completed normally');
             },
           },
         );
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        console.error('[BitQuery] Failed to create main subscription:', errorMessage);
-        (window as any).debugConsole?.error(`Failed to create main subscription: ${errorMessage}`);
+        console.error('[BitQuery] Failed to create token monitoring subscription:', errorMessage);
+        (window as any).debugConsole?.error(`Failed to create token monitoring subscription: ${errorMessage}`);
       }
     }
 
