@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -9,13 +8,14 @@ import {
   Title,
   Tooltip,
   Legend,
-  Filler
+  Filler,
 } from 'chart.js';
-import 'chartjs-adapter-date-fns';
+import { Chart } from 'react-chartjs-2';
 import { Card } from '@/components/ui/card';
+import 'chartjs-adapter-date-fns';
 import 'chartjs-chart-financial';
 
-// Register ChartJS components
+// Register all required components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -89,138 +89,133 @@ const TokenChart: React.FC<TokenChartProps> = ({ tokenAddress, height = 400 }) =
     return () => { isMounted = false; };
   }, [tokenAddress]);
 
-  const data = {
-    datasets: [{
-      label: 'OHLC',
-      data: chartData.map(candle => ({
-        x: candle.timestamp,
-        o: candle.open,
-        h: candle.high,
-        l: candle.low,
-        c: candle.close
-      })),
-      backgroundColor: (ctx: any) => {
-        if (!ctx.parsed) return 'rgba(0,0,0,0)';
-        return ctx.parsed.c >= ctx.parsed.o ? 
-          'rgba(38, 166, 154, 0.4)' : 
-          'rgba(239, 83, 80, 0.4)';
-      },
-      borderColor: (ctx: any) => {
-        if (!ctx.parsed) return 'rgba(0,0,0,0)';
-        return ctx.parsed.c >= ctx.parsed.o ? 
-          'rgb(38, 166, 154)' : 
-          'rgb(239, 83, 80)';
-      }
-    }, {
-      type: 'bar',
-      label: 'Volume',
-      data: chartData.map(candle => ({
-        x: candle.timestamp,
-        y: candle.volume
-      })),
-      backgroundColor: (ctx: any) => {
-        if (!ctx.parsed?.y) return 'rgba(0,0,0,0)';
-        const index = ctx.dataIndex;
-        const candle = chartData[index];
-        return candle.close >= candle.open ? 
-          'rgba(38, 166, 154, 0.2)' : 
-          'rgba(239, 83, 80, 0.2)';
-      },
-      yAxisID: 'volume'
-    }]
-  };
-
-  const options = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: {
-      mode: 'index' as const,
-      intersect: false,
+  const chartOptions = {
+    type: 'candlestick',
+    data: {
+      datasets: [{
+        label: 'OHLC',
+        data: chartData.map(candle => ({
+          x: candle.timestamp,
+          o: candle.open,
+          h: candle.high,
+          l: candle.low,
+          c: candle.close
+        })),
+        backgroundColor: (ctx: any) => {
+          if (!ctx.parsed) return 'rgba(0,0,0,0)';
+          return ctx.parsed.c >= ctx.parsed.o ? 
+            'rgba(38, 166, 154, 0.4)' : 
+            'rgba(239, 83, 80, 0.4)';
+        },
+        borderColor: (ctx: any) => {
+          if (!ctx.parsed) return 'rgba(0,0,0,0)';
+          return ctx.parsed.c >= ctx.parsed.o ? 
+            'rgb(38, 166, 154)' : 
+            'rgb(239, 83, 80)';
+        }
+      }, {
+        type: 'bar',
+        label: 'Volume',
+        data: chartData.map(candle => ({
+          x: candle.timestamp,
+          y: candle.volume
+        })),
+        backgroundColor: (ctx: any) => {
+          if (!ctx.parsed?.y) return 'rgba(0,0,0,0)';
+          const index = ctx.dataIndex;
+          const candle = chartData[index];
+          return candle.close >= candle.open ? 
+            'rgba(38, 166, 154, 0.2)' : 
+            'rgba(239, 83, 80, 0.2)';
+        },
+        yAxisID: 'volume'
+      }]
     },
-    plugins: {
-      legend: {
-        display: false
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index' as const,
+        intersect: false,
       },
-      tooltip: {
-        enabled: true,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        titleColor: '#fff',
-        bodyColor: '#fff',
-        bodyFont: {
-          size: 13
-        },
-        padding: 12,
-        displayColors: false,
-        callbacks: {
-          label: function(context: any) {
-            const index = context.dataIndex;
-            const candle = chartData[index];
-            return [
-              `Open: $${candle.open.toFixed(6)}`,
-              `High: $${candle.high.toFixed(6)}`,
-              `Low: $${candle.low.toFixed(6)}`,
-              `Close: $${candle.close.toFixed(6)}`,
-              `Volume: ${candle.volume.toLocaleString()}`
-            ];
-          }
-        }
-      }
-    },
-    scales: {
-      x: {
-        type: 'time',
-        time: {
-          unit: 'minute',
-          stepSize: 5,
-          displayFormats: {
-            minute: 'HH:mm'
-          }
-        },
-        grid: {
+      plugins: {
+        legend: {
           display: false
         },
-        ticks: {
-          color: 'rgba(255, 255, 255, 0.5)',
-          font: {
-            size: 11
+        tooltip: {
+          enabled: true,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          bodyFont: {
+            size: 13
           },
-          maxRotation: 0
-        },
-        border: {
-          display: false
+          padding: 12,
+          displayColors: false,
+          callbacks: {
+            label: function(context: any) {
+              const index = context.dataIndex;
+              const candle = chartData[index];
+              return [
+                `Open: $${candle.open.toFixed(6)}`,
+                `High: $${candle.high.toFixed(6)}`,
+                `Low: $${candle.low.toFixed(6)}`,
+                `Close: $${candle.close.toFixed(6)}`,
+                `Volume: ${candle.volume.toLocaleString()}`
+              ];
+            }
+          }
         }
       },
-      y: {
-        position: 'right' as const,
-        grid: {
-          color: 'rgba(255, 255, 255, 0.05)'
-        },
-        ticks: {
-          color: 'rgba(255, 255, 255, 0.5)',
-          font: {
-            size: 11
+      scales: {
+        x: {
+          type: 'category',
+          grid: {
+            display: false
           },
-          callback: function(value: any) {
-            return '$' + value.toFixed(6);
+          ticks: {
+            color: 'rgba(255, 255, 255, 0.5)',
+            font: {
+              size: 11
+            },
+            maxRotation: 0
+          },
+          border: {
+            display: false
           }
         },
-        border: {
-          display: false
-        }
-      },
-      volume: {
-        position: 'left' as const,
-        grid: {
-          display: false
-        },
-        ticks: {
-          color: 'rgba(255, 255, 255, 0.5)',
-          font: {
-            size: 11
+        y: {
+          position: 'right' as const,
+          grid: {
+            color: 'rgba(255, 255, 255, 0.05)'
+          },
+          ticks: {
+            color: 'rgba(255, 255, 255, 0.5)',
+            font: {
+              size: 11
+            },
+            callback: function(value: any) {
+              return '$' + value.toFixed(6);
+            }
+          },
+          border: {
+            display: false
           }
         },
-        border: {
-          display: false
+        volume: {
+          position: 'left' as const,
+          grid: {
+            display: false
+          },
+          ticks: {
+            color: 'rgba(255, 255, 255, 0.5)',
+            font: {
+              size: 11
+            }
+          },
+          border: {
+            display: false
+          }
         }
       }
     }
@@ -232,7 +227,7 @@ const TokenChart: React.FC<TokenChartProps> = ({ tokenAddress, height = 400 }) =
         <h3 className="text-lg font-semibold text-white">Price Chart</h3>
       </div>
       <div style={{ height: `${height}px` }}>
-        <Line data={data} options={options} />
+        <Chart {...chartOptions} />
       </div>
     </Card>
   );
