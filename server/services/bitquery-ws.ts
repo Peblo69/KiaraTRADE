@@ -1,10 +1,9 @@
 import { WebSocket } from 'ws';
 import { createClient } from 'graphql-ws';
 
-// Bitquery WebSocket endpoint
-const BITQUERY_WSS_URL = 'wss://graphql.bitquery.io';
+// Bitquery WebSocket endpoint with authentication
+const BITQUERY_WSS_URL = 'wss://streaming.bitquery.io/graphql';
 
-// This subscription tracks newly created PumpFun tokens
 const SUBSCRIPTION_QUERY = `
   subscription getNewlyCreatedPumpFunTokens {
     Solana {
@@ -37,9 +36,9 @@ const SUBSCRIPTION_QUERY = `
 `;
 
 interface TokenUpdateResponse {
-  data: {
-    Solana: {
-      TokenSupplyUpdates: Array<{
+  data?: {
+    Solana?: {
+      TokenSupplyUpdates?: Array<{
         TokenSupplyUpdate: {
           Amount: number;
           PostBalance: number;
@@ -64,7 +63,7 @@ export function setupBitqueryWebSocket(handleNewToken: (tokenData: any) => void)
     return;
   }
 
-  console.log('Initializing Bitquery WebSocket connection...');
+  console.log('Setting up BitQuery WebSocket connection...');
 
   const client = createClient({
     url: BITQUERY_WSS_URL,
@@ -74,13 +73,10 @@ export function setupBitqueryWebSocket(handleNewToken: (tokenData: any) => void)
         'X-API-KEY': process.env.BITQUERY_API_KEY
       }
     },
-    retryAttempts: 5,
+    retryAttempts: 3,
     shouldRetry: (errOrCloseEvent) => {
-      console.warn('Bitquery connection issue:', errOrCloseEvent);
+      console.log('Attempting to reconnect to BitQuery...', errOrCloseEvent);
       return true;
-    },
-    onNonLazyError: (error) => {
-      console.error('Bitquery non-lazy error:', error);
     }
   });
 
@@ -88,39 +84,46 @@ export function setupBitqueryWebSocket(handleNewToken: (tokenData: any) => void)
   client.subscribe<TokenUpdateResponse>(
     { query: SUBSCRIPTION_QUERY },
     {
-      next: (data) => {
-        if (!data?.data?.Solana?.TokenSupplyUpdates) {
-          console.log('No token updates in response:', data);
+      next: (result) => {
+        const updates = result?.data?.Solana?.TokenSupplyUpdates;
+        if (!updates) {
+          console.log('No token updates in response');
           return;
         }
 
-        data.data.Solana.TokenSupplyUpdates.forEach((item) => {
+        updates.forEach((item) => {
           const { Amount, PostBalance, Currency } = item.TokenSupplyUpdate;
           const tokenData = {
             address: Currency.MintAddress,
-            name: Currency.Name,
-            symbol: Currency.Symbol,
+            name: Currency.Name || 'Unknown Token',
+            symbol: Currency.Symbol || '???',
             decimals: Currency.Decimals,
             fungible: Currency.Fungible,
             tokenStandard: Currency.TokenStandard,
             initialSupply: PostBalance,
             amount: Amount,
             uri: Currency.Uri,
-            // Adding mock data for price, volume, and market cap since they're not in the Bitquery response
-            price: Math.random() * 0.1, // Mock SOL price
-            volume24h: Math.random() * 1000000, // Mock 24h volume
-            marketCap: Math.random() * 10000000 // Mock market cap
+            // Mock market data for display
+            price: Math.random() * 0.1,
+            volume24h: Math.random() * 1000000,
+            marketCap: Math.random() * 10000000,
+            imageUrl: 'https://cryptologos.cc/logos/solana-sol-logo.png?v=024'
           };
 
-          console.log('New PumpFun token detected:', tokenData);
+          console.log('New PumpFun token detected:', {
+            address: tokenData.address,
+            name: tokenData.name,
+            symbol: tokenData.symbol
+          });
+
           handleNewToken(tokenData);
         });
       },
       error: (err) => {
-        console.error('Bitquery subscription error:', err);
+        console.error('BitQuery subscription error:', err);
       },
       complete: () => {
-        console.log('Bitquery subscription completed');
+        console.log('BitQuery subscription completed');
       }
     }
   );

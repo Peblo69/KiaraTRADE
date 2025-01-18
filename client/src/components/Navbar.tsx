@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -12,28 +12,13 @@ export default function Navbar() {
   const [, setLocation] = useLocation();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [displayInfo, setDisplayInfo] = useState({ text: 'Connect Wallet', shortAddress: '' });
-
-  // Update display info when wallet connection changes
-  useEffect(() => {
-    // Move state update logic to a callback to avoid render-time updates
-    const updateDisplayInfo = () => {
-      const newDisplayInfo = !connected || !publicKey 
-        ? { text: 'Connect Wallet', shortAddress: '' }
-        : { text: '', shortAddress: `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}` };
-
-      setDisplayInfo(newDisplayInfo);
-    };
-
-    // Execute the update asynchronously
-    const timeoutId = setTimeout(updateDisplayInfo, 0);
-    return () => clearTimeout(timeoutId);
-  }, [connected, publicKey]);
+  const [displayAddress, setDisplayAddress] = useState('');
 
   const handleWalletClick = useCallback(async () => {
     if (connected) {
       try {
         await disconnect();
+        setDisplayAddress('');
         toast({
           title: "Wallet Disconnected",
           description: "Your wallet has been disconnected successfully",
@@ -62,6 +47,10 @@ export default function Navbar() {
 
     try {
       await connect();
+      if (publicKey) {
+        const address = publicKey.toBase58();
+        setDisplayAddress(`${address.slice(0, 4)}...${address.slice(-4)}`);
+      }
       toast({
         title: "Wallet Connected",
         description: "Your wallet has been connected successfully",
@@ -74,7 +63,7 @@ export default function Navbar() {
         variant: "destructive",
       });
     }
-  }, [connected, connect, disconnect, toast]);
+  }, [connected, connect, disconnect, toast, publicKey]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -164,7 +153,7 @@ export default function Navbar() {
                 onClick={handleWalletClick}
                 className={`${connected ? 'bg-green-500 hover:bg-green-600' : 'bg-purple-500 hover:bg-purple-600'} text-white`}
               >
-                {displayInfo.shortAddress || displayInfo.text}
+                {connected ? displayAddress : 'Connect Wallet'}
               </Button>
 
               <Button
