@@ -1,6 +1,7 @@
 import { FC, useEffect, useMemo, useCallback } from 'react';
 import TokenCard from './TokenCard';
 import { useUnifiedTokenStore } from '@/lib/unified-token-store';
+import { unifiedWebSocket } from '@/lib/unified-websocket';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const TokenTracker: FC = () => {
@@ -8,37 +9,18 @@ export const TokenTracker: FC = () => {
   const tokens = useUnifiedTokenStore(state => state.tokens);
   const isConnected = useUnifiedTokenStore(state => state.isConnected);
   const addToken = useUnifiedTokenStore(state => state.addToken);
-  const setConnected = useUnifiedTokenStore(state => state.setConnected);
 
   // Memoize tokens array to prevent unnecessary re-renders
   const sortedTokens = useMemo(() => {
     return [...tokens].sort((a, b) => b.marketCapSol - a.marketCapSol);
   }, [tokens]);
 
-  // Memoize the initialization function
-  const initializeTestToken = useCallback(() => {
-    if (tokens.length === 0) {
-      addToken({
-        name: "Test Token",
-        symbol: "TEST",
-        marketCap: 1000000,
-        marketCapSol: 1000,
-        liquidityAdded: true,
-        holders: 100,
-        volume24h: 5000,
-        address: "test123",
-        price: 1.5,
-        imageUrl: "https://cryptologos.cc/logos/solana-sol-logo.png"
-      }, 'unified');
-    }
-  }, [tokens.length, addToken]);
-
+  // Initialize WebSocket connection
   useEffect(() => {
-    console.log('[TokenTracker] Initializing with static data');
-    initializeTestToken();
-    setConnected(true);
-    return () => setConnected(false);
-  }, [initializeTestToken, setConnected]);
+    console.log('[TokenTracker] Initializing WebSocket connection');
+    unifiedWebSocket.connect();
+    return () => unifiedWebSocket.disconnect();
+  }, []); // Only run once on mount
 
   return (
     <div className="max-w-7xl mx-auto px-4">
