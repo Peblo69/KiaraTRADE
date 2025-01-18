@@ -1,11 +1,12 @@
 import { FC, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import DebugConsole from "@/components/DebugConsole";
+import { createClient } from 'graphql-ws';
 
 const ProjectPage: FC = () => {
   useEffect(() => {
-    console.log('Testing BitQuery API connection...');
-    (window as any).debugConsole?.log('Starting BitQuery API test...');
+    console.log('Testing BitQuery WebSocket connection...');
+    (window as any).debugConsole?.log('Starting BitQuery WebSocket test...');
 
     // Debug environment variables (safely)
     const envKeys = Object.keys(import.meta.env);
@@ -22,74 +23,125 @@ const ProjectPage: FC = () => {
       return;
     }
 
-    (window as any).debugConsole?.log('API Key found, testing connection...');
+    (window as any).debugConsole?.log('API Key found, initializing WebSocket connection...');
 
-    fetch('https://graphql.bitquery.io', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': apiKey,
+    // Create WebSocket client
+    const client = createClient({
+      url: 'wss://graphql.bitquery.io',
+      connectionParams: {
+        headers: {
+          'X-API-KEY': apiKey,
+        },
       },
-      body: JSON.stringify({
-        query: `
-          query {
-            Solana {
-              DEXTrades(
-                limit: 1
-                orderBy: { descending: Block_Time }
-                where: { Trade: { Dex: { ProtocolName: { is: "pump" } } } }
-              ) {
-                Block {
-                  Time
-                }
-                Trade {
-                  Currency {
-                    Name
-                    Symbol
-                    MintAddress
+    });
+
+    let unsubscribe: (() => void) | null = null;
+
+    // Subscription query for PumpFun token creation events
+    try {
+      unsubscribe = client.subscribe(
+        {
+          query: `
+            subscription {
+              Solana {
+                Instructions(
+                  where: {Instruction: {Program: {Method: {is: "create"}, Name: {is: "pump"}}}}
+                ) {
+                  Instruction {
+                    Accounts {
+                      Address
+                      IsWritable
+                      Token {
+                        Mint
+                        Owner
+                        ProgramId
+                      }
+                    }
+                    Logs
+                    Program {
+                      AccountNames
+                      Address
+                      Arguments {
+                        Name
+                        Type
+                        Value {
+                          ... on Solana_ABI_Integer_Value_Arg {
+                            integer
+                          }
+                          ... on Solana_ABI_String_Value_Arg {
+                            string
+                          }
+                          ... on Solana_ABI_Address_Value_Arg {
+                            address
+                          }
+                          ... on Solana_ABI_BigInt_Value_Arg {
+                            bigInteger
+                          }
+                          ... on Solana_ABI_Bytes_Value_Arg {
+                            hex
+                          }
+                          ... on Solana_ABI_Boolean_Value_Arg {
+                            bool
+                          }
+                          ... on Solana_ABI_Float_Value_Arg {
+                            float
+                          }
+                          ... on Solana_ABI_Json_Value_Arg {
+                            json
+                          }
+                        }
+                      }
+                      Method
+                      Name
+                    }
                   }
-                  Price
+                  Transaction {
+                    Signature
+                  }
                 }
               }
             }
-          }
-        `,
-      }),
-    })
-      .then(async (res) => {
-        // Handle unauthorized error
-        if (res.status === 401) {
-          const error = new Error('Unauthorized: Invalid or missing API key');
-          (window as any).debugConsole?.error(`API call failed: ${error.message}`);
-          throw error;
-        }
+          `,
+        },
+        {
+          next: (data) => {
+            console.log('New token creation event:', data);
+            (window as any).debugConsole?.success(`New token creation detected: ${JSON.stringify(data, null, 2)}`);
+          },
+          error: (error: Error) => {
+            console.error('Subscription error:', error);
+            (window as any).debugConsole?.error(`WebSocket error: ${error.message}`);
+          },
+          complete: () => {
+            console.log('Subscription completed');
+            (window as any).debugConsole?.log('WebSocket subscription completed');
+          },
+        },
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Failed to create subscription:', errorMessage);
+      (window as any).debugConsole?.error(`Failed to create subscription: ${errorMessage}`);
+    }
 
-        // Log raw response for debugging if not OK
-        if (!res.ok) {
-          const text = await res.text();
-          console.error('Raw error response:', text);
-          (window as any).debugConsole?.error(`API Error Response: ${text}`);
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-
-        return res.json();
-      })
-      .then((data) => {
-        console.log('API Key Test Result:', data);
-        (window as any).debugConsole?.success(`API Test Success: ${JSON.stringify(data, null, 2)}`);
-      })
-      .catch((err) => {
-        console.error('API Key Test Error:', err);
-        (window as any).debugConsole?.error(`API Test Failed: ${err.message}`);
-      });
+    // Cleanup subscription on unmount
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   return (
     <div className="min-h-screen bg-black">
       <Navbar />
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">BitQuery API Test Page</h1>
-        <p className="text-gray-400 mt-4">Check the debug console in the bottom right corner for test results</p>
+        <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">
+          BitQuery Token Monitor
+        </h1>
+        <p className="text-gray-400 mt-4">
+          Monitoring PumpFun token creation events in real-time. Check the debug console for events.
+        </p>
       </div>
       <DebugConsole />
     </div>
