@@ -1,4 +1,4 @@
-import { FC, useEffect, useRef, useMemo, useCallback } from 'react';
+import { FC, useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import { createChart, type IChartApi, type ISeriesApi, type CandlestickSeriesPartialOptions, type HistogramSeriesPartialOptions } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import { useTokenPriceStore, TIMEFRAMES } from '@/lib/price-history';
@@ -46,7 +46,7 @@ const TokenChart: FC<TokenChartProps> = ({
 
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { color: 'transparent', type: 'solid' },
+        background: { type: 'solid', color: 'transparent' },
         textColor: '#D9D9D9',
       },
       grid: {
