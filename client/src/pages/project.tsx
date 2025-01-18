@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/pagination";
 import CoinChart from "@/components/CoinChart";
 import CryptoIcon from "@/components/CryptoIcon";
+import { preloadTokenImages } from "@/lib/token-metadata";
 
 interface KuCoinTicker {
   symbol: string;
@@ -78,6 +79,13 @@ const ProjectPage: FC = () => {
   const { data: marketData, isLoading: isLoadingMarket } = useQuery<{ data: { ticker: KuCoinTicker[] } }>({
     queryKey: ['/api/coins/markets'],
     refetchInterval: 10000,
+    onSuccess: async (data) => {
+      // Preload images for all tokens in the list
+      const symbols = data.data.ticker
+        .filter(t => t.symbol.endsWith('-USDT'))
+        .map(t => t.symbol);
+      await preloadTokenImages(symbols);
+    },
     onError: (error: any) => {
       console.error('Market data fetch error:', error);
       toast({
