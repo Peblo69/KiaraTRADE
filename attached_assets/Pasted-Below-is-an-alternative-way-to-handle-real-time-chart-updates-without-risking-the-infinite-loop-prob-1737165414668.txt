@@ -1,0 +1,115 @@
+Below is an alternative way to handle real‑time chart updates without risking the infinite loop problems you’ve been seeing. It avoids coupling the chart directly to a global store or complex data structures that can re-trigger renders unintentionally. Instead:
+
+We subscribe to your “pumpfun” WebSocket directly in the chart (or a small hook).
+We keep candle data in the component’s local state.
+We only update that local state when genuine new trades arrive.
+This approach drastically reduces complexity—and eliminates global store synchronization pitfalls that often cause infinite loops if references or state updates are mishandled.
+
+1. Use a Local “Candle Builder” and WebSocket Subscription
+Instead of reading from price-history.ts and pump-portal-websocket.ts in the chart, do it all in one place (the component or a small hook):
+
+Subscribe to your real-time trade data (from pumpfun wss or pump-portal-websocket) in a useEffect.
+Each time a new trade arrives, append/update the current candle.
+Keep your entire candle array in a local useState.
+Example Outline
+tsx
+Copy
+import React, { useState, useRef, useEffect } from 'react';
+import { createChart } from 'lightweight-charts';
+
+function RealTimeChart() {
+  const [candles, setCandles] = useState<CandleData[]>([]);
+  const chartRef = useRef(null);
+
+  // 1) Connect to your WebSocket once
+  useEffect(() => {
+    const ws = new WebSocket('wss://pumpfun-portal.xyz'); // example
+
+    ws.onmessage = (msg) => {
+      const trade = JSON.parse(msg.data);
+      // 2) update local candles with new trade
+      //    e.g. handleCandleUpdate(trade.price, trade.volume, trade.timestamp)
+      setCandles((prevCandles) => updateCandles(prevCandles, trade));
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, []);
+
+  // 3) Actually build/update your candles in a pure function
+  function updateCandles(prevCandles, trade) {
+    // Combine trade into the last candle if times match, or create a new candle
+    // Return a new array
+    // No global store, so we won't cause infinite loops
+  }
+
+  // 4) Create or update the chart
+  useEffect(() => {
+    // Initialize chart once
+    if (!chartRef.current) {
+      // createChart(...) code here
+      // store instance in a ref
+    }
+
+    // Each time `candles` changes, update the chart series data
+    if (chartRef.current) {
+      // chartRef.current.series.setData(convertCandleData(candles));
+    }
+  }, [candles]);
+
+  return <div ref={someDivRef} />;
+}
+Because you’re only calling setCandles when a new trade arrives, and you’re always returning a new array from updateCandles, you won’t get stuck in an infinite loop—unless your trade messages spam an insane rate or a bug re-sends old data again and again. Even so, you’ll see repeated updates in real time, but that’s legitimate if you truly have that many trades.
+
+No global store means no risk of some other code or effect re-triggering updates. This is the approach that is least likely to run you into infinite loops.
+
+2. If You Need to Keep a “Global History” (But Avoid Loops)
+You can still keep a global store if your app requires it—for example, if multiple components need the same historical data. However, you can isolate real‑time from the chart by:
+
+Centralizing WebSocket data in a global store but ensuring you only do immutable updates when data changes (not on every read).
+The chart component then selects the store data in a stable way (returns the same array reference if no new data arrived).
+But this must be done carefully to avoid returning brand-new array references on every read. If you do, Zustand or Redux sees “new array” → triggers a new render → triggers store read again → loop.
+
+Hence the local approach (above) is simpler and almost bulletproof.
+
+3. Confirm You’re Not Over-Updating
+Whichever approach you use:
+
+Check if your WebSocket or some “pumping function” might be firing new messages constantly, even if prices haven’t changed. That can flood the chart with updates.
+If your data truly arrives many times a second, that’s fine—just ensure your chart library can handle it. But if your data is spamming due to a bug, that can look like an infinite loop.
+4. If You Want a Quick Non-Looping Global Approach
+Here’s a skeleton that merges local approach with a global store only for initial data:
+
+Load historical candles once from your store on mount (or fetch from an API).
+Connect to WebSocket locally to add new trades in real-time.
+tsx
+Copy
+function HybridChart({ tokenAddress }) {
+  const initialCandlesFromStore = useTokenPriceStore(
+    useCallback(
+      (s) => s.getPriceHistory(tokenAddress), 
+      [tokenAddress]
+    )
+  );
+  const [candles, setCandles] = useState(initialCandlesFromStore);
+
+  // Connect to WS for real-time updates
+  useEffect(() => {
+    const ws = new WebSocket(...);
+    ws.onmessage = (msg) => {
+      const trade = JSON.parse(msg.data);
+      setCandles((prev) => updateCandles(prev, trade));
+    };
+    return () => ws.close();
+  }, []);
+
+  // Then render your chart from `candles`
+  ...
+}
+Because you’re not reading from the store every render, you won’t recreate references. You read it once, store it in local state, then rely on the WebSocket for new trades.
+
+Final Thoughts
+The local-only approach is the safest way to ensure you never get stuck in an infinite re-render loop caused by store reactivity.
+If you need global data, you can do it, but be absolutely sure you’re not returning fresh arrays or Maps from the store on each read.
+A direct “subscribe in the chart” approach is usually enough for real-time. If the store is causing repeated updates, cut it out and handle real-time data locally. You’ll drastically reduce complexity and the chance of infinite loops.

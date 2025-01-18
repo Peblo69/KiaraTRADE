@@ -1,39 +1,29 @@
-import { FC, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
-import { useTokenPriceStore, TIMEFRAMES } from '@/lib/price-history';
-import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { useTokenPriceStore } from '@/lib/price-history';
 
 interface TokenChartProps {
   tokenAddress: string;
   height?: number;
 }
 
-const TokenChart: FC<TokenChartProps> = ({ tokenAddress, height = 400 }) => {
+export default function TokenChart({ tokenAddress, height = 400 }: TokenChartProps) {
+  const [candles, setCandles] = useState<any[]>([]);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const candlestickSeries = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeries = useRef<ISeriesApi<"Histogram"> | null>(null);
 
-  // Memoize selectors to prevent unnecessary re-renders
-  const getPriceHistory = useCallback(
-    (state: ReturnType<typeof useTokenPriceStore.getState>) => 
-      state.getPriceHistory(tokenAddress, '5m'),
-    [tokenAddress]
-  );
-
-  const getToken = useCallback(
-    (state: ReturnType<typeof usePumpPortalStore.getState>) => 
-      state.tokens.find(t => t.address === tokenAddress),
-    [tokenAddress]
-  );
-
-  const priceHistory = useTokenPriceStore(getPriceHistory);
-  const token = usePumpPortalStore(getToken);
+  // Load initial data once
+  useEffect(() => {
+    const initialData = useTokenPriceStore.getState().getPriceHistory(tokenAddress, '5m');
+    setCandles(initialData);
+  }, [tokenAddress]);
 
   // Initialize chart once
   useEffect(() => {
-    if (!chartContainerRef.current || !tokenAddress || chart.current) return;
+    if (!chartContainerRef.current || chart.current) return;
 
     chart.current = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -92,7 +82,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, height = 400 }) => {
       },
     });
 
-    // Handle resize
     const handleResize = () => {
       if (chartContainerRef.current && chart.current) {
         chart.current.applyOptions({ 
@@ -110,15 +99,56 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, height = 400 }) => {
         chart.current = null;
       }
     };
-  }, [height, tokenAddress]);
+  }, [height]);
 
-  // Update data when price history changes
+  // Subscribe to WebSocket for real-time updates
   useEffect(() => {
-    if (!candlestickSeries.current || !volumeSeries.current || !priceHistory.length) return;
+    const ws = new WebSocket('wss://pumpportal.fun/api/data');
 
-    // Update all data at once instead of individual updates
+    ws.onmessage = (event) => {
+      const trade = JSON.parse(event.data);
+
+      // Only process trades for our token
+      if (trade.mint !== tokenAddress) return;
+
+      setCandles(prevCandles => {
+        const currentTime = Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000);
+        const currentCandle = prevCandles[prevCandles.length - 1];
+
+        // If this trade belongs to the current candle, update it
+        if (currentCandle && Math.floor(currentCandle.timestamp / (5 * 60 * 1000)) === Math.floor(currentTime / (5 * 60 * 1000))) {
+          const updatedCandle = {
+            ...currentCandle,
+            high: Math.max(currentCandle.high, trade.price),
+            low: Math.min(currentCandle.low, trade.price),
+            close: trade.price,
+            volume: currentCandle.volume + trade.volume
+          };
+          return [...prevCandles.slice(0, -1), updatedCandle];
+        }
+
+        // Otherwise create a new candle
+        const newCandle = {
+          timestamp: currentTime,
+          open: trade.price,
+          high: trade.price,
+          low: trade.price,
+          close: trade.price,
+          volume: trade.volume
+        };
+        return [...prevCandles, newCandle];
+      });
+    };
+
+    return () => ws.close();
+  }, [tokenAddress]);
+
+  // Update chart when candles change
+  useEffect(() => {
+    if (!candlestickSeries.current || !volumeSeries.current || !candles.length) return;
+
     candlestickSeries.current.setData(
-      priceHistory.map(candle => ({
+      candles.map(candle => ({
         time: Math.floor(candle.timestamp / 1000),
         open: candle.open,
         high: candle.high,
@@ -128,7 +158,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, height = 400 }) => {
     );
 
     volumeSeries.current.setData(
-      priceHistory.map(candle => ({
+      candles.map(candle => ({
         time: Math.floor(candle.timestamp / 1000),
         value: candle.volume,
         color: candle.close >= candle.open ? 
@@ -138,19 +168,20 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, height = 400 }) => {
     );
 
     // Set visible range to last hour
-    if (chart.current && priceHistory.length > 0) {
-      const lastTimestamp = Math.floor(priceHistory[priceHistory.length - 1].timestamp / 1000);
+    if (chart.current) {
+      const lastTimestamp = Math.floor(candles[candles.length - 1].timestamp / 1000);
       chart.current.timeScale().setVisibleRange({
         from: lastTimestamp - 3600,
         to: lastTimestamp
       });
     }
-  }, [priceHistory]);
+  }, [candles]);
 
-  const currentPrice = token?.price ? `$${token.price.toFixed(6)}` : 'Loading...';
-  const priceChange = token?.priceChange24h ? `${token.priceChange24h.toFixed(2)}%` : '';
-  const priceColor = token?.priceChange24h && token.priceChange24h >= 0 ? 
-    'text-green-500' : 'text-red-500';
+  const currentPrice = candles.length ? `$${candles[candles.length - 1].close.toFixed(6)}` : 'Loading...';
+  const priceChange = candles.length >= 2 ? 
+    ((candles[candles.length - 1].close - candles[candles.length - 2].close) / candles[candles.length - 2].close * 100).toFixed(2) + '%' : 
+    '';
+  const priceColor = priceChange.startsWith('-') ? 'text-red-500' : 'text-green-500';
 
   return (
     <Card className="p-4 bg-black/40 backdrop-blur-lg border border-gray-800">
@@ -168,6 +199,4 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, height = 400 }) => {
       <div ref={chartContainerRef} />
     </Card>
   );
-};
-
-export default TokenChart;
+}
