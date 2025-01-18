@@ -59,12 +59,18 @@ export function registerRoutes(app: Express): Server {
 
   app.post('/api/token-images/bulk', async (req, res) => {
     try {
-      const { symbols } = req.body;
+      const { symbols, priority = false } = req.body;
       if (!Array.isArray(symbols)) {
         return res.status(400).json({ error: 'symbols must be an array' });
       }
 
       const images: Record<string, string> = {};
+
+      // Add to priority queue if specified
+      if (priority) {
+        symbols.forEach(symbol => addPriorityToken(symbol));
+      }
+
       await Promise.all(
         symbols.map(async (symbol) => {
           images[symbol] = await getTokenImage(symbol);
@@ -297,4 +303,11 @@ const formatKuCoinData = (markets: any[]) => {
       sparkline_in_7d: { price: [] }
     };
   }).filter(Boolean);
+};
+
+// Placeholder for priority queue functionality
+const priorityQueue: string[] = [];
+const addPriorityToken = (symbol: string) => {
+  priorityQueue.push(symbol);
+  console.log(`Added ${symbol} to priority queue.`);
 };

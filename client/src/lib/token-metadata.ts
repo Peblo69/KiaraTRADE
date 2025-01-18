@@ -36,7 +36,7 @@ export async function getTokenImage(symbol: string): Promise<string> {
 
 /**
  * Preload images for a list of tokens
- * Uses bulk endpoint to efficiently load multiple images
+ * Uses bulk endpoint to efficiently load multiple images and set priorities
  */
 export async function preloadTokenImages(symbols: string[]): Promise<void> {
   try {
@@ -45,7 +45,10 @@ export async function preloadTokenImages(symbols: string[]): Promise<void> {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ symbols }),
+      body: JSON.stringify({ 
+        symbols,
+        priority: true // Signal these are priority tokens (visible to user)
+      }),
     });
 
     if (!response.ok) {
