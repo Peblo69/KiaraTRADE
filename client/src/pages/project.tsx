@@ -235,6 +235,7 @@ const ProjectPage: FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card className="p-4">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <ArrowUpIcon className="h-5 w-5 text-green-500" />
               Top Gainers
             </h3>
             <div className="space-y-3">
@@ -250,7 +251,10 @@ const ProjectPage: FC = () => {
                       size="sm"
                     />
                     <div>
-                      <div className="font-medium">{ticker.symbol.replace('-USDT', '')}</div>
+                      <div className="font-medium flex items-center gap-1">
+                        {ticker.symbol.replace('-USDT', '')}
+                        <ArrowUpIcon className="h-3 w-3 text-green-500" />
+                      </div>
                       <div className="text-sm text-muted-foreground">{formatPrice(ticker.last)}</div>
                     </div>
                   </div>
@@ -271,6 +275,7 @@ const ProjectPage: FC = () => {
 
           <Card className="p-4">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <ArrowDownIcon className="h-5 w-5 text-red-500" />
               Top Losers
             </h3>
             <div className="space-y-3">
@@ -286,7 +291,10 @@ const ProjectPage: FC = () => {
                       size="sm"
                     />
                     <div>
-                      <div className="font-medium">{ticker.symbol.replace('-USDT', '')}</div>
+                      <div className="font-medium flex items-center gap-1">
+                        {ticker.symbol.replace('-USDT', '')}
+                        <ArrowDownIcon className="h-3 w-3 text-red-500" />
+                      </div>
                       <div className="text-sm text-muted-foreground">{formatPrice(ticker.last)}</div>
                     </div>
                   </div>
