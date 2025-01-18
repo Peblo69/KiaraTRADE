@@ -1,5 +1,5 @@
 import { FC, useEffect, useRef } from 'react';
-import { createChart, ColorType, IChartApi } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, Time } from 'lightweight-charts';
 
 interface CoinChartProps {
   prices: Array<number[]>; // Array of [timestamp, price] pairs
@@ -41,7 +41,7 @@ const CoinChart: FC<CoinChartProps> = ({ prices, theme = 'dark' }) => {
 
     // Format data for the chart
     const formattedData = prices.map(([timestamp, price]) => ({
-      time: timestamp / 1000, // Convert milliseconds to seconds
+      time: timestamp / 1000 as Time, // Convert milliseconds to seconds and cast as Time
       value: price,
     }));
 
