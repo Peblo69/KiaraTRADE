@@ -1,10 +1,13 @@
+import { db } from "@db";
+import { coinImages, coinMappings } from "@db/schema";
+import { eq } from "drizzle-orm";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { wsManager } from './services/websocket';
 import { WebSocket } from 'ws';
 import { generateAIResponse } from './services/ai';
 import axios from 'axios';
-import { getTokenImage } from './image-worker';
+import { getTokenImage, addPriorityToken } from './image-worker';
 
 // Cache structure for KuCoin data
 const cache = {
@@ -54,9 +57,9 @@ export function registerRoutes(app: Express): Server {
       res.json({ imageUrl });
     } catch (error: any) {
       console.error('[Routes] Token image error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to fetch token image',
-        details: error.message 
+        details: error.message
       });
     }
   });
@@ -90,12 +93,56 @@ export function registerRoutes(app: Express): Server {
       res.json({ images });
     } catch (error: any) {
       console.error('[Routes] Bulk token images error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to fetch bulk token images',
-        details: error.message 
+        details: error.message
       });
     }
   });
+
+  // New endpoint to serve all stored images
+  app.get('/api/token-images/stored', async (req, res) => {
+    try {
+      console.log('[Routes] Fetching all stored token images');
+
+      // Get all mappings first
+      const mappings = await db
+        .select()
+        .from(coinMappings);
+
+      // Get all images
+      const images = await db
+        .select()
+        .from(coinImages);
+
+      // Create a map of symbol to image URL
+      const imageMap: Record<string, string> = {};
+
+      // Map CoinGecko IDs to KuCoin symbols
+      const idToSymbol = mappings.reduce((acc: Record<string, string>, mapping) => {
+        acc[mapping.coingecko_id] = mapping.kucoin_symbol;
+        return acc;
+      }, {});
+
+      // Create final mapping of symbols to image URLs
+      images.forEach(image => {
+        const symbol = idToSymbol[image.coingecko_id];
+        if (symbol) {
+          imageMap[symbol] = image.image_url;
+        }
+      });
+
+      console.log(`[Routes] Returning ${Object.keys(imageMap).length} stored images`);
+      res.json({ images: imageMap });
+    } catch (error: any) {
+      console.error('[Routes] Error fetching stored images:', error);
+      res.status(500).json({
+        error: 'Failed to fetch stored images',
+        details: error.message
+      });
+    }
+  });
+
 
   // Market data endpoint
   app.get('/api/coins/markets', async (req, res) => {
@@ -116,9 +163,9 @@ export function registerRoutes(app: Express): Server {
       res.json(response.data);
     } catch (error: any) {
       console.error('Markets error:', error.response?.data || error.message);
-      res.status(error.response?.status || 500).json({ 
+      res.status(error.response?.status || 500).json({
         error: 'Failed to fetch market data',
-        details: error.response?.data?.msg || error.message 
+        details: error.response?.data?.msg || error.message
       });
     }
   });
@@ -157,9 +204,9 @@ export function registerRoutes(app: Express): Server {
       res.json(response);
     } catch (error: any) {
       console.error('Coin details error:', error.response?.data || error.message);
-      res.status(error.response?.status || 500).json({ 
+      res.status(error.response?.status || 500).json({
         error: 'Failed to fetch coin details',
-        details: error.response?.data?.msg || error.message 
+        details: error.response?.data?.msg || error.message
       });
     }
   });
@@ -207,9 +254,9 @@ export function registerRoutes(app: Express): Server {
       res.json(trendingResponse);
     } catch (error: any) {
       console.error('Trending error:', error.response?.data || error.message);
-      res.status(error.response?.status || 500).json({ 
+      res.status(error.response?.status || 500).json({
         error: 'Failed to fetch trending coins',
-        details: error.response?.data?.msg || error.message 
+        details: error.response?.data?.msg || error.message
       });
     }
   });

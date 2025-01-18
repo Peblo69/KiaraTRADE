@@ -2,6 +2,7 @@ import { useUnifiedTokenStore } from './unified-token-store';
 
 // Cache for successful image loads
 const imageCache = new Map<string, string>();
+let hasPreloaded = false;
 
 /**
  * Get image URL for a single token
@@ -12,11 +13,22 @@ export async function getTokenImage(symbol: string): Promise<string> {
 
   // Check memory cache first
   if (imageCache.has(symbol)) {
-    console.log(`[Token Metadata] Found ${symbol} in memory cache`);
+    console.log(`[Token Metadata] Cache hit for ${symbol}`);
     return imageCache.get(symbol)!;
   }
 
   try {
+    // Try to preload all images if not done yet
+    if (!hasPreloaded) {
+      await preloadStoredImages();
+
+      // Check cache again after preload
+      if (imageCache.has(symbol)) {
+        console.log(`[Token Metadata] Found ${symbol} after preload`);
+        return imageCache.get(symbol)!;
+      }
+    }
+
     const response = await fetch(`/api/token-image/${encodeURIComponent(symbol)}`);
     if (!response.ok) {
       console.warn(`[Token Metadata] Error fetching image for ${symbol}: ${response.status}`);
@@ -36,6 +48,36 @@ export async function getTokenImage(symbol: string): Promise<string> {
   } catch (error) {
     console.error(`[Token Metadata] Failed to fetch image for ${symbol}:`, error);
     return '';
+  }
+}
+
+/**
+ * Preload all stored images from the database
+ */
+async function preloadStoredImages(): Promise<void> {
+  if (hasPreloaded) return;
+
+  console.log('[Token Metadata] Preloading stored images...');
+  try {
+    const response = await fetch('/api/token-images/stored');
+    if (!response.ok) {
+      console.warn('[Token Metadata] Failed to preload stored images:', response.status);
+      return;
+    }
+
+    const data = await response.json();
+    console.log(`[Token Metadata] Preloaded ${Object.keys(data.images).length} images from database`);
+
+    // Update memory cache with all stored images
+    Object.entries(data.images).forEach(([symbol, imageUrl]) => {
+      if (imageUrl) {
+        imageCache.set(symbol, imageUrl as string);
+      }
+    });
+
+    hasPreloaded = true;
+  } catch (error) {
+    console.error('[Token Metadata] Error preloading stored images:', error);
   }
 }
 
@@ -79,6 +121,7 @@ export async function preloadTokenImages(symbols: string[]): Promise<void> {
 // Clear memory cache periodically (every hour)
 setInterval(() => {
   imageCache.clear();
+  hasPreloaded = false;
 }, 3600000);
 
 interface TokenMetadata {
