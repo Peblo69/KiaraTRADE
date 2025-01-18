@@ -19,6 +19,9 @@ type TimeFrame = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w';
 export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const candlestickSeriesRef = useRef<any>(null);
+  const volumeSeriesRef = useRef<any>(null);
+  const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [timeframe, setTimeframe] = useState<TimeFrame>('1d');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -72,10 +75,12 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
     });
 
     chartRef.current = chart;
+    candlestickSeriesRef.current = candlestickSeries;
+    volumeSeriesRef.current = volumeSeries;
 
-    // Load chart data
-    const loadChartData = async () => {
-      setIsLoading(true);
+    // Load chart data with update support
+    const loadChartData = async (isUpdate = false) => {
+      if (!isUpdate) setIsLoading(true);
       try {
         const response = await fetch(`/api/coins/${symbol}/klines?timeframe=${timeframe}`);
         if (!response.ok) throw new Error('Failed to fetch chart data');
@@ -87,34 +92,57 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
           return;
         }
 
-        // Set candlestick data
-        candlestickSeries.setData(data.klines);
+        if (isUpdate) {
+          // Update only the latest candle
+          const latestKline = data.klines[data.klines.length - 1];
+          candlestickSeries.update(latestKline);
 
-        // Set volume data
-        const volumeData = data.klines.map((k: any) => ({
-          time: k.time,
-          value: k.volume,
-          color: k.close >= k.open 
-            ? 'rgba(38, 166, 154, 0.5)' // Green for up candles
-            : 'rgba(239, 83, 80, 0.5)'  // Red for down candles
-        }));
-        volumeSeries.setData(volumeData);
+          // Update volume for the latest candle
+          volumeSeries.update({
+            time: latestKline.time,
+            value: latestKline.volume,
+            color: latestKline.close >= latestKline.open 
+              ? 'rgba(38, 166, 154, 0.5)' 
+              : 'rgba(239, 83, 80, 0.5)'
+          });
+        } else {
+          // Initial load
+          candlestickSeries.setData(data.klines);
 
-        // Fit content
-        chart.timeScale().fitContent();
+          const volumeData = data.klines.map((k: any) => ({
+            time: k.time,
+            value: k.volume,
+            color: k.close >= k.open 
+              ? 'rgba(38, 166, 154, 0.5)'
+              : 'rgba(239, 83, 80, 0.5)'
+          }));
+          volumeSeries.setData(volumeData);
+
+          // Fit content
+          chart.timeScale().fitContent();
+        }
       } catch (error) {
         console.error('Failed to load chart data:', error);
       } finally {
-        setIsLoading(false);
+        if (!isUpdate) setIsLoading(false);
       }
     };
 
+    // Initial load
     loadChartData();
+
+    // Set up real-time updates only for 1m and 5m timeframes
+    if (timeframe === '1m' || timeframe === '5m') {
+      updateIntervalRef.current = setInterval(() => loadChartData(true), 5000);
+    }
 
     window.addEventListener('resize', handleResize);
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      if (updateIntervalRef.current) {
+        clearInterval(updateIntervalRef.current);
+      }
       chart.remove();
     };
   }, [symbol, timeframe]);
