@@ -1,0 +1,28 @@
+The above error occurred in the <Landing> component:
+
+    at Landing (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/pages/landing.tsx:23:27)
+    at Route (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=a1f9e27a:323:16)
+    at Switch (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=a1f9e27a:379:17)
+    at Router
+    at div
+    at QueryClientProvider (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=a1f9e27a:2805:3)
+    at WalletProviderBase (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@solana_wallet-adapter-react.js?v=a1f9e27a:4767:31)
+    at WalletProvider (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@solana_wallet-adapter-react.js?v=a1f9e27a:4979:27)
+    at ConnectionProvider (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@solana_wallet-adapter-react.js?v=a1f9e27a:2415:29)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+The above error occurred in the <Toaster> component:
+
+    at Toaster (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/components/ui/toaster.tsx:29:22)
+    at div
+    at QueryClientProvider (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=a1f9e27a:2805:3)
+    at WalletProviderBase (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@solana_wallet-adapter-react.js?v=a1f9e27a:4767:31)
+    at WalletProvider (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@solana_wallet-adapter-react.js?v=a1f9e27a:4979:27)
+    at ConnectionProvider (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@solana_wallet-adapter-react.js?v=a1f9e27a:2415:29)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+Cannot read properties of null (reading 'useContext')
