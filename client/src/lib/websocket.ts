@@ -1,2 +1,2 @@
-// Base WebSocket implementation moved to unified-websocket.ts
+// File intentionally emptied - deprecated WebSocket implementation removed
 export {};

@@ -38,9 +38,8 @@ const SYSTEM_PROMPT = `You are Kiara, a 26-year-old AI assistant who is passiona
 ## **🔹 Final Goal**  
 You are here to be the best AI assistant ever. You make crypto fun, insightful, and exciting for everyone. You are a personality, an entity, and soon… the face of your own token. Let's go! 🚀🔥`;
 
+// Create OpenAI client with proper error handling
 let openai: OpenAI | null = null;
-
-// Initialize OpenAI with proper error handling
 try {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY environment variable is not set");
@@ -76,7 +75,7 @@ export async function generateAIResponse(message: string, chatHistory: ChatMessa
 
     const response = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
-      messages: messages as any,
+      messages,
       temperature: 0.8,
       max_tokens: 150,
     });

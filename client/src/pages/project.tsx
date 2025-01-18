@@ -1,7 +1,6 @@
 import { FC } from "react";
 import Navbar from "@/components/Navbar";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
-import TokenList from "@/components/TokenList";
 
 const ProjectPage: FC = () => {
   return (
@@ -24,9 +23,9 @@ const ProjectPage: FC = () => {
                 filter: 'drop-shadow(0 0 10px rgba(96, 239, 255, 0.2))'
               }}
             >
-              PumpFun Token Tracker
+              Project Page
             </h1>
-            <TokenList />
+            {/* Token tracker removed */}
           </div>
         </main>
       </div>

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -12,13 +12,11 @@ export default function Navbar() {
   const [, setLocation] = useLocation();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [displayAddress, setDisplayAddress] = useState('');
 
-  const handleWalletClick = useCallback(async () => {
+  const handleWalletClick = async () => {
     if (connected) {
       try {
         await disconnect();
-        setDisplayAddress('');
         toast({
           title: "Wallet Disconnected",
           description: "Your wallet has been disconnected successfully",
@@ -33,6 +31,7 @@ export default function Navbar() {
       return;
     }
 
+    // Check for Phantom wallet
     const phantom = window?.phantom?.solana;
 
     if (!phantom) {
@@ -46,11 +45,10 @@ export default function Navbar() {
     }
 
     try {
-      await connect();
-      if (publicKey) {
-        const address = publicKey.toBase58();
-        setDisplayAddress(`${address.slice(0, 4)}...${address.slice(-4)}`);
-      }
+      await connect().catch((err) => {
+        throw err;
+      });
+
       toast({
         title: "Wallet Connected",
         description: "Your wallet has been connected successfully",
@@ -63,9 +61,9 @@ export default function Navbar() {
         variant: "destructive",
       });
     }
-  }, [connected, connect, disconnect, toast, publicKey]);
+  };
 
-  const handleLogout = useCallback(async () => {
+  const handleLogout = async () => {
     try {
       const response = await fetch('/api/logout', {
         method: 'POST',
@@ -81,9 +79,10 @@ export default function Navbar() {
         description: "You have been logged out successfully",
       });
 
+      // Clear any session data
       sessionStorage.removeItem('isAuthenticated');
       sessionStorage.removeItem('shouldPlayInteractive');
-      setLocation('/');
+      window.location.href = '/';
     } catch (error) {
       toast({
         title: "Logout failed",
@@ -91,7 +90,11 @@ export default function Navbar() {
         variant: "destructive",
       });
     }
-  }, [toast, setLocation]);
+  };
+
+  const shortenAddress = (address: string) => {
+    return `${address.slice(0, 4)}...${address.slice(-4)}`;
+  };
 
   return (
     <>
@@ -115,8 +118,7 @@ export default function Navbar() {
                   backgroundClip: 'text',
                   color: 'transparent',
                   textShadow: '0 0 10px rgba(255, 0, 255, 0.3)',
-                  letterSpacing: '0.15em',
-                  filter: 'drop-shadow(0 0 10px rgba(96, 239, 255, 0.2))'
+                  animation: 'shine 3s linear infinite, float 2s ease-in-out infinite'
                 }}
               >
                 KIARA_AI
@@ -124,7 +126,7 @@ export default function Navbar() {
             </div>
 
             <div className="hidden md:flex items-center space-x-4">
-              <Link href="/"><Button variant="ghost">Home</Button></Link>
+              <Link href="/home"><Button variant="ghost">Home</Button></Link>
               <Link href="/about"><Button variant="ghost">About Us</Button></Link>
               <Link href="/project"><Button variant="ghost">Project</Button></Link>
               <Link href="/kiara-stage-i">
@@ -134,6 +136,7 @@ export default function Navbar() {
               </Link>
               <Link href="/subscriptions"><Button variant="ghost">Subscriptions</Button></Link>
 
+              {/* Auth Buttons */}
               <Button 
                 onClick={() => setIsRegisterOpen(true)}
                 variant="outline" 
@@ -153,9 +156,15 @@ export default function Navbar() {
                 onClick={handleWalletClick}
                 className={`${connected ? 'bg-green-500 hover:bg-green-600' : 'bg-purple-500 hover:bg-purple-600'} text-white`}
               >
-                {connected ? displayAddress : 'Connect Wallet'}
+                {connected ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse" />
+                    {shortenAddress(publicKey?.toBase58() || '')}
+                  </span>
+                ) : (
+                  'Connect Wallet'
+                )}
               </Button>
-
               <Button
                 onClick={handleLogout}
                 variant="ghost"

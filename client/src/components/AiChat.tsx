@@ -3,9 +3,15 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import axios from "axios";
+
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
 
 export default function AiChat() {
-  const [messages, setMessages] = useState([{
+  const [messages, setMessages] = useState<Message[]>([{
     role: "assistant",
     content: "Hello! I am KIARA, your AI assistant. How can I help you with cryptocurrency analysis today?"
   }]);
@@ -15,19 +21,32 @@ export default function AiChat() {
   const sendMessage = async () => {
     if (!input.trim()) return;
 
-    const userMessage = { role: "user", content: input };
+    const userMessage: Message = { role: "user", content: input };
     setMessages(prev => [...prev, userMessage]);
     setInput("");
     setIsTyping(true);
 
-    // Simulate AI response for now until we properly implement the AI service
-    setTimeout(() => {
+    try {
+      // Filter out the initial greeting message when sending history
+      const chatHistory = messages.slice(1);
+      const response = await axios.post("/api/chat", { 
+        message: input,
+        history: chatHistory
+      });
+
       setMessages(prev => [...prev, {
         role: "assistant",
-        content: "I'm currently in maintenance mode. I'll be back online soon to help you with your crypto queries!"
+        content: response.data.response
       }]);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: "I apologize, I encountered an error processing your request. Please try again."
+      }]);
+    } finally {
       setIsTyping(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -41,7 +60,11 @@ export default function AiChat() {
           {messages.map((msg, i) => (
             <div
               key={i}
-              className={`chat-message ${msg.role === "user" ? "user" : ""}`}
+              className={`p-3 rounded-lg ${
+                msg.role === "user"
+                  ? "bg-purple-500/20 ml-auto max-w-[80%]"
+                  : "bg-gray-800/50 mr-auto max-w-[80%]"
+              }`}
             >
               {msg.content}
             </div>
@@ -53,28 +76,21 @@ export default function AiChat() {
       </ScrollArea>
 
       <div className="p-4 mt-auto border-t border-purple-500/20">
-        <form 
-          onSubmit={(e) => {
-            e.preventDefault();
-            sendMessage();
-          }}
-          className="flex gap-2"
-        >
+        <div className="flex gap-2">
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyPress={(e) => e.key === "Enter" && sendMessage()}
             placeholder="Ask KIARA anything..."
             className="bg-gray-800/50 border-purple-500/20 flex-grow"
-            disabled={isTyping}
           />
           <Button
-            type="submit"
+            onClick={sendMessage}
             className="bg-purple-500 hover:bg-purple-600 whitespace-nowrap"
-            disabled={isTyping || !input.trim()}
           >
             Send Message
           </Button>
-        </form>
+        </div>
       </div>
     </Card>
   );

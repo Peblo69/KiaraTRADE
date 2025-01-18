@@ -1,45 +1,32 @@
-import { FC, useEffect, useState, useRef, useCallback } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Terminal, Activity } from "lucide-react";
-import { queryClient } from "@/lib/queryClient";
+import { Terminal } from "lucide-react";
 
 interface LogMessage {
   timestamp: string;
   message: string;
-  type: 'info' | 'error' | 'success' | 'warn' | 'render';
-}
-
-interface PerformanceMetrics {
-  renders: Record<string, number>;
-  stateUpdates: number;
-  queryUpdates: number;
+  type: 'info' | 'error' | 'success';
 }
 
 export const DebugPanel: FC = () => {
   const [logs, setLogs] = useState<LogMessage[]>([]);
   const [isVisible, setIsVisible] = useState(true);
-  const [metrics, setMetrics] = useState<PerformanceMetrics>({
-    renders: {},
-    stateUpdates: 0,
-    queryUpdates: 0,
-  });
 
-  const logsRef = useRef<LogMessage[]>([]);
-  const metricsRef = useRef(metrics);
+  useEffect(() => {
+    // Override console.log to capture logs
+    const originalLog = console.log;
+    const originalError = console.error;
 
-  const addLog = useCallback((type: LogMessage['type'], ...args: any[]) => {
     const formatValue = (value: any): string => {
       if (value === null) return 'null';
       if (value === undefined) return 'undefined';
       if (typeof value === 'object') {
+        // Skip empty objects
+        if (Object.keys(value).length === 0) return '';
         try {
-          const stringified = JSON.stringify(value, null, 2);
-          if (stringified.length > 500) {
-            return stringified.substring(0, 500) + '...';
-          }
-          return stringified;
+          return JSON.stringify(value, null, 2);
         } catch (e) {
           return String(value);
         }
@@ -47,82 +34,45 @@ export const DebugPanel: FC = () => {
       return String(value);
     };
 
-    const formattedMessage = args
-      .map(formatValue)
-      .filter(Boolean)
-      .join(' ');
-
-    if (formattedMessage) {
-      const newLog = {
-        timestamp: new Date().toLocaleTimeString(),
-        message: formattedMessage,
-        type
-      };
-
-      logsRef.current = [...logsRef.current, newLog].slice(-100);
-      setLogs(logsRef.current);
-    }
-  }, []);
-
-  useEffect(() => {
-    const originalLog = console.log;
-    const originalError = console.error;
-    const originalWarn = console.warn;
-
-    // Override console methods
     console.log = (...args) => {
       originalLog.apply(console, args);
-      addLog('info', ...args);
+      const formattedMessage = args
+        .map(formatValue)
+        .filter(Boolean) // Remove empty strings
+        .join(' ');
+
+      if (formattedMessage) {
+        setLogs(prev => [...prev, {
+          timestamp: new Date().toLocaleTimeString(),
+          message: formattedMessage,
+          type: 'info'
+        }].slice(-50)); // Keep last 50 logs
+      }
     };
 
     console.error = (...args) => {
       originalError.apply(console, args);
-      addLog('error', ...args);
+      const formattedMessage = args
+        .map(formatValue)
+        .filter(Boolean)
+        .join(' ');
+
+      if (formattedMessage) {
+        setLogs(prev => [...prev, {
+          timestamp: new Date().toLocaleTimeString(),
+          message: formattedMessage,
+          type: 'error'
+        }].slice(-50));
+      }
     };
-
-    console.warn = (...args) => {
-      originalWarn.apply(console, args);
-      addLog('warn', ...args);
-    };
-
-    // Track React Query cache updates
-    const unsubscribe = queryClient.getQueryCache().subscribe(() => {
-      metricsRef.current = {
-        ...metricsRef.current,
-        queryUpdates: metricsRef.current.queryUpdates + 1
-      };
-      setMetrics(metricsRef.current);
-      addLog('info', '[React Query] Cache updated');
-    });
-
-    // Track component renders
-    const trackRender = (componentName: string) => {
-      metricsRef.current = {
-        ...metricsRef.current,
-        renders: {
-          ...metricsRef.current.renders,
-          [componentName]: (metricsRef.current.renders[componentName] || 0) + 1
-        }
-      };
-      setMetrics(metricsRef.current);
-      addLog('render', `[Render] ${componentName}`);
-    };
-
-    // Make trackRender available globally
-    (window as any).__trackRender = trackRender;
 
     return () => {
       console.log = originalLog;
       console.error = originalError;
-      console.warn = originalWarn;
-      delete (window as any).__trackRender;
-      unsubscribe();
     };
-  }, [addLog]);
-
-  const toggleVisibility = useCallback(() => {
-    setIsVisible(prev => !prev);
   }, []);
+
+  const toggleVisibility = () => setIsVisible(!isVisible);
 
   if (!isVisible) {
     return (
@@ -150,30 +100,6 @@ export const DebugPanel: FC = () => {
           </Button>
         </div>
 
-        <div className="mb-4 grid grid-cols-2 gap-4">
-          <Card className="p-2 bg-background/80">
-            <div className="flex items-center gap-2 mb-1">
-              <Activity className="h-4 w-4 text-blue-400" />
-              <span className="text-sm font-medium">React Query Updates</span>
-            </div>
-            <span className="text-xl font-bold">{metrics.queryUpdates}</span>
-          </Card>
-          <Card className="p-2 bg-background/80">
-            <div className="flex items-center gap-2 mb-1">
-              <Activity className="h-4 w-4 text-green-400" />
-              <span className="text-sm font-medium">Component Renders</span>
-            </div>
-            <div className="space-y-1">
-              {Object.entries(metrics.renders).map(([component, count]) => (
-                <div key={component} className="text-sm flex justify-between">
-                  <span className="text-muted-foreground">{component}:</span>
-                  <span className="font-medium">{count}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-
         <ScrollArea className="h-[300px] rounded-md border">
           <div className="p-4 space-y-2">
             {logs.map((log, index) => (
@@ -181,14 +107,14 @@ export const DebugPanel: FC = () => {
                 key={index} 
                 className={`text-sm font-mono ${
                   log.type === 'error' ? 'text-red-500 bg-red-950/20' : 
-                  log.type === 'warn' ? 'text-yellow-500 bg-yellow-950/20' :
-                  log.type === 'success' ? 'text-green-500 bg-green-950/20' :
-                  log.type === 'render' ? 'text-blue-500 bg-blue-950/20' :
+                  log.type === 'success' ? 'text-green-500 bg-green-950/20' : 
                   'text-foreground bg-muted/20'
                 } rounded p-2 whitespace-pre-wrap break-words`}
               >
                 <span className="opacity-50">[{log.timestamp}]</span>
-                <span className="ml-2">{log.message}</span>
+                <span className="ml-2">
+                  {log.message}
+                </span>
               </div>
             ))}
             {logs.length === 0 && (
