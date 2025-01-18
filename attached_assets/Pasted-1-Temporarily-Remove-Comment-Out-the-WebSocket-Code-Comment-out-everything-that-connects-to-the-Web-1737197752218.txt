@@ -1,0 +1,88 @@
+1. Temporarily Remove/Comment Out the WebSocket Code
+Comment out everything that connects to the WebSocket (both in your aggregator subscription and the front end).
+Replace real data with static or fake data in your TokenChart or TokenTracker.
+If the “maximum update depth exceeded” error disappears, you know the loop is triggered by your real-time WebSocket data. That means either:
+
+The aggregator is spamming repeated messages (sending the same data over and over).
+Your front end is sending some message back to the server (maybe via the store?), causing a loop.
+Or each message from the aggregator is returning new references (like new objects) that cause your store’s selector to see “changed data” every time.
+If the loop remains even with no WebSocket usage, look elsewhere (like a parent component or some other store).
+
+2. Check If Your Aggregator Is Spamming the Same Message Repeatedly
+Look at your aggregator (server) logs. Does it keep broadcasting the same token update over and over?
+
+You might have code like:
+
+js
+Copy
+broadcastUpdate(tokenAddress, tokenData);
+in an event that fires continuously (like an on-chain subscription that sees the same state repeatedly).
+
+If so, the front end receives each update, calls setState or useStore.setState, which triggers a re-render and possibly re-requests data, which triggers the aggregator to broadcast again—loop.
+
+Fix: Only broadcast a token update if something actually changed. For instance, store the last known price or candle in the aggregator and compare. If it’s unchanged, don’t broadcast.
+
+3. Check the Front End for a “Set State on Every Render” Pattern
+Sometimes the front end has code like:
+
+js
+Copy
+useEffect(() => {
+  // Something triggers setState or store update unconditionally
+  setState(...);
+});
+If that effect runs on every render with no proper dependency array or condition, you get infinite re-renders. Double-check your WebSocket code:
+
+js
+Copy
+ws.onmessage = (event) => {
+  // do we always call setState even if the data is identical?
+};
+Solution: Only update local state if the data is genuinely new/different. For example:
+
+js
+Copy
+if (!deepEqual(newCandle, prevCandles[prevCandles.length - 1])) {
+  setCandles([...prevCandles, newCandle]);
+}
+4. Confirm You Don’t Send a Message Back to the Server on Every Received Update
+If your front end, upon receiving an update, does something like ws.send(...) to confirm or request something from the server, you can create a 2-way feedback loop:
+
+Server → “Here’s an update” → Client → “OK got it, here’s something else” → Server → “Here’s an update”…
+
+and so on. Make sure your client is purely reading messages, not re-sending data on each one (unless truly necessary).
+
+5. Inspect the Store or “Unified Store” for Repeated State Updates
+If you still use a global store (Zustand, Redux, etc.), see if reading or writing the store triggers new references each time. For example:
+
+A store selector or getPriceHistory(tokenAddress) that always returns a new array or object.
+This makes React think “the store changed” on every read → re-render → triggers the aggregator again (or triggers your front end logic to setState again).
+How to Detect:
+
+Add a subscribe in the store:
+
+js
+Copy
+myStore.subscribe((newState) => {
+  console.log('STORE UPDATED:', newState);
+});
+If you see continuous spam, something is rewriting the store in a loop.
+
+If so, you must fix the store to only update or create new references when actual data changes, not every time the front end reads.
+
+6. Make Sure DevTools Isn’t Amplifying the Issue
+In rare cases, Zustand or Redux DevTools can re-trigger updates if the code is borderline. Temporarily turn off DevTools middleware if you’re using it:
+
+js
+Copy
+// comment out devtools(...) or Redux devToolsEnhancer(...)
+export const useStore = create((set, get) => ({
+  ...
+}));
+If the loop goes away, you still have a real repeated update, but devtools was replaying or surfacing it more aggressively.
+
+Summary: The 1-2-3 of Killing the Loop
+Comment out the WebSocket to confirm the loop is from real-time updates.
+Check aggregator → is it spamming the same update? If so, only broadcast changes.
+Check front end → do we set state or store on every message, even if data is identical? If so, compare old vs. new data to skip no-op updates.
+Those steps always reveal the culprit behind an infinite render loop in a real-time setup. Once you isolate the code path that triggers repeated updates, you can fix it by only updating state when real changes occur.

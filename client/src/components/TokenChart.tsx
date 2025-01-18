@@ -22,76 +22,32 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
   const chart = useRef<IChartApi | null>(null);
   const candlestickSeries = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeries = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const ws = useRef<WebSocket | null>(null);
 
-  // Load initial data and setup WebSocket
+  // Load initial data
   useEffect(() => {
     console.log('[TokenChart] Loading initial data for token:', tokenAddress);
 
-    // Fetch initial candle data
-    fetch(`/api/tokens/${tokenAddress}/candles`)
-      .then(res => res.json())
-      .then(data => {
-        console.log('[TokenChart] Received initial candle data:', data);
-        setCandles(data);
-      })
-      .catch(error => {
-        console.error('[TokenChart] Error fetching initial data:', error);
-      });
-
-    // Connect to aggregator WebSocket
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
-    console.log('[TokenChart] Connecting to WebSocket:', wsUrl);
-
-    ws.current = new WebSocket(wsUrl);
-
-    ws.current.onopen = () => {
-      console.log('[TokenChart] WebSocket connected');
-    };
-
-    ws.current.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('[TokenChart] Received WebSocket message:', data);
-
-        if (data.type === 'candle_update' && data.tokenAddress === tokenAddress) {
-          console.log('[TokenChart] Processing candle update:', data.candle);
-          setCandles(prevCandles => {
-            const updatedCandles = [...prevCandles];
-            const existingIndex = updatedCandles.findIndex(
-              c => c.timestamp === data.candle.timestamp
-            );
-
-            if (existingIndex >= 0) {
-              updatedCandles[existingIndex] = data.candle;
-            } else {
-              updatedCandles.push(data.candle);
-            }
-
-            return updatedCandles.sort((a, b) => a.timestamp - b.timestamp);
-          });
-        }
-      } catch (error) {
-        console.error('[TokenChart] Error processing WebSocket message:', error);
+    // Temporary static data for testing
+    const staticCandles: Candle[] = [
+      {
+        timestamp: Date.now() - 3600000, // 1 hour ago
+        open: 1.0,
+        high: 1.2,
+        low: 0.9,
+        close: 1.1,
+        volume: 1000
+      },
+      {
+        timestamp: Date.now(),
+        open: 1.1,
+        high: 1.3,
+        low: 1.0,
+        close: 1.2,
+        volume: 1500
       }
-    };
+    ];
 
-    ws.current.onerror = (error) => {
-      console.error('[TokenChart] WebSocket error:', error);
-    };
-
-    ws.current.onclose = () => {
-      console.log('[TokenChart] WebSocket connection closed');
-    };
-
-    return () => {
-      console.log('[TokenChart] Cleaning up WebSocket connection');
-      if (ws.current) {
-        ws.current.close();
-        ws.current = null;
-      }
-    };
+    setCandles(staticCandles);
   }, [tokenAddress]);
 
   // Initialize chart

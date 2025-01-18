@@ -8,48 +8,27 @@ export const TokenTracker: FC = () => {
   const isConnected = useUnifiedTokenStore(state => state.isConnected);
 
   useEffect(() => {
-    console.log('[TokenTracker] Initializing WebSocket connection');
+    console.log('[TokenTracker] Initializing with static data');
 
-    // Connect to aggregator WebSocket
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
-    const ws = new WebSocket(wsUrl);
+    // Add static test token
+    useUnifiedTokenStore.getState().addToken({
+      name: "Test Token",
+      symbol: "TEST",
+      marketCap: 1000000,
+      marketCapSol: 1000,
+      liquidityAdded: true,
+      holders: 100,
+      volume24h: 5000,
+      address: "test123",
+      price: 1.5,
+      imageUrl: "https://cryptologos.cc/logos/solana-sol-logo.png"
+    }, 'unified');
 
-    ws.onopen = () => {
-      console.log('[TokenTracker] WebSocket connected');
-      useUnifiedTokenStore.getState().setConnected(true);
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('[TokenTracker] Received message:', data);
-
-        if (data.type === 'token_update') {
-          useUnifiedTokenStore.getState().updateToken(data.tokenAddress, data.token);
-        } else if (data.type === 'new_token') {
-          useUnifiedTokenStore.getState().addToken(data.token, 'unified');
-        }
-      } catch (error) {
-        console.error('[TokenTracker] Error processing message:', error);
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error('[TokenTracker] WebSocket error:', error);
-      useUnifiedTokenStore.getState().setError('WebSocket connection error');
-    };
-
-    ws.onclose = () => {
-      console.log('[TokenTracker] WebSocket connection closed');
-      useUnifiedTokenStore.getState().setConnected(false);
-    };
+    useUnifiedTokenStore.getState().setConnected(true);
 
     return () => {
-      console.log('[TokenTracker] Cleaning up WebSocket connection');
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
+      console.log('[TokenTracker] Cleanup');
+      useUnifiedTokenStore.getState().setConnected(false);
     };
   }, []);
 
