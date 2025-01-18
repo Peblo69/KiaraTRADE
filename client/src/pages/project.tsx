@@ -11,7 +11,22 @@ const ProjectPage: FC = () => {
   const error = useUnifiedTokenStore((state) => state.connectionError);
 
   useEffect(() => {
-    // Connect to BitQuery WebSocket
+    // Test BitQuery API key first
+    fetch('https://graphql.bitquery.io', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': 'BQYSaASLeyNPxRf38DGgENQ1mVHxNypq',
+      },
+      body: JSON.stringify({
+        query: `{ Solana { blockchain { blocks(limit: 1) { blockNumber } } } }`,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => console.log('API Key Test Result:', data))
+      .catch((err) => console.error('API Key Test Error:', err));
+
+    // Only connect WebSocket if API test passes
     try {
       bitQueryWebSocket.connect();
     } catch (error) {
