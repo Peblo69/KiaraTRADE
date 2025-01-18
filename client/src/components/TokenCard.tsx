@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useUnifiedTokenStore } from "@/lib/unified-token-store";
 import TransactionHistory from "./TransactionHistory";
+import TokenChart from './TokenChart';
 
 const SOL_PRICE_USD = 104.23;
 const PUMPFUN_LOGO = "https://files.catbox.moe/beba90.png";
@@ -166,6 +167,8 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
           </div>
         </div>
       </div>
+
+      <TokenChart tokenAddress={token.address} height={300} />
 
       <TransactionHistory tokenAddress={token.address} />
 
