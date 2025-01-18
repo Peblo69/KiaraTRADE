@@ -281,51 +281,39 @@ export function registerRoutes(app: Express): Server {
 
       const kucoinTimeframe = timeframeMap[timeframe as string] || '1day';
 
-      // Calculate start time based on timeframe (up to 1500 candles)
-      const now = Math.floor(Date.now() / 1000);
-      let startTime = now;
-
-      switch(timeframe) {
-        case '1m': startTime = now - (60 * 1500); break;       // 1500 minutes
-        case '5m': startTime = now - (300 * 1500); break;      // 5200 minutes
-        case '15m': startTime = now - (900 * 1500); break;     // 15600 minutes
-        case '30m': startTime = now - (1800 * 1500); break;    // 31200 minutes
-        case '1h': startTime = now - (3600 * 1500); break;     // 2.5 months
-        case '4h': startTime = now - (14400 * 1500); break;    // 10 months
-        case '1d': startTime = now - (86400 * 1500); break;    // 4.1 years
-        case '1w': startTime = now - (604800 * 1500); break;   // 28.8 years
-        default: startTime = now - (86400 * 365); // 1 year default
-      }
-
-      console.log(`[Routes] Fetching klines for ${symbol} with timeframe ${timeframe}`);
+      console.log(`[Routes] Fetching klines for ${symbol} with timeframe ${kucoinTimeframe}`);
 
       const response = await axios.get(`${KUCOIN_API_BASE}/market/candles`, {
         params: {
           symbol,
           type: kucoinTimeframe,
-          startAt: startTime,
-          endAt: now
+          startAt: Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000), // Last 7 days by default
+          endAt: Math.floor(Date.now() / 1000)
         }
       });
 
-      if (!response.data.data || !response.data.data.length) {
+      if (!response.data.data) {
         console.warn(`[Routes] No klines data received for ${symbol}`);
         return res.json({ klines: [] });
       }
 
-      // KuCoin returns klines in format: [timestamp, open, close, high, low, volume, turnover]
-      const klines = response.data.data.map((kline: string[]) => ({
-        time: parseInt(kline[0]), // Keep as seconds for lightweight-charts
-        open: parseFloat(kline[1]),
-        high: parseFloat(kline[3]), // Note: KuCoin order is different
-        low: parseFloat(kline[4]),
-        close: parseFloat(kline[2]),
-        volume: parseFloat(kline[5]),
-        turnover: parseFloat(kline[6])
-      }));
+      // KuCoin returns klines in reverse chronological order as arrays:
+      // [timestamp, open, close, high, low, volume, turnover]
+      const klines = response.data.data
+        .reverse() // Reverse to get chronological order
+        .map((k: string[]) => ({
+          time: parseInt(k[0]), // Timestamp in seconds
+          open: parseFloat(k[1]),
+          close: parseFloat(k[2]),
+          high: parseFloat(k[3]),
+          low: parseFloat(k[4]),
+          volume: parseFloat(k[5])
+        }));
 
       console.log(`[Routes] Processed ${klines.length} klines for ${symbol}`);
-      console.log('[Routes] Sample kline:', klines[0]);
+      if (klines.length > 0) {
+        console.log('[Routes] Sample kline:', klines[0]);
+      }
 
       res.json({ klines });
     } catch (error: any) {
