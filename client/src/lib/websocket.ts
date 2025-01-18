@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { queryClient } from './queryClient';
-import { createClient } from 'graphql-ws';
 
 export interface Token {
   name: string;
@@ -27,7 +26,7 @@ export const useTokenStore = create<TokenStore>((set) => ({
   isConnected: false,
   addToken: (token) =>
     set((state) => ({
-      tokens: [token, ...state.tokens].slice(0, 100), // Keep last 100 tokens
+      tokens: [token, ...state.tokens].slice(0, 8), // Keep only latest 8 tokens
     })),
   updateToken: (address, updates) =>
     set((state) => ({
@@ -38,178 +37,127 @@ export const useTokenStore = create<TokenStore>((set) => ({
   setConnected: (connected) => set({ isConnected: connected }),
 }));
 
-// BitQuery WebSocket client setup
-const client = createClient({
-  url: 'wss://streaming.bitquery.io/eap',
-  connectionParams: {
-    headers: {
-      'X-API-KEY': import.meta.env.VITE_BITQUERY_API_KEY,
-    },
-  },
-  on: {
-    connected: () => {
-      console.log('[BitQuery] WebSocket connected successfully');
-      useTokenStore.getState().setConnected(true);
-      (window as any).debugConsole?.success('WebSocket connection established');
-    },
-    error: (error: Error) => {
-      console.error('[BitQuery] WebSocket error:', error?.message || 'Unknown error');
-      useTokenStore.getState().setConnected(false);
-      (window as any).debugConsole?.error(`WebSocket error: ${error?.message || 'Unknown error'}`);
-    },
-    closed: () => {
-      console.log('[BitQuery] WebSocket disconnected');
-      useTokenStore.getState().setConnected(false);
-      setTimeout(subscribeToTokens, 5000); // Attempt to reconnect after 5 seconds
-    },
-  },
-});
+let ws: WebSocket | null = null;
+let reconnectTimeout: NodeJS.Timeout | null = null;
 
-// Subscribe to new PumpFun token trades
-function subscribeToTokens() {
+// Initialize WebSocket connection
+function initializeWebSocket() {
   const store = useTokenStore.getState();
 
-  client.subscribe(
-    {
-      query: `
-        subscription {
-          Solana {
-            DEXTrades(
-              where: {
-                Trade: { 
-                  Dex: { ProtocolName: { is: "pump" } }
-                },
-                Transaction: { Result: { Success: true } }
-              }
-            ) {
-              Trade {
-                Buy {
-                  Currency {
-                    Name
-                    Symbol
-                    MintAddress
-                    Decimals
-                    Fungible
-                    Uri
-                  }
-                  Price
-                  PriceInUSD
-                }
-                Dex {
-                  ProtocolName
-                  ProtocolFamily
-                }
-              }
-              Transaction {
-                Signature
-              }
-              Block {
-                Time
-              }
-            }
-          }
+  // Clear any existing reconnect timeout
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
+
+  // Close existing connection if any
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
+
+  try {
+    ws = new WebSocket('wss://pumpportal.fun/api/data');
+
+    ws.onopen = () => {
+      console.log('[PumpPortal] Connected to WebSocket');
+      store.setConnected(true);
+
+      // Only send subscriptions if ws is not null
+      if (ws) {
+        // Subscribe to new token creation events
+        ws.send(JSON.stringify({
+          method: "subscribeNewToken"
+        }));
+
+        // Subscribe to all token trades
+        ws.send(JSON.stringify({
+          method: "subscribeTokenTrade",
+          keys: [] // Empty array to subscribe to all token trades
+        }));
+      }
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('[PumpPortal] Received message:', data.type);
+
+        // Handle token creation events
+        if (data.type === 'newToken') {
+          const token: Token = {
+            name: data.token.name || `Token ${data.token.address.slice(0, 8)}`,
+            symbol: data.token.symbol || `PUMP${data.token.address.slice(0, 4)}`,
+            price: data.token.price || 0,
+            marketCap: (data.token.price || 0) * 1_000_000_000, // All pump tokens have 1B supply
+            volume24h: 0,
+            holders: 0,
+            createdAt: new Date(),
+            address: data.token.address,
+            imageUrl: data.token.image || "https://via.placeholder.com/40",
+          };
+          store.addToken(token);
+          console.log('[PumpPortal] New token created:', token.name);
         }
-      `,
-    },
-    {
-      next: (data) => {
-        if (!data?.data?.Solana?.DEXTrades?.[0]) return;
 
-        const trade = data.data.Solana.DEXTrades[0];
-        const token = {
-          name: trade.Trade.Buy.Currency.Name || `Pump Token ${trade.Transaction.Signature.slice(0, 8)}`,
-          symbol: trade.Trade.Buy.Currency.Symbol || `PUMP${trade.Transaction.Signature.slice(0, 4)}`,
-          price: trade.Trade.Buy.PriceInUSD || 0,
-          marketCap: trade.Trade.Buy.PriceInUSD * 1_000_000_000, // All pump tokens have 1B supply
-          volume24h: 0, // Will be updated in subsequent trades
-          holders: 0,
-          createdAt: new Date(trade.Block.Time),
-          address: trade.Trade.Buy.Currency.MintAddress,
-          imageUrl: trade.Trade.Buy.Currency.Uri || "https://via.placeholder.com/40",
-        };
+        // Handle trade updates
+        else if (data.type === 'tokenTrade') {
+          store.updateToken(data.trade.tokenAddress, {
+            price: data.trade.price,
+            marketCap: data.trade.price * 1_000_000_000,
+            volume24h: data.trade.volume24h || 0,
+          });
+          console.log('[PumpPortal] Trade update for:', data.trade.tokenAddress);
+        }
+      } catch (error) {
+        console.error('[PumpPortal] Failed to parse message:', error);
+      }
+    };
 
-        store.addToken(token);
-        console.log('[BitQuery] New token detected:', token.name);
-      },
-      error: (error) => {
-        console.error('[BitQuery] Subscription error:', error);
-      },
-      complete: () => {
-        console.log('[BitQuery] Subscription completed');
-      },
-    },
-  );
+    ws.onclose = () => {
+      console.log('[PumpPortal] WebSocket disconnected');
+      store.setConnected(false);
+      // Attempt to reconnect after 5 seconds
+      reconnectTimeout = setTimeout(initializeWebSocket, 5000);
+    };
+
+    ws.onerror = (error) => {
+      console.error('[PumpPortal] WebSocket error:', error);
+      store.setConnected(false);
+    };
+  } catch (error) {
+    console.error('[PumpPortal] Failed to initialize WebSocket:', error);
+    // Attempt to reconnect after 5 seconds
+    reconnectTimeout = setTimeout(initializeWebSocket, 5000);
+  }
 }
 
-// Initialize WebSocket connection when in browser
+// Initialize connection when in browser
 if (typeof window !== 'undefined') {
-  subscribeToTokens();
+  initializeWebSocket();
 }
 
 // Function to fetch initial token data
 export async function fetchRealTimeTokens(): Promise<Token[]> {
   try {
-    const response = await fetch('https://graphql.bitquery.io', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': import.meta.env.VITE_BITQUERY_API_KEY,
-      },
-      body: JSON.stringify({
-        query: `
-          query {
-            Solana {
-              DEXTrades(
-                limit: { count: 10 }
-                where: {
-                  Trade: { 
-                    Dex: { ProtocolName: { is: "pump" } }
-                  },
-                  Transaction: { Result: { Success: true } }
-                }
-                orderBy: { descending: Block_Time }
-              ) {
-                Trade {
-                  Buy {
-                    Currency {
-                      Name
-                      Symbol
-                      MintAddress
-                      Uri
-                    }
-                    Price
-                    PriceInUSD
-                  }
-                }
-                Transaction {
-                  Signature
-                }
-                Block {
-                  Time
-                }
-              }
-            }
-          }
-        `
-      }),
-    });
-
-    const result = await response.json();
-    const tokens = result.data?.Solana?.DEXTrades?.map((trade: any) => ({
-      name: trade.Trade.Buy.Currency.Name || `Pump Token ${trade.Transaction.Signature.slice(0, 8)}`,
-      symbol: trade.Trade.Buy.Currency.Symbol || `PUMP${trade.Transaction.Signature.slice(0, 4)}`,
-      price: trade.Trade.Buy.PriceInUSD || 0,
-      marketCap: trade.Trade.Buy.PriceInUSD * 1_000_000_000,
-      volume24h: 0,
-      holders: 0,
-      createdAt: new Date(trade.Block.Time),
-      address: trade.Trade.Buy.Currency.MintAddress,
-      imageUrl: trade.Trade.Buy.Currency.Uri || "https://via.placeholder.com/40",
-    })) || [];
-
-    return tokens;
+    const response = await fetch('https://pumpportal.fun/api/tokens/recent');
+    if (!response.ok) {
+      throw new Error('Failed to fetch token data');
+    }
+    const data = await response.json();
+    return data.tokens.map((token: any) => ({
+      name: token.name || `Token ${token.address.slice(0, 8)}`,
+      symbol: token.symbol || `PUMP${token.address.slice(0, 4)}`,
+      price: token.price || 0,
+      marketCap: (token.price || 0) * 1_000_000_000,
+      volume24h: token.volume24h || 0,
+      holders: token.holders || 0,
+      createdAt: new Date(token.createdAt),
+      address: token.address,
+      imageUrl: token.image || "https://via.placeholder.com/40",
+    }));
   } catch (error) {
-    console.error('[BitQuery] Error fetching tokens:', error);
+    console.error('[PumpPortal] Error fetching tokens:', error);
     return [];
   }
 }
