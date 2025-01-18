@@ -11,25 +11,69 @@ interface TokenMetadata {
 // Cache metadata responses to avoid redundant API calls
 const metadataCache = new Map<string, TokenMetadata>();
 
+// Cache successful image URLs to avoid trying failed sources repeatedly
+const imageUrlCache = new Map<string, string>();
+
 // Add new function for cryptocurrency icons
 export function getCryptoIconUrl(symbol: string): string {
+  // If we have a cached successful URL, return it
+  if (imageUrlCache.has(symbol)) {
+    return imageUrlCache.get(symbol)!;
+  }
+
   // Clean symbol (remove -USDT suffix and convert to lowercase)
   const cleanSymbol = symbol.replace('-USDT', '').toLowerCase();
 
   // List of possible icon sources in order of preference
   const possibleSources = [
+    // CoinGecko - primary source, extensive library
+    `https://assets.coingecko.com/coins/images/1/large/${cleanSymbol}.png`,
+    `https://assets.coingecko.com/coins/images/1/thumb/${cleanSymbol}.png`,
+
+    // Binance - good for trading pairs
+    `https://bin.bnbstatic.com/image/crypto/${cleanSymbol}.png`,
+    `https://dex-bin.bnbstatic.com/static/images/coins/${cleanSymbol}.png`,
+
+    // CryptoCompare - extensive library
+    `https://www.cryptocompare.com/media/37746251/${cleanSymbol}.png`,
+    `https://www.cryptocompare.com/media/35309662/${cleanSymbol}.png`,
+
+    // GitHub Cryptocurrency Icons - maintained community repository
     `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/${cleanSymbol}.png`,
     `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/icon/${cleanSymbol}.png`,
+
+    // Gate.io
+    `https://www.gate.io/images/coin_icon/${cleanSymbol.toUpperCase()}.png`,
+
+    // OKX
+    `https://static.okx.com/cdn/assets/${cleanSymbol}/logo.png`,
+
+    // Huobi
+    `https://www.huobi.com/upload/logo/${cleanSymbol}.png`,
+
+    // CoinMarketCap
     `https://s2.coinmarketcap.com/static/img/coins/64x64/${cleanSymbol}.png`,
-    `https://cryptoicons.org/api/icon/${cleanSymbol}/200`,
-    // Add fallback icon from your own assets
+    `https://s2.coinmarketcap.com/static/img/coins/32x32/${cleanSymbol}.png`,
+
+    // KuCoin
+    `https://assets.staticimg.com/cms/media/1vCIT3bTK0tCY6jLsS0SY8uVGtBGHYFCyGmGGpWLj.svg`,
+
+    // Local fallback
     '/crypto-fallback.svg'
   ];
 
-  // Return a promise-based image loader function
-  return possibleSources[0]; // We'll handle the fallback in the component
+  return possibleSources[0]; // First source will be tried, fallbacks handled in CryptoIcon component
 }
 
+// Function to preload and validate image URL
+export async function validateImageUrl(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { method: 'HEAD' });
+    return response.ok && response.headers.get('content-type')?.startsWith('image/');
+  } catch {
+    return false;
+  }
+}
 
 export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMetadata | null> {
   // Check cache first
