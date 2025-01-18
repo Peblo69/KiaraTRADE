@@ -13,6 +13,26 @@ const cache = {
 };
 const CACHE_DURATION = 30000; // 30 seconds cache
 
+// Configure axios with retries
+axios.defaults.timeout = 10000;
+axios.defaults.headers.common['accept'] = 'application/json';
+
+// Add request interceptor for rate limiting
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 1000; // Minimum 1 second between requests
+
+axios.interceptors.request.use(async (config) => {
+  const now = Date.now();
+  const timeSinceLastRequest = now - lastRequestTime;
+
+  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+    await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest));
+  }
+
+  lastRequestTime = Date.now();
+  return config;
+});
+
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
@@ -39,7 +59,10 @@ export function registerRoutes(app: Express): Server {
       res.json(response.data);
     } catch (error: any) {
       console.error('Global metrics error:', error.response?.data || error.message);
-      res.status(error.response?.status || 500).json({ error: error.message || 'Failed to fetch global metrics' });
+      res.status(error.response?.status || 500).json({ 
+        error: 'Failed to fetch global metrics',
+        details: error.response?.data?.error || error.message 
+      });
     }
   });
 
@@ -75,7 +98,10 @@ export function registerRoutes(app: Express): Server {
       res.json(response.data);
     } catch (error: any) {
       console.error('Markets error:', error.response?.data || error.message);
-      res.status(error.response?.status || 500).json({ error: error.message || 'Failed to fetch market data' });
+      res.status(error.response?.status || 500).json({ 
+        error: 'Failed to fetch market data',
+        details: error.response?.data?.error || error.message 
+      });
     }
   });
 
@@ -88,10 +114,10 @@ export function registerRoutes(app: Express): Server {
           {
             params: {
               localization: false,
-              tickers: true,
+              tickers: false,
               market_data: true,
-              community_data: true,
-              developer_data: true,
+              community_data: false,
+              developer_data: false,
               sparkline: true
             }
           }
@@ -101,8 +127,7 @@ export function registerRoutes(app: Express): Server {
           {
             params: {
               vs_currency: 'usd',
-              days: 7,
-              interval: 'hourly'
+              days: '7'  // Removed interval parameter as it's enterprise-only
             }
           }
         )
@@ -116,7 +141,10 @@ export function registerRoutes(app: Express): Server {
       res.json(response);
     } catch (error: any) {
       console.error('Coin details error:', error.response?.data || error.message);
-      res.status(error.response?.status || 500).json({ error: error.message || 'Failed to fetch coin details' });
+      res.status(error.response?.status || 500).json({ 
+        error: 'Failed to fetch coin details',
+        details: error.response?.data?.error || error.message 
+      });
     }
   });
 
@@ -138,7 +166,10 @@ export function registerRoutes(app: Express): Server {
       res.json(response.data);
     } catch (error: any) {
       console.error('Trending error:', error.response?.data || error.message);
-      res.status(error.response?.status || 500).json({ error: error.message || 'Failed to fetch trending coins' });
+      res.status(error.response?.status || 500).json({ 
+        error: 'Failed to fetch trending coins',
+        details: error.response?.data?.error || error.message 
+      });
     }
   });
 
