@@ -18,17 +18,15 @@ export const DebugPanel: FC = () => {
     // Override console.log to capture logs
     const originalLog = console.log;
     const originalError = console.error;
-    const originalWarn = console.warn;
 
     const formatValue = (value: any): string => {
       if (value === null) return 'null';
       if (value === undefined) return 'undefined';
       if (typeof value === 'object') {
+        // Skip empty objects
+        if (Object.keys(value).length === 0) return '';
         try {
-          const stringified = JSON.stringify(value, null, 2);
-          // Skip empty objects
-          if (stringified === '{}' || stringified === '[]') return '';
-          return stringified;
+          return JSON.stringify(value, null, 2);
         } catch (e) {
           return String(value);
         }
@@ -36,7 +34,7 @@ export const DebugPanel: FC = () => {
       return String(value);
     };
 
-    console.log = (...args: any[]) => {
+    console.log = (...args) => {
       originalLog.apply(console, args);
       const formattedMessage = args
         .map(formatValue)
@@ -44,15 +42,15 @@ export const DebugPanel: FC = () => {
         .join(' ');
 
       if (formattedMessage) {
-        setLogs(prev => [...prev.slice(-49), {
+        setLogs(prev => [...prev, {
           timestamp: new Date().toLocaleTimeString(),
           message: formattedMessage,
-          type: 'info' as const
-        }]);
+          type: 'info'
+        }].slice(-50)); // Keep last 50 logs
       }
     };
 
-    console.error = (...args: any[]) => {
+    console.error = (...args) => {
       originalError.apply(console, args);
       const formattedMessage = args
         .map(formatValue)
@@ -60,47 +58,17 @@ export const DebugPanel: FC = () => {
         .join(' ');
 
       if (formattedMessage) {
-        setLogs(prev => [...prev.slice(-49), {
+        setLogs(prev => [...prev, {
           timestamp: new Date().toLocaleTimeString(),
           message: formattedMessage,
-          type: 'error' as const
-        }]);
+          type: 'error'
+        }].slice(-50));
       }
     };
-
-    console.warn = (...args: any[]) => {
-      originalWarn.apply(console, args);
-      const formattedMessage = args
-        .map(formatValue)
-        .filter(Boolean)
-        .join(' ');
-
-      if (formattedMessage) {
-        setLogs(prev => [...prev.slice(-49), {
-          timestamp: new Date().toLocaleTimeString(),
-          message: formattedMessage,
-          type: 'info' as const
-        }]);
-      }
-    };
-
-    // Add custom log for WebSocket events
-    const addWebSocketLog = (message: string) => {
-      setLogs(prev => [...prev.slice(-49), {
-        timestamp: new Date().toLocaleTimeString(),
-        message: `[WebSocket] ${message}`,
-        type: 'info' as const
-      }]);
-    };
-
-    // Expose the WebSocket logger globally
-    (window as any).wsLogger = addWebSocketLog;
 
     return () => {
       console.log = originalLog;
       console.error = originalError;
-      console.warn = originalWarn;
-      delete (window as any).wsLogger;
     };
   }, []);
 

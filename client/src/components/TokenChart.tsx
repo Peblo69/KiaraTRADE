@@ -1,5 +1,5 @@
 import { FC, useEffect, useRef, useMemo, useCallback } from 'react';
-import { createChart, IChartApi, ISeriesApi } from 'lightweight-charts';
+import { createChart } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import { useTokenPriceStore } from '@/lib/price-history';
 
@@ -12,13 +12,11 @@ const TokenChart: FC<TokenChartProps> = ({
   tokenAddress,
   height = 400
 }) => {
-  // Refs
+  // Refs for chart elements
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<{
-    candlestick: ISeriesApi<"Candlestick"> | null;
-    volume: ISeriesApi<"Histogram"> | null;
-  }>({ candlestick: null, volume: null });
+  const chartRef = useRef<any>(null);
+  const candlestickRef = useRef<any>(null);
+  const volumeRef = useRef<any>(null);
 
   // Get price history with memoized selector
   const priceHistory = useTokenPriceStore(useCallback(
@@ -26,7 +24,7 @@ const TokenChart: FC<TokenChartProps> = ({
     [tokenAddress]
   ));
 
-  // Transform chart data
+  // Transform data once when priceHistory changes
   const chartData = useMemo(() => {
     if (!priceHistory?.length) return null;
 
@@ -46,75 +44,75 @@ const TokenChart: FC<TokenChartProps> = ({
     };
   }, [priceHistory]);
 
-  // Chart initialization
+  // Combined chart initialization and updates
   useEffect(() => {
-    if (!containerRef.current || chartRef.current) return;
+    if (!containerRef.current) return;
 
-    const chart = createChart(containerRef.current, {
-      layout: {
-        background: { color: 'transparent' },
-        textColor: '#D9D9D9',
-      },
-      grid: {
-        vertLines: { color: 'rgba(42, 46, 57, 0.3)' },
-        horzLines: { color: 'rgba(42, 46, 57, 0.3)' },
-      },
-      width: containerRef.current.clientWidth,
-      height,
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: false,
-      }
-    });
+    // Create chart if it doesn't exist
+    if (!chartRef.current) {
+      chartRef.current = createChart(containerRef.current, {
+        layout: {
+          background: { color: 'transparent' },
+          textColor: '#D9D9D9',
+        },
+        grid: {
+          vertLines: { color: 'rgba(42, 46, 57, 0.3)' },
+          horzLines: { color: 'rgba(42, 46, 57, 0.3)' },
+        },
+        width: containerRef.current.clientWidth,
+        height,
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: false,
+        }
+      });
 
-    chartRef.current = chart;
+      candlestickRef.current = chartRef.current.addCandlestickSeries({
+        upColor: '#26a69a',
+        downColor: '#ef5350',
+        borderVisible: false,
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350',
+      });
 
-    // Create series
-    seriesRef.current.candlestick = chart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderVisible: false,
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
-    });
+      volumeRef.current = chartRef.current.addHistogramSeries({
+        color: '#26a69a',
+        priceFormat: { type: 'volume' },
+        priceScaleId: '',
+        scaleMargins: {
+          top: 0.8,
+          bottom: 0,
+        },
+      });
 
-    seriesRef.current.volume = chart.addHistogramSeries({
-      color: '#26a69a',
-      priceFormat: { type: 'volume' },
-      priceScaleId: '',
-      scaleMargins: {
-        top: 0.8,
-        bottom: 0,
-      },
-    });
+      // Handle resize
+      const handleResize = () => {
+        if (chartRef.current && containerRef.current) {
+          chartRef.current.applyOptions({ 
+            width: containerRef.current.clientWidth 
+          });
+        }
+      };
 
-    // Handle resize
-    const handleResize = () => {
-      if (chartRef.current && containerRef.current) {
-        chartRef.current.applyOptions({ 
-          width: containerRef.current.clientWidth 
-        });
-      }
-    };
+      window.addEventListener('resize', handleResize);
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        if (chartRef.current) {
+          chartRef.current.remove();
+          chartRef.current = null;
+          candlestickRef.current = null;
+          volumeRef.current = null;
+        }
+      };
+    }
 
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = { candlestick: null, volume: null };
-    };
-  }, [height]);
-
-  // Update data
-  useEffect(() => {
-    if (!chartRef.current || !chartData || !seriesRef.current.candlestick || !seriesRef.current.volume) return;
-
-    seriesRef.current.candlestick.setData(chartData.candles);
-    seriesRef.current.volume.setData(chartData.volumes);
-    chartRef.current.timeScale().fitContent();
-  }, [chartData]);
+    // Update data if available
+    if (chartData && candlestickRef.current && volumeRef.current) {
+      candlestickRef.current.setData(chartData.candles);
+      volumeRef.current.setData(chartData.volumes);
+      chartRef.current.timeScale().fitContent();
+    }
+  }, [chartData, height]); // Only re-run if data or height changes
 
   return (
     <Card className="p-4 bg-black/40 backdrop-blur-lg border border-gray-800">
