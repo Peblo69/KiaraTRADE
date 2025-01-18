@@ -17,22 +17,29 @@ class UnifiedWebSocket {
     try {
       this.isReconnecting = true;
       console.log('[Unified WebSocket] Attempting to connect...');
-      this.ws = new WebSocket('wss://pump.fun/ws/v1');
+
+      // Connect to our server's WebSocket endpoint
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}`;
+      this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         console.log('[Unified WebSocket] Connected successfully');
         this.isReconnecting = false;
         this.reconnectAttempts = 0;
-        this.startHeartbeat();
-        this.subscribeToEvents();
         useUnifiedTokenStore.getState().setConnected(true);
+        this.startHeartbeat();
       };
 
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('[Unified WebSocket] Received message:', data.type);
+
           if (data.type === 'token') {
-            this.handleTokenUpdate(data);
+            this.handleTokenUpdate(data.data);
+          } else if (data.type === 'connection_status') {
+            console.log('[Unified WebSocket] Connection status:', data.status);
           }
         } catch (error) {
           console.error('[Unified WebSocket] Error processing message:', error);
@@ -63,19 +70,20 @@ class UnifiedWebSocket {
     }
   }
 
-  private handleTokenUpdate(data: any) {
+  private handleTokenUpdate(token: any) {
+    if (!token?.address) {
+      console.warn('[Unified WebSocket] Received invalid token data');
+      return;
+    }
+
     const store = useUnifiedTokenStore.getState();
-    const existingToken = store.getToken(data.address);
+    const existingToken = store.getToken(token.address);
 
     // Only update if data actually changed
     if (!existingToken || 
-        existingToken.price !== data.price || 
-        existingToken.marketCapSol !== data.marketCapSol) {
-      store.updateToken(data.address, {
-        price: data.price,
-        marketCapSol: data.marketCapSol,
-        volume24h: data.volume24h
-      });
+        existingToken.price !== token.price || 
+        existingToken.marketCapSol !== token.marketCapSol) {
+      store.addToken(token);
     }
   }
 
@@ -89,15 +97,6 @@ class UnifiedWebSocket {
         this.ws.send(JSON.stringify({ type: "ping" }));
       }
     }, 30000);
-  }
-
-  private subscribeToEvents() {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
-        type: "subscribe",
-        channel: "tokens"
-      }));
-    }
   }
 
   private cleanup() {

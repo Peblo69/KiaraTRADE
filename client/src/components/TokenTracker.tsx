@@ -1,4 +1,4 @@
-import { FC, useEffect, useMemo, useCallback } from 'react';
+import { FC, useEffect, useMemo } from 'react';
 import TokenCard from './TokenCard';
 import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import { unifiedWebSocket } from '@/lib/unified-websocket';
@@ -8,7 +8,6 @@ export const TokenTracker: FC = () => {
   // Use separate selectors to avoid unnecessary re-renders
   const tokens = useUnifiedTokenStore(state => state.tokens);
   const isConnected = useUnifiedTokenStore(state => state.isConnected);
-  const addToken = useUnifiedTokenStore(state => state.addToken);
 
   // Memoize tokens array to prevent unnecessary re-renders
   const sortedTokens = useMemo(() => {
@@ -19,7 +18,10 @@ export const TokenTracker: FC = () => {
   useEffect(() => {
     console.log('[TokenTracker] Initializing WebSocket connection');
     unifiedWebSocket.connect();
-    return () => unifiedWebSocket.disconnect();
+    return () => {
+      console.log('[TokenTracker] Cleaning up WebSocket connection');
+      unifiedWebSocket.disconnect();
+    };
   }, []); // Only run once on mount
 
   return (
@@ -38,13 +40,13 @@ export const TokenTracker: FC = () => {
             </motion.div>
           ))}
         </AnimatePresence>
-        {sortedTokens.length === 0 && (
+        {!isConnected || sortedTokens.length === 0 ? (
           <div className="col-span-3 text-center py-12">
             <p className="text-gray-500">
               {isConnected ? 'Waiting for token data...' : 'Connecting to token services...'}
             </p>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

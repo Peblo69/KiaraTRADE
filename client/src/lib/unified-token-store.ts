@@ -6,7 +6,7 @@ interface Transaction {
   solAmount: number;
   tokenAmount: number;
   timestamp: number;
-  type: 'buy' | 'sell';
+  type: 'buy' | 'sell' | 'trade';
 }
 
 interface TokenMetadata {
@@ -36,7 +36,7 @@ interface TokenData {
   solAmount?: number;
   priceChange24h?: number;
   metadata?: TokenMetadata;
-  source?: 'pumpfun' | 'unified';
+  source?: 'unified';
   lastUpdated?: number;
 }
 
@@ -45,7 +45,7 @@ interface UnifiedTokenState {
   transactions: Record<string, Transaction[]>;
   isConnected: boolean;
   connectionError: string | null;
-  addToken: (token: TokenData, source: 'pumpfun' | 'unified') => void;
+  addToken: (token: TokenData) => void;
   updateToken: (address: string, updates: Partial<TokenData>) => void;
   addTransaction: (tokenAddress: string, transaction: Transaction) => void;
   setConnected: (status: boolean) => void;
@@ -60,7 +60,7 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
   isConnected: false,
   connectionError: null,
 
-  addToken: (token, source) => set(state => {
+  addToken: (token) => set(state => {
     // Check if token already exists and if it's actually different
     const existingTokenIndex = state.tokens.findIndex(t => t.address === token.address);
 
@@ -72,22 +72,23 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
 
       if (!hasChanged) return state; // No changes needed
 
+      // Update existing token
       const updatedTokens = [...state.tokens];
       updatedTokens[existingTokenIndex] = {
         ...existingToken,
         ...token,
-        source,
         lastUpdated: Date.now()
       };
       return { tokens: updatedTokens };
     }
 
+    // Add new token
+    console.log('[Unified Store] Adding new token:', token.address);
     return {
       tokens: [
         ...state.tokens,
         {
           ...token,
-          source,
           lastUpdated: Date.now(),
         }
       ].sort((a, b) => b.marketCapSol - a.marketCapSol).slice(0, 100)
@@ -130,6 +131,7 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
 
   setConnected: (status) => set(state => {
     if (state.isConnected === status) return state; // Prevent unnecessary updates
+    console.log('[Unified Store] Connection status changed:', status);
     return { isConnected: status, connectionError: null };
   }),
 

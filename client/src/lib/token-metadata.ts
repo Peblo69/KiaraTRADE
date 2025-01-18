@@ -1,4 +1,4 @@
-import { pumpPortalSocket, usePumpPortalStore } from './pump-portal-websocket';
+import { useUnifiedTokenStore } from './unified-token-store';
 
 interface TokenMetadata {
   name: string;
@@ -131,7 +131,7 @@ export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMet
     const imageUrl = getImageUrl(metadata.image || metadata.uri);
     console.log('[Token Metadata] Final image URL:', imageUrl);
 
-    usePumpPortalStore.getState().updateToken(mintAddress, {
+    useUnifiedTokenStore.getState().updateToken(mintAddress, {
       name: metadata.name,
       symbol: metadata.symbol,
       imageUrl,
