@@ -5,21 +5,23 @@ import { WebSocket } from 'ws';
 import { generateAIResponse } from './services/ai';
 import axios from 'axios';
 
-// Cache for CoinGecko data
+// Cache structure for Binance data
 const cache = {
-  globalMetrics: { data: null, timestamp: 0 },
-  trending: { data: null, timestamp: 0 },
-  topCoins: { data: null, timestamp: 0 }
+  prices: { data: null, timestamp: 0 },
+  stats24h: { data: null, timestamp: 0 },
+  trending: { data: null, timestamp: 0 }
 };
-const CACHE_DURATION = 30000; // 30 seconds cache
 
-// Configure axios with retries
+const CACHE_DURATION = 30000; // 30 seconds cache
+const BINANCE_API_BASE = 'https://api.binance.com/api/v3';
+
+// Configure axios with timeout and headers
 axios.defaults.timeout = 10000;
 axios.defaults.headers.common['accept'] = 'application/json';
 
 // Add request interceptor for rate limiting
 let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 1000; // Minimum 1 second between requests
+const MIN_REQUEST_INTERVAL = 100; // Minimum 100ms between requests (Binance allows up to 1200 requests per minute)
 
 axios.interceptors.request.use(async (config) => {
   const now = Date.now();
@@ -33,69 +35,59 @@ axios.interceptors.request.use(async (config) => {
   return config;
 });
 
+// Helper function to format Binance data to match our frontend expectations
+const formatBinanceData = (prices: any[], stats24h: any[]) => {
+  return prices.map(price => {
+    const stat = stats24h.find(s => s.symbol === price.symbol);
+    if (!stat) return null;
+
+    return {
+      id: price.symbol.toLowerCase(),
+      symbol: price.symbol,
+      name: price.symbol, // We'll need to maintain a separate mapping for full names
+      current_price: parseFloat(price.price),
+      market_cap: parseFloat(stat.quoteVolume),
+      market_cap_rank: null,
+      total_volume: parseFloat(stat.volume),
+      high_24h: parseFloat(stat.highPrice),
+      low_24h: parseFloat(stat.lowPrice),
+      price_change_percentage_24h: parseFloat(stat.priceChangePercent),
+      price_change_percentage_1h_in_currency: null, // Need to calculate from klines
+      price_change_percentage_7d_in_currency: null, // Need to calculate from klines
+      last_updated: new Date(stat.closeTime).toISOString(),
+      sparkline_in_7d: { price: [] } // Need to fetch from klines endpoint
+    };
+  }).filter(Boolean);
+};
+
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
   // Initialize WebSocket manager
   wsManager.initialize(httpServer);
 
-  // Global metrics endpoint
-  app.get('/api/global-metrics', async (req, res) => {
-    try {
-      // Check cache
-      const now = Date.now();
-      if (cache.globalMetrics.data && (now - cache.globalMetrics.timestamp) < CACHE_DURATION) {
-        return res.json(cache.globalMetrics.data);
-      }
-
-      const response = await axios.get('https://api.coingecko.com/api/v3/global');
-
-      // Cache the response
-      cache.globalMetrics = {
-        data: response.data,
-        timestamp: now
-      };
-
-      res.json(response.data);
-    } catch (error: any) {
-      console.error('Global metrics error:', error.response?.data || error.message);
-      res.status(error.response?.status || 500).json({ 
-        error: 'Failed to fetch global metrics',
-        details: error.response?.data?.error || error.message 
-      });
-    }
-  });
-
-  // Top coins by market cap endpoint with detailed information
+  // Market data endpoint
   app.get('/api/coins/markets', async (req, res) => {
     try {
       const now = Date.now();
-      if (cache.topCoins.data && (now - cache.topCoins.timestamp) < CACHE_DURATION) {
-        return res.json(cache.topCoins.data);
+      if (cache.prices.data && (now - cache.prices.timestamp) < CACHE_DURATION) {
+        return res.json(cache.prices.data);
       }
 
-      const response = await axios.get(
-        'https://api.coingecko.com/api/v3/coins/markets',
-        {
-          params: {
-            vs_currency: 'usd',
-            order: 'market_cap_desc',
-            per_page: 100,
-            page: 1,
-            sparkline: true,
-            price_change_percentage: '1h,24h,7d',
-            locale: 'en',
-            precision: 6
-          }
-        }
-      );
+      // Fetch both price ticker and 24h stats
+      const [pricesResponse, stats24hResponse] = await Promise.all([
+        axios.get(`${BINANCE_API_BASE}/ticker/price`),
+        axios.get(`${BINANCE_API_BASE}/ticker/24hr`)
+      ]);
 
-      cache.topCoins = {
-        data: response.data,
+      const formattedData = formatBinanceData(pricesResponse.data, stats24hResponse.data);
+
+      cache.prices = {
+        data: formattedData,
         timestamp: now
       };
 
-      res.json(response.data);
+      res.json(formattedData);
     } catch (error: any) {
       console.error('Markets error:', error.response?.data || error.message);
       res.status(error.response?.status || 500).json({ 
@@ -105,37 +97,41 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get detailed information for a specific coin with price history
-  app.get('/api/coins/:id', async (req, res) => {
+  // Single coin details endpoint with price history
+  app.get('/api/coins/:symbol', async (req, res) => {
     try {
-      const [coinData, marketChart] = await Promise.all([
-        axios.get(
-          `https://api.coingecko.com/api/v3/coins/${req.params.id}`,
-          {
-            params: {
-              localization: false,
-              tickers: false,
-              market_data: true,
-              community_data: false,
-              developer_data: false,
-              sparkline: true
-            }
+      const symbol = req.params.symbol.toUpperCase();
+
+      const [ticker24h, klines] = await Promise.all([
+        axios.get(`${BINANCE_API_BASE}/ticker/24hr`, {
+          params: { symbol }
+        }),
+        axios.get(`${BINANCE_API_BASE}/klines`, {
+          params: {
+            symbol,
+            interval: '1d',
+            limit: 7 // Last 7 days
           }
-        ),
-        axios.get(
-          `https://api.coingecko.com/api/v3/coins/${req.params.id}/market_chart`,
-          {
-            params: {
-              vs_currency: 'usd',
-              days: '7'  // Removed interval parameter as it's enterprise-only
-            }
-          }
-        )
+        })
       ]);
 
+      const prices = klines.data.map((kline: any[]) => [kline[0], parseFloat(kline[4])]); // [timestamp, close]
+
       const response = {
-        ...coinData.data,
-        market_chart: marketChart.data
+        id: symbol.toLowerCase(),
+        symbol: symbol,
+        name: symbol, // Would need mapping for full names
+        description: { en: '' }, // Would need separate mapping
+        market_data: {
+          current_price: { usd: parseFloat(ticker24h.data.lastPrice) },
+          market_cap: { usd: parseFloat(ticker24h.data.quoteVolume) },
+          total_volume: { usd: parseFloat(ticker24h.data.volume) },
+          high_24h: { usd: parseFloat(ticker24h.data.highPrice) },
+          low_24h: { usd: parseFloat(ticker24h.data.lowPrice) }
+        },
+        market_chart: {
+          prices
+        }
       };
 
       res.json(response);
@@ -148,7 +144,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Trending coins endpoint
+  // Trending coins endpoint (using top volume from 24h stats)
   app.get('/api/trending', async (req, res) => {
     try {
       const now = Date.now();
@@ -156,14 +152,34 @@ export function registerRoutes(app: Express): Server {
         return res.json(cache.trending.data);
       }
 
-      const response = await axios.get('https://api.coingecko.com/api/v3/search/trending');
+      const response = await axios.get(`${BINANCE_API_BASE}/ticker/24hr`);
+
+      // Sort by volume and take top 10
+      const trending = response.data
+        .sort((a: any, b: any) => parseFloat(b.volume) - parseFloat(a.volume))
+        .slice(0, 10)
+        .map((coin: any) => ({
+          item: {
+            id: coin.symbol.toLowerCase(),
+            coin_id: coin.symbol.toLowerCase(),
+            name: coin.symbol,
+            symbol: coin.symbol.toLowerCase(),
+            market_cap_rank: null,
+            thumb: '', // Would need separate mapping for images
+            small: '',
+            large: '',
+            score: parseFloat(coin.volume)
+          }
+        }));
+
+      const trendingResponse = { coins: trending };
 
       cache.trending = {
-        data: response.data,
+        data: trendingResponse,
         timestamp: now
       };
 
-      res.json(response.data);
+      res.json(trendingResponse);
     } catch (error: any) {
       console.error('Trending error:', error.response?.data || error.message);
       res.status(error.response?.status || 500).json({ 
@@ -173,7 +189,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Chat endpoint
+  // Chat endpoint (unchanged)
   app.post('/api/chat', async (req, res) => {
     try {
       const { message, sessionId } = req.body;
