@@ -27,33 +27,13 @@ export function getCryptoIconUrl(symbol: string): string {
   // List of possible icon sources in order of preference
   const possibleSources = [
     // CoinGecko - primary source, extensive library
-    `https://assets.coingecko.com/coins/images/1/large/${cleanSymbol}.png`,
-    `https://assets.coingecko.com/coins/images/1/thumb/${cleanSymbol}.png`,
-
-    // Binance - good for trading pairs
-    `https://bin.bnbstatic.com/image/crypto/${cleanSymbol}.png`,
-    `https://dex-bin.bnbstatic.com/static/images/coins/${cleanSymbol}.png`,
+    `https://assets.coingecko.com/coins/images/${cleanSymbol}/thumb/${cleanSymbol}.png`,
 
     // CryptoCompare - extensive library
     `https://www.cryptocompare.com/media/37746251/${cleanSymbol}.png`,
-    `https://www.cryptocompare.com/media/35309662/${cleanSymbol}.png`,
 
     // GitHub Cryptocurrency Icons - maintained community repository
     `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/${cleanSymbol}.png`,
-    `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/icon/${cleanSymbol}.png`,
-
-    // Gate.io
-    `https://www.gate.io/images/coin_icon/${cleanSymbol.toUpperCase()}.png`,
-
-    // OKX
-    `https://static.okx.com/cdn/assets/${cleanSymbol}/logo.png`,
-
-    // Huobi
-    `https://www.huobi.com/upload/logo/${cleanSymbol}.png`,
-
-    // CoinMarketCap
-    `https://s2.coinmarketcap.com/static/img/coins/64x64/${cleanSymbol}.png`,
-    `https://s2.coinmarketcap.com/static/img/coins/32x32/${cleanSymbol}.png`,
 
     // KuCoin
     `https://assets.staticimg.com/cms/media/1vCIT3bTK0tCY6jLsS0SY8uVGtBGHYFCyGmGGpWLj.svg`,
