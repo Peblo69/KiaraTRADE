@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -45,10 +45,7 @@ export default function Navbar() {
     }
 
     try {
-      await connect().catch((err) => {
-        throw err;
-      });
-
+      await connect();
       toast({
         title: "Wallet Connected",
         description: "Your wallet has been connected successfully",
@@ -96,6 +93,10 @@ export default function Navbar() {
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
 
+  // Use memoized values for conditional rendering
+  const walletAddress = publicKey?.toBase58() || '';
+  const shortenedAddress = walletAddress ? shortenAddress(walletAddress) : '';
+
   return (
     <>
       <nav className="border-b border-purple-800/20 backdrop-blur-sm">
@@ -136,7 +137,6 @@ export default function Navbar() {
               </Link>
               <Link href="/subscriptions"><Button variant="ghost">Subscriptions</Button></Link>
 
-              {/* Auth Buttons */}
               <Button 
                 onClick={() => setIsRegisterOpen(true)}
                 variant="outline" 
@@ -159,7 +159,7 @@ export default function Navbar() {
                 {connected ? (
                   <span className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse" />
-                    {shortenAddress(publicKey?.toBase58() || '')}
+                    {shortenedAddress}
                   </span>
                 ) : (
                   'Connect Wallet'
