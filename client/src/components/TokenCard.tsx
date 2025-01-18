@@ -12,7 +12,7 @@ import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import TransactionHistory from './TransactionHistory';
 
 const SOL_PRICE_USD = 104.23;
-const PUMPFUN_LOGO = "https://files.catbox.moe/0z99ub.png";
+const PUMPFUN_LOGO = "https://files.catbox.moe/beba90.png";
 const DEFAULT_TOKEN_IMAGE = "https://cryptologos.cc/logos/solana-sol-logo.png?v=024";
 
 const formatNumber = (num: number, isCurrency = false) => {
@@ -68,7 +68,7 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           {token.metadata?.twitter && (
             <a 
               href={token.metadata.twitter}
@@ -76,7 +76,7 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
               rel="noopener noreferrer"
               className="text-gray-400 hover:text-blue-400 transition-colors"
             >
-              <TwitterIcon size={16} />
+              <TwitterIcon size={20} />
             </a>
           )}
           {token.metadata?.website && (
@@ -86,7 +86,7 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
               rel="noopener noreferrer"
               className="text-gray-400 hover:text-blue-400 transition-colors"
             >
-              <Globe size={16} />
+              <Globe size={20} />
             </a>
           )}
           {token.address && (
@@ -105,13 +105,13 @@ const TokenCard: FC<TokenCardProps> = memo(({ tokenAddress, index }) => {
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-blue-400 transition-colors"
               >
-                <div style={{ width: '20px', height: '20px' }}>
-                  <img
-                    src={PUMPFUN_LOGO}
-                    alt="View on PumpFun"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
+                <SiSolana size={0} style={{width: 0, height: 0}} /> {/* Hidden element to maintain spacing */}
+                <img
+                  src={PUMPFUN_LOGO}
+                  alt="View on PumpFun"
+                  className="w-5 h-5 object-contain"
+                  style={{marginLeft: '-2px'}}
+                />
               </a>
             </>
           )}
