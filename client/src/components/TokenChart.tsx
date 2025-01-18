@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import { useTokenPriceStore } from '@/lib/price-history';
+import { pumpFunSocket } from '@/lib/pumpfun-websocket';
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -17,9 +18,20 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
 
   // Load initial data once
   useEffect(() => {
+    console.log('[TokenChart] Loading initial data for token:', tokenAddress);
     const initialData = useTokenPriceStore.getState().getPriceHistory(tokenAddress, '5m');
     console.log('[TokenChart] Initial data from store:', initialData);
-    setCandles(initialData);
+
+    if (initialData && initialData.length > 0) {
+      console.log('[TokenChart] Setting initial candles');
+      setCandles(initialData);
+    } else {
+      console.log('[TokenChart] No initial data available');
+    }
+
+    // Initialize WebSocket connection
+    console.log('[TokenChart] Initializing PumpFun WebSocket');
+    pumpFunSocket.connect();
   }, [tokenAddress]);
 
   // Initialize chart once
@@ -84,6 +96,7 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
       },
     });
 
+    // Handle resize
     const handleResize = () => {
       if (chartContainerRef.current && chart.current) {
         chart.current.applyOptions({ 
@@ -105,59 +118,65 @@ export default function TokenChart({ tokenAddress, height = 400 }: TokenChartPro
 
   // Subscribe to WebSocket for real-time updates
   useEffect(() => {
-    console.log('[TokenChart] Setting up WebSocket connection');
-    const ws = new WebSocket('wss://pumpportal.fun/api/data');
+    let mounted = true;
 
-    ws.onopen = () => {
-      console.log('[TokenChart] WebSocket connected');
-    };
-
-    ws.onmessage = (event) => {
-      const trade = JSON.parse(event.data);
-      console.log('[TokenChart] Received trade:', trade);
-
-      // Only process trades for our token
-      if (trade.mint !== tokenAddress) return;
+    const handleTokenUpdate = (data: any) => {
+      console.log('[TokenChart] Received token update:', data);
+      if (!mounted || data.mint !== tokenAddress) return;
 
       setCandles(prevCandles => {
-        console.log('[TokenChart] Updating candles with trade:', trade);
+        console.log('[TokenChart] Previous candles:', prevCandles);
         const currentTime = Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000);
         const currentCandle = prevCandles[prevCandles.length - 1];
 
+        // If we have no candles yet, create initial candle
+        if (!currentCandle) {
+          console.log('[TokenChart] Creating first candle');
+          return [{
+            timestamp: currentTime,
+            open: data.price,
+            high: data.price,
+            low: data.price,
+            close: data.price,
+            volume: data.volume || 0
+          }];
+        }
+
         // If this trade belongs to the current candle, update it
-        if (currentCandle && Math.floor(currentCandle.timestamp / (5 * 60 * 1000)) === Math.floor(currentTime / (5 * 60 * 1000))) {
+        if (Math.floor(currentCandle.timestamp / (5 * 60 * 1000)) === Math.floor(currentTime / (5 * 60 * 1000))) {
+          console.log('[TokenChart] Updating existing candle');
           const updatedCandle = {
             ...currentCandle,
-            high: Math.max(currentCandle.high, trade.price),
-            low: Math.min(currentCandle.low, trade.price),
-            close: trade.price,
-            volume: currentCandle.volume + trade.volume
+            high: Math.max(currentCandle.high, data.price),
+            low: Math.min(currentCandle.low, data.price),
+            close: data.price,
+            volume: (currentCandle.volume || 0) + (data.volume || 0)
           };
           return [...prevCandles.slice(0, -1), updatedCandle];
         }
 
         // Otherwise create a new candle
+        console.log('[TokenChart] Creating new candle');
         const newCandle = {
           timestamp: currentTime,
-          open: trade.price,
-          high: trade.price,
-          low: trade.price,
-          close: trade.price,
-          volume: trade.volume
+          open: data.price,
+          high: data.price,
+          low: data.price,
+          close: data.price,
+          volume: data.volume || 0
         };
         return [...prevCandles, newCandle];
       });
     };
 
-    ws.onerror = (error) => {
-      console.error('[TokenChart] WebSocket error:', error);
-    };
+    // Subscribe to token updates
+    console.log('[TokenChart] Setting up token update subscription');
+    const unsubscribe = pumpFunSocket.subscribe(handleTokenUpdate);
 
-    ws.onclose = () => {
-      console.log('[TokenChart] WebSocket closed');
+    return () => {
+      mounted = false;
+      unsubscribe?.();
     };
-
-    return () => ws.close();
   }, [tokenAddress]);
 
   // Update chart when candles change
