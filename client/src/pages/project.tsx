@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, ArrowUp, ArrowDown, TrendingUp, Info, Home, ChartPieIcon, MessagesSquare, BookOpen } from "lucide-react";
 import { formatDistance } from "date-fns";
 import { Link } from "wouter";
+import Navbar from "@/components/Navbar";
 import {
   Dialog,
   DialogContent,
@@ -120,36 +121,7 @@ const ProjectPage: FC = () => {
   if (isLoadingMarket || isLoadingTrending) {
     return (
       <div className="min-h-screen bg-black">
-        <div className="w-full bg-black/40 backdrop-blur-sm border-b border-purple-500/20 p-4">
-          <div className="container mx-auto">
-            <div className="flex items-center justify-end gap-2">
-              <Link href="/">
-                <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
-                  <Home className="h-5 w-5" />
-                  <span className="hidden sm:inline">Home</span>
-                </a>
-              </Link>
-              <Link href="/project">
-                <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
-                  <ChartPieIcon className="h-5 w-5" />
-                  <span className="hidden sm:inline">Project</span>
-                </a>
-              </Link>
-              <Link href="/chat">
-                <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
-                  <MessagesSquare className="h-5 w-5" />
-                  <span className="hidden sm:inline">Chat</span>
-                </a>
-              </Link>
-              <Link href="/about">
-                <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
-                  <BookOpen className="h-5 w-5" />
-                  <span className="hidden sm:inline">About</span>
-                </a>
-              </Link>
-            </div>
-          </div>
-        </div>
+        <Navbar />
         <div className="container mx-auto p-4">
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-purple-400" />
@@ -166,36 +138,7 @@ const ProjectPage: FC = () => {
 
   return (
     <div className="min-h-screen bg-black">
-      <div className="w-full bg-black/40 backdrop-blur-sm border-b border-purple-500/20 p-4">
-        <div className="container mx-auto">
-          <div className="flex items-center justify-end gap-2">
-            <Link href="/">
-              <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
-                <Home className="h-5 w-5" />
-                <span className="hidden sm:inline">Home</span>
-              </a>
-            </Link>
-            <Link href="/project">
-              <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
-                <ChartPieIcon className="h-5 w-5" />
-                <span className="hidden sm:inline">Project</span>
-              </a>
-            </Link>
-            <Link href="/chat">
-              <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
-                <MessagesSquare className="h-5 w-5" />
-                <span className="hidden sm:inline">Chat</span>
-              </a>
-            </Link>
-            <Link href="/about">
-              <a className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors text-white flex items-center gap-2">
-                <BookOpen className="h-5 w-5" />
-                <span className="hidden sm:inline">About</span>
-              </a>
-            </Link>
-          </div>
-        </div>
-      </div>
+      <Navbar />
       <div className="container mx-auto p-4">
         <div className="max-w-7xl mx-auto space-y-8">
           {/* Trending Section */}
