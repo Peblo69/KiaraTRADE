@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
 import axios from "axios";
 import { nanoid } from 'nanoid';
@@ -20,21 +19,19 @@ export default function AiChat() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId] = useState(() => nanoid());
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   // Auto-scroll effect when messages change or typing status changes
   useEffect(() => {
-    const scrollToBottom = () => {
-      if (scrollAreaRef.current) {
-        const scrollElement = scrollAreaRef.current;
-        scrollElement.scrollTop = scrollElement.scrollHeight;
-      }
-    };
-
-    // Scroll immediately and also after a small delay to ensure content is rendered
     scrollToBottom();
+    // Additional scroll after a small delay to ensure content is rendered
     const timeoutId = setTimeout(scrollToBottom, 100);
-
     return () => clearTimeout(timeoutId);
   }, [messages, isTyping]);
 
@@ -76,7 +73,7 @@ export default function AiChat() {
           </div>
           <div>
             <h2 
-              className="text-xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent"
+              className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent"
               style={{ 
                 fontFamily: '"VT323", monospace',
                 letterSpacing: '0.15em',
@@ -90,10 +87,7 @@ export default function AiChat() {
         </div>
       </div>
 
-      <ScrollArea 
-        className="flex-grow px-4 py-2 min-h-0 overflow-y-auto" 
-        ref={scrollAreaRef}
-      >
+      <div className="flex-grow px-4 py-2 min-h-0 overflow-y-auto" style={{ scrollBehavior: 'smooth' }}>
         <div className="space-y-4">
           {messages.map((msg, i) => (
             <div
@@ -170,8 +164,9 @@ export default function AiChat() {
               </div>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
-      </ScrollArea>
+      </div>
 
       <div className="p-4 mt-auto border-t border-purple-500/30 bg-black/40">
         <div className="flex gap-2">
