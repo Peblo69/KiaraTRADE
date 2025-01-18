@@ -25,118 +25,115 @@ const ProjectPage: FC = () => {
 
     (window as any).debugConsole?.log('API Key found, initializing WebSocket connection...');
 
-    // Create WebSocket client with correct streaming URL
-    const client = createClient({
-      url: 'wss://streaming.bitquery.io/eap',
-      connectionParams: {
-        headers: {
-          'X-API-KEY': apiKey,
-        },
-      },
-      on: {
-        connected: () => {
-          console.log('[BitQuery] WebSocket connected successfully');
-          (window as any).debugConsole?.success('WebSocket connection established');
-        },
-        error: (error: Error) => {
-          console.error('[BitQuery] WebSocket connection error:', error);
-          (window as any).debugConsole?.error(`WebSocket connection error: ${error?.message || 'Unknown error'}`);
-        },
-        closed: (code?: number, reason?: string) => {
-          console.warn('[BitQuery] WebSocket connection closed:', { code, reason });
-          (window as any).debugConsole?.log(`WebSocket connection closed: Code ${code || 'unknown'}, Reason: ${reason || 'none provided'}`);
-        },
-      },
-    });
-
+    let retryCount = 0;
+    const maxRetries = 5;
     let unsubscribe: (() => void) | null = null;
 
-    // Subscription query for PumpFun token creation events
-    try {
-      unsubscribe = client.subscribe(
-        {
-          query: `
-            subscription {
-              Solana {
-                Instructions(
-                  where: {Instruction: {Program: {Method: {is: "create"}, Name: {is: "pump"}}}}
-                ) {
-                  Instruction {
-                    Accounts {
-                      Address
-                      IsWritable
-                      Token {
-                        Mint
-                        Owner
-                        ProgramId
-                      }
-                    }
-                    Logs
-                    Program {
-                      AccountNames
-                      Address
-                      Arguments {
-                        Name
-                        Type
-                        Value {
-                          ... on Solana_ABI_Integer_Value_Arg {
-                            integer
-                          }
-                          ... on Solana_ABI_String_Value_Arg {
-                            string
-                          }
-                          ... on Solana_ABI_Address_Value_Arg {
-                            address
-                          }
-                          ... on Solana_ABI_BigInt_Value_Arg {
-                            bigInteger
-                          }
-                          ... on Solana_ABI_Bytes_Value_Arg {
-                            hex
-                          }
-                          ... on Solana_ABI_Boolean_Value_Arg {
-                            bool
-                          }
-                          ... on Solana_ABI_Float_Value_Arg {
-                            float
-                          }
-                          ... on Solana_ABI_Json_Value_Arg {
-                            json
-                          }
+    function connectWebSocket() {
+      // Create WebSocket client with correct streaming URL
+      const client = createClient({
+        url: 'wss://streaming.bitquery.io/eap',
+        connectionParams: {
+          headers: {
+            'X-API-KEY': apiKey,
+          },
+        },
+        on: {
+          connected: () => {
+            console.log('[BitQuery] WebSocket connected successfully');
+            (window as any).debugConsole?.success('WebSocket connection established');
+            retryCount = 0; // Reset retry count on successful connection
+
+            // Start subscription after successful connection
+            startSubscription(client);
+          },
+          error: (error: Error) => {
+            console.error('[BitQuery] WebSocket connection error:', error);
+            (window as any).debugConsole?.error(`WebSocket error: ${error?.message || 'Unknown error'}`);
+            handleRetry();
+          },
+          closed: (event: unknown) => {
+            const code = (event as { code?: number })?.code;
+            const reason = (event as { reason?: string })?.reason;
+            console.warn('[BitQuery] WebSocket connection closed:', { code, reason });
+            (window as any).debugConsole?.log(`WebSocket connection closed: Code ${code || 'unknown'}, Reason: ${reason || 'none provided'}`);
+            handleRetry();
+          },
+        },
+      });
+    }
+
+    function handleRetry() {
+      if (retryCount < maxRetries) {
+        retryCount++;
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 30000); // Exponential backoff with 30s max
+        console.log(`[BitQuery] Retrying connection in ${delay/1000}s (attempt ${retryCount}/${maxRetries})`);
+        (window as any).debugConsole?.log(`Retrying in ${delay/1000}s (attempt ${retryCount}/${maxRetries})`);
+        setTimeout(connectWebSocket, delay);
+      } else {
+        console.error('[BitQuery] Max retry attempts reached');
+        (window as any).debugConsole?.error('Failed to establish WebSocket connection after max retries');
+      }
+    }
+
+    function startSubscription(client: ReturnType<typeof createClient>) {
+      try {
+        unsubscribe = client.subscribe(
+          {
+            query: `
+              subscription {
+                Solana {
+                  Instructions(
+                    where: {Instruction: {Program: {Method: {is: "create"}, Name: {is: "pump"}}}}
+                  ) {
+                    Instruction {
+                      Accounts {
+                        Address
+                        IsWritable
+                        Token {
+                          Mint
+                          Owner
+                          ProgramId
                         }
                       }
-                      Method
-                      Name
+                      Program {
+                        Method
+                        Name
+                      }
                     }
-                  }
-                  Transaction {
-                    Signature
+                    Transaction {
+                      Signature
+                    }
                   }
                 }
               }
-            }
-          `,
-        },
-        {
-          next: (data) => {
-            console.log('[BitQuery] New token creation event:', data);
-            (window as any).debugConsole?.success(`New token creation detected: ${JSON.stringify(data, null, 2)}`);
+            `,
           },
-          error: (error: Error) => {
-            console.error('[BitQuery] Subscription error:', error);
-            (window as any).debugConsole?.error(`WebSocket error: ${error.message}`);
+          {
+            next: (data) => {
+              console.log('[BitQuery] New token creation event:', data);
+              (window as any).debugConsole?.success(`New token creation detected: ${JSON.stringify(data, null, 2)}`);
+            },
+            error: (error: Error) => {
+              console.error('[BitQuery] Subscription error:', error);
+              (window as any).debugConsole?.error(`Subscription error: ${error?.message || 'Unknown error'}`);
+              handleRetry(); // Retry on subscription errors too
+            },
+            complete: () => {
+              console.log('[BitQuery] Subscription completed');
+              (window as any).debugConsole?.log('Subscription completed normally');
+            },
           },
-          complete: () => {
-            console.log('[BitQuery] Subscription completed');
-            (window as any).debugConsole?.log('WebSocket subscription completed');
-          },
-        },
-      );
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('[BitQuery] Failed to create subscription:', errorMessage);
-      (window as any).debugConsole?.error(`Failed to create subscription: ${errorMessage}`);
+        );
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        console.error('[BitQuery] Failed to create subscription:', errorMessage);
+        (window as any).debugConsole?.error(`Failed to create subscription: ${errorMessage}`);
+      }
     }
+
+    // Start initial connection
+    connectWebSocket();
 
     // Cleanup subscription on unmount
     return () => {

@@ -1,0 +1,160 @@
+Steps to Debug and Resolve
+1. WebSocket Close Event Details
+The message Code [object CloseEvent], Reason: none provided suggests that the CloseEvent object isn't being logged properly. Update the closed handler to display meaningful details:
+
+typescript
+Copy
+Edit
+on: {
+  connected: () => {
+    console.log('[BitQuery] WebSocket connected successfully');
+    (window as any).debugConsole?.success('WebSocket connection established');
+  },
+  error: (error: Error) => {
+    console.error('[BitQuery] WebSocket connection error:', error?.message || 'Unknown error');
+    (window as any).debugConsole?.error(`WebSocket connection error: ${error?.message || 'Unknown error'}`);
+  },
+  closed: (code, reason) => {
+    console.warn('[BitQuery] WebSocket connection closed:', { code, reason });
+    (window as any).debugConsole?.log(`WebSocket connection closed: Code ${code}, Reason: ${reason}`);
+  },
+},
+Make sure code and reason are properly captured from the WebSocket CloseEvent.
+
+2. Log Raw Close Event
+Log the raw CloseEvent to get more details about why the WebSocket connection is closing:
+
+typescript
+Copy
+Edit
+closed: (event) => {
+  console.warn('[BitQuery] WebSocket connection closed:', event);
+  (window as any).debugConsole?.log(`WebSocket connection closed: ${JSON.stringify(event, null, 2)}`);
+}
+3. Verify API Key Permissions
+Even if the API key is found, it might lack the necessary permissions for WebSocket streaming. Test your API key with a simple HTTP query to ensure it has the correct access.
+
+Test API Key with HTTP Query:
+
+typescript
+Copy
+Edit
+fetch('https://graphql.bitquery.io', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-API-KEY': 'YOUR_API_KEY_HERE',
+  },
+  body: JSON.stringify({
+    query: `
+      query {
+        ethereum(network: solana) {
+          dexTrades(limit: 1) {
+            block {
+              timestamp {
+                time(format: "%Y-%m-%d %H:%M:%S")
+              }
+            }
+            baseCurrency {
+              symbol
+            }
+          }
+        }
+      }
+    `,
+  }),
+})
+  .then((res) => res.json())
+  .then((data) => console.log('API Test Success:', data))
+  .catch((err) => console.error('API Test Failed:', err));
+If the API key is invalid, regenerate it from the BitQuery Dashboard.
+
+4. WebSocket Retry Logic
+Implement retry logic to handle temporary failures. Use exponential backoff to avoid overloading the server:
+
+typescript
+Copy
+Edit
+let retries = 0;
+
+function connectWebSocket() {
+  const maxRetries = 5;
+  const client = createClient({
+    url: 'wss://streaming.bitquery.io/eap',
+    connectionParams: {
+      headers: {
+        'X-API-KEY': apiKey,
+      },
+    },
+    on: {
+      connected: () => {
+        console.log('[BitQuery] WebSocket connected successfully');
+        retries = 0; // Reset retries on success
+      },
+      error: (error: Error) => {
+        console.error('[BitQuery] WebSocket connection error:', error.message);
+        if (retries < maxRetries) {
+          retries++;
+          const delay = Math.pow(2, retries) * 1000; // Exponential backoff
+          console.log(`[BitQuery] Retrying WebSocket connection in ${delay / 1000}s...`);
+          setTimeout(connectWebSocket, delay);
+        } else {
+          console.error('[BitQuery] Max retries reached. Connection failed.');
+        }
+      },
+      closed: (event) => {
+        console.warn('[BitQuery] WebSocket connection closed:', event);
+        if (retries < maxRetries) {
+          retries++;
+          const delay = Math.pow(2, retries) * 1000; // Exponential backoff
+          console.log(`[BitQuery] Retrying WebSocket connection in ${delay / 1000}s...`);
+          setTimeout(connectWebSocket, delay);
+        }
+      },
+    },
+  });
+
+  return client;
+}
+
+connectWebSocket();
+5. Test Subscription Query
+Verify the subscription query directly using the BitQuery GraphQL Explorer. Ensure the query works without modification.
+
+Query:
+
+graphql
+Copy
+Edit
+subscription {
+  Solana {
+    Instructions(
+      where: {Instruction: {Program: {Method: {is: "create"}, Name: {is: "pump"}}}}
+    ) {
+      Instruction {
+        Accounts {
+          Address
+          Token {
+            Mint
+          }
+        }
+      }
+    }
+  }
+}
+6. Ensure Network Connectivity
+Ensure that:
+
+The WebSocket endpoint (wss://streaming.bitquery.io/eap) is not blocked by your network or firewall.
+No CORS or cross-origin issues exist in your environment.
+Debug with ping or curl:
+
+bash
+Copy
+Edit
+ping streaming.bitquery.io
+curl -i -X GET wss://streaming.bitquery.io/eap
+Expected Results
+WebSocket Open: Successful connection logs [BitQuery] WebSocket connected successfully.
+Subscription Data: Logs data received from the subscription.
+Closed Event Details: Logs detailed information when the connection is closed.
