@@ -1,0 +1,214 @@
+The error Unexpected token 'U', "Unauthoriz"... is not valid JSON indicates that the API request is failing with an unauthorized response. This happens because:
+
+The API key provided (import.meta.env.VITE_BITQUERY_API_KEY) is either:
+Missing
+Incorrect
+Not passed properly to the fetch request.
+Steps to Resolve
+1. Verify API Key
+Ensure the API key is correctly stored and accessible via import.meta.env.VITE_BITQUERY_API_KEY.
+Debug: Log the API key before the fetch request to ensure it's being passed correctly:
+typescript
+Copy
+Edit
+console.log('BitQuery API Key:', import.meta.env.VITE_BITQUERY_API_KEY);
+If the key is undefined, verify the environment variable setup in your vite.config.js or .env file.
+
+Set API Key in .env
+Add the following to your .env file:
+
+dotenv
+Copy
+Edit
+VITE_BITQUERY_API_KEY=BQYSaASLeyNPxRf38DGgENQ1mVHxNypq
+2. Use the Correct Query
+The current query targets PumpFun DEX trades, which is correct for your use case. However, ensure it adheres to the BitQuery schema. For reference:
+
+graphql
+Copy
+Edit
+query {
+  Solana {
+    DEXTrades(
+      limit: 1
+      orderBy: { descending: Block_Time }
+      where: { Trade: { Dex: { ProtocolName: { is: "pump" } } } }
+    ) {
+      Block {
+        Time
+      }
+      Trade {
+        Currency {
+          Name
+          Symbol
+          MintAddress
+        }
+        Price
+      }
+    }
+  }
+}
+Test this query directly on BitQuery's GraphQL Explorer to ensure it's valid.
+
+3. Update Fetch Request
+Ensure the fetch request is passing the API key correctly. Update your code as follows:
+
+typescript
+Copy
+Edit
+fetch('https://graphql.bitquery.io', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-API-KEY': import.meta.env.VITE_BITQUERY_API_KEY || 'YourFallbackAPIKeyHere',
+  },
+  body: JSON.stringify({
+    query: `
+      query {
+        Solana {
+          DEXTrades(
+            limit: 1
+            orderBy: { descending: Block_Time }
+            where: { Trade: { Dex: { ProtocolName: { is: "pump" } } } }
+          ) {
+            Block {
+              Time
+            }
+            Trade {
+              Currency {
+                Name
+                Symbol
+                MintAddress
+              }
+              Price
+            }
+          }
+        }
+      }
+    `,
+  }),
+})
+  .then(async (res) => {
+    // Handle unauthorized error
+    if (res.status === 401) {
+      throw new Error('Unauthorized: Invalid or missing API key');
+    }
+    return res.json();
+  })
+  .then((data) => {
+    console.log('API Key Test Result:', data);
+    (window as any).debugConsole?.success(`API Test Success: ${JSON.stringify(data, null, 2)}`);
+  })
+  .catch((err) => {
+    console.error('API Key Test Error:', err);
+    (window as any).debugConsole?.error(`API Test Failed: ${err.message}`);
+  });
+4. Debugging Unauthorized Errors
+If the issue persists:
+
+Log the headers being sent to ensure the API key is included:
+typescript
+Copy
+Edit
+console.log('Headers:', {
+  'Content-Type': 'application/json',
+  'X-API-KEY': import.meta.env.VITE_BITQUERY_API_KEY,
+});
+Log the raw response body in case BitQuery provides additional error details:
+typescript
+Copy
+Edit
+.then((res) => res.text())
+.then((text) => console.log('Raw Response:', text));
+5. Update Vite Configuration
+Ensure environment variables are exposed correctly in the Vite configuration. Update vite.config.js:
+
+javascript
+Copy
+Edit
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  define: {
+    'process.env': process.env,
+  },
+});
+6. Testing the Query
+Run This Standalone Test
+To ensure the issue isn't with your app's integration, run this simple Node.js test script:
+
+javascript
+Copy
+Edit
+const fetch = require('node-fetch');
+
+const API_KEY = 'BQYSaASLeyNPxRf38DGgENQ1mVHxNypq';
+
+fetch('https://graphql.bitquery.io', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-API-KEY': API_KEY,
+  },
+  body: JSON.stringify({
+    query: `
+      query {
+        Solana {
+          DEXTrades(
+            limit: 1
+            orderBy: { descending: Block_Time }
+            where: { Trade: { Dex: { ProtocolName: { is: "pump" } } } }
+          ) {
+            Block {
+              Time
+            }
+            Trade {
+              Currency {
+                Name
+                Symbol
+                MintAddress
+              }
+              Price
+            }
+          }
+        }
+      }
+    `,
+  }),
+})
+  .then(async (res) => {
+    if (res.status === 401) {
+      throw new Error('Unauthorized: Invalid or missing API key');
+    }
+    const data = await res.json();
+    console.log('Test Success:', JSON.stringify(data, null, 2));
+  })
+  .catch((err) => {
+    console.error('Test Failed:', err.message);
+  });
+Expected Output
+If everything is working, you should see:
+json
+Copy
+Edit
+{
+  "data": {
+    "Solana": {
+      "DEXTrades": [
+        {
+          "Block": {
+            "Time": "2025-01-18T15:00:00Z"
+          },
+          "Trade": {
+            "Currency": {
+              "Name": "PumpToken",
+              "Symbol": "PUMP",
+              "MintAddress": "EaqBsvvw..."
+            },
+            "Price": 0.1234
+          }
+        }
+      ]
+    }
+  }
+}
