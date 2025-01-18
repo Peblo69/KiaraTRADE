@@ -2,7 +2,20 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 
-// In-memory data structure for candles
+interface TokenData {
+  name: string;
+  symbol: string;
+  marketCap: number;
+  marketCapSol: number;
+  liquidityAdded: boolean;
+  holders: number;
+  volume24h: number;
+  address: string;
+  price: number;
+  imageUrl?: string;
+}
+
+// In-memory data structure for candles and tokens
 const tokenCandles: Record<string, Array<{
   timestamp: number;
   open: number;
@@ -12,12 +25,7 @@ const tokenCandles: Record<string, Array<{
   volume: number;
 }>> = {};
 
-interface Trade {
-  tokenAddress: string;
-  price: number;
-  volume: number;
-  timestamp: number;
-}
+const tokens: Record<string, TokenData> = {};
 
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
@@ -41,6 +49,14 @@ export function registerRoutes(app: Express): Server {
   wss.on('connection', (ws) => {
     console.log('[WebSocket] Client connected to aggregator');
 
+    // Send existing tokens to new client
+    Object.values(tokens).forEach(token => {
+      ws.send(JSON.stringify({
+        type: 'new_token',
+        token
+      }));
+    });
+
     // Connect to PumpFun WebSocket
     const pumpFunWs = new WebSocket('wss://pumpportal.fun/api/data');
 
@@ -58,9 +74,56 @@ export function registerRoutes(app: Express): Server {
         console.log('[PumpFun] Received message:', message.txType);
 
         if (message.txType === 'create' || message.txType === 'trade') {
-          const trade: Trade = {
-            tokenAddress: message.mint,
-            price: message.solAmount / (message.tokenAmount || message.initialBuy),
+          const price = message.solAmount / (message.tokenAmount || message.initialBuy);
+          const tokenAddress = message.mint;
+
+          if (message.txType === 'create') {
+            const token: TokenData = {
+              name: message.name || 'Unknown',
+              symbol: message.symbol || 'UNKNOWN',
+              marketCap: message.marketCapSol || 0,
+              marketCapSol: message.marketCapSol || 0,
+              liquidityAdded: message.pool === "pump",
+              holders: message.holders || 0,
+              volume24h: message.volume24h || 0,
+              address: tokenAddress,
+              price,
+              imageUrl: `https://pumpfun.fun/i/${tokenAddress}/image`
+            };
+
+            tokens[tokenAddress] = token;
+            console.log('[PumpFun] New token created:', {
+              address: token.address,
+              name: token.name,
+              symbol: token.symbol
+            });
+
+            broadcast(wss, {
+              type: 'new_token',
+              token
+            });
+          } else {
+            // Update existing token
+            if (tokens[tokenAddress]) {
+              tokens[tokenAddress] = {
+                ...tokens[tokenAddress],
+                price,
+                marketCapSol: message.marketCapSol || tokens[tokenAddress].marketCapSol,
+                volume24h: message.volume24h || tokens[tokenAddress].volume24h
+              };
+
+              broadcast(wss, {
+                type: 'token_update',
+                tokenAddress,
+                token: tokens[tokenAddress]
+              });
+            }
+          }
+
+          // Update candle data
+          const trade = {
+            tokenAddress,
+            price,
             volume: message.solAmount,
             timestamp: Date.now()
           };
@@ -73,7 +136,7 @@ export function registerRoutes(app: Express): Server {
 
           updateCandle(trade);
 
-          // Broadcast the updated candle to all connected clients
+          // Broadcast the updated candle
           const candle = getCurrentCandle(trade.tokenAddress);
           if (candle) {
             broadcast(wss, {
@@ -104,7 +167,12 @@ export function registerRoutes(app: Express): Server {
     });
   });
 
-  // REST endpoint for historical candles
+  // REST endpoints
+  app.get('/api/tokens', (req, res) => {
+    console.log('[REST] Fetching all tokens');
+    res.json(Object.values(tokens));
+  });
+
   app.get('/api/tokens/:address/candles', (req, res) => {
     const { address } = req.params;
     console.log('[REST] Fetching candles for token:', address);
@@ -116,7 +184,7 @@ export function registerRoutes(app: Express): Server {
 }
 
 // Helper functions for candle management
-function updateCandle(trade: Trade) {
+function updateCandle(trade: { tokenAddress: string; price: number; volume: number; timestamp: number }) {
   const timeframe = 5 * 60 * 1000; // 5-minute candles
   const candleTimestamp = Math.floor(trade.timestamp / timeframe) * timeframe;
 

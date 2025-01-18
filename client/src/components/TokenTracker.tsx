@@ -1,6 +1,4 @@
 import { FC, useEffect } from 'react';
-import { unifiedWebSocket } from '@/lib/unified-websocket';
-import { pumpFunSocket } from '@/lib/pumpfun-websocket';
 import TokenCard from './TokenCard';
 import { useUnifiedTokenStore } from '@/lib/unified-token-store';
 import { motion } from 'framer-motion';
@@ -10,15 +8,48 @@ export const TokenTracker: FC = () => {
   const isConnected = useUnifiedTokenStore(state => state.isConnected);
 
   useEffect(() => {
-    console.log('[TokenTracker] Initializing WebSocket connections');
-    // Connect to both WebSocket services
-    unifiedWebSocket.connect();
-    pumpFunSocket.connect();
+    console.log('[TokenTracker] Initializing WebSocket connection');
+
+    // Connect to aggregator WebSocket
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}`;
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log('[TokenTracker] WebSocket connected');
+      useUnifiedTokenStore.getState().setConnected(true);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('[TokenTracker] Received message:', data);
+
+        if (data.type === 'token_update') {
+          useUnifiedTokenStore.getState().updateToken(data.tokenAddress, data.token);
+        } else if (data.type === 'new_token') {
+          useUnifiedTokenStore.getState().addToken(data.token, 'unified');
+        }
+      } catch (error) {
+        console.error('[TokenTracker] Error processing message:', error);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('[TokenTracker] WebSocket error:', error);
+      useUnifiedTokenStore.getState().setError('WebSocket connection error');
+    };
+
+    ws.onclose = () => {
+      console.log('[TokenTracker] WebSocket connection closed');
+      useUnifiedTokenStore.getState().setConnected(false);
+    };
 
     return () => {
-      console.log('[TokenTracker] Cleaning up WebSocket connections');
-      unifiedWebSocket.disconnect();
-      pumpFunSocket.disconnect();
+      console.log('[TokenTracker] Cleaning up WebSocket connection');
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
     };
   }, []);
 
