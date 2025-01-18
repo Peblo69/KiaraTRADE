@@ -3,12 +3,36 @@ import { useUnifiedTokenStore } from './unified-token-store';
 // Cache for successful image loads
 const imageCache = new Map<string, string>();
 
+// Function to convert image URL to Base64
+async function convertImageToBase64(url: string): Promise<string> {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error('Error converting image to base64:', error);
+    throw error;
+  }
+}
+
 export async function getTokenImage(symbol: string): Promise<string> {
   const cleanSymbol = symbol.replace('-USDT', '').toLowerCase();
 
-  // Check cache first
+  // Check memory cache first
   if (imageCache.has(cleanSymbol)) {
     return imageCache.get(cleanSymbol)!;
+  }
+
+  // Try to load from localStorage
+  const storedImage = localStorage.getItem(`crypto-icon-${cleanSymbol}`);
+  if (storedImage) {
+    imageCache.set(cleanSymbol, storedImage);
+    return storedImage;
   }
 
   // Define API sources in priority order
@@ -31,16 +55,22 @@ export async function getTokenImage(symbol: string): Promise<string> {
           const data = await response.json();
           const imageUrl = data.image?.large || data.image?.thumb;
           if (imageUrl) {
-            imageCache.set(cleanSymbol, imageUrl);
-            return imageUrl;
+            // Convert image to base64 and store it
+            const base64Image = await convertImageToBase64(imageUrl);
+            localStorage.setItem(`crypto-icon-${cleanSymbol}`, base64Image);
+            imageCache.set(cleanSymbol, base64Image);
+            return base64Image;
           }
         }
       } else {
         // Handle direct image URLs
         const response = await fetch(source, { method: 'HEAD' });
         if (response.ok && response.headers.get('content-type')?.startsWith('image/')) {
-          imageCache.set(cleanSymbol, source);
-          return source;
+          // Convert image to base64 and store it
+          const base64Image = await convertImageToBase64(source);
+          localStorage.setItem(`crypto-icon-${cleanSymbol}`, base64Image);
+          imageCache.set(cleanSymbol, base64Image);
+          return base64Image;
         }
       }
     } catch (error) {
@@ -49,7 +79,7 @@ export async function getTokenImage(symbol: string): Promise<string> {
     }
   }
 
-  // If all sources fail, return null to trigger fallback icon generation
+  // If all sources fail, return empty string to trigger fallback icon generation
   return '';
 }
 
@@ -132,7 +162,7 @@ export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMet
           metadata.description = uriData.description;
         }
       } catch (error) {
-          console.error("[Token Metadata] Error fetching URI data:", error);
+        console.error("[Token Metadata] Error fetching URI data:", error);
       }
     }
 
