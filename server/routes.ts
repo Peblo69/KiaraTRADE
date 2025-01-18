@@ -43,7 +43,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Top coins by market cap endpoint
+  // Top coins by market cap endpoint with detailed information
   app.get('/api/coins/markets', async (req, res) => {
     try {
       const now = Date.now();
@@ -60,7 +60,9 @@ export function registerRoutes(app: Express): Server {
             per_page: 100,
             page: 1,
             sparkline: true,
-            price_change_percentage: '24h'
+            price_change_percentage: '1h,24h,7d',
+            locale: 'en',
+            precision: 6
           }
         }
       );
@@ -74,6 +76,30 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Markets error:', error);
       res.status(500).json({ error: error.message || 'Failed to fetch market data' });
+    }
+  });
+
+  // Get detailed information for a specific coin
+  app.get('/api/coins/:id', async (req, res) => {
+    try {
+      const response = await axios.get(
+        `https://api.coingecko.com/api/v3/coins/${req.params.id}`,
+        {
+          params: {
+            localization: false,
+            tickers: true,
+            market_data: true,
+            community_data: true,
+            developer_data: true,
+            sparkline: true
+          }
+        }
+      );
+
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Coin details error:', error);
+      res.status(500).json({ error: error.message || 'Failed to fetch coin details' });
     }
   });
 
