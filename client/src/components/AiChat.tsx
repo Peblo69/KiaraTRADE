@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import axios from "axios";
+import { nanoid } from 'nanoid';
 
 interface Message {
   role: "user" | "assistant";
@@ -13,10 +14,11 @@ interface Message {
 export default function AiChat() {
   const [messages, setMessages] = useState<Message[]>([{
     role: "assistant",
-    content: "Hello! I am KIARA, your AI assistant. How can I help you with cryptocurrency analysis today?"
+    content: "Hello! I am KIARA, your AI assistant. How can I help you with cryptocurrency analysis today? 🚀"
   }]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [sessionId] = useState(() => nanoid()); // Create a stable session ID
 
   const sendMessage = async () => {
     if (!input.trim()) return;
@@ -27,11 +29,9 @@ export default function AiChat() {
     setIsTyping(true);
 
     try {
-      // Filter out the initial greeting message when sending history
-      const chatHistory = messages.slice(1);
       const response = await axios.post("/api/chat", { 
         message: input,
-        history: chatHistory
+        sessionId
       });
 
       setMessages(prev => [...prev, {
@@ -50,7 +50,7 @@ export default function AiChat() {
   };
 
   return (
-    <Card className="flex flex-col h-full bg-transparent backdrop-blur-sm border-purple-500/20 chat-container">
+    <Card className="flex flex-col h-full bg-black/40 backdrop-blur-lg border-purple-500/20">
       <div className="p-4 border-b border-purple-500/20">
         <h2 className="text-lg font-semibold text-purple-300">Chat with KIARA</h2>
       </div>
@@ -70,7 +70,7 @@ export default function AiChat() {
             </div>
           ))}
           {isTyping && (
-            <div className="text-purple-400 animate-pulse">KIARA is thinking...</div>
+            <div className="text-purple-400 animate-pulse">KIARA is thinking... 🤔</div>
           )}
         </div>
       </ScrollArea>
@@ -88,7 +88,7 @@ export default function AiChat() {
             onClick={sendMessage}
             className="bg-purple-500 hover:bg-purple-600 whitespace-nowrap"
           >
-            Send Message
+            Send Message 💬
           </Button>
         </div>
       </div>

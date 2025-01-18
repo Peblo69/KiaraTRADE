@@ -102,3 +102,63 @@ export async function generateAIResponse(message: string, chatHistory: ChatMessa
     return "I encountered an error processing your request. Please try again.";
   }
 }
+
+export interface TokenSuggestion {
+  name: string;
+  symbol: string;
+  description: string;
+  narrative: string;
+  potential_price_target: string;
+  confidence: number;
+}
+
+export async function generateTokenIdea(theme?: string): Promise<TokenSuggestion> {
+  if (!openai) {
+    throw new Error("OpenAI client is not initialized");
+  }
+
+  const basePrompt = theme 
+    ? `Generate a creative PumpFun token idea based on the theme: ${theme}.` 
+    : "Generate a creative PumpFun token idea that could catch attention.";
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content: `You are a creative crypto token name generator. Create catchy, memorable, and fun token names that would work well on PumpFun. Follow these rules:
+          1. Names should be memorable and easy to say
+          2. Symbols should be 3-6 characters
+          3. Include a compelling narrative/story
+          4. Suggest a realistic price target range
+          5. Add confidence score (0-1) based on market potential
+
+          Respond with JSON in this format:
+          {
+            "name": "string",
+            "symbol": "string",
+            "description": "short string",
+            "narrative": "string explaining the story/concept",
+            "potential_price_target": "string with range",
+            "confidence": number
+          }`
+        },
+        { 
+          role: "user", 
+          content: basePrompt
+        }
+      ],
+      temperature: 0.9,
+      response_format: { type: "json_object" },
+    });
+
+    const suggestion = JSON.parse(response.choices[0].message.content);
+    console.log("Generated token idea:", suggestion);
+    return suggestion;
+
+  } catch (error: any) {
+    console.error("Failed to generate token idea:", error);
+    throw new Error("Failed to generate token idea: " + error.message);
+  }
+}
