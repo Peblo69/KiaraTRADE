@@ -15,7 +15,6 @@ interface TokenData {
 const PumpFunVision: FC = () => {
   const [tokens, setTokens] = useState<TokenData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
   const { toast } = useToast();
   const MAX_TOKENS_DISPLAYED = 10;
 
@@ -26,7 +25,6 @@ const PumpFunVision: FC = () => {
 
         ws.onopen = () => {
           console.log('Connected to PumpPortal WebSocket');
-          // Subscribe to new token events
           ws.send(JSON.stringify({
             method: "subscribeNewToken"
           }));
@@ -67,65 +65,82 @@ const PumpFunVision: FC = () => {
     connectWebSocket();
   }, [toast]);
 
-  const handleTokenClick = (token: TokenData) => {
-    setSelectedToken(token);
-    toast({
-      title: `${token.symbol} Details`,
-      description: `Price: ${token.price ? `$${token.price.toFixed(6)}` : 'N/A'}
-                   Volume: ${token.volume ? `$${token.volume.toLocaleString()}` : 'N/A'}
-                   Market Cap: ${token.marketCap ? `$${token.marketCap.toLocaleString()}` : 'N/A'}`,
-      duration: 5000,
-    });
-  };
-
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex flex-col gap-6">
-        <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
-          PumpFun Vision
-        </h1>
-        <p className="text-muted-foreground">
-          Real-time tracking of newly created tokens on the network
-        </p>
+    <div className="flex h-screen bg-background overflow-hidden">
+      {/* Left sidebar for token list */}
+      <div className="w-[300px] h-full border-r border-purple-800/20 bg-background/80 backdrop-blur-sm overflow-hidden">
+        <div className="p-4">
+          <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
+            Live Tokens
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Real-time token updates
+          </p>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="h-[calc(100vh-100px)] overflow-y-auto">
           {loading ? (
-            <div className="col-span-full flex items-center justify-center py-12">
+            <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
             </div>
           ) : tokens.length > 0 ? (
-            tokens.map((token, index) => (
-              <Card 
-                key={index} 
-                className="p-4 border-purple-800/20 bg-background/80 backdrop-blur-sm hover:bg-accent/50 transition-all duration-200 cursor-pointer"
-                onClick={() => handleTokenClick(token)}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold">{token.symbol}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(token.timestamp).toLocaleTimeString()}
-                    </p>
-                  </div>
-                  {token.price && (
-                    <div className="text-right">
-                      <p className="font-mono">${token.price.toFixed(6)}</p>
-                      {token.volume && (
+            <div className="flex flex-col gap-2 p-2">
+              {tokens.map((token, index) => (
+                <Card 
+                  key={token.symbol + token.timestamp}
+                  className="p-4 border-purple-800/20 bg-background/95 hover:bg-accent/50 transition-all duration-300 cursor-pointer animate-slideDown"
+                >
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-semibold text-lg">{token.symbol}</h3>
                         <p className="text-xs text-muted-foreground">
-                          Vol: ${token.volume.toLocaleString()}
+                          {new Date(token.timestamp).toLocaleTimeString()}
                         </p>
-                      )}
+                      </div>
+                      <div className="text-right">
+                        {token.price && (
+                          <p className="font-mono font-bold text-lg">
+                            ${token.price.toFixed(6)}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </Card>
-            ))
+
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-purple-800/10">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Volume</p>
+                        <p className="font-mono">
+                          ${token.volume?.toLocaleString() ?? 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Market Cap</p>
+                        <p className="font-mono">
+                          ${token.marketCap?.toLocaleString() ?? 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
           ) : (
-            <div className="col-span-full text-center py-12">
+            <div className="flex items-center justify-center h-full">
               <p className="text-muted-foreground">Waiting for new tokens...</p>
             </div>
           )}
         </div>
+      </div>
+
+      {/* Main content area - will be used for additional features */}
+      <div className="flex-1 p-8">
+        <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
+          PumpFun Vision
+        </h1>
+        <p className="text-muted-foreground mt-2">
+          Select a token to view detailed analytics
+        </p>
       </div>
     </div>
   );
