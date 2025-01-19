@@ -48,6 +48,11 @@ export default function Navbar() {
                   Kiara Stage I
                 </Button>
               </Link>
+              <Link href="/pumpfun-vision">
+                <Button variant="ghost" className="text-purple-400 hover:text-purple-300">
+                  PumpFun Vision
+                </Button>
+              </Link>
               <Link href="/subscriptions"><Button variant="ghost">Subscriptions</Button></Link>
 
               <Button 
