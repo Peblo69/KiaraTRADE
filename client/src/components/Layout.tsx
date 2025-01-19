@@ -17,7 +17,7 @@ export const Layout: FC<PropsWithChildren> = ({ children }) => {
       </div>
 
       {/* Main Content */}
-      <main className="pt-32 px-4 lg:px-6">
+      <main className="pt-16 px-4 lg:px-6">
         {children}
       </main>
       <Toaster />
