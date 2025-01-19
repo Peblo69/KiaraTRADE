@@ -5,10 +5,10 @@ import { Loader2 } from "lucide-react";
 
 interface TokenData {
   symbol: string;
-  name?: string;
-  price?: number;
-  marketCap?: number;
-  volume?: number;
+  name: string;
+  price: number;
+  marketCap: number;
+  volume: number;
   timestamp: number;
 }
 
@@ -16,7 +16,7 @@ const PumpFunVision: FC = () => {
   const [tokens, setTokens] = useState<TokenData[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const MAX_TOKENS_DISPLAYED = 10;
+  const MAX_TOKENS = 10;
 
   useEffect(() => {
     const connectWebSocket = () => {
@@ -33,8 +33,12 @@ const PumpFunVision: FC = () => {
         ws.onmessage = (event) => {
           const newTokenData = JSON.parse(event.data);
           setTokens(prevTokens => {
-            const updatedTokens = [newTokenData, ...prevTokens];
-            return updatedTokens.slice(0, MAX_TOKENS_DISPLAYED);
+            // Add new token at the beginning and maintain max 10 tokens
+            const newTokens = [newTokenData, ...prevTokens].slice(0, MAX_TOKENS);
+            // Remove duplicates based on symbol
+            return Array.from(new Map(newTokens.map(token => [token.symbol, token])).values())
+              .sort((a, b) => b.timestamp - a.timestamp)
+              .slice(0, MAX_TOKENS);
           });
           setLoading(false);
         };
@@ -74,7 +78,7 @@ const PumpFunVision: FC = () => {
             Live Tokens
           </h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Real-time token updates
+            Latest {MAX_TOKENS} tokens
           </p>
         </div>
 
@@ -85,25 +89,26 @@ const PumpFunVision: FC = () => {
             </div>
           ) : tokens.length > 0 ? (
             <div className="flex flex-col gap-2 p-2">
-              {tokens.map((token, index) => (
+              {tokens.map((token) => (
                 <Card 
-                  key={token.symbol + token.timestamp}
+                  key={`${token.symbol}-${token.timestamp}`}
                   className="p-4 border-purple-800/20 bg-background/95 hover:bg-accent/50 transition-all duration-300 cursor-pointer animate-slideDown"
                 >
                   <div className="space-y-2">
                     <div className="flex justify-between items-start">
                       <div>
                         <h3 className="font-semibold text-lg">{token.symbol}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {token.name}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(token.timestamp).toLocaleTimeString()}
                         </p>
                       </div>
                       <div className="text-right">
-                        {token.price && (
-                          <p className="font-mono font-bold text-lg">
-                            ${token.price.toFixed(6)}
-                          </p>
-                        )}
+                        <p className="font-mono font-bold text-lg">
+                          ${token.price.toFixed(6)}
+                        </p>
                       </div>
                     </div>
 
@@ -111,13 +116,13 @@ const PumpFunVision: FC = () => {
                       <div>
                         <p className="text-xs text-muted-foreground">Volume</p>
                         <p className="font-mono">
-                          ${token.volume?.toLocaleString() ?? 'N/A'}
+                          ${token.volume.toLocaleString()}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Market Cap</p>
                         <p className="font-mono">
-                          ${token.marketCap?.toLocaleString() ?? 'N/A'}
+                          ${token.marketCap.toLocaleString()}
                         </p>
                       </div>
                     </div>
