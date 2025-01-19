@@ -57,8 +57,8 @@ export function registerRoutes(app: Express): Server {
 
       // Fetch news from multiple sources
       const [cryptoPanicNews, coinGeckoNews] = await Promise.all([
-        // CryptoPanic news with images
-        axios.get(`${CRYPTOPANIC_API_BASE}/posts/?auth_token=${process.env.CRYPTOPANIC_API_KEY}&kind=news&metadata=true&public=true`),
+        // CryptoPanic news with images and filters
+        axios.get(`${CRYPTOPANIC_API_BASE}/posts/?auth_token=${process.env.CRYPTOPANIC_API_KEY}&kind=news&metadata=true&public=true&filter=hot&currencies=BTC,ETH,SOL&regions=en`),
         // CoinGecko news with project details
         axios.get('https://api.coingecko.com/api/v3/news?per_page=50')
       ]);
