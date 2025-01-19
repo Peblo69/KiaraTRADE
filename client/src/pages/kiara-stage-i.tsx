@@ -1,5 +1,5 @@
 import { FC, useRef, useState, useEffect } from "react";
-import { Layout } from "@/components/Layout";
+import Navbar from "@/components/Navbar";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
 import { useTypewriter } from "@/hooks/useTypewriter";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -59,117 +59,116 @@ const KiaraStageI: FC = () => {
   }, []);
 
   return (
-    <Layout>
-      <div className="min-h-screen bg-black relative overflow-hidden">
-        <SpaceBackgroundEnhanced />
-        <div className="relative z-10">
-          <main className="container mx-auto px-4 py-8">
-            <div className="max-w-6xl mx-auto mb-8">
-              <ProgressBar 
-                progress={70} 
-                label="Stage I Progress" 
-                className="mb-12"
+    <div className="min-h-screen bg-black relative overflow-hidden">
+      <SpaceBackgroundEnhanced />
+      <div className="relative z-10">
+        <Navbar />
+        <main className="container mx-auto px-4 py-8">
+          <div className="max-w-6xl mx-auto mb-8">
+            <ProgressBar 
+              progress={70} 
+              label="Stage I Progress" 
+              className="mb-12"
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
+            <div className="col-span-1">
+              <div className="relative w-[90%] mx-auto">
+                <div className="video-container rounded-lg overflow-hidden">
+                  <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black to-transparent z-10"></div>
+                  <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black to-transparent z-10"></div>
+                  <video
+                    ref={videoRef}
+                    className="w-full rounded-lg shadow-2xl relative z-0 animate-float"
+                    src="https://files.catbox.moe/ligfio.webm"
+                    playsInline
+                    style={{
+                      animation: 'float 6s ease-in-out infinite',
+                      boxShadow: '0 0 20px rgba(34, 211, 238, 0.2)',
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="col-span-1">
+              <h1
+                className="text-5xl md:text-7xl font-bold mb-12 bg-gradient-to-r from-purple-400 via-cyan-400 to-purple-400 bg-clip-text text-transparent animate-glitch"
+                style={{
+                  fontFamily: '"VT323", monospace',
+                  letterSpacing: '0.05em',
+                  fontWeight: '800',
+                  textShadow: '0 0 30px rgba(var(--theme-primary), 0.8)'
+                }}
+              >
+                {TITLE}
+              </h1>
+              <div
+                style={{
+                  whiteSpace: 'pre-wrap',
+                  fontFamily: '"VT323", monospace',
+                  fontSize: '1.1rem',
+                  lineHeight: '1.5',
+                  textShadow: '0 0 10px rgba(var(--theme-primary), 0.5)',
+                  color: 'rgb(216, 180, 254)',
+                  backdropFilter: 'blur(4px)',
+                  padding: '1rem',
+                  opacity: isComplete ? 1 : 0.9,
+                  transition: 'opacity 0.3s ease-in-out'
+                }}
+                className="typing-text"
+              >
+                {displayText}
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto mt-12">
+            <div className="col-span-1">
+              <img
+                src="https://files.catbox.moe/jqrz4d.png"
+                alt="Kiara AI Assistant"
+                className="w-full rounded-lg shadow-2xl"
+                style={{
+                  maxWidth: '90%',
+                  margin: '0 auto',
+                  filter: 'drop-shadow(0 0 20px rgba(var(--theme-primary), 0.3))'
+                }}
               />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
-              <div className="col-span-1">
-                <div className="relative w-[90%] mx-auto">
-                  <div className="video-container rounded-lg overflow-hidden">
-                    <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black to-transparent z-10"></div>
-                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black to-transparent z-10"></div>
-                    <video
-                      ref={videoRef}
-                      className="w-full rounded-lg shadow-2xl relative z-0 animate-float"
-                      src="https://files.catbox.moe/ligfio.webm"
-                      playsInline
-                      style={{
-                        animation: 'float 6s ease-in-out infinite',
-                        boxShadow: '0 0 20px rgba(34, 211, 238, 0.2)',
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="col-span-1">
-                <h1
-                  className="text-5xl md:text-7xl font-bold mb-12 bg-gradient-to-r from-purple-400 via-cyan-400 to-purple-400 bg-clip-text text-transparent animate-glitch"
-                  style={{
-                    fontFamily: '"VT323", monospace',
-                    letterSpacing: '0.05em',
-                    fontWeight: '800',
-                    textShadow: '0 0 30px rgba(var(--theme-primary), 0.8)'
-                  }}
-                >
-                  {TITLE}
-                </h1>
+            <div className="col-span-1">
+              <div
+                style={{
+                  whiteSpace: 'pre-wrap',
+                  fontFamily: '"VT323", monospace',
+                  fontSize: '1.1rem',
+                  lineHeight: '1.5',
+                  textShadow: '0 0 10px rgba(34, 211, 238, 0.5)',
+                  color: 'rgb(34, 211, 238)',
+                  backdropFilter: 'blur(4px)',
+                  padding: '1rem',
+                  opacity: roleIsComplete ? 1 : 0.9,
+                  transition: 'opacity 0.3s ease-in-out',
+                  border: '1px solid rgba(34, 211, 238, 0.2)',
+                  borderRadius: '0.5rem',
+                  background: 'rgba(34, 211, 238, 0.05)',
+                }}
+                className="typing-text"
+              >
                 <div
                   style={{
-                    whiteSpace: 'pre-wrap',
-                    fontFamily: '"VT323", monospace',
-                    fontSize: '1.1rem',
-                    lineHeight: '1.5',
-                    textShadow: '0 0 10px rgba(var(--theme-primary), 0.5)',
-                    color: 'rgb(216, 180, 254)',
-                    backdropFilter: 'blur(4px)',
-                    padding: '1rem',
-                    opacity: isComplete ? 1 : 0.9,
-                    transition: 'opacity 0.3s ease-in-out'
+                    fontSize: '1.4rem',
+                    marginBottom: '1rem',
+                    fontWeight: '600'
                   }}
-                  className="typing-text"
                 >
-                  {displayText}
+                  Kiara's Role Today – Your AI Crypto Assistant
                 </div>
+                {roleDisplayText.substring(roleDisplayText.indexOf('\n') + 1)}
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto mt-12">
-              <div className="col-span-1">
-                <img
-                  src="https://files.catbox.moe/jqrz4d.png"
-                  alt="Kiara AI Assistant"
-                  className="w-full rounded-lg shadow-2xl"
-                  style={{
-                    maxWidth: '90%',
-                    margin: '0 auto',
-                    filter: 'drop-shadow(0 0 20px rgba(var(--theme-primary), 0.3))'
-                  }}
-                />
-              </div>
-              <div className="col-span-1">
-                <div
-                  style={{
-                    whiteSpace: 'pre-wrap',
-                    fontFamily: '"VT323", monospace',
-                    fontSize: '1.1rem',
-                    lineHeight: '1.5',
-                    textShadow: '0 0 10px rgba(34, 211, 238, 0.5)',
-                    color: 'rgb(34, 211, 238)',
-                    backdropFilter: 'blur(4px)',
-                    padding: '1rem',
-                    opacity: roleIsComplete ? 1 : 0.9,
-                    transition: 'opacity 0.3s ease-in-out',
-                    border: '1px solid rgba(34, 211, 238, 0.2)',
-                    borderRadius: '0.5rem',
-                    background: 'rgba(34, 211, 238, 0.05)',
-                  }}
-                  className="typing-text"
-                >
-                  <div
-                    style={{
-                      fontSize: '1.4rem',
-                      marginBottom: '1rem',
-                      fontWeight: '600'
-                    }}
-                  >
-                    Kiara's Role Today – Your AI Crypto Assistant
-                  </div>
-                  {roleDisplayText.substring(roleDisplayText.indexOf('\n') + 1)}
-                </div>
-              </div>
-            </div>
-          </main>
-        </div>
+          </div>
+        </main>
       </div>
-    </Layout>
+    </div>
   );
 };
 

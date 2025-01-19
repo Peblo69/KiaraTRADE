@@ -3,7 +3,6 @@ import { Loader2, ExternalLink, Clock } from 'lucide-react';
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Layout } from "@/components/Layout";
 
 interface NewsArticle {
   title: string;
@@ -56,7 +55,7 @@ export default function CryptoNews() {
   }, []);
 
   return (
-    <Layout>
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
@@ -72,15 +71,13 @@ export default function CryptoNews() {
           <div className="space-y-8">
             {[...Array(3)].map((_, i) => (
               <Card key={i} className="overflow-hidden">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="h-[400px]">
-                    <Skeleton className="w-full h-full" />
-                  </div>
-                  <div className="p-6 space-y-4">
-                    <Skeleton className="h-8 w-3/4" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-2/3" />
-                  </div>
+                <div className="h-[400px]">
+                  <Skeleton className="w-full h-full" />
+                </div>
+                <div className="p-6 space-y-4">
+                  <Skeleton className="h-8 w-3/4" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
                 </div>
               </Card>
             ))}
@@ -150,6 +147,6 @@ export default function CryptoNews() {
           </div>
         )}
       </div>
-    </Layout>
+    </div>
   );
 }
