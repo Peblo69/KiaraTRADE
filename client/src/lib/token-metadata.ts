@@ -9,12 +9,18 @@ let hasPreloaded = false;
  * Uses database-backed system with memory cache
  */
 export async function getTokenImage(symbol: string): Promise<string> {
-  console.log(`[Token Metadata] Fetching image for ${symbol}`);
+  if (!symbol) {
+    console.warn('[Token Metadata] No symbol provided');
+    return '';
+  }
+
+  // Normalize symbol
+  const normalizedSymbol = symbol.toUpperCase();
 
   // Check memory cache first
-  if (imageCache.has(symbol)) {
-    console.log(`[Token Metadata] Cache hit for ${symbol}`);
-    return imageCache.get(symbol)!;
+  if (imageCache.has(normalizedSymbol)) {
+    console.log(`[Token Metadata] Cache hit for ${normalizedSymbol}`);
+    return imageCache.get(normalizedSymbol)!;
   }
 
   try {
@@ -23,30 +29,30 @@ export async function getTokenImage(symbol: string): Promise<string> {
       await preloadStoredImages();
 
       // Check cache again after preload
-      if (imageCache.has(symbol)) {
-        console.log(`[Token Metadata] Found ${symbol} after preload`);
-        return imageCache.get(symbol)!;
+      if (imageCache.has(normalizedSymbol)) {
+        console.log(`[Token Metadata] Found ${normalizedSymbol} after preload`);
+        return imageCache.get(normalizedSymbol)!;
       }
     }
 
-    const response = await fetch(`/api/token-image/${encodeURIComponent(symbol)}`);
+    const response = await fetch(`/api/token-image/${encodeURIComponent(normalizedSymbol)}`);
     if (!response.ok) {
-      console.warn(`[Token Metadata] Error fetching image for ${symbol}: ${response.status}`);
+      console.warn(`[Token Metadata] Error fetching image for ${normalizedSymbol}: ${response.status}`);
       return '';
     }
 
     const data = await response.json();
-    console.log(`[Token Metadata] API response for ${symbol}:`, data);
+    console.log(`[Token Metadata] API response for ${normalizedSymbol}:`, data);
 
     if (data.imageUrl) {
       // Update memory cache
-      imageCache.set(symbol, data.imageUrl);
+      imageCache.set(normalizedSymbol, data.imageUrl);
       return data.imageUrl;
     }
 
     return '';
   } catch (error) {
-    console.error(`[Token Metadata] Failed to fetch image for ${symbol}:`, error);
+    console.error(`[Token Metadata] Failed to fetch image for ${normalizedSymbol}:`, error);
     return '';
   }
 }
@@ -70,8 +76,8 @@ async function preloadStoredImages(): Promise<void> {
 
     // Update memory cache with all stored images
     Object.entries(data.images).forEach(([symbol, imageUrl]) => {
-      if (imageUrl) {
-        imageCache.set(symbol, imageUrl as string);
+      if (imageUrl && typeof imageUrl === 'string') {
+        imageCache.set(symbol.toUpperCase(), imageUrl);
       }
     });
 
@@ -85,7 +91,10 @@ async function preloadStoredImages(): Promise<void> {
  * Preload images for a list of tokens
  */
 export async function preloadTokenImages(symbols: string[]): Promise<void> {
-  console.log(`[Token Metadata] Preloading images for ${symbols.length} tokens`);
+  if (!symbols.length) return;
+
+  const normalizedSymbols = symbols.map(s => s.toUpperCase());
+  console.log(`[Token Metadata] Preloading images for ${normalizedSymbols.length} tokens`);
 
   try {
     const response = await fetch('/api/token-images/bulk', {
@@ -94,7 +103,7 @@ export async function preloadTokenImages(symbols: string[]): Promise<void> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ 
-        symbols,
+        symbols: normalizedSymbols,
         priority: true // Signal these are priority tokens
       }),
     });
@@ -109,8 +118,8 @@ export async function preloadTokenImages(symbols: string[]): Promise<void> {
 
     // Update memory cache with all received images
     Object.entries(data.images).forEach(([symbol, imageUrl]) => {
-      if (imageUrl) {
-        imageCache.set(symbol, imageUrl as string);
+      if (imageUrl && typeof imageUrl === 'string') {
+        imageCache.set(symbol.toUpperCase(), imageUrl);
       }
     });
   } catch (error) {
@@ -118,11 +127,12 @@ export async function preloadTokenImages(symbols: string[]): Promise<void> {
   }
 }
 
-// Clear memory cache periodically (every hour)
+// Clear memory cache periodically (every 30 minutes)
 setInterval(() => {
+  console.log('[Token Metadata] Clearing image cache');
   imageCache.clear();
   hasPreloaded = false;
-}, 3600000);
+}, 1800000);
 
 interface TokenMetadata {
   name: string;

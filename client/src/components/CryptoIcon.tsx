@@ -1,21 +1,26 @@
-import { FC, useState, useEffect } from "react";
+import { FC, useState, useEffect, useRef } from "react";
 import { getTokenImage } from "@/lib/token-metadata";
 import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 
 interface CryptoIconProps {
   symbol: string;
   className?: string;
   size?: "sm" | "md" | "lg";
+  showFallback?: boolean;
 }
 
 const CryptoIcon: FC<CryptoIconProps> = ({ 
   symbol, 
   className,
-  size = "md" 
+  size = "md",
+  showFallback = true
 }) => {
   const [imgSrc, setImgSrc] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const mountedRef = useRef(true);
 
   const sizeClasses = {
     sm: "w-4 h-4",
@@ -24,7 +29,10 @@ const CryptoIcon: FC<CryptoIconProps> = ({
   };
 
   const generateFallbackIcon = () => {
-    const symbol1 = symbol.replace('-USDT', '').charAt(0).toUpperCase();
+    const cleanSymbol = symbol.replace('-USDT', '');
+    const symbol1 = cleanSymbol.charAt(0).toUpperCase();
+    const symbol2 = cleanSymbol.length > 1 ? cleanSymbol.charAt(1).toLowerCase() : '';
+
     const canvas = document.createElement('canvas');
     const size = 32;
     canvas.width = size;
@@ -33,48 +41,92 @@ const CryptoIcon: FC<CryptoIconProps> = ({
 
     if (!ctx) return '';
 
-    // Generate a unique color based on the symbol
-    const hue = (symbol1.charCodeAt(0) * 137.508) % 360;
-    ctx.fillStyle = `hsl(${hue}, 70%, 50%)`;
+    // Generate a deterministic color based on the symbol
+    const hash = cleanSymbol.split('').reduce((acc, char) => {
+      return char.charCodeAt(0) + ((acc << 5) - acc);
+    }, 0);
+    const hue = Math.abs(hash % 360);
+    const saturation = 65 + (hash % 15); // 65-80%
+    const lightness = 45 + (hash % 10); // 45-55%
+
+    // Main background
+    ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
     ctx.beginPath();
     ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
     ctx.fill();
 
-    // Add text
+    // Text shadow for better readability
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    ctx.beginPath();
+    ctx.arc(size/2, size/2 + 1, size/2 - 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Text
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 16px Arial';
+    ctx.font = 'bold 14px Inter, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(symbol1, size/2, size/2);
+    ctx.fillText(symbol1 + symbol2, size/2, size/2);
 
     return canvas.toDataURL();
   };
 
   useEffect(() => {
-    let mounted = true;
-    setIsLoading(true);
-    setError(false);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
 
     async function loadImage() {
+      if (!symbol || error && retryCount >= 2) return;
+
       try {
+        setIsLoading(true);
         const imageUrl = await getTokenImage(symbol);
 
-        if (!mounted) return;
+        if (!mountedRef.current) return;
 
         if (!imageUrl) {
-          setImgSrc(generateFallbackIcon());
-          setError(true);
-          setIsLoading(false);
-          return;
+          throw new Error('No image URL returned');
         }
 
+        // Preload image to ensure it loads correctly
+        const img = new Image();
+        img.src = imageUrl;
+
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          // Timeout after 5 seconds
+          timeoutId = setTimeout(() => reject(new Error('Image load timeout')), 5000);
+        });
+
+        if (!mountedRef.current) return;
+
+        clearTimeout(timeoutId);
         setImgSrc(imageUrl);
         setIsLoading(false);
         setError(false);
+        setRetryCount(0);
       } catch (err) {
         console.error(`Error loading icon for ${symbol}:`, err);
-        if (mounted) {
-          setImgSrc(generateFallbackIcon());
+        if (!mountedRef.current) return;
+
+        clearTimeout(timeoutId);
+        if (retryCount < 2) {
+          // Exponential backoff for retries
+          const delay = Math.pow(2, retryCount) * 1000;
+          setTimeout(() => {
+            if (mountedRef.current) {
+              setRetryCount(prev => prev + 1);
+            }
+          }, delay);
+        } else {
+          setImgSrc(showFallback ? generateFallbackIcon() : '');
           setError(true);
           setIsLoading(false);
         }
@@ -84,32 +136,46 @@ const CryptoIcon: FC<CryptoIconProps> = ({
     loadImage();
 
     return () => {
-      mounted = false;
+      clearTimeout(timeoutId);
     };
-  }, [symbol]);
+  }, [symbol, retryCount, showFallback]);
+
+  if (!symbol) {
+    return null;
+  }
 
   return (
-    <div className={cn("relative", sizeClasses[size], className)}>
+    <div className={cn(
+      "relative flex items-center justify-center overflow-hidden rounded-full", 
+      sizeClasses[size], 
+      className
+    )}>
       {isLoading && (
-        <div className="absolute inset-0 animate-pulse bg-muted rounded-full" />
+        <div className="absolute inset-0 flex items-center justify-center bg-muted">
+          <Loader2 className={cn(
+            "animate-spin",
+            size === "sm" ? "h-2 w-2" : size === "md" ? "h-3 w-3" : "h-4 w-4"
+          )} />
+        </div>
       )}
-      <img
-        src={imgSrc}
-        alt={`${symbol} icon`}
-        className={cn(
-          "rounded-full",
-          sizeClasses[size],
-          isLoading ? "opacity-0" : "opacity-100",
-          "transition-opacity duration-200"
-        )}
-        onError={(e) => {
-          const target = e.target as HTMLImageElement;
-          if (!error) {
-            target.src = generateFallbackIcon();
-            setError(true);
-          }
-        }}
-      />
+      {imgSrc && (
+        <img
+          src={imgSrc}
+          alt={`${symbol} icon`}
+          className={cn(
+            "w-full h-full object-cover",
+            isLoading ? "opacity-0" : "opacity-100",
+            "transition-opacity duration-200"
+          )}
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            if (!error && showFallback) {
+              target.src = generateFallbackIcon();
+              setError(true);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
