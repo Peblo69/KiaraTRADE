@@ -1,90 +1,14 @@
-import { FC, useState, useEffect } from 'react';
+import { FC } from 'react';
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-
-interface TokenData {
-  symbol: string;
-  name: string;
-  liquidity: number;
-  liquidityChange: number;
-  l1Liquidity: number;
-  marketCap: number;
-  volume: number;
-  swaps: number;
-  timestamp: number;
-  status: {
-    mad: boolean;
-    fad: boolean;
-    lb: boolean;
-    tri: boolean;
-  }
-}
+import { usePumpPortalStore, type PumpPortalToken } from '@/lib/pump-portal-websocket';
 
 const PumpFunVision: FC = () => {
-  const [tokens, setTokens] = useState<TokenData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const tokens = usePumpPortalStore((state) => state.tokens);
+  const isConnected = usePumpPortalStore((state) => state.isConnected);
   const { toast } = useToast();
-  const MAX_TOKENS = 10;
-
-  useEffect(() => {
-    const connectWebSocket = () => {
-      try {
-        const ws = new WebSocket('wss://pumpportal.fun/api/data');
-
-        ws.onopen = () => {
-          console.log('Connected to PumpPortal WebSocket');
-          ws.send(JSON.stringify({
-            method: "subscribeNewToken"
-          }));
-        };
-
-        ws.onmessage = (event) => {
-          const newTokenData = JSON.parse(event.data);
-          console.log('Received token data:', newTokenData); // Debug log
-
-          if (!newTokenData || !newTokenData.symbol) {
-            console.error('Invalid token data received:', newTokenData);
-            return;
-          }
-
-          setTokens(prevTokens => {
-            // Add new token at the beginning and maintain max 10 tokens
-            const newTokens = [newTokenData, ...prevTokens].slice(0, MAX_TOKENS);
-            // Remove duplicates based on symbol
-            return Array.from(new Map(newTokens.map(token => [token.symbol, token])).values())
-              .sort((a, b) => b.timestamp - a.timestamp)
-              .slice(0, MAX_TOKENS);
-          });
-          setLoading(false);
-        };
-
-        ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          toast({
-            variant: "destructive",
-            title: "Connection Error",
-            description: "Failed to connect to PumpFun. Retrying...",
-          });
-        };
-
-        ws.onclose = () => {
-          console.log('WebSocket connection closed. Reconnecting...');
-          setTimeout(connectWebSocket, 5000);
-        };
-
-        return () => {
-          ws.close();
-        };
-      } catch (error) {
-        console.error('WebSocket connection error:', error);
-        setTimeout(connectWebSocket, 5000);
-      }
-    };
-
-    connectWebSocket();
-  }, [toast]);
 
   const getTimeDiff = (timestamp: number) => {
     const diff = Date.now() - timestamp;
@@ -118,12 +42,12 @@ const PumpFunVision: FC = () => {
 
         {/* Token list */}
         <div className="space-y-1">
-          {loading ? (
+          {!isConnected ? (
             <div className="flex items-center justify-center h-40">
               <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
             </div>
           ) : tokens.length > 0 ? (
-            tokens.map((token) => (
+            tokens.map((token: PumpPortalToken) => (
               <Card 
                 key={`${token.symbol}-${token.timestamp}`}
                 className="hover:bg-accent/5 transition-all duration-300 cursor-pointer"
@@ -194,6 +118,7 @@ const PumpFunVision: FC = () => {
           )}
         </div>
       </div>
+
       {/* Main content area - will be used for additional features */}
       <div className="flex-1 p-8">
         <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">

@@ -1,0 +1,50 @@
+We’re sticking to Helius and PumpPortal APIs for now. Your job is to use these two APIs to enhance the tokens already showing on the screen and make the page functional and user-friendly. Follow this step-by-step:
+
+1. Use PumpPortal for Real-Time Updates
+PumpPortal is already connected and giving new token names. Now you need to:
+
+Enhance the WebSocket data mapping:
+Check if PumpPortal’s WebSocket provides fields like liquidity, swaps, or other metrics for the new tokens.
+Map these fields properly so they’re displayed alongside the token names.
+Structure the tokens on the screen:
+Each token should show details like liquidity, recent swaps, and other real-time updates from PumpPortal.
+Make sure the data refreshes in real-time when new tokens arrive.
+2. Use Helius for Metadata
+PumpPortal doesn’t provide metadata (e.g., images, symbols). Use Helius to fetch these details:
+
+For each token mint address (from PumpPortal), use the Helius RPC URL to get:
+Token Name: If not already provided.
+Token Symbol: Add alongside the name.
+Decimals: Format the balances correctly.
+Logo URL: Show the token’s image, or use a placeholder if none is available.
+Display this metadata neatly next to the token’s real-time data.
+3. Combine PumpPortal + Helius Data
+Every token displayed should now have:
+
+From PumpPortal:
+Real-time updates like swaps, liquidity changes, or new events.
+From Helius:
+Metadata like name, symbol, logo, and formatted balances.
+4. Add Error Handling
+If PumpPortal doesn’t return a specific field (e.g., liquidity), display "N/A" instead of breaking the UI.
+If Helius doesn’t return metadata, use a default placeholder for logos or other fields.
+5. Update the UI
+Make the token information clear and visually appealing:
+Token name + symbol.
+Real-time metrics (e.g., liquidity, swaps).
+Token image or placeholder.
+Ensure smooth animations when tokens are added or removed from the list.
+Example Workflow for You
+Here’s how you should handle each new token:
+
+PumpPortal sends a new token through the WebSocket.
+Use Helius to fetch and enrich the token with metadata.
+Display the token on the left side of the screen with:
+Name + symbol.
+Real-time updates (liquidity, swaps, etc.).
+Token logo or placeholder.
+Focus: Helius + PumpPortal Only
+Don’t touch CoinGecko, KuCoin, or any other API unless it’s 100% necessary.
+Keep it simple and efficient: PumpPortal for real-time data, Helius for metadata.
+Any Questions?
+If you don’t understand any step, ask now. Otherwise, get to work, and let’s see progress!
