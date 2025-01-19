@@ -2,9 +2,9 @@ interface Window {
   phantom?: {
     solana?: {
       isPhantom?: boolean;
-      connect(): Promise<{ publicKey: any }>;
+      connect(opts?: { onlyIfTrusted?: boolean }): Promise<{ publicKey: any }>;
       disconnect(): Promise<void>;
-      on(event: string, callback: () => void): void;
+      on(event: string, callback: (...args: any[]) => void): void;
       request(params: any): Promise<any>;
       publicKey: any;
     };

@@ -45,13 +45,24 @@ interface WalletContextProviderProps {
   children: ReactNode;
 }
 
+// Add more reliable RPC endpoints
 const RPC_ENDPOINTS = [
-  clusterApiUrl('mainnet-beta'),
   'https://api.mainnet-beta.solana.com',
   'https://solana-mainnet.g.alchemy.com/v2/demo',
+  'https://rpc.ankr.com/solana',
+  clusterApiUrl('mainnet-beta'),
 ];
 
-const connections = RPC_ENDPOINTS.map(endpoint => new Connection(endpoint, 'confirmed'));
+// Create connections with higher commitment level and timeout
+const connections = RPC_ENDPOINTS.map(endpoint => 
+  new Connection(endpoint, {
+    commitment: 'confirmed',
+    confirmTransactionInitialTimeout: 60000,
+    wsEndpoint: endpoint.replace('http', 'ws')
+  })
+);
+
+const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 
 export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children }) => {
   const { toast } = useToast();
@@ -65,7 +76,17 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
 
   const fetchSolPrice = useCallback(async () => {
     try {
-      const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+      const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd', {
+        headers: {
+          'Accept': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        console.error('Price fetch failed:', response.status);
+        return null;
+      }
+
       const data = await response.json();
       return data.solana.usd;
     } catch (error) {
@@ -76,21 +97,32 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
 
   const fetchBalance = useCallback(async (pubKey: PublicKey) => {
     let lastError;
+    let retryCount = 0;
+    const maxRetries = 3;
 
-    for (let i = 0; i < connections.length; i++) {
-      try {
-        const connection = connections[i];
-        const balance = await connection.getBalance(pubKey);
-        setCurrentEndpointIndex(i);
-        return balance;
-      } catch (error) {
-        console.error(`Error with RPC endpoint ${i}:`, error);
-        lastError = error;
-        continue;
+    while (retryCount < maxRetries) {
+      for (let i = 0; i < connections.length; i++) {
+        try {
+          console.log(`Attempting balance fetch from endpoint ${i + 1}/${connections.length}`);
+          const connection = connections[i];
+          const balance = await connection.getBalance(pubKey);
+          setCurrentEndpointIndex(i);
+          console.log(`Successfully fetched balance from endpoint ${i + 1}`);
+          return balance;
+        } catch (error) {
+          console.error(`Error with RPC endpoint ${i}:`, error);
+          lastError = error;
+          continue;
+        }
+      }
+      retryCount++;
+      if (retryCount < maxRetries) {
+        console.log(`Retry attempt ${retryCount}/${maxRetries}`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
       }
     }
 
-    throw lastError;
+    throw new Error(`Failed to fetch balance after ${maxRetries} attempts: ${lastError?.message}`);
   }, []);
 
   useEffect(() => {
@@ -99,6 +131,7 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
     let isMounted = true;
     const fetchBalances = async () => {
       try {
+        console.log('Fetching wallet balances...');
         const solBalance = await fetchBalance(publicKey);
         if (!isMounted) return;
 
@@ -112,26 +145,44 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
           setBalanceUsd(balanceInSol * solPrice);
         }
 
-        const tokenAccounts = await connections[currentEndpointIndex].getParsedTokenAccountsByOwner(
-          publicKey,
-          {
-            programId: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
-          }
-        );
+        try {
+          console.log('Fetching token accounts...');
+          const tokenAccounts = await connections[currentEndpointIndex].getParsedTokenAccountsByOwner(
+            publicKey,
+            {
+              programId: TOKEN_PROGRAM_ID,
+            },
+            'confirmed'
+          );
 
-        if (!isMounted) return;
+          if (!isMounted) return;
 
-        const tokenInfos: TokenInfo[] = tokenAccounts.value.map(account => {
-          const { mint, tokenAmount } = account.account.data.parsed.info;
-          return {
-            mint,
-            symbol: '',
-            balance: tokenAmount.uiAmount,
-            decimals: tokenAmount.decimals,
-          };
-        });
+          const tokenInfos: TokenInfo[] = tokenAccounts.value
+            .filter(account => {
+              const tokenAmount = account.account.data.parsed.info.tokenAmount;
+              return tokenAmount.uiAmount > 0;
+            })
+            .map(account => {
+              const { mint, tokenAmount } = account.account.data.parsed.info;
+              return {
+                mint,
+                symbol: '',
+                balance: tokenAmount.uiAmount,
+                decimals: tokenAmount.decimals,
+              };
+            });
 
-        setTokens(tokenInfos);
+          setTokens(tokenInfos);
+          console.log(`Found ${tokenInfos.length} tokens`);
+        } catch (tokenError) {
+          console.error('Error fetching token accounts:', tokenError);
+          // Don't throw here to maintain SOL balance display
+          toast({
+            variant: "destructive",
+            title: "Token Error",
+            description: "Unable to fetch token balances. Only SOL balance will be displayed.",
+          });
+        }
       } catch (error: any) {
         console.error('Error fetching balances:', error);
         if (!isMounted) return;
@@ -139,10 +190,13 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
         toast({
           variant: "destructive",
           title: "Balance Error",
-          description: "Failed to fetch wallet balances. Retrying...",
+          description: "Failed to fetch wallet balances. Please try again.",
         });
 
-        setTimeout(fetchBalances, 5000);
+        // Reset states on error
+        setBalance(0);
+        setBalanceUsd(null);
+        setTokens([]);
       }
     };
 
@@ -164,6 +218,7 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
         throw new Error("Please install Phantom wallet");
       }
 
+      console.log('Connecting to Phantom wallet...');
       const resp = await provider.connect();
       const newPublicKey = new PublicKey(resp.publicKey.toString());
       setPublicKey(newPublicKey);
