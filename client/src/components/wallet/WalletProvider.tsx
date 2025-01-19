@@ -5,15 +5,13 @@ import { WalletError } from '@solana/wallet-adapter-base';
 import { useToast } from "@/hooks/use-toast";
 import { clusterApiUrl } from '@solana/web3.js';
 
-// Using devnet for development and testing
-const SOLANA_NETWORK = clusterApiUrl('devnet');
-
 interface Props {
   children: ReactNode;
 }
 
 export const WalletProvider: FC<Props> = ({ children }) => {
   const { toast } = useToast();
+  const endpoint = clusterApiUrl('devnet');
 
   // Initialize wallet adapter
   const wallets = useMemo(
@@ -24,9 +22,9 @@ export const WalletProvider: FC<Props> = ({ children }) => {
   const onError = (error: WalletError) => {
     console.error('Wallet error:', error);
     toast({
+      variant: "destructive",
       title: "Wallet Error",
       description: error.message || "Failed to connect wallet. Please try again.",
-      variant: "destructive",
     });
   };
 
@@ -42,7 +40,7 @@ export const WalletProvider: FC<Props> = ({ children }) => {
   }, []);
 
   return (
-    <ConnectionProvider endpoint={SOLANA_NETWORK}>
+    <ConnectionProvider endpoint={endpoint}>
       <SolanaWalletProvider 
         wallets={wallets} 
         onError={onError}

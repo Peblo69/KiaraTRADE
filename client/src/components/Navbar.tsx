@@ -30,6 +30,11 @@ export default function Navbar() {
         isPhantom: window.phantom?.solana?.isPhantom,
         publicKey: window.phantom?.solana?.publicKey?.toString()
       });
+    } else {
+      console.log('Phantom not available on initial load:', {
+        phantom: !!window.phantom,
+        solana: !!window?.phantom?.solana
+      });
     }
   }, []);
 
@@ -54,7 +59,11 @@ export default function Navbar() {
 
     // Check if Phantom is properly injected
     if (!window.phantom?.solana?.isPhantom) {
-      console.log('Phantom not detected:', window.phantom);
+      console.log('Phantom not detected:', {
+        phantom: window.phantom,
+        solana: window.phantom?.solana,
+        isPhantom: window.phantom?.solana?.isPhantom
+      });
       toast({
         title: "Wallet Not Found",
         description: "Please install Phantom Wallet extension",
@@ -65,15 +74,35 @@ export default function Navbar() {
     }
 
     try {
-      console.log('Attempting to connect to Phantom...');
+      console.log('Starting Phantom connection attempt...', {
+        connected,
+        connecting,
+        currentPublicKey: publicKey?.toString()
+      });
+
       await connect();
-      console.log('Connection successful:', publicKey?.toString());
+
+      console.log('Connection successful:', {
+        publicKey: publicKey?.toString(),
+        connected: connected,
+        phantom: {
+          isConnected: window.phantom?.solana?.isConnected,
+          publicKey: window.phantom?.solana?.publicKey?.toString()
+        }
+      });
+
       toast({
         title: "Wallet Connected",
         description: "Your wallet has been connected successfully",
       });
     } catch (error: any) {
-      console.error("Connection error:", error);
+      console.error("Connection error:", {
+        error,
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+
       let errorMessage = "Failed to connect wallet";
 
       // Specific error handling

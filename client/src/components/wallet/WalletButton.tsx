@@ -7,14 +7,31 @@ export const WalletButton: FC = () => {
   const { wallet, connect, disconnect, connecting, connected } = useWallet();
 
   const handleClick = () => {
+    console.log('WalletButton click:', {
+      wallet: !!wallet,
+      connecting,
+      connected,
+      phantom: {
+        available: !!window.phantom?.solana,
+        isPhantom: window.phantom?.solana?.isPhantom
+      }
+    });
+
     if (connected) {
       disconnect();
     } else {
-      connect().catch(() => {});
+      connect().catch((error) => {
+        console.error('WalletButton connection error:', {
+          error,
+          name: error.name,
+          message: error.message
+        });
+      });
     }
   };
 
   if (!wallet) {
+    console.log('No wallet adapter found');
     return (
       <Button variant="outline" onClick={() => window.open('https://phantom.app/', '_blank')}>
         Install Phantom
