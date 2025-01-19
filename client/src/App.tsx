@@ -9,14 +9,7 @@ import KiaraStageI from "@/pages/kiara-stage-i";
 import About from "@/pages/about";
 import Landing from "@/pages/landing";
 import { Layout } from "@/components/Layout";
-import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
-import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
-import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
-import { clusterApiUrl } from '@solana/web3.js';
-
-const network = WalletAdapterNetwork.Mainnet;
-const endpoint = clusterApiUrl(network);
-const wallets = [new PhantomWalletAdapter()];
+import { WalletProvider } from "@/components/wallet/WalletProvider";
 
 function Router() {
   return (
@@ -44,16 +37,14 @@ function Router() {
 
 function App() {
   return (
-    <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
-        <QueryClientProvider client={queryClient}>
-          <div className="min-h-screen bg-background text-foreground">
-            <Router />
-            <Toaster />
-          </div>
-        </QueryClientProvider>
-      </WalletProvider>
-    </ConnectionProvider>
+    <WalletProvider>
+      <QueryClientProvider client={queryClient}>
+        <div className="min-h-screen bg-background text-foreground">
+          <Router />
+          <Toaster />
+        </div>
+      </QueryClientProvider>
+    </WalletProvider>
   );
 }
 
