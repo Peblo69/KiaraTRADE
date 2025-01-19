@@ -1,0 +1,92 @@
+
+Looking at the code, the main issue could be tied to RPC endpoints, token fetching logic, or improper handling of balance data. Let's break it down and debug:
+
+1. RPC Endpoint Issues
+The RPC endpoints are being switched dynamically, but rate limits or failures (403 errors) may cause issues.
+Fix Suggestions:
+
+Use a single reliable RPC endpoint for testing to ensure the problem isn't with dynamic switching.
+javascript
+Copy
+Edit
+const RPC_ENDPOINTS = [
+  'https://api.mainnet-beta.solana.com'
+];
+Verify the disableRetryOnRateLimit flag in your connection configurations. Set it to true for better handling.
+2. Token Fetching Logic
+The function fetchTokenAccounts fetches token accounts owned by the wallet but filters out tokens where the balance is zero:
+
+javascript
+Copy
+Edit
+.filter(account => {
+  const tokenAmount = account.account.data.parsed.info.tokenAmount;
+  return tokenAmount.uiAmount > 0;
+})
+Potential Problem:
+
+The tokenAmount.uiAmount might not always be available if the API response structure changes.
+Fix: Add safety checks:
+
+javascript
+Copy
+Edit
+.filter(account => {
+  const tokenAmount = account.account.data?.parsed?.info?.tokenAmount;
+  return tokenAmount?.uiAmount > 0;
+})
+3. Solana Balance Not Showing
+The balance fetching logic (fetchBalance) retries through endpoints but might fail silently on all endpoints.
+
+Potential Fix: Add more robust error handling to fetchBalance to ensure errors are logged properly and retry logic works:
+
+javascript
+Copy
+Edit
+if (error.message?.includes('403')) {
+  debug.log(`Endpoint ${i + 1} returned 403, switching to the next one`);
+  lastError = error;
+  continue;
+}
+Replace with:
+
+javascript
+Copy
+Edit
+debug.error(`Failed to fetch balance from endpoint ${RPC_ENDPOINTS[i]}: ${error.message}`);
+4. Token Metadata Issues
+Token symbols and names (token.symbol) are missing because they’re not being fetched or mapped from a metadata source.
+Fix: Integrate a token list (e.g., Solana's SPL Token Registry) to resolve token names and symbols:
+
+Use libraries like @solana/spl-token-registry:
+javascript
+Copy
+Edit
+import { TokenListProvider } from '@solana/spl-token-registry';
+
+const tokenMap = await new TokenListProvider().resolve().then(tokens => {
+  return tokens.filterByChainId(101).getList().reduce((map, item) => {
+    map[item.address] = item;
+    return map;
+  }, {});
+});
+
+tokens.forEach(token => {
+  token.symbol = tokenMap[token.mint]?.symbol || 'Unknown';
+});
+5. Debug Steps
+Test RPC Connectivity:
+
+Run a manual balance fetch to ensure connections are stable:
+javascript
+Copy
+Edit
+const connection = new Connection('https://api.mainnet-beta.solana.com');
+const balance = await connection.getBalance(new PublicKey('your-wallet-address'));
+console.log(balance);
+Check Phantom Wallet Integration:
+
+Ensure window.phantom?.solana is available and connected.
+Add Detailed Error Logs:
+
+Add console.error logs to capture unexpected API or fetch errors in both fetchBalance and fetchTokenAccounts.

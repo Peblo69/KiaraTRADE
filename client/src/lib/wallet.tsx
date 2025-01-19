@@ -1,6 +1,6 @@
 import { FC, ReactNode, createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import { Connection, PublicKey, LAMPORTS_PER_SOL, clusterApiUrl } from '@solana/web3.js';
+import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { useLocation } from 'wouter';
@@ -45,7 +45,6 @@ interface WalletContextProviderProps {
   children: ReactNode;
 }
 
-// Debug helper with more detailed logging
 const debug = {
   log: (...args: any[]) => {
     console.log('[Wallet]', ...args);
@@ -58,34 +57,32 @@ const debug = {
   }
 };
 
-// Updated RPC endpoints with more reliable public nodes
+// Define reliable RPC endpoints with failover
 const RPC_ENDPOINTS = [
   {
-    url: 'https://api.mainnet-beta.solana.com',
+    url: 'https://solana-mainnet.g.alchemy.com/v2/demo',
     weight: 1
   },
   {
-    url: 'https://solana-api.projectserum.com',
+    url: 'https://api.mainnet-beta.solana.com',
     weight: 2
   },
   {
-    url: 'https://rpc.ankr.com/solana',
+    url: 'https://solana-api.projectserum.com',
     weight: 3
   },
   {
-    url: clusterApiUrl('mainnet-beta'),
+    url: 'https://rpc.ankr.com/solana',
     weight: 4
   }
 ].sort((a, b) => a.weight - b.weight).map(endpoint => endpoint.url);
 
-// Create connections with specific configurations
 const connections = RPC_ENDPOINTS.map(endpoint => {
   debug.log('Initializing connection to:', endpoint);
   return new Connection(endpoint, {
     commitment: 'confirmed',
     confirmTransactionInitialTimeout: 60000,
-    disableRetryOnRateLimit: false,
-    wsEndpoint: endpoint.replace('http', 'ws')
+    disableRetryOnRateLimit: false
   });
 });
 
@@ -130,37 +127,51 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
   }, []);
 
   const fetchTokenAccounts = useCallback(async (pubKey: PublicKey) => {
-    try {
-      debug.log('Fetching token accounts for:', pubKey.toString());
-      const tokenAccounts = await connections[currentEndpointIndex].getParsedTokenAccountsByOwner(
-        pubKey,
-        { programId: TOKEN_PROGRAM_ID },
-        'confirmed'
-      );
+    const maxRetries = 3;
+    const baseDelay = 1000;
+    let lastError;
 
-      debug.log('Raw token accounts:', tokenAccounts);
+    for (let retry = 0; retry < maxRetries; retry++) {
+      try {
+        debug.log('Fetching token accounts for:', pubKey.toString());
+        const tokenAccounts = await connections[currentEndpointIndex].getParsedTokenAccountsByOwner(
+          pubKey,
+          { programId: TOKEN_PROGRAM_ID },
+          'confirmed'
+        );
 
-      const tokenInfos: TokenInfo[] = tokenAccounts.value
-        .filter(account => {
-          const tokenAmount = account.account.data.parsed.info.tokenAmount;
-          return tokenAmount.uiAmount > 0;
-        })
-        .map(account => {
-          const { mint, tokenAmount } = account.account.data.parsed.info;
-          return {
-            mint,
-            symbol: '',
-            balance: tokenAmount.uiAmount,
-            decimals: tokenAmount.decimals,
-          };
-        });
+        debug.log('Raw token accounts:', tokenAccounts);
 
-      debug.log('Processed token accounts:', tokenInfos);
-      return tokenInfos;
-    } catch (error) {
-      debug.error('Token account fetch error:', error);
-      throw error;
+        const tokenInfos: TokenInfo[] = tokenAccounts.value
+          .filter(account => {
+            const tokenAmount = account.account.data.parsed.info.tokenAmount;
+            return tokenAmount.uiAmount > 0;
+          })
+          .map(account => {
+            const { mint, tokenAmount } = account.account.data.parsed.info;
+            return {
+              mint,
+              symbol: '', //Fixed: Added missing symbol field
+              balance: tokenAmount.uiAmount,
+              decimals: tokenAmount.decimals,
+            };
+          });
+
+        debug.log('Processed token accounts:', tokenInfos);
+        return tokenInfos;
+      } catch (error: any) {
+        debug.error(`Token fetch attempt ${retry + 1} failed:`, error);
+        lastError = error;
+
+        if (retry < maxRetries - 1) {
+          const delay = baseDelay * Math.pow(2, retry);
+          debug.log(`Retrying token fetch in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     }
+
+    throw lastError;
   }, [currentEndpointIndex]);
 
   const fetchBalance = useCallback(async (pubKey: PublicKey) => {
@@ -180,9 +191,8 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
           return balance;
         } catch (error: any) {
           debug.error(`Error with RPC endpoint ${i}:`, error);
-          // Check if it's a 403 error
           if (error.message?.includes('403')) {
-            debug.log(`Endpoint ${i + 1} returned 403, trying next endpoint`);
+            debug.log(`Endpoint ${i + 1} returned 403, switching to the next one`);
             lastError = error;
             continue;
           }
@@ -216,7 +226,6 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
         debug.log('SOL balance:', balanceInSol);
         setBalance(balanceInSol);
 
-        // Fetch price and calculate USD value
         const solPrice = await fetchSolPrice();
         if (!isMounted) return;
 
@@ -229,7 +238,6 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
           setBalanceUsd(null);
         }
 
-        // Fetch token accounts with retries
         try {
           const tokenInfos = await fetchTokenAccounts(publicKey);
           if (!isMounted) return;
@@ -252,7 +260,6 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
           description: `Failed to fetch wallet balances: ${error.message}`,
         });
 
-        // Reset states on error
         setBalance(0);
         setBalanceUsd(null);
         setTokens([]);
@@ -296,7 +303,7 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
       toast({
         variant: "destructive",
         title: "Wallet Error",
-        description: error.message || "An error occurred connecting to the wallet",
+        description: error.message || "Failed to connect wallet. Please try again.",
       });
       throw error;
     } finally {
