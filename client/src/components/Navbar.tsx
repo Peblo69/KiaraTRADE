@@ -40,6 +40,7 @@ export default function Navbar() {
 
             <div className="hidden md:flex items-center space-x-4">
               <Link href="/home"><Button variant="ghost">Home</Button></Link>
+              <Link href="/crypto-news"><Button variant="ghost">Crypto News</Button></Link>
               <Link href="/about"><Button variant="ghost">About Us</Button></Link>
               <Link href="/project"><Button variant="ghost">Project</Button></Link>
               <Link href="/kiara-stage-i">

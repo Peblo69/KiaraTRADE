@@ -8,6 +8,7 @@ import Project from "@/pages/project";
 import KiaraStageI from "@/pages/kiara-stage-i";
 import About from "@/pages/about";
 import Landing from "@/pages/landing";
+import CryptoNews from "@/pages/crypto-news";
 import { Layout } from "@/components/Layout";
 import { WalletContextProvider } from "@/lib/wallet";
 
@@ -23,6 +24,7 @@ function Router() {
           <Layout>
             <Switch>
               <Route path="/home" component={Home} />
+              <Route path="/crypto-news" component={CryptoNews} />
               <Route path="/project" component={Project} />
               <Route path="/kiara-stage-i" component={KiaraStageI} />
               <Route path="/about" component={About} />
