@@ -56,43 +56,33 @@ const TOTAL_SUPPLY = 1_000_000_000; // Fixed total supply for PumpFun tokens
 
 function mapPumpPortalData(data: any): PumpPortalToken {
   try {
-    // Extract and validate the required values
-    const vSolInBondingCurve = data.vSolInBondingCurve ? Number(data.vSolInBondingCurve) : 0;
-    const vTokensInBondingCurve = data.vTokensInBondingCurve ? Number(data.vTokensInBondingCurve) : 0;
+    console.log('[PumpPortal] Raw data received:', data);
 
-    console.log('[PumpPortal] Mapping data:', {
-      vSolInBondingCurve,
-      vTokensInBondingCurve,
-      mint: data.mint,
-      initialBuy: data.initialBuy
-    });
+    // Extract basic token info
+    const mint = data.mint || '';
+    const initialBuy = data.initialBuy ? Number(data.initialBuy) : 0;
 
-    // Calculate price per token in SOL
-    const pricePerTokenSol = vTokensInBondingCurve > 0 ? vSolInBondingCurve / vTokensInBondingCurve : 0;
-
-    // Convert to USD
+    // Calculate metrics
+    const pricePerTokenSol = initialBuy > 0 ? initialBuy / TOTAL_SUPPLY : 0;
     const pricePerTokenUsd = pricePerTokenSol * TEMP_SOL_PRICE_USD;
-    const liquidityUsd = vSolInBondingCurve * TEMP_SOL_PRICE_USD;
     const marketCapUsd = pricePerTokenUsd * TOTAL_SUPPLY;
-
-    // Calculate initial volume in USD if available
-    const volumeUsd = data.initialBuy ? Number(data.initialBuy) * TEMP_SOL_PRICE_USD : 0;
+    const liquidityUsd = initialBuy * TEMP_SOL_PRICE_USD;
 
     const token: PumpPortalToken = {
-      symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
-      name: data.name || 'Unknown Token',
-      address: data.mint || '',
+      symbol: mint.slice(0, 6) || 'Unknown',
+      name: `Token ${mint.slice(0, 8)}`,
+      address: mint,
       liquidity: liquidityUsd,
-      liquidityChange: 0, // Will be calculated with trade events
-      l1Liquidity: data.bondingCurveKey ? liquidityUsd : 0,
+      liquidityChange: 0,
+      l1Liquidity: liquidityUsd,
       marketCap: marketCapUsd,
-      volume: volumeUsd,
-      swaps: 0, // Will be updated with trade events
+      volume: initialBuy * TEMP_SOL_PRICE_USD,
+      swaps: 0,
       timestamp: Date.now(),
       status: {
         mad: false,
         fad: false,
-        lb: Boolean(data.bondingCurveKey),
+        lb: true,
         tri: false,
       }
     };
@@ -102,20 +92,7 @@ function mapPumpPortalData(data: any): PumpPortalToken {
 
   } catch (error) {
     console.error('[PumpPortal] Error mapping data:', error, data);
-    // Return a fallback token with default values
-    return {
-      symbol: 'Error',
-      name: 'Error Processing Token',
-      address: '',
-      liquidity: 0,
-      liquidityChange: 0,
-      l1Liquidity: 0,
-      marketCap: 0,
-      volume: 0,
-      swaps: 0,
-      timestamp: Date.now(),
-      status: { mad: false, fad: false, lb: false, tri: false }
-    };
+    throw error;
   }
 }
 
@@ -156,10 +133,9 @@ export function initializePumpPortalWebSocket() {
         }));
         console.log('[PumpPortal] Subscribed to new token events');
 
-        // Also subscribe to trade events for updates
+        // Also subscribe to trade events
         ws.send(JSON.stringify({
-          method: "subscribeTokenTrade",
-          keys: [] // Empty array to subscribe to all token trades
+          method: "subscribeTokenTrade"
         }));
         console.log('[PumpPortal] Subscribed to token trade events');
       }
@@ -170,12 +146,20 @@ export function initializePumpPortalWebSocket() {
         const data = JSON.parse(event.data);
         console.log('[PumpPortal] Received event:', data);
 
-        if (data.txType === 'create') {
-          const token = mapPumpPortalData(data);
-          store.addToken(token);
-          console.log('[PumpPortal] Added new token:', token.symbol);
+        // Skip subscription confirmation messages
+        if (data.message && data.message.includes('Successfully subscribed')) {
+          return;
         }
-        // We'll handle trade events in the next iteration
+
+        if (data.mint && data.txType === 'create') {
+          try {
+            const token = mapPumpPortalData(data);
+            store.addToken(token);
+            console.log('[PumpPortal] Added new token:', token.symbol);
+          } catch (err) {
+            console.error('[PumpPortal] Failed to process token:', err);
+          }
+        }
       } catch (error) {
         console.error('[PumpPortal] Failed to parse message:', error);
       }
