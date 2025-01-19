@@ -8,13 +8,15 @@ interface CryptoIconProps {
   className?: string;
   size?: "sm" | "md" | "lg";
   showFallback?: boolean;
+  isSolanaAddress?: boolean;
 }
 
 const CryptoIcon: FC<CryptoIconProps> = ({ 
   symbol, 
   className,
   size = "md",
-  showFallback = true
+  showFallback = true,
+  isSolanaAddress = false
 }) => {
   const [imgSrc, setImgSrc] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
@@ -29,7 +31,16 @@ const CryptoIcon: FC<CryptoIconProps> = ({
   };
 
   const generateFallbackIcon = () => {
-    const cleanSymbol = symbol.replace('-USDT', '');
+    // For Solana addresses, use a default token icon
+    if (isSolanaAddress) {
+      const shortAddr = `${symbol.slice(0, 2)}${symbol.slice(-2)}`;
+      return generateIconForSymbol(shortAddr);
+    }
+    return generateIconForSymbol(symbol);
+  };
+
+  const generateIconForSymbol = (text: string) => {
+    const cleanSymbol = text.replace('-USDT', '');
     const symbol1 = cleanSymbol.charAt(0).toUpperCase();
     const symbol2 = cleanSymbol.length > 1 ? cleanSymbol.charAt(1).toLowerCase() : '';
 
@@ -138,7 +149,7 @@ const CryptoIcon: FC<CryptoIconProps> = ({
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [symbol, retryCount, showFallback]);
+  }, [symbol, retryCount, showFallback, isSolanaAddress]);
 
   if (!symbol) {
     return null;
@@ -146,12 +157,12 @@ const CryptoIcon: FC<CryptoIconProps> = ({
 
   return (
     <div className={cn(
-      "relative flex items-center justify-center overflow-hidden rounded-full", 
+      "relative flex items-center justify-center overflow-hidden rounded-full bg-muted", 
       sizeClasses[size], 
       className
     )}>
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted">
+        <div className="absolute inset-0 flex items-center justify-center">
           <Loader2 className={cn(
             "animate-spin",
             size === "sm" ? "h-2 w-2" : size === "md" ? "h-3 w-3" : "h-4 w-4"
