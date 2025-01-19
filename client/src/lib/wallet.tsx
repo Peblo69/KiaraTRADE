@@ -4,6 +4,10 @@ import { Connection, PublicKey, LAMPORTS_PER_SOL, clusterApiUrl } from '@solana/
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { useLocation } from 'wouter';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card } from "@/components/ui/card";
+import CryptoIcon from "@/components/CryptoIcon";
 
 interface WalletContextType {
   publicKey: PublicKey | null;
@@ -41,14 +45,12 @@ interface WalletContextProviderProps {
   children: ReactNode;
 }
 
-// More reliable RPC endpoints
 const RPC_ENDPOINTS = [
   clusterApiUrl('mainnet-beta'),
   'https://api.mainnet-beta.solana.com',
-  'https://solana-mainnet.g.alchemy.com/v2/demo', // Fallback to Alchemy demo
+  'https://solana-mainnet.g.alchemy.com/v2/demo',
 ];
 
-// Create connections for each endpoint
 const connections = RPC_ENDPOINTS.map(endpoint => new Connection(endpoint, 'confirmed'));
 
 export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children }) => {
@@ -61,7 +63,6 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [currentEndpointIndex, setCurrentEndpointIndex] = useState(0);
 
-  // Fetch SOL price for USD conversion
   const fetchSolPrice = useCallback(async () => {
     try {
       const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
@@ -73,7 +74,6 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
     }
   }, []);
 
-  // Enhanced balance fetching with failover and retries
   const fetchBalance = useCallback(async (pubKey: PublicKey) => {
     let lastError;
 
@@ -81,7 +81,7 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
       try {
         const connection = connections[i];
         const balance = await connection.getBalance(pubKey);
-        setCurrentEndpointIndex(i); // Remember working endpoint
+        setCurrentEndpointIndex(i);
         return balance;
       } catch (error) {
         console.error(`Error with RPC endpoint ${i}:`, error);
@@ -93,21 +93,18 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
     throw lastError;
   }, []);
 
-  // Fetch balances when wallet is connected
   useEffect(() => {
     if (!publicKey) return;
 
     let isMounted = true;
     const fetchBalances = async () => {
       try {
-        // Fetch SOL balance with failover
         const solBalance = await fetchBalance(publicKey);
         if (!isMounted) return;
 
         const balanceInSol = solBalance / LAMPORTS_PER_SOL;
         setBalance(balanceInSol);
 
-        // Fetch USD price and calculate USD balance
         const solPrice = await fetchSolPrice();
         if (!isMounted) return;
 
@@ -115,7 +112,6 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
           setBalanceUsd(balanceInSol * solPrice);
         }
 
-        // Fetch token accounts using current working connection
         const tokenAccounts = await connections[currentEndpointIndex].getParsedTokenAccountsByOwner(
           publicKey,
           {
@@ -129,7 +125,7 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
           const { mint, tokenAmount } = account.account.data.parsed.info;
           return {
             mint,
-            symbol: '', // We'll fetch this separately
+            symbol: '',
             balance: tokenAmount.uiAmount,
             decimals: tokenAmount.decimals,
           };
@@ -146,12 +142,10 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
           description: "Failed to fetch wallet balances. Retrying...",
         });
 
-        // Retry after 5 seconds
         setTimeout(fetchBalances, 5000);
       }
     };
 
-    // Fetch initially and then every 30 seconds
     fetchBalances();
     const interval = setInterval(fetchBalances, 30000);
 
@@ -179,11 +173,7 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
         description: `Connected to ${newPublicKey.toString().slice(0, 8)}...`,
       });
     } catch (error: any) {
-      console.error('Wallet connection error:', {
-        error,
-        message: error.message,
-        code: error.code
-      });
+      console.error('Wallet connection error:', error);
       toast({
         variant: "destructive",
         title: "Wallet Error",
@@ -241,10 +231,10 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
   );
 };
 
-// Wallet connect button with hover menu
 export const WalletConnectButton: FC = () => {
-  const { publicKey, balance, balanceUsd, isConnecting, isDisconnecting, connect, disconnect } = useWallet();
+  const { publicKey, balanceUsd, tokens, isConnecting, isDisconnecting, connect, disconnect } = useWallet();
   const [, setLocation] = useLocation();
+  const [showTokens, setShowTokens] = useState(false);
 
   if (isConnecting || isDisconnecting) {
     return (
@@ -260,29 +250,20 @@ export const WalletConnectButton: FC = () => {
       <div className="relative group">
         <Button
           variant="outline"
-          onClick={disconnect}
           className="font-mono"
         >
-          {balanceUsd ? `$${balanceUsd.toFixed(2)} • ` : ''}{balance.toFixed(4)} SOL • {publicKey.toString().slice(0, 4)}...{publicKey.toString().slice(-4)}
+          ${balanceUsd?.toFixed(2) || '0.00'} • {publicKey.toString().slice(0, 4)}...{publicKey.toString().slice(-4)}
         </Button>
 
-        {/* Hover Menu */}
-        <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-popover opacity-0 group-hover:opacity-100 transition-opacity duration-150 ease-in-out pointer-events-none group-hover:pointer-events-auto">
+        <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-popover opacity-0 group-hover:opacity-100 transition-opacity duration-150 ease-in-out pointer-events-none group-hover:pointer-events-auto z-50">
           <div className="rounded-md ring-1 ring-black ring-opacity-5">
             <div className="py-1" role="menu" aria-orientation="vertical">
               <button
                 className="block px-4 py-2 text-sm text-foreground hover:bg-accent w-full text-left"
                 role="menuitem"
-                onClick={() => setLocation('/wallet')}
+                onClick={() => setShowTokens(true)}
               >
-                View All Tokens
-              </button>
-              <button
-                className="block px-4 py-2 text-sm text-foreground hover:bg-accent w-full text-left"
-                role="menuitem"
-                onClick={() => window.open('https://explorer.solana.com/address/' + publicKey.toString(), '_blank')}
-              >
-                View on Explorer
+                View Tokens
               </button>
               <button
                 className="block px-4 py-2 text-sm text-destructive hover:bg-accent w-full text-left"
@@ -294,6 +275,72 @@ export const WalletConnectButton: FC = () => {
             </div>
           </div>
         </div>
+
+        <Sheet open={showTokens} onOpenChange={setShowTokens}>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>Your Wallet</SheetTitle>
+              <SheetDescription>
+                Connected to Phantom • {publicKey.toString().slice(0, 4)}...{publicKey.toString().slice(-4)}
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="mt-6">
+              <div className="space-y-4">
+                <Card className="p-4">
+                  <div className="flex items-center gap-2">
+                    <CryptoIcon symbol="SOL" size="md" />
+                    <div>
+                      <div className="font-semibold">Solana</div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-mono text-lg">
+                          ${balanceUsd?.toFixed(2) || '0.00'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {isConnecting ? (
+                  <div className="flex items-center justify-center p-4">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[calc(100vh-280px)]">
+                    <div className="space-y-2">
+                      {tokens.map((token) => (
+                        <Card 
+                          key={token.mint} 
+                          className="p-4 cursor-pointer hover:bg-accent transition-colors"
+                          onClick={() => {
+                            setShowTokens(false);
+                            setLocation(`/project/${token.mint}`);
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <CryptoIcon 
+                              symbol={token.mint} 
+                              size="sm" 
+                              isSolanaAddress={true}
+                            />
+                            <div>
+                              <div className="font-mono text-sm text-muted-foreground">
+                                {token.mint.slice(0, 4)}...{token.mint.slice(-4)}
+                              </div>
+                              <div className="font-mono">
+                                {token.balance.toFixed(token.decimals)} {token.symbol || 'tokens'}
+                              </div>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     );
   }
@@ -304,5 +351,3 @@ export const WalletConnectButton: FC = () => {
     </Button>
   );
 };
-
-export default WalletContextProvider;
