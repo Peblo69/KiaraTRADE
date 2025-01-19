@@ -55,34 +55,37 @@ export function registerRoutes(app: Express): Server {
         return res.json(cache.news.data);
       }
 
-      // Fetch news from multiple sources and combine them
+      // Fetch news from multiple sources
       const [cryptoPanicNews, coinGeckoNews] = await Promise.all([
-        // CryptoPanic news
-        axios.get(`${CRYPTOPANIC_API_BASE}/posts/?auth_token=${process.env.CRYPTOPANIC_API_KEY}&kind=news`),
-        // CoinGecko news (alternative source)
-        axios.get('https://api.coingecko.com/api/v3/status_updates')
+        // CryptoPanic news with images
+        axios.get(`${CRYPTOPANIC_API_BASE}/posts/?auth_token=${process.env.CRYPTOPANIC_API_KEY}&kind=news&metadata=true&public=true`),
+        // CoinGecko news with project details
+        axios.get('https://api.coingecko.com/api/v3/news?per_page=50')
       ]);
 
       // Process CryptoPanic news
       const news = cryptoPanicNews.data.results.map((item: any) => ({
         title: item.title,
-        text: item.metadata?.description || '',
+        text: item.metadata?.description || item.title,
         news_url: item.url,
-        source_name: item.source.domain,
-        date: item.published_at
+        source_name: item.source.title || item.source.domain,
+        date: item.published_at,
+        image_url: item.metadata?.image?.url || null
       }));
 
-      // Add CoinGecko updates as news
-      const geckoNews = coinGeckoNews.data.status_updates.map((item: any) => ({
-        title: item.description.split('\n')[0], // First line as title
+      // Process CoinGecko news
+      const geckoNews = coinGeckoNews.data.map((item: any) => ({
+        title: item.title,
         text: item.description,
-        news_url: item.project.links.homepage?.[0] || '',
+        news_url: item.url,
         source_name: 'CoinGecko',
-        date: item.created_at
+        date: item.created_at,
+        image_url: item.thumb_2x || item.thumb
       }));
 
-      // Combine and sort by date
+      // Combine, filter out items without images, and sort by date
       const allNews = [...news, ...geckoNews]
+        .filter(item => item.image_url) // Only keep items with images
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 50); // Limit to 50 most recent news
 
