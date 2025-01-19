@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Layout } from "@/components/Layout";
+import Navbar from "@/components/Navbar";
 
 interface NewsArticle {
   title: string;
@@ -55,9 +56,10 @@ export default function CryptoNews() {
     return () => clearInterval(interval);
   }, []);
 
-  const NewsContent = () => (
+  return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
+      <Navbar />
+      <div className="container mx-auto px-4 py-8 mt-16">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
             Crypto News
@@ -149,11 +151,5 @@ export default function CryptoNews() {
         )}
       </div>
     </div>
-  );
-
-  return (
-    <Layout>
-      <NewsContent />
-    </Layout>
   );
 }
