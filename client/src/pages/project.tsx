@@ -30,7 +30,7 @@ import {
 import AdvancedChart from '@/components/AdvancedChart';
 import CryptoIcon from "@/components/CryptoIcon";
 import { preloadTokenImages } from "@/lib/token-metadata";
-import SparklineChart from '@/components/SparklineChart';
+
 
 interface KuCoinTicker {
   symbol: string;
@@ -258,15 +258,8 @@ const ProjectPage: FC = () => {
                       <div className="text-sm text-muted-foreground">{formatPrice(ticker.last)}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <SparklineChart
-                      symbol={ticker.symbol}
-                      color="#22c55e"
-                      height={24}
-                    />
-                    <div className="text-green-500 min-w-[80px] text-right">
-                      {formatChange(ticker.changeRate)}
-                    </div>
+                  <div className="text-green-500 min-w-[80px] text-right">
+                    {formatChange(ticker.changeRate)}
                   </div>
                 </div>
               ))}
@@ -298,15 +291,8 @@ const ProjectPage: FC = () => {
                       <div className="text-sm text-muted-foreground">{formatPrice(ticker.last)}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <SparklineChart
-                      symbol={ticker.symbol}
-                      color="#ef4444"
-                      height={24}
-                    />
-                    <div className="text-red-500 min-w-[80px] text-right">
-                      {formatChange(ticker.changeRate)}
-                    </div>
+                  <div className="text-red-500 min-w-[80px] text-right">
+                    {formatChange(ticker.changeRate)}
                   </div>
                 </div>
               ))}
@@ -330,23 +316,22 @@ const ProjectPage: FC = () => {
                       size="sm"
                     />
                     <div>
-                      <div className="font-medium">{ticker.symbol.replace('-USDT', '')}</div>
+                      <div className="font-medium flex items-center gap-1">
+                        {ticker.symbol.replace('-USDT', '')}
+                        {parseFloat(ticker.changeRate) >= 0 ? 
+                          <ArrowUpIcon className="h-3 w-3 text-green-500" /> : 
+                          <ArrowDownIcon className="h-3 w-3 text-red-500" />
+                        }
+                      </div>
                       <div className="text-sm text-muted-foreground">
                         Vol: {formatVolume(ticker.volValue)}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <SparklineChart
-                      symbol={ticker.symbol}
-                      color={parseFloat(ticker.changeRate) >= 0 ? "#22c55e" : "#ef4444"}
-                      height={24}
-                    />
-                    <div className={`min-w-[80px] text-right ${
-                      parseFloat(ticker.changeRate) >= 0 ? "text-green-500" : "text-red-500"
-                    }`}>
-                      {formatChange(ticker.changeRate)}
-                    </div>
+                  <div className={`min-w-[80px] text-right ${
+                    parseFloat(ticker.changeRate) >= 0 ? "text-green-500" : "text-red-500"
+                  }`}>
+                    {formatChange(ticker.changeRate)}
                   </div>
                 </div>
               ))}
