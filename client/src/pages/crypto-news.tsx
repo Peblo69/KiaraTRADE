@@ -3,6 +3,7 @@ import { Loader2, ExternalLink, Clock } from 'lucide-react';
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { Layout } from "@/components/Layout";
 
 interface NewsArticle {
   title: string;
@@ -54,7 +55,7 @@ export default function CryptoNews() {
     return () => clearInterval(interval);
   }, []);
 
-  return (
+  const NewsContent = () => (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
@@ -148,5 +149,11 @@ export default function CryptoNews() {
         )}
       </div>
     </div>
+  );
+
+  return (
+    <Layout>
+      <NewsContent />
+    </Layout>
   );
 }
