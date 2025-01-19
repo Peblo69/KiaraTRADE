@@ -9,47 +9,31 @@ import KiaraStageI from "@/pages/kiara-stage-i";
 import About from "@/pages/about";
 import Landing from "@/pages/landing";
 import CryptoNews from "@/pages/crypto-news";
-import { Layout } from "@/components/Layout";
 import { WalletContextProvider } from "@/lib/wallet";
-import { useEffect, useState } from "react";
 import MarketDataBar from "@/components/MarketDataBar";
 import Navbar from "@/components/Navbar";
+import { useLocation } from "wouter";
 
 function Router() {
-  const [isNavVisible, setIsNavVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      if (currentScrollY > lastScrollY) {
-        // Scrolling down
-        setIsNavVisible(false);
-      } else {
-        // Scrolling up
-        setIsNavVisible(true);
-      }
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+  const [location] = useLocation();
+  const isLandingPage = location === "/";
 
   return (
     <>
-      {/* Fixed market data bar */}
+      {/* Market data bar - always visible */}
       <div className="fixed top-0 left-0 right-0 z-50">
         <MarketDataBar />
       </div>
 
-      {/* Navigation bar with scroll behavior */}
-      <div className={`fixed top-12 left-0 right-0 z-40 transition-transform duration-300 ${isNavVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-        <Navbar />
-      </div>
+      {/* Navigation bar - visible on all pages except landing */}
+      {!isLandingPage && (
+        <div className="fixed top-12 left-0 right-0 z-40 bg-background">
+          <Navbar />
+        </div>
+      )}
 
       {/* Main content with proper spacing */}
-      <div className="pt-24">
+      <div className={!isLandingPage ? "pt-24" : ""}>
         <Switch>
           {/* Landing page is the initial route */}
           <Route path="/" component={Landing} />
