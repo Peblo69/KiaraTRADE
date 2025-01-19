@@ -42,6 +42,13 @@ const PumpFunVision: FC = () => {
 
         ws.onmessage = (event) => {
           const newTokenData = JSON.parse(event.data);
+          console.log('Received token data:', newTokenData); // Debug log
+
+          if (!newTokenData || !newTokenData.symbol) {
+            console.error('Invalid token data received:', newTokenData);
+            return;
+          }
+
           setTokens(prevTokens => {
             // Add new token at the beginning and maintain max 10 tokens
             const newTokens = [newTokenData, ...prevTokens].slice(0, MAX_TOKENS);
@@ -125,42 +132,42 @@ const PumpFunVision: FC = () => {
                   {/* Token info */}
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center">
-                      {token.symbol[0]}
+                      {token.symbol ? token.symbol[0] : '?'}
                     </div>
                     <div>
-                      <div className="font-medium">{token.symbol}</div>
-                      <div className="text-xs text-muted-foreground">{token.name}</div>
+                      <div className="font-medium">{token.symbol || 'Unknown'}</div>
+                      <div className="text-xs text-muted-foreground">{token.name || 'Unknown Name'}</div>
                     </div>
                   </div>
 
                   {/* Created time */}
                   <div className="text-right font-mono text-muted-foreground">
-                    {getTimeDiff(token.timestamp)}
+                    {token.timestamp ? getTimeDiff(token.timestamp) : 'N/A'}
                   </div>
 
                   {/* Liquidity */}
                   <div className="text-right">
-                    <div className="font-mono">${token.liquidity.toLocaleString()}</div>
-                    <div className={`text-xs ${token.liquidityChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {token.liquidityChange > 0 ? '+' : ''}{token.liquidityChange}%
+                    <div className="font-mono">${(token.liquidity || 0).toLocaleString()}</div>
+                    <div className={`text-xs ${(token.liquidityChange || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {(token.liquidityChange || 0) > 0 ? '+' : ''}{token.liquidityChange || 0}%
                     </div>
                   </div>
 
                   {/* L1 Liquidity */}
                   <div className="text-right font-mono">
-                    ${token.l1Liquidity.toLocaleString()}
+                    ${(token.l1Liquidity || 0).toLocaleString()}
                   </div>
 
                   {/* Market Cap */}
                   <div className="text-right font-mono">
-                    ${token.marketCap.toLocaleString()}
+                    ${(token.marketCap || 0).toLocaleString()}
                   </div>
 
                   {/* Swaps/Volume */}
                   <div className="text-right">
-                    <div className="font-mono">{token.swaps}</div>
+                    <div className="font-mono">{token.swaps || 0}</div>
                     <div className="text-xs text-muted-foreground">
-                      ${token.volume.toLocaleString()}
+                      ${(token.volume || 0).toLocaleString()}
                     </div>
                   </div>
 
@@ -168,10 +175,10 @@ const PumpFunVision: FC = () => {
                   <div className="text-right flex items-center justify-end gap-2">
                     {/* Status indicators */}
                     <div className="flex gap-1">
-                      {token.status.mad && <span className="px-1 py-0.5 text-[10px] bg-green-500/20 text-green-500 rounded">MAD</span>}
-                      {token.status.fad && <span className="px-1 py-0.5 text-[10px] bg-blue-500/20 text-blue-500 rounded">FAD</span>}
-                      {token.status.lb && <span className="px-1 py-0.5 text-[10px] bg-purple-500/20 text-purple-500 rounded">LB</span>}
-                      {token.status.tri && <span className="px-1 py-0.5 text-[10px] bg-yellow-500/20 text-yellow-500 rounded">TRI</span>}
+                      {token.status?.mad && <span className="px-1 py-0.5 text-[10px] bg-green-500/20 text-green-500 rounded">MAD</span>}
+                      {token.status?.fad && <span className="px-1 py-0.5 text-[10px] bg-blue-500/20 text-blue-500 rounded">FAD</span>}
+                      {token.status?.lb && <span className="px-1 py-0.5 text-[10px] bg-purple-500/20 text-purple-500 rounded">LB</span>}
+                      {token.status?.tri && <span className="px-1 py-0.5 text-[10px] bg-yellow-500/20 text-yellow-500 rounded">TRI</span>}
                     </div>
                     <Button size="sm" variant="outline" className="text-xs">
                       $0
