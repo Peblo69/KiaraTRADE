@@ -46,26 +46,31 @@ export const usePumpPortalStore = create<PumpPortalStore>((set) => ({
 
 let ws: WebSocket | null = null;
 let reconnectTimeout: NodeJS.Timeout | null = null;
-const MAX_RECONNECT_ATTEMPTS = 3;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 2;
 const RECONNECT_DELAY = 5000;
 
 function mapPumpPortalData(data: any): PumpPortalToken {
+  // Calculate liquidity based on available data
+  const liquidity = data.vSolInBondingCurve ? Number(data.vSolInBondingCurve) : 0;
+  const marketCapSol = data.marketCapSol ? Number(data.marketCapSol) : 0;
+
   return {
-    symbol: data.symbol || 'Unknown',
+    symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
     name: data.name || 'Unknown Token',
-    address: data.address || '',
-    liquidity: Number(data.liquidity || 0),
-    liquidityChange: Number(data.liquidityChange || 0),
-    l1Liquidity: Number(data.l1Liquidity || 0),
-    marketCap: Number(data.marketCap || 0),
-    volume: Number(data.volume || 0),
-    swaps: Number(data.swaps || 0),
-    timestamp: data.timestamp || Date.now(),
+    address: data.mint || '',
+    liquidity: liquidity,
+    liquidityChange: 0, // We'll calculate this when we get updates
+    l1Liquidity: data.bondingCurveKey ? 1 : 0, // Using this as a placeholder
+    marketCap: marketCapSol * 1000, // Converting SOL to USD (rough estimate)
+    volume: data.initialBuy ? Number(data.initialBuy) : 0,
+    swaps: 0, // Will be updated with trade events
+    timestamp: Date.now(),
     status: {
-      mad: Boolean(data.status?.mad),
-      fad: Boolean(data.status?.fad),
-      lb: Boolean(data.status?.lb),
-      tri: Boolean(data.status?.tri),
+      mad: false,
+      fad: false,
+      lb: Boolean(data.bondingCurveKey),
+      tri: false,
     }
   };
 }
@@ -98,6 +103,7 @@ export function initializePumpPortalWebSocket() {
     ws.onopen = () => {
       console.log('[PumpPortal] Connected to WebSocket');
       store.setConnected(true);
+      reconnectAttempts = 0;
 
       // Subscribe to token updates
       if (ws?.readyState === WebSocket.OPEN) {
@@ -113,16 +119,12 @@ export function initializePumpPortalWebSocket() {
         const data = JSON.parse(event.data);
         console.log('[PumpPortal] Received event:', data);
 
-        if (data.type === 'newToken' && data.token) {
-          const token = mapPumpPortalData(data.token);
+        if (data.txType === 'create') {
+          const token = mapPumpPortalData(data);
           store.addToken(token);
           console.log('[PumpPortal] Added new token:', token.symbol);
         }
-        else if (data.type === 'tokenUpdate' && data.token) {
-          const updates = mapPumpPortalData(data.token);
-          store.updateToken(data.token.address, updates);
-          console.log('[PumpPortal] Updated token:', data.token.address);
-        }
+        // Handle trade updates here when implemented
       } catch (error) {
         console.error('[PumpPortal] Failed to parse message:', error);
       }
@@ -133,7 +135,11 @@ export function initializePumpPortalWebSocket() {
       store.setConnected(false);
 
       // Attempt to reconnect
-      reconnectTimeout = setTimeout(initializePumpPortalWebSocket, RECONNECT_DELAY);
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+        reconnectTimeout = setTimeout(initializePumpPortalWebSocket, RECONNECT_DELAY);
+      }
     };
 
     ws.onerror = (error) => {
