@@ -281,38 +281,49 @@ export const WalletConnectButton: FC = () => {
               </SheetDescription>
             </SheetHeader>
 
-            <div className="mt-6">
-              <ScrollArea className="h-[calc(100vh-180px)]">
-                <div className="space-y-2">
-                  {tokens.map((token) => (
-                    <Card 
-                      key={token.mint} 
-                      className="p-4 cursor-pointer hover:bg-accent transition-colors"
-                      onClick={() => {
-                        setShowTokens(false);
-                        setLocation(`/project/${token.mint}`);
-                      }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <CryptoIcon 
-                          symbol={token.mint} 
-                          size="sm" 
-                          isSolanaAddress={true}
-                        />
-                        <div>
-                          <div className="font-mono text-sm text-muted-foreground">
-                            {token.mint.slice(0, 4)}...{token.mint.slice(-4)}
-                          </div>
-                          <div className="font-mono">
-                            {token.balance.toFixed(token.decimals)} {token.symbol || 'tokens'}
-                          </div>
+            <ScrollArea className="h-[calc(100vh-180px)] mt-6">
+              <div className="space-y-2 pr-4">
+                <Card className="p-4">
+                  <div className="flex items-center gap-2">
+                    <CryptoIcon symbol="SOL" size="sm" />
+                    <div>
+                      <div className="font-mono text-sm">
+                        SOL
+                      </div>
+                      <div className="font-mono">
+                        ${balanceUsd?.toFixed(2) || '0.00'}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+                {tokens.map((token) => (
+                  <Card 
+                    key={token.mint} 
+                    className="p-4 cursor-pointer hover:bg-accent transition-colors"
+                    onClick={() => {
+                      setShowTokens(false);
+                      setLocation(`/project/${token.mint}`);
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CryptoIcon 
+                        symbol={token.mint} 
+                        size="sm" 
+                        isSolanaAddress={true}
+                      />
+                      <div>
+                        <div className="font-mono text-sm text-muted-foreground">
+                          {token.mint.slice(0, 4)}...{token.mint.slice(-4)}
+                        </div>
+                        <div className="font-mono">
+                          {token.balance.toFixed(token.decimals)} {token.symbol || 'tokens'}
                         </div>
                       </div>
-                    </Card>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
           </SheetContent>
         </Sheet>
       </div>
