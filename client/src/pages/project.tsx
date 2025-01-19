@@ -1,8 +1,8 @@
 import { FC, useState, useEffect } from "react";
+import { Layout } from "@/components/Layout";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, ArrowUpIcon, ArrowDownIcon, Search } from "lucide-react";
-import Navbar from "@/components/Navbar";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import {
@@ -181,14 +181,13 @@ const ProjectPage: FC = () => {
 
   if (isLoadingMarket) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
+      <Layout>
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         </div>
-      </div>
+      </Layout>
     );
   }
 
@@ -217,8 +216,7 @@ const ProjectPage: FC = () => {
   const paginationRange = getPaginationRange(totalPages, currentPage);
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+    <Layout>
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="flex items-center gap-4 mb-8">
           <div className="relative flex-1 max-w-md">
@@ -318,8 +316,8 @@ const ProjectPage: FC = () => {
                     <div>
                       <div className="font-medium flex items-center gap-1">
                         {ticker.symbol.replace('-USDT', '')}
-                        {parseFloat(ticker.changeRate) >= 0 ? 
-                          <ArrowUpIcon className="h-3 w-3 text-green-500" /> : 
+                        {parseFloat(ticker.changeRate) >= 0 ?
+                          <ArrowUpIcon className="h-3 w-3 text-green-500" /> :
                           <ArrowDownIcon className="h-3 w-3 text-red-500" />
                         }
                       </div>
@@ -471,7 +469,7 @@ const ProjectPage: FC = () => {
           </DialogContent>
         </Dialog>
       </div>
-    </div>
+    </Layout>
   );
 };
 
