@@ -20,20 +20,15 @@ function Router() {
 
   return (
     <>
-      {/* Market data bar - always visible */}
-      <div className="fixed top-0 left-0 right-0 z-50">
-        <MarketDataBar />
-      </div>
-
-      {/* Navigation bar - always visible on non-landing pages */}
       {!isLandingPage && (
-        <div className="fixed top-12 left-0 right-0 z-40 bg-background shadow-sm">
+        <div className="bg-background">
+          <MarketDataBar />
           <Navbar />
         </div>
       )}
 
-      {/* Main content with proper spacing */}
-      <div className={!isLandingPage ? "pt-24" : ""}>
+      {/* Main content */}
+      <div>
         <Switch>
           {/* Landing page is the initial route */}
           <Route path="/" component={Landing} />
