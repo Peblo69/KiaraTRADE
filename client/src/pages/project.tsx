@@ -16,7 +16,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow
+  TableRow,
 } from "@/components/ui/table";
 import {
   Pagination,
@@ -218,129 +218,72 @@ const ProjectPage: FC = () => {
     <div className="bg-background">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="flex items-center gap-4 mb-8">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="relative flex-1 max-w-md group">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-400 transition-colors group-hover:text-purple-300" />
             <Input
               placeholder="Search coins..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
+              className="pl-9 bg-background/50 border-purple-800/40 focus:border-purple-600/60 transition-all duration-300 backdrop-blur-sm rounded-lg shadow-[0_0_10px_rgba(147,51,234,0.1)] focus:shadow-[0_0_15px_rgba(147,51,234,0.2)] group-hover:shadow-[0_0_12px_rgba(147,51,234,0.15)] placeholder:text-purple-300/50"
             />
+            <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-purple-500/10 via-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="p-4">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <ArrowUpIcon className="h-5 w-5 text-green-500" />
-              Top Gainers
-            </h3>
-            <div className="space-y-3">
-              {topGainers.map((ticker) => (
-                <div
-                  key={ticker.symbol}
-                  className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg cursor-pointer"
-                  onClick={() => handleSymbolSelect(ticker.symbol)}
-                >
-                  <div className="flex items-center gap-2">
-                    <CryptoIcon
-                      symbol={ticker.symbol}
-                      size="sm"
-                    />
-                    <div>
-                      <div className="font-medium flex items-center gap-1">
-                        {ticker.symbol.replace('-USDT', '')}
-                        <ArrowUpIcon className="h-3 w-3 text-green-500" />
-                      </div>
-                      <div className="text-sm text-muted-foreground">{formatPrice(ticker.last)}</div>
-                    </div>
-                  </div>
-                  <div className="text-green-500 min-w-[80px] text-right">
-                    {formatChange(ticker.changeRate)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <ArrowDownIcon className="h-5 w-5 text-red-500" />
-              Top Losers
-            </h3>
-            <div className="space-y-3">
-              {topLosers.map((ticker) => (
-                <div
-                  key={ticker.symbol}
-                  className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg cursor-pointer"
-                  onClick={() => handleSymbolSelect(ticker.symbol)}
-                >
-                  <div className="flex items-center gap-2">
-                    <CryptoIcon
-                      symbol={ticker.symbol}
-                      size="sm"
-                    />
-                    <div>
-                      <div className="font-medium flex items-center gap-1">
-                        {ticker.symbol.replace('-USDT', '')}
-                        <ArrowDownIcon className="h-3 w-3 text-red-500" />
-                      </div>
-                      <div className="text-sm text-muted-foreground">{formatPrice(ticker.last)}</div>
-                    </div>
-                  </div>
-                  <div className="text-red-500 min-w-[80px] text-right">
-                    {formatChange(ticker.changeRate)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              🔥 Trending Now
-            </h3>
-            <div className="space-y-3">
-              {trendingTokens.map((ticker) => (
-                <div
-                  key={ticker.symbol}
-                  className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg cursor-pointer"
-                  onClick={() => handleSymbolSelect(ticker.symbol)}
-                >
-                  <div className="flex items-center gap-2">
-                    <CryptoIcon
-                      symbol={ticker.symbol}
-                      size="sm"
-                    />
-                    <div>
-                      <div className="font-medium flex items-center gap-1">
-                        {ticker.symbol.replace('-USDT', '')}
-                        {parseFloat(ticker.changeRate) >= 0 ?
-                          <ArrowUpIcon className="h-3 w-3 text-green-500" /> :
-                          <ArrowDownIcon className="h-3 w-3 text-red-500" />
-                        }
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Vol: {formatVolume(ticker.volValue)}
+          {[
+            { title: "Top Gainers", icon: <ArrowUpIcon className="h-5 w-5 text-green-500" />, data: topGainers, colorClass: "text-green-500" },
+            { title: "Top Losers", icon: <ArrowDownIcon className="h-5 w-5 text-red-500" />, data: topLosers, colorClass: "text-red-500" },
+            { title: "Trending Now", icon: "🔥", data: trendingTokens }
+          ].map((section, idx) => (
+            <Card key={idx} className="p-4 border-purple-800/20 bg-background/80 backdrop-blur-sm hover:shadow-[0_0_20px_rgba(147,51,234,0.1)] transition-all duration-300 hover:border-purple-700/30 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-900/5 via-blue-900/5 to-purple-900/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 relative">
+                {section.icon}
+                {section.title}
+              </h3>
+              <div className="space-y-3 relative">
+                {section.data.map((ticker) => (
+                  <div
+                    key={ticker.symbol}
+                    className="flex items-center justify-between p-2 rounded-lg cursor-pointer bg-background/40 hover:bg-purple-900/10 transition-all duration-300 border border-transparent hover:border-purple-700/20"
+                    onClick={() => handleSymbolSelect(ticker.symbol)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CryptoIcon symbol={ticker.symbol} size="sm" />
+                      <div>
+                        <div className="font-medium flex items-center gap-1">
+                          {ticker.symbol.replace('-USDT', '')}
+                          {parseFloat(ticker.changeRate) >= 0 ?
+                            <ArrowUpIcon className="h-3 w-3 text-green-500" /> :
+                            <ArrowDownIcon className="h-3 w-3 text-red-500" />
+                          }
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {section.title === "Trending Now" ?
+                            `Vol: ${formatVolume(ticker.volValue)}` :
+                            formatPrice(ticker.last)
+                          }
+                        </div>
                       </div>
                     </div>
+                    <div className={`min-w-[80px] text-right ${
+                      parseFloat(ticker.changeRate) >= 0 ? "text-green-500" : "text-red-500"
+                    }`}>
+                      {formatChange(ticker.changeRate)}
+                    </div>
                   </div>
-                  <div className={`min-w-[80px] text-right ${
-                    parseFloat(ticker.changeRate) >= 0 ? "text-green-500" : "text-red-500"
-                  }`}>
-                    {formatChange(ticker.changeRate)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+                ))}
+              </div>
+            </Card>
+          ))}
         </div>
 
-        <Card>
+        <Card className="border-purple-800/20 bg-background/80 backdrop-blur-sm hover:shadow-[0_0_20px_rgba(147,51,234,0.1)] transition-all duration-300">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="border-b border-purple-800/20">
                   <TableHead>Pair</TableHead>
                   <TableHead className="text-right">Price</TableHead>
                   <TableHead className="text-right">24h Change</TableHead>
@@ -351,15 +294,12 @@ const ProjectPage: FC = () => {
                 {paginatedTickers.map((ticker) => (
                   <TableRow
                     key={ticker.symbol}
-                    className="cursor-pointer hover:bg-muted/50"
+                    className="cursor-pointer border-b border-purple-800/10 hover:bg-purple-900/10 transition-all duration-300"
                     onClick={() => handleSymbolSelect(ticker.symbol)}
                   >
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <CryptoIcon
-                          symbol={ticker.symbol}
-                          size="sm"
-                        />
+                        <CryptoIcon symbol={ticker.symbol} size="sm" />
                         <span className="font-medium">
                           {ticker.symbol.replace('-USDT', '')}
                         </span>
@@ -370,7 +310,10 @@ const ProjectPage: FC = () => {
                     </TableCell>
                     <TableCell className={`text-right ${parseFloat(ticker.changeRate) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                       <span className="flex items-center justify-end gap-1">
-                        {parseFloat(ticker.changeRate) >= 0 ? <ArrowUpIcon className="h-4 w-4" /> : <ArrowDownIcon className="h-4 w-4" />}
+                        {parseFloat(ticker.changeRate) >= 0 ?
+                          <ArrowUpIcon className="h-4 w-4" /> :
+                          <ArrowDownIcon className="h-4 w-4" />
+                        }
                         {formatChange(ticker.changeRate)}
                       </span>
                     </TableCell>
@@ -387,7 +330,7 @@ const ProjectPage: FC = () => {
                 <PaginationItem>
                   <PaginationPrevious
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    className={`cursor-pointer ${currentPage === 1 ? 'opacity-50' : ''}`}
+                    className={`cursor-pointer hover:bg-purple-900/10 transition-colors ${currentPage === 1 ? 'opacity-50' : ''}`}
                   />
                 </PaginationItem>
 
@@ -399,7 +342,11 @@ const ProjectPage: FC = () => {
                       <PaginationLink
                         onClick={() => setCurrentPage(Number(pageNum))}
                         isActive={currentPage === pageNum}
-                        className="cursor-pointer"
+                        className={`cursor-pointer transition-colors ${
+                          currentPage === pageNum ?
+                            'bg-purple-900/20 hover:bg-purple-900/30' :
+                            'hover:bg-purple-900/10'
+                        }`}
                       >
                         {pageNum}
                       </PaginationLink>
@@ -410,7 +357,7 @@ const ProjectPage: FC = () => {
                 <PaginationItem>
                   <PaginationNext
                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    className={`cursor-pointer ${currentPage === totalPages ? 'opacity-50' : ''}`}
+                    className={`cursor-pointer hover:bg-purple-900/10 transition-colors ${currentPage === totalPages ? 'opacity-50' : ''}`}
                   />
                 </PaginationItem>
               </PaginationContent>
@@ -419,19 +366,16 @@ const ProjectPage: FC = () => {
         </Card>
 
         <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
-          <DialogContent className="max-w-4xl">
+          <DialogContent className="max-w-4xl border-purple-800/20 bg-background/95 backdrop-blur-sm">
             {isLoadingCoinDetails ? (
               <div className="flex items-center justify-center p-8">
-                <Loader2 className="h-8 w-8 animate-spin" />
+                <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
               </div>
             ) : selectedCoinData ? (
               <div className="space-y-4">
                 <DialogHeader>
                   <DialogTitle className="text-2xl flex items-center gap-2">
-                    <CryptoIcon
-                      symbol={selectedSymbol || ''}
-                      size="lg"
-                    />
+                    <CryptoIcon symbol={selectedSymbol || ''} size="lg" />
                     {selectedSymbol?.replace('-USDT', '')}/USDT
                     <span className={`text-sm ${parseFloat(selectedCoinData.stats.changeRate) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                       {formatChange(selectedCoinData.stats.changeRate)}
@@ -440,25 +384,21 @@ const ProjectPage: FC = () => {
                 </DialogHeader>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Card className="p-4">
-                    <div className="text-sm text-muted-foreground">Last Price</div>
-                    <div className="text-lg font-bold">{formatPrice(selectedCoinData.stats.last)}</div>
-                  </Card>
-                  <Card className="p-4">
-                    <div className="text-sm text-muted-foreground">24h Volume</div>
-                    <div className="text-lg font-bold">{formatVolume(selectedCoinData.stats.volValue)}</div>
-                  </Card>
-                  <Card className="p-4">
-                    <div className="text-sm text-muted-foreground">24h High</div>
-                    <div className="text-lg font-bold">{formatPrice(selectedCoinData.stats.high)}</div>
-                  </Card>
-                  <Card className="p-4">
-                    <div className="text-sm text-muted-foreground">24h Low</div>
-                    <div className="text-lg font-bold">{formatPrice(selectedCoinData.stats.low)}</div>
-                  </Card>
+                  {[
+                    { label: "Last Price", value: formatPrice(selectedCoinData.stats.last) },
+                    { label: "24h Volume", value: formatVolume(selectedCoinData.stats.volValue) },
+                    { label: "24h High", value: formatPrice(selectedCoinData.stats.high) },
+                    { label: "24h Low", value: formatPrice(selectedCoinData.stats.low) }
+                  ].map((item, idx) => (
+                    <Card key={idx} className="p-4 border-purple-800/20 bg-background/80 backdrop-blur-sm hover:shadow-[0_0_15px_rgba(147,51,234,0.1)] transition-all duration-300 group relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-900/5 via-blue-900/5 to-purple-900/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      <div className="text-sm text-purple-300/70 relative">{item.label}</div>
+                      <div className="text-lg font-bold relative">{item.value}</div>
+                    </Card>
+                  ))}
                 </div>
 
-                <Card className="p-4">
+                <Card className="p-4 border-purple-800/20 bg-background/80 backdrop-blur-sm">
                   <div className="h-[400px]">
                     <AdvancedChart symbol={selectedSymbol || ''} />
                   </div>
