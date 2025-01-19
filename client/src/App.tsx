@@ -19,24 +19,23 @@ function Router() {
   const isLandingPage = location === "/";
 
   return (
-    <>
-      {/* Navigation structure - only shown on non-landing pages */}
+    <div className="min-h-screen bg-background">
+      {/* Fixed navigation container - never moves, always visible except on landing */}
       {!isLandingPage && (
-        <div className="bg-background">
-          <MarketDataBar />
-          <div className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="fixed top-0 left-0 right-0 z-50 shadow-sm">
+          <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40">
+            <MarketDataBar />
+          </div>
+          <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40">
             <Navbar />
           </div>
         </div>
       )}
 
-      {/* Main content */}
-      <div>
+      {/* Main content - padded to account for fixed header */}
+      <main className={!isLandingPage ? "pt-[120px]" : ""}>
         <Switch>
-          {/* Landing page is the initial route */}
           <Route path="/" component={Landing} />
-
-          {/* All other routes */}
           <Route path="/home" component={Home} />
           <Route path="/crypto-news" component={CryptoNews} />
           <Route path="/project" component={Project} />
@@ -44,8 +43,8 @@ function Router() {
           <Route path="/about" component={About} />
           <Route component={NotFound} />
         </Switch>
-      </div>
-    </>
+      </main>
+    </div>
   );
 }
 
@@ -53,10 +52,8 @@ function App() {
   return (
     <WalletContextProvider>
       <QueryClientProvider client={queryClient}>
-        <div className="min-h-screen bg-background text-foreground">
-          <Router />
-          <Toaster />
-        </div>
+        <Router />
+        <Toaster />
       </QueryClientProvider>
     </WalletContextProvider>
   );

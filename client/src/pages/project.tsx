@@ -1,4 +1,4 @@
-import { FC, useState, useEffect } from "react";
+import { FC, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, ArrowUpIcon, ArrowDownIcon, Search } from "lucide-react";
@@ -180,7 +180,7 @@ const ProjectPage: FC = () => {
 
   if (isLoadingMarket) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="bg-background">
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin" />
@@ -215,7 +215,7 @@ const ProjectPage: FC = () => {
   const paginationRange = getPaginationRange(totalPages, currentPage);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="flex items-center gap-4 mb-8">
           <div className="relative flex-1 max-w-md">
