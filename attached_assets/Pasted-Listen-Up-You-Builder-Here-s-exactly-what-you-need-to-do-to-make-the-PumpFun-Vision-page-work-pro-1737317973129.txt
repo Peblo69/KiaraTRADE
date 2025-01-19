@@ -1,0 +1,130 @@
+Listen Up, You (Builder)
+Here’s exactly what you need to do to make the PumpFun Vision page work properly, so let’s keep it clear and simple:
+
+1. How Tokens Should Be Displayed
+Tokens need to show up on the left side of the screen, in a vertical column.
+Every new token appears at the top of the list.
+Tokens should move down as new ones are added, with a maximum of 10 tokens displayed.
+When the 11th token arrives, the last token (bottom one) disappears to keep the list clean.
+2. What We Want Beyond Just Names
+Each token should show more information, not just its name. Use the APIs we have (PumpPortal or Helius) to fetch:
+Token price.
+Market cap.
+Trading volume.
+Any other useful data you can pull.
+Make the tokens clickable, so when a user clicks on a token, they get a popup or more detailed info about it.
+3. Style and User-Friendly Design
+The list should look clean and professional, with smooth animations:
+When a new token is added, it smoothly pushes the rest down.
+When a token is removed (after hitting 10), it disappears without breaking the layout.
+Add a hover effect so users know the tokens are clickable.
+4. Keep It Efficient
+Do NOT open a new WebSocket or API call for every token.
+Use one single WebSocket connection for all token updates.
+Limit API usage and avoid unnecessary calls.
+Stick to showing only 10 tokens at a time to keep things fast and smooth.
+Steps You Need to Follow
+Token List Management:
+
+Store up to 10 tokens in memory.
+Always show the newest tokens at the top.
+Remove the oldest token when there are more than 10.
+Fetch Token Details:
+
+Use PumpPortal or Helius to get additional details about each token (like price or volume).
+Don’t spam the API—fetch details efficiently.
+Make Tokens Clickable:
+
+When a user clicks on a token, show detailed information in a popup or alert (this will look advanced and interactive).
+Test Everything:
+
+Check if the token list updates in real-time.
+Ensure the design looks clean and the list flows smoothly.
+Here’s the Code You Need to Start
+(You can copy this and adjust based on what you’ve built so far.)
+
+tsx
+Copy
+Edit
+import React, { useState, useEffect } from "react";
+import "./PumpFunVision.css"; // Add styles here
+
+const PumpFunVision = () => {
+  const [tokens, setTokens] = useState<any[]>([]); // Store up to 10 tokens
+
+  useEffect(() => {
+    // Simulate token fetching (replace with real API/WebSocket logic)
+    const timer = setInterval(() => {
+      const newToken = {
+        name: `Token ${Math.random().toString(36).substr(2, 5)}`,
+        price: Math.random() * 100, // Simulated price
+        volume: Math.random() * 1000, // Simulated volume
+      };
+
+      setTokens((prevTokens) => {
+        const updatedTokens = [newToken, ...prevTokens];
+        return updatedTokens.slice(0, 10); // Keep max 10 tokens
+      });
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="pumpfun-vision">
+      <div className="token-list">
+        {tokens.map((token, index) => (
+          <div key={index} className="token-item" onClick={() => handleTokenClick(token)}>
+            <p>{token.name}</p>
+            <p>Price: ${token.price.toFixed(2)}</p>
+            <p>Volume: {token.volume.toFixed(0)}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  function handleTokenClick(token: any) {
+    alert(`Details for ${token.name}\nPrice: ${token.price.toFixed(2)}\nVolume: ${token.volume.toFixed(0)}`);
+  }
+};
+
+export default PumpFunVision;
+Add Styles (Optional)
+css
+Copy
+Edit
+/* PumpFunVision.css */
+.pumpfun-vision {
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  height: 100vh;
+  background-color: #1a1a1a;
+  color: white;
+  padding: 20px;
+}
+
+.token-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 300px;
+}
+
+.token-item {
+  padding: 10px;
+  background: #292929;
+  border: 1px solid #444;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.token-item:hover {
+  background: #3d3d3d;
+}
+Any Questions?
+Do you understand the request fully?
+Do you know how to handle the WebSocket and API without spamming or breaking things?
+Let me know if you’re confused about any part. We need this smooth and functional.

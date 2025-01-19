@@ -7,12 +7,15 @@ interface TokenData {
   symbol: string;
   name?: string;
   price?: number;
+  marketCap?: number;
+  volume?: number;
   timestamp: number;
 }
 
 const PumpFunVision: FC = () => {
   const [tokens, setTokens] = useState<TokenData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
   const { toast } = useToast();
   const MAX_TOKENS_DISPLAYED = 10;
 
@@ -64,6 +67,17 @@ const PumpFunVision: FC = () => {
     connectWebSocket();
   }, [toast]);
 
+  const handleTokenClick = (token: TokenData) => {
+    setSelectedToken(token);
+    toast({
+      title: `${token.symbol} Details`,
+      description: `Price: ${token.price ? `$${token.price.toFixed(6)}` : 'N/A'}
+                   Volume: ${token.volume ? `$${token.volume.toLocaleString()}` : 'N/A'}
+                   Market Cap: ${token.marketCap ? `$${token.marketCap.toLocaleString()}` : 'N/A'}`,
+      duration: 5000,
+    });
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col gap-6">
@@ -81,7 +95,11 @@ const PumpFunVision: FC = () => {
             </div>
           ) : tokens.length > 0 ? (
             tokens.map((token, index) => (
-              <Card key={index} className="p-4 border-purple-800/20 bg-background/80 backdrop-blur-sm">
+              <Card 
+                key={index} 
+                className="p-4 border-purple-800/20 bg-background/80 backdrop-blur-sm hover:bg-accent/50 transition-all duration-200 cursor-pointer"
+                onClick={() => handleTokenClick(token)}
+              >
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold">{token.symbol}</h3>
@@ -92,6 +110,11 @@ const PumpFunVision: FC = () => {
                   {token.price && (
                     <div className="text-right">
                       <p className="font-mono">${token.price.toFixed(6)}</p>
+                      {token.volume && (
+                        <p className="text-xs text-muted-foreground">
+                          Vol: ${token.volume.toLocaleString()}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
