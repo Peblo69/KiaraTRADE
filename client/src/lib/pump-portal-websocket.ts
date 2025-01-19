@@ -50,20 +50,35 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 2;
 const RECONNECT_DELAY = 5000;
 
+// For now use a temporary SOL price until we integrate Helius
+const TEMP_SOL_PRICE_USD = 100; // Temporary value
+const TOTAL_SUPPLY = 1_000_000_000; // Fixed total supply for PumpFun tokens
+
 function mapPumpPortalData(data: any): PumpPortalToken {
   // Calculate liquidity based on available data
-  const liquidity = data.vSolInBondingCurve ? Number(data.vSolInBondingCurve) : 0;
-  const marketCapSol = data.marketCapSol ? Number(data.marketCapSol) : 0;
+  const vSolInBondingCurve = data.vSolInBondingCurve ? Number(data.vSolInBondingCurve) : 0;
+  const solAmount = data.solAmount ? Number(data.solAmount) : 0;
+
+  // Calculate price per token in SOL
+  const pricePerTokenSol = solAmount / (data.initialBuy || 1);
+
+  // Convert to USD
+  const pricePerTokenUsd = pricePerTokenSol * TEMP_SOL_PRICE_USD;
+  const liquidityUsd = vSolInBondingCurve * TEMP_SOL_PRICE_USD;
+  const marketCapUsd = pricePerTokenUsd * TOTAL_SUPPLY;
+
+  // Calculate initial volume in USD
+  const volumeUsd = data.initialBuy ? Number(data.initialBuy) * pricePerTokenUsd : 0;
 
   return {
     symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
     name: data.name || 'Unknown Token',
     address: data.mint || '',
-    liquidity: liquidity,
-    liquidityChange: 0, // We'll calculate this when we get updates
-    l1Liquidity: data.bondingCurveKey ? 1 : 0, // Using this as a placeholder
-    marketCap: marketCapSol * 1000, // Converting SOL to USD (rough estimate)
-    volume: data.initialBuy ? Number(data.initialBuy) : 0,
+    liquidity: liquidityUsd,
+    liquidityChange: 0, // Will be calculated with trade events
+    l1Liquidity: data.bondingCurveKey ? liquidityUsd : 0,
+    marketCap: marketCapUsd,
+    volume: volumeUsd,
     swaps: 0, // Will be updated with trade events
     timestamp: Date.now(),
     status: {

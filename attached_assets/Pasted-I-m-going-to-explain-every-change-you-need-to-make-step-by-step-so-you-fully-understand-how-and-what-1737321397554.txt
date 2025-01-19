@@ -1,0 +1,180 @@
+I’m going to explain every change you need to make step-by-step so you fully understand how and what to use to fix the issues and implement real-time data correctly.
+
+1. Use Helius API to Fetch Real-Time SOL Price
+You need the real-time SOL price to calculate market cap and liquidity in USD for the tokens shown in PumpFun Vision. Here’s what you do:
+
+Add a Function to Fetch the SOL Price
+Use the Helius API to fetch the latest SOL price in USD.
+Save the price temporarily (cache it) to avoid unnecessary API calls.
+Here’s the function you need to add:
+
+javascript
+Copy
+Edit
+let cachedSolPrice = null;
+let lastFetched = 0;
+
+async function fetchSolPrice() {
+  try {
+    // Call Helius API to get SOL price
+    const response = await fetch("https://api.helius.xyz/v0/price?api-key=YOUR_API_KEY");
+    const data = await response.json();
+
+    // Check if the response contains a valid price
+    if (data && data.solana?.usd) {
+      console.log('[SOL Price] Fetched:', data.solana.usd);
+      cachedSolPrice = data.solana.usd; // Cache the price
+      lastFetched = Date.now(); // Update the last fetched time
+      return cachedSolPrice;
+    } else {
+      console.error('[SOL Price] Invalid response format:', data);
+      return null;
+    }
+  } catch (error) {
+    console.error('[SOL Price] Fetch failed:', error);
+    return null;
+  }
+}
+
+async function getCachedSolPrice() {
+  const now = Date.now();
+  // Only refresh if more than 60 seconds have passed
+  if (!cachedSolPrice || now - lastFetched > 60000) {
+    return await fetchSolPrice();
+  }
+  return cachedSolPrice;
+}
+2. Update Token Data with Real SOL Price
+Now that you have the SOL price, use it to calculate the token’s market cap and any other metrics that depend on USD values.
+
+Modify mapPumpPortalData
+You’re already mapping token data in the mapPumpPortalData function. Add the real SOL price to this calculation:
+javascript
+Copy
+Edit
+async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
+  const solPrice = await getCachedSolPrice(); // Get cached SOL price
+
+  const liquidity = data.vSolInBondingCurve ? Number(data.vSolInBondingCurve) : 0;
+  const marketCapSol = data.marketCapSol ? Number(data.marketCapSol) : 0;
+
+  return {
+    symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
+    name: data.name || 'Unknown Token',
+    address: data.mint || '',
+    liquidity: liquidity,
+    liquidityChange: 0, // Update dynamically with trade events
+    l1Liquidity: data.bondingCurveKey ? 1 : 0, // Placeholder
+    marketCap: solPrice ? marketCapSol * solPrice : "Not Available", // Calculate market cap in USD
+    volume: data.initialBuy ? Number(data.initialBuy) : 0,
+    swaps: 0, // Update dynamically with trade events
+    timestamp: Date.now(),
+    status: {
+      mad: false,
+      fad: false,
+      lb: Boolean(data.bondingCurveKey),
+      tri: false,
+    }
+  };
+}
+3. Subscribe to Token Trade Events for Swaps and Volume
+Right now, swaps and volume are always 0 because you’re not subscribing to trade events. Fix this by subscribing to subscribeTokenTrade.
+
+Add Subscription for Token Trades
+In the onopen method of your WebSocket connection:
+
+javascript
+Copy
+Edit
+if (ws?.readyState === WebSocket.OPEN) {
+  ws.send(JSON.stringify({
+    method: "subscribeTokenTrade"
+  }));
+  console.log('[PumpPortal] Subscribed to token trades');
+}
+Update Tokens When Trade Events Are Received
+In the onmessage handler:
+
+javascript
+Copy
+Edit
+if (data.txType === 'trade') {
+  store.updateToken(data.mint, {
+    swaps: (store.tokens.find(token => token.address === data.mint)?.swaps || 0) + 1,
+    volume: (store.tokens.find(token => token.address === data.mint)?.volume || 0) + Number(data.tradeVolume || 0),
+  });
+  console.log(`[PumpPortal] Updated token ${data.mint} with trade data.`);
+}
+4. Ensure the UI Updates in Real-Time
+The token list should:
+
+Always show the latest 10 tokens.
+Update liquidity, market cap, and other metrics in real-time.
+You’ve already implemented the logic to cap the token list at 10:
+
+javascript
+Copy
+Edit
+addToken: (token) =>
+  set((state) => ({
+    tokens: [token, ...state.tokens].slice(0, 10),
+  })),
+Now, ensure the UI properly displays dynamic updates (e.g., when swaps or volume change).
+
+5. Add Debugging
+Make sure you log the raw WebSocket data to verify that the fields (e.g., tradeVolume, liquidity) are actually being received.
+
+Example:
+javascript
+Copy
+Edit
+ws.onmessage = (event) => {
+  try {
+    const data = JSON.parse(event.data);
+    console.log('[PumpPortal] Received event:', data);
+
+    if (data.txType === 'create') {
+      const token = await mapPumpPortalData(data);
+      store.addToken(token);
+      console.log('[PumpPortal] Added new token:', token.symbol);
+    } else if (data.txType === 'trade') {
+      // Handle trade events
+    }
+  } catch (error) {
+    console.error('[PumpPortal] Failed to parse message:', error);
+  }
+};
+6. Error Handling and Fallbacks
+If the WebSocket fails to send valid data, log a clear error:
+javascript
+Copy
+Edit
+if (!data.mint || !data.symbol) {
+  console.warn('[PumpPortal] Skipping invalid token data:', data);
+  return;
+}
+If the SOL price fetch fails, show "Not Available" instead of breaking the page:
+javascript
+Copy
+Edit
+const solPrice = await getCachedSolPrice() || 0; // Fallback to 0 if unavailable
+Summary of What You Need to Do
+Fetch SOL Price:
+
+Use Helius API to fetch real-time SOL price.
+Cache the price for 60 seconds to avoid unnecessary API calls.
+Update Token Data:
+
+Calculate market cap and liquidity dynamically using the SOL price.
+Subscribe to Token Trades:
+
+Use subscribeTokenTrade to track swaps and volume.
+Debug and Validate:
+
+Log WebSocket responses to ensure all fields are properly mapped.
+Handle missing data gracefully.
+Ensure Real-Time UI Updates:
+
+Make sure the token list dynamically updates with real-time data.
+Any Questions?
+If you don’t understand something or need clarification, ask now before starting. Let’s get this working perfectly! 🚀

@@ -1,0 +1,77 @@
+Fetch the token’s price per token (in SOL) from PumpPortal.
+Convert the price from SOL to USD using the real-time SOL price.
+Use the formula above to calculate the market cap.
+2. Use the Standard Calculation for Liquidity
+Formula:
+
+Liquidity (USD)
+=
+vSolInBondingCurve
+×
+SOL Price (USD)
+Liquidity (USD)=vSolInBondingCurve×SOL Price (USD)
+What You Do:
+Get the vSolInBondingCurve value from PumpPortal for each token.
+Multiply this by the real-time SOL price to calculate liquidity in USD.
+3. Update the mapPumpPortalData Function
+Modify your existing function to include these calculations. Here’s how it should look:
+
+javascript
+Copy
+Edit
+async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
+  const solPrice = await getCachedSolPrice(); // Fetch real-time SOL price
+
+  const totalSupply = 1000000000; // Fixed total supply for PumpFun tokens
+  const pricePerTokenSol = data.price || 0; // Price per token in SOL
+  const vSolInBondingCurve = data.vSolInBondingCurve || 0;
+
+  // Calculate metrics
+  const pricePerTokenUsd = pricePerTokenSol * solPrice; // Convert to USD
+  const marketCap = pricePerTokenUsd * totalSupply; // Market cap in USD
+  const liquidity = vSolInBondingCurve * solPrice; // Liquidity in USD
+
+  return {
+    symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
+    name: data.name || 'Unknown Token',
+    address: data.mint || '',
+    liquidity: liquidity || "Not Available",
+    liquidityChange: 0, // Update dynamically with trade events
+    l1Liquidity: data.bondingCurveKey ? 1 : 0, // Placeholder
+    marketCap: marketCap || "Not Available", // Use calculated market cap
+    volume: data.initialBuy ? Number(data.initialBuy) : 0,
+    swaps: 0, // Update dynamically with trade events
+    timestamp: Date.now(),
+    status: {
+      mad: false,
+      fad: false,
+      lb: Boolean(data.bondingCurveKey),
+      tri: false,
+    },
+  };
+}
+4. Add Real-Time Updates for Swaps and Volume
+To update swaps and volume, you need to:
+
+Subscribe to subscribeTokenTrade for real-time trade updates.
+Update the token data dynamically when a trade event is received.
+Here’s how you update the data:
+
+javascript
+Copy
+Edit
+if (data.txType === 'trade') {
+  store.updateToken(data.mint, {
+    swaps: (store.tokens.find(token => token.address === data.mint)?.swaps || 0) + 1,
+    volume: (store.tokens.find(token => token.address === data.mint)?.volume || 0) + Number(data.tradeVolume || 0),
+  });
+  console.log(`[PumpPortal] Updated token ${data.mint} with trade data.`);
+}
+5. Validate the Data
+Log the raw WebSocket data to confirm fields like price, vSolInBondingCurve, and tradeVolume are present.
+If any field is missing, let us know immediately.
+What to Implement
+Market Cap: Use the fixed total supply (1 billion) and calculate it dynamically with the SOL price.
+Liquidity: Fetch and calculate liquidity in USD.
+Swaps and Volume: Update these fields in real time using trade events.
+Log Any Missing Data: If something’s not showing up as expected, log it and let us know.
