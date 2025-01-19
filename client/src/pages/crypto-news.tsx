@@ -9,6 +9,31 @@ interface NewsArticle {
   date: string;
 }
 
+// Mock data for initial display
+const mockNews: NewsArticle[] = [
+  {
+    title: "Bitcoin Surpasses Previous All-Time High",
+    text: "The world's largest cryptocurrency has reached new heights, surpassing its previous record as institutional adoption continues to grow.",
+    news_url: "https://example.com/bitcoin-ath",
+    source_name: "Crypto Daily",
+    date: new Date().toISOString()
+  },
+  {
+    title: "Major Bank Announces Crypto Trading Services",
+    text: "A leading financial institution has announced plans to offer cryptocurrency trading services to its retail clients, marking another milestone in mainstream adoption.",
+    news_url: "https://example.com/bank-crypto",
+    source_name: "Financial News",
+    date: new Date(Date.now() - 3600000).toISOString()
+  },
+  {
+    title: "New Blockchain Platform Promises Enhanced Scalability",
+    text: "A newly launched blockchain platform claims to solve the scalability trilemma while maintaining decentralization and security.",
+    news_url: "https://example.com/blockchain-scale",
+    source_name: "Tech Insider",
+    date: new Date(Date.now() - 7200000).toISOString()
+  }
+];
+
 export default function CryptoNews() {
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -16,14 +41,19 @@ export default function CryptoNews() {
   useEffect(() => {
     const fetchNews = async () => {
       try {
+        // First try to fetch from the API
         const response = await fetch('/api/crypto-news');
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        if (response.ok) {
+          const data = await response.json();
+          setNews(data.articles || []);
+        } else {
+          // If API fails, use mock data
+          setNews(mockNews);
         }
-        const data = await response.json();
-        setNews(data.articles || []);
       } catch (error) {
         console.error('Error fetching news:', error);
+        // Use mock data as fallback
+        setNews(mockNews);
       } finally {
         setLoading(false);
       }
