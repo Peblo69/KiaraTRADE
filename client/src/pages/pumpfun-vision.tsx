@@ -1,15 +1,25 @@
 import { FC, useState, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
 interface TokenData {
   symbol: string;
   name: string;
-  price: number;
+  liquidity: number;
+  liquidityChange: number;
+  l1Liquidity: number;
   marketCap: number;
   volume: number;
+  swaps: number;
   timestamp: number;
+  status: {
+    mad: boolean;
+    fad: boolean;
+    lb: boolean;
+    tri: boolean;
+  }
 }
 
 const PumpFunVision: FC = () => {
@@ -69,75 +79,114 @@ const PumpFunVision: FC = () => {
     connectWebSocket();
   }, [toast]);
 
+  const getTimeDiff = (timestamp: number) => {
+    const diff = Date.now() - timestamp;
+    const seconds = Math.floor(diff / 1000);
+    return `${seconds}s`;
+  };
+
   return (
     <div className="flex h-screen bg-background overflow-hidden">
-      {/* Left sidebar for token list */}
-      <div className="w-[300px] h-full border-r border-purple-800/20 bg-background/80 backdrop-blur-sm overflow-hidden">
-        <div className="p-4">
-          <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
-            Live Tokens
-          </h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            Latest {MAX_TOKENS} tokens
-          </p>
+      {/* New Pairs section */}
+      <div className="w-full max-w-[1200px] mx-auto p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 text-green-400">
+            <span className="text-sm">🔥 New Pairs</span>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            Find the latest tokens across chains
+          </span>
         </div>
 
-        <div className="h-[calc(100vh-100px)] overflow-y-auto">
+        {/* Column headers */}
+        <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr,1fr,1fr] gap-4 px-4 py-2 text-xs text-muted-foreground">
+          <div>Token</div>
+          <div className="text-right">Created</div>
+          <div className="text-right">Liquidity</div>
+          <div className="text-right">L1 Liquidity</div>
+          <div className="text-right">MarketCap</div>
+          <div className="text-right">Swaps</div>
+          <div className="text-right">Quick Buy</div>
+        </div>
+
+        {/* Token list */}
+        <div className="space-y-1">
           {loading ? (
-            <div className="flex items-center justify-center h-full">
+            <div className="flex items-center justify-center h-40">
               <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
             </div>
           ) : tokens.length > 0 ? (
-            <div className="flex flex-col gap-2 p-2">
-              {tokens.map((token) => (
-                <Card 
-                  key={`${token.symbol}-${token.timestamp}`}
-                  className="p-4 border-purple-800/20 bg-background/95 hover:bg-accent/50 transition-all duration-300 cursor-pointer animate-slideDown"
-                >
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-semibold text-lg">{token.symbol}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {token.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(token.timestamp).toLocaleTimeString()}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-mono font-bold text-lg">
-                          ${token.price.toFixed(6)}
-                        </p>
-                      </div>
+            tokens.map((token) => (
+              <Card 
+                key={`${token.symbol}-${token.timestamp}`}
+                className="hover:bg-accent/5 transition-all duration-300 cursor-pointer"
+              >
+                <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr,1fr,1fr] gap-4 px-4 py-3 items-center">
+                  {/* Token info */}
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center">
+                      {token.symbol[0]}
                     </div>
-
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-purple-800/10">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Volume</p>
-                        <p className="font-mono">
-                          ${token.volume.toLocaleString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Market Cap</p>
-                        <p className="font-mono">
-                          ${token.marketCap.toLocaleString()}
-                        </p>
-                      </div>
+                    <div>
+                      <div className="font-medium">{token.symbol}</div>
+                      <div className="text-xs text-muted-foreground">{token.name}</div>
                     </div>
                   </div>
-                </Card>
-              ))}
-            </div>
+
+                  {/* Created time */}
+                  <div className="text-right font-mono text-muted-foreground">
+                    {getTimeDiff(token.timestamp)}
+                  </div>
+
+                  {/* Liquidity */}
+                  <div className="text-right">
+                    <div className="font-mono">${token.liquidity.toLocaleString()}</div>
+                    <div className={`text-xs ${token.liquidityChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {token.liquidityChange > 0 ? '+' : ''}{token.liquidityChange}%
+                    </div>
+                  </div>
+
+                  {/* L1 Liquidity */}
+                  <div className="text-right font-mono">
+                    ${token.l1Liquidity.toLocaleString()}
+                  </div>
+
+                  {/* Market Cap */}
+                  <div className="text-right font-mono">
+                    ${token.marketCap.toLocaleString()}
+                  </div>
+
+                  {/* Swaps/Volume */}
+                  <div className="text-right">
+                    <div className="font-mono">{token.swaps}</div>
+                    <div className="text-xs text-muted-foreground">
+                      ${token.volume.toLocaleString()}
+                    </div>
+                  </div>
+
+                  {/* Quick Buy */}
+                  <div className="text-right flex items-center justify-end gap-2">
+                    {/* Status indicators */}
+                    <div className="flex gap-1">
+                      {token.status.mad && <span className="px-1 py-0.5 text-[10px] bg-green-500/20 text-green-500 rounded">MAD</span>}
+                      {token.status.fad && <span className="px-1 py-0.5 text-[10px] bg-blue-500/20 text-blue-500 rounded">FAD</span>}
+                      {token.status.lb && <span className="px-1 py-0.5 text-[10px] bg-purple-500/20 text-purple-500 rounded">LB</span>}
+                      {token.status.tri && <span className="px-1 py-0.5 text-[10px] bg-yellow-500/20 text-yellow-500 rounded">TRI</span>}
+                    </div>
+                    <Button size="sm" variant="outline" className="text-xs">
+                      $0
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))
           ) : (
-            <div className="flex items-center justify-center h-full">
+            <div className="flex items-center justify-center h-40">
               <p className="text-muted-foreground">Waiting for new tokens...</p>
             </div>
           )}
         </div>
       </div>
-
       {/* Main content area - will be used for additional features */}
       <div className="flex-1 p-8">
         <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
