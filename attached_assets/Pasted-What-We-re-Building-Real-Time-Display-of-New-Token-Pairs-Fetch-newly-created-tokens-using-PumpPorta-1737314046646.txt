@@ -1,0 +1,140 @@
+What We’re Building
+Real-Time Display of New Token Pairs:
+Fetch newly created tokens using PumpPortal's WebSocket API (subscribeNewToken).
+Show only the latest 8-10 tokens in real-time on the website.
+Efficient API Usage:
+Use a single WebSocket connection for all token subscriptions.
+Ensure the data is rate-limited to prevent overloading.
+Integration with Helius:
+Use Helius to fetch additional token details if needed, e.g., metadata or historical activity.
+Key Steps for Integration
+Connect to PumpPortal WebSocket:
+
+Use subscribeNewToken to receive events when new tokens are created.
+Maintain a single WebSocket connection to avoid blacklisting.
+Limit the data stream to 8-10 tokens.
+Real-Time Updates:
+
+Push new token data to the UI in real-time.
+Ensure older tokens drop off the list as new ones appear.
+Secure Usage:
+
+Follow PumpPortal's guideline: one WebSocket connection at a time.
+Use Helius RPC for any additional token details, keeping both APIs isolated.
+Code Example
+Here’s the full implementation in TypeScript:
+
+typescript
+Copy
+Edit
+import { WebSocket } from "ws";
+
+// WebSocket URL for PumpPortal
+const PUMP_PORTAL_WS = "wss://pumpportal.fun/api/data";
+
+// API Key and URL for Helius
+const HELIUS_RPC_URL = "https://ramona-1jvbj3-fast-mainnet.helius-rpc.com";
+const HELIUS_API_KEY = "004f9b13-f526-4952-9998-52f5c7bec6ee";
+
+// Real-time token list to display (maximum 10 tokens)
+const MAX_TOKENS_DISPLAYED = 10;
+let tokensList: any[] = [];
+
+// Establish WebSocket connection
+const ws = new WebSocket(PUMP_PORTAL_WS);
+
+ws.onopen = () => {
+  console.log("Connected to PumpPortal WebSocket");
+
+  // Subscribe to new token creation events
+  const subscribeNewTokenPayload = {
+    method: "subscribeNewToken"
+  };
+
+  ws.send(JSON.stringify(subscribeNewTokenPayload));
+  console.log("Subscribed to new token events");
+};
+
+ws.onmessage = async (event) => {
+  const newTokenData = JSON.parse(event.data);
+
+  // Log received data for debugging
+  console.log("New token event received:", newTokenData);
+
+  // Add the new token to the list
+  tokensList.unshift(newTokenData);
+
+  // Limit the list to MAX_TOKENS_DISPLAYED
+  if (tokensList.length > MAX_TOKENS_DISPLAYED) {
+    tokensList.pop(); // Remove the oldest token
+  }
+
+  // Fetch additional token metadata using Helius (optional)
+  const enrichedTokenData = await fetchTokenDetails(newTokenData.mint);
+  console.log("Enriched token data:", enrichedTokenData);
+
+  // Update the UI with the latest tokens (pseudo-code for frontend update)
+  updateTokenDisplay(tokensList);
+};
+
+ws.onerror = (error) => {
+  console.error("WebSocket error:", error);
+};
+
+ws.onclose = () => {
+  console.log("WebSocket connection closed");
+};
+
+// Fetch token details from Helius RPC
+async function fetchTokenDetails(mint: string) {
+  try {
+    const response = await fetch(`${HELIUS_RPC_URL}/getTokenAccountsByOwner?api-key=${HELIUS_API_KEY}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        mint
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch token details: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching token details:", error);
+    return null;
+  }
+}
+
+// Function to update the frontend (example placeholder)
+function updateTokenDisplay(tokens: any[]) {
+  // This should update the token list on the website UI
+  console.log("Updating token display with tokens:", tokens);
+}
+Detailed Steps Explained
+Single WebSocket Connection:
+
+A single connection is opened to wss://pumpportal.fun/api/data.
+Subscribes to subscribeNewToken for newly created tokens.
+Token Management:
+
+A maximum of 10 tokens is displayed on the UI.
+Older tokens are automatically removed as new ones are added.
+Integration with Helius:
+
+If you need additional details about the token, the fetchTokenDetails function queries the Helius RPC URL.
+UI Updates:
+
+Tokens are pushed to the frontend dynamically via the updateTokenDisplay function.
+Key Notes for the AI Builder
+WebSocket Efficiency:
+Do not open multiple WebSocket connections. Use only one.
+API Isolation:
+Use PumpPortal for token events.
+Use Helius RPC strictly for supplementary data (e.g., token metadata).
+Real-Time Limitation:
+Keep the display list to 8-10 tokens maximum for performance and clarity.

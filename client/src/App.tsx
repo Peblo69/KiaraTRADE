@@ -9,6 +9,7 @@ import KiaraStageI from "@/pages/kiara-stage-i";
 import About from "@/pages/about";
 import Landing from "@/pages/landing";
 import CryptoNews from "@/pages/crypto-news";
+import PumpFunVision from "@/pages/pumpfun-vision";
 import { WalletContextProvider } from "@/lib/wallet";
 import MarketDataBar from "@/components/MarketDataBar";
 import Navbar from "@/components/Navbar";
@@ -20,7 +21,6 @@ function Router() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Fixed navigation container - never moves, always visible except on landing */}
       {!isLandingPage && (
         <div className="fixed top-0 left-0 right-0 z-50 shadow-sm">
           <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40">
@@ -32,7 +32,6 @@ function Router() {
         </div>
       )}
 
-      {/* Main content - padded to account for fixed header */}
       <main className={!isLandingPage ? "pt-[120px]" : ""}>
         <Switch>
           <Route path="/" component={Landing} />
@@ -41,6 +40,7 @@ function Router() {
           <Route path="/project" component={Project} />
           <Route path="/kiara-stage-i" component={KiaraStageI} />
           <Route path="/about" component={About} />
+          <Route path="/pumpfun-vision" component={PumpFunVision} />
           <Route component={NotFound} />
         </Switch>
       </main>
