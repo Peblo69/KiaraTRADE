@@ -1,12 +1,12 @@
-interface PhantomProvider {
-  solana?: {
-    connect(): Promise<{ publicKey: any }>;
-    disconnect(): Promise<void>;
-    on(event: string, callback: () => void): void;
-    request(params: any): Promise<any>;
-  };
-}
-
 interface Window {
-  phantom?: PhantomProvider;
+  phantom?: {
+    solana?: {
+      isPhantom?: boolean;
+      connect(): Promise<{ publicKey: any }>;
+      disconnect(): Promise<void>;
+      on(event: string, callback: () => void): void;
+      request(params: any): Promise<any>;
+      publicKey: any;
+    };
+  };
 }

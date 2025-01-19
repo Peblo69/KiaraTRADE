@@ -5,9 +5,10 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { useToast } from "@/hooks/use-toast";
 import RegisterModal from "./auth/RegisterModal";
 import LoginModal from "./auth/LoginModal";
+import { Loader2 } from "lucide-react";
 
 export default function Navbar() {
-  const { wallet, connect, disconnect, connected, publicKey } = useWallet();
+  const { publicKey, connect, disconnect, connected, connecting } = useWallet();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
@@ -31,10 +32,8 @@ export default function Navbar() {
       return;
     }
 
-    // Check for Phantom wallet
-    const phantom = window?.phantom?.solana;
-
-    if (!phantom) {
+    // Check if Phantom is available
+    if (!window?.phantom?.solana) {
       toast({
         title: "Wallet Not Found",
         description: "Please install Phantom Wallet extension",
@@ -45,10 +44,7 @@ export default function Navbar() {
     }
 
     try {
-      await connect().catch((err) => {
-        throw err;
-      });
-
+      await connect();
       toast({
         title: "Wallet Connected",
         description: "Your wallet has been connected successfully",
@@ -136,7 +132,6 @@ export default function Navbar() {
               </Link>
               <Link href="/subscriptions"><Button variant="ghost">Subscriptions</Button></Link>
 
-              {/* Auth Buttons */}
               <Button 
                 onClick={() => setIsRegisterOpen(true)}
                 variant="outline" 
@@ -154,9 +149,18 @@ export default function Navbar() {
 
               <Button 
                 onClick={handleWalletClick}
-                className={`${connected ? 'bg-green-500 hover:bg-green-600' : 'bg-purple-500 hover:bg-purple-600'} text-white`}
+                disabled={connecting}
+                className={`${
+                  connected ? 'bg-green-500 hover:bg-green-600' : 
+                  connecting ? 'bg-purple-400' : 'bg-purple-500 hover:bg-purple-600'
+                } text-white min-w-[160px] relative`}
               >
-                {connected ? (
+                {connecting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Connecting...
+                  </span>
+                ) : connected ? (
                   <span className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse" />
                     {shortenAddress(publicKey?.toBase58() || '')}
@@ -165,6 +169,7 @@ export default function Navbar() {
                   'Connect Wallet'
                 )}
               </Button>
+
               <Button
                 onClick={handleLogout}
                 variant="ghost"

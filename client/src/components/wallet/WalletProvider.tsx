@@ -1,24 +1,30 @@
-import { FC, ReactNode, useEffect, useState } from 'react';
+import { FC, ReactNode, useMemo } from 'react';
 import { ConnectionProvider, WalletProvider as SolanaWalletProvider } from '@solana/wallet-adapter-react';
 import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
 import { WalletError } from '@solana/wallet-adapter-base';
 import { useToast } from "@/hooks/use-toast";
+import { clusterApiUrl } from '@solana/web3.js';
 
-// You can change this to mainnet when ready
-const SOLANA_NETWORK = "https://api.devnet.solana.com";
+// Using devnet for development
+const SOLANA_NETWORK = clusterApiUrl('devnet');
 
 interface Props {
   children: ReactNode;
 }
 
 export const WalletProvider: FC<Props> = ({ children }) => {
-  const [wallets] = useState(() => [new PhantomWalletAdapter()]);
   const { toast } = useToast();
 
+  const wallets = useMemo(
+    () => [new PhantomWalletAdapter()],
+    []
+  );
+
   const onError = (error: WalletError) => {
+    console.error('Wallet error:', error);
     toast({
       title: "Wallet Error",
-      description: error.message,
+      description: error.message || "Failed to connect wallet. Please try again.",
       variant: "destructive",
     });
   };
@@ -28,7 +34,7 @@ export const WalletProvider: FC<Props> = ({ children }) => {
       <SolanaWalletProvider 
         wallets={wallets} 
         onError={onError}
-        autoConnect
+        autoConnect={true}
       >
         {children}
       </SolanaWalletProvider>
