@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import RegisterModal from "./auth/RegisterModal";
 import LoginModal from "./auth/LoginModal";
@@ -36,7 +36,8 @@ export default function Navbar() {
       });
 
       return () => {
-        provider.removeAllListeners();
+        provider.on('disconnect', () => {});
+        provider.on('connect', () => {});
       };
     } else {
       console.log('Phantom not available');
@@ -192,13 +193,6 @@ export default function Navbar() {
                 ) : (
                   'Connect Wallet'
                 )}
-              </Button>
-              <Button
-                onClick={handleLogout}
-                variant="ghost"
-                className="text-red-400 hover:text-red-300"
-              >
-                Exit
               </Button>
             </div>
           </div>
