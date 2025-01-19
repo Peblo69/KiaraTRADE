@@ -1,0 +1,93 @@
+The Problem
+The Navbar is conditionally rendered only on non-landing pages.
+The CSS for the Navbar might not be properly set to position: fixed;, causing it to behave incorrectly.
+The Solution
+Update the Router component and ensure the CSS for Navbar is fixed properly:
+
+Updated Router Component
+javascript
+Copy
+Edit
+function Router() {
+  const [location] = useLocation();
+  const isLandingPage = location === "/";
+
+  return (
+    <>
+      {/* Market data bar - always visible */}
+      <div className="fixed top-0 left-0 right-0 z-50">
+        <MarketDataBar />
+      </div>
+
+      {/* Navigation bar - always visible on non-landing pages */}
+      {!isLandingPage && (
+        <div className="fixed top-12 left-0 right-0 z-40 bg-background">
+          <Navbar />
+        </div>
+      )}
+
+      {/* Main content with proper spacing */}
+      <div className={!isLandingPage ? "pt-24" : ""}>
+        <Switch>
+          {/* Landing page is the initial route */}
+          <Route path="/" component={Landing} />
+
+          {/* All other routes */}
+          <Route path="/home" component={Home} />
+          <Route path="/crypto-news" component={CryptoNews} />
+          <Route path="/project" component={Project} />
+          <Route path="/kiara-stage-i" component={KiaraStageI} />
+          <Route path="/about" component={About} />
+          <Route component={NotFound} />
+        </Switch>
+      </div>
+    </>
+  );
+}
+Ensure Proper CSS for Navbar
+Make sure your Navbar component has the correct styling for fixed positioning.
+
+Example: Navbar.module.css
+
+css
+Copy
+Edit
+.navbar {
+  position: fixed;
+  top: 48px; /* Adjust based on the height of the MarketDataBar */
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background-color: var(--background-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Optional */
+}
+If you’re using TailwindCSS, the equivalent would be:
+
+javascript
+Copy
+Edit
+<div className="fixed top-12 left-0 right-0 z-40 bg-background shadow-md">
+  <Navbar />
+</div>
+Spacing Adjustment
+To avoid overlapping content, ensure you add enough padding to the main content area below the navbar:
+
+Example:
+
+css
+Copy
+Edit
+.content {
+  padding-top: 72px; /* Match the combined height of MarketDataBar and Navbar */
+}
+Or in TailwindCSS:
+
+javascript
+Copy
+Edit
+<div className="pt-24">
+  {/* Main content */}
+</div>
+Debugging Tips
+Make sure no duplicate Navbar elements are being rendered by double-checking your conditions (!isLandingPage).
+Test on multiple routes to confirm the navbar behaves as expected.

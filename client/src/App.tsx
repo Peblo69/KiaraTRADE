@@ -25,9 +25,9 @@ function Router() {
         <MarketDataBar />
       </div>
 
-      {/* Navigation bar - visible on all pages except landing */}
+      {/* Navigation bar - always visible on non-landing pages */}
       {!isLandingPage && (
-        <div className="fixed top-12 left-0 right-0 z-40 bg-background">
+        <div className="fixed top-12 left-0 right-0 z-40 bg-background shadow-sm">
           <Navbar />
         </div>
       )}
