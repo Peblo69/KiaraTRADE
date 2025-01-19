@@ -13,11 +13,13 @@ import { getTokenImage, addPriorityToken } from './image-worker';
 const cache = {
   prices: { data: null, timestamp: 0 },
   stats24h: { data: null, timestamp: 0 },
-  trending: { data: null, timestamp: 0 }
+  trending: { data: null, timestamp: 0 },
+  news: { data: null, timestamp: 0 }
 };
 
 const CACHE_DURATION = 30000; // 30 seconds cache
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
+const CRYPTOPANIC_API_BASE = 'https://cryptopanic.com/api/v1';
 
 // Configure axios with timeout and headers
 axios.defaults.timeout = 10000;
@@ -25,7 +27,7 @@ axios.defaults.headers.common['accept'] = 'application/json';
 
 // Add request interceptor for rate limiting
 let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 20; // Minimum 20ms between requests (KuCoin allows up to 50 requests per second)
+const MIN_REQUEST_INTERVAL = 20;
 
 axios.interceptors.request.use(async (config) => {
   const now = Date.now();
@@ -44,6 +46,62 @@ export function registerRoutes(app: Express): Server {
 
   // Initialize WebSocket manager
   wsManager.initialize(httpServer);
+
+  // Add crypto news endpoint
+  app.get('/api/crypto-news', async (req, res) => {
+    try {
+      const now = Date.now();
+      if (cache.news.data && (now - cache.news.timestamp) < CACHE_DURATION) {
+        return res.json(cache.news.data);
+      }
+
+      // Fetch news from multiple sources and combine them
+      const [cryptoPanicNews, coinGeckoNews] = await Promise.all([
+        // CryptoPanic news
+        axios.get(`${CRYPTOPANIC_API_BASE}/posts/?auth_token=${process.env.CRYPTOPANIC_API_KEY}&kind=news`),
+        // CoinGecko news (alternative source)
+        axios.get('https://api.coingecko.com/api/v3/status_updates')
+      ]);
+
+      // Process CryptoPanic news
+      const news = cryptoPanicNews.data.results.map((item: any) => ({
+        title: item.title,
+        text: item.metadata?.description || '',
+        news_url: item.url,
+        source_name: item.source.domain,
+        date: item.published_at
+      }));
+
+      // Add CoinGecko updates as news
+      const geckoNews = coinGeckoNews.data.status_updates.map((item: any) => ({
+        title: item.description.split('\n')[0], // First line as title
+        text: item.description,
+        news_url: item.project.links.homepage?.[0] || '',
+        source_name: 'CoinGecko',
+        date: item.created_at
+      }));
+
+      // Combine and sort by date
+      const allNews = [...news, ...geckoNews]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 50); // Limit to 50 most recent news
+
+      const response = { articles: allNews };
+
+      cache.news = {
+        data: response,
+        timestamp: now
+      };
+
+      res.json(response);
+    } catch (error: any) {
+      console.error('News fetch error:', error.response?.data || error.message);
+      res.status(error.response?.status || 500).json({
+        error: 'Failed to fetch crypto news',
+        details: error.response?.data?.msg || error.message
+      });
+    }
+  });
 
   // Token image endpoints
   app.get('/api/token-image/:symbol', async (req, res) => {
