@@ -1,5 +1,5 @@
 import { FC } from "react";
-import Navbar from "@/components/Navbar";
+import { Layout } from "@/components/Layout";
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
 import { useTypewriter } from "@/hooks/useTypewriter";
 
@@ -50,65 +50,66 @@ const AboutUs: FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden">
-      <SpaceBackgroundEnhanced />
-      <div className="relative z-10">
-        <Navbar />
-        <main className="container mx-auto px-4 py-8">
-          <div className="max-w-6xl mx-auto">
-            <h1 
-              className="text-5xl md:text-7xl font-bold mb-12 bg-gradient-to-r from-purple-400 via-cyan-400 to-purple-400 bg-clip-text text-transparent animate-glitch"
-              style={{
-                fontFamily: '"VT323", monospace',
-                letterSpacing: '0.05em',
-                fontWeight: '800',
-                textShadow: '0 0 30px rgba(var(--theme-primary), 0.8)'
-              }}
-            >
-              {TITLE}
-            </h1>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div
-                style={{ 
-                  whiteSpace: 'pre-wrap',
+    <Layout>
+      <div className="min-h-screen bg-black relative overflow-hidden">
+        <SpaceBackgroundEnhanced />
+        <div className="relative z-10">
+          <main className="container mx-auto px-4 py-8">
+            <div className="max-w-6xl mx-auto">
+              <h1 
+                className="text-5xl md:text-7xl font-bold mb-12 bg-gradient-to-r from-purple-400 via-cyan-400 to-purple-400 bg-clip-text text-transparent animate-glitch"
+                style={{
                   fontFamily: '"VT323", monospace',
-                  fontSize: '1.1rem',
-                  lineHeight: '1.5',
-                  textShadow: '0 0 10px rgba(var(--theme-primary), 0.5)',
-                  color: 'rgb(216, 180, 254)',
-                  backdropFilter: 'blur(4px)',
-                  padding: '1rem',
-                  opacity: isComplete ? 1 : 0.9,
-                  transition: 'opacity 0.3s ease-in-out'
+                  letterSpacing: '0.05em',
+                  fontWeight: '800',
+                  textShadow: '0 0 30px rgba(var(--theme-primary), 0.8)'
                 }}
-                className="typing-text"
               >
-                {displayText}
-              </div>
+                {TITLE}
+              </h1>
 
-              <div
-                style={{ 
-                  whiteSpace: 'pre-wrap',
-                  fontFamily: '"VT323", monospace',
-                  fontSize: '1.1rem',
-                  lineHeight: '1.5',
-                  textShadow: '0 0 10px rgba(var(--theme-primary), 0.5)',
-                  color: 'rgb(216, 180, 254)',
-                  backdropFilter: 'blur(4px)',
-                  padding: '1rem',
-                  opacity: visionIsComplete ? 1 : 0.9,
-                  transition: 'opacity 0.3s ease-in-out'
-                }}
-                className="typing-text"
-              >
-                {visionDisplayText}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div
+                  style={{ 
+                    whiteSpace: 'pre-wrap',
+                    fontFamily: '"VT323", monospace',
+                    fontSize: '1.1rem',
+                    lineHeight: '1.5',
+                    textShadow: '0 0 10px rgba(var(--theme-primary), 0.5)',
+                    color: 'rgb(216, 180, 254)',
+                    backdropFilter: 'blur(4px)',
+                    padding: '1rem',
+                    opacity: isComplete ? 1 : 0.9,
+                    transition: 'opacity 0.3s ease-in-out'
+                  }}
+                  className="typing-text"
+                >
+                  {displayText}
+                </div>
+
+                <div
+                  style={{ 
+                    whiteSpace: 'pre-wrap',
+                    fontFamily: '"VT323", monospace',
+                    fontSize: '1.1rem',
+                    lineHeight: '1.5',
+                    textShadow: '0 0 10px rgba(var(--theme-primary), 0.5)',
+                    color: 'rgb(216, 180, 254)',
+                    backdropFilter: 'blur(4px)',
+                    padding: '1rem',
+                    opacity: visionIsComplete ? 1 : 0.9,
+                    transition: 'opacity 0.3s ease-in-out'
+                  }}
+                  className="typing-text"
+                >
+                  {visionDisplayText}
+                </div>
               </div>
             </div>
-          </div>
-        </main>
+          </main>
+        </div>
       </div>
-    </div>
+    </Layout>
   );
 };
 

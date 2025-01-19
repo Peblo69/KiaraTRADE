@@ -7,7 +7,7 @@ export const Layout: FC<PropsWithChildren> = ({ children }) => {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation Elements */}
-      <div className="relative z-50">
+      <div>
         <MarketDataBar />
         <Navbar />
       </div>
