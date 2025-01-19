@@ -15,36 +15,58 @@ export default function Navbar() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   useEffect(() => {
-    // Check if Phantom is installed and connected
     const provider = window.phantom?.solana;
+
     if (provider?.isPhantom) {
       console.log('Phantom detected:', {
-        publicKey: provider.publicKey?.toString()
+        provider: 'available',
+        isPhantom: true,
+        publicKey: provider.publicKey?.toString() || 'not connected'
       });
 
-      // Setup event listeners
-      provider.on('connect', (publicKey: any) => {
-        console.log('Phantom connected:', publicKey.toString());
+      // Check if already connected
+      if (provider.publicKey) {
+        setIsConnected(true);
+        setPublicKey(provider.publicKey.toString());
+      }
+
+      const handleConnect = (publicKey: any) => {
+        console.log('Connected to wallet:', publicKey.toString());
         setIsConnected(true);
         setPublicKey(publicKey.toString());
-      });
+      };
 
-      provider.on('disconnect', () => {
-        console.log('Phantom disconnected');
+      const handleDisconnect = () => {
+        console.log('Disconnected from wallet');
         setIsConnected(false);
         setPublicKey(null);
-      });
+      };
+
+      provider.on('connect', handleConnect);
+      provider.on('disconnect', handleDisconnect);
 
       return () => {
-        provider.on('disconnect', () => {});
-        provider.on('connect', () => {});
+        provider.off('connect', handleConnect);
+        provider.off('disconnect', handleDisconnect);
       };
     } else {
-      console.log('Phantom not available');
+      console.log('Phantom not available', {
+        hasPhantom: !!window.phantom,
+        hasSolana: !!window.phantom?.solana
+      });
     }
   }, []);
 
   const handleWalletClick = async () => {
+    console.log('Wallet button clicked:', {
+      isConnected,
+      connecting,
+      phantom: {
+        available: !!window.phantom?.solana,
+        isPhantom: window.phantom?.solana?.isPhantom
+      }
+    });
+
     if (isConnected) {
       try {
         const provider = window.phantom?.solana;
