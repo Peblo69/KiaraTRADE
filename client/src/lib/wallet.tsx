@@ -45,22 +45,41 @@ interface WalletContextProviderProps {
   children: ReactNode;
 }
 
-// Add more reliable RPC endpoints
+// Debug helper
+const debug = {
+  log: (...args: any[]) => {
+    console.log('[Wallet]', ...args);
+  },
+  error: (...args: any[]) => {
+    console.error('[Wallet Error]', ...args);
+  }
+};
+
+// Add more reliable RPC endpoints with specific configurations
 const RPC_ENDPOINTS = [
-  'https://api.mainnet-beta.solana.com',
-  'https://solana-mainnet.g.alchemy.com/v2/demo',
-  'https://rpc.ankr.com/solana',
-  clusterApiUrl('mainnet-beta'),
-];
+  {
+    url: 'https://api.mainnet-beta.solana.com',
+    weight: 1
+  },
+  {
+    url: 'https://rpc.ankr.com/solana',
+    weight: 2
+  },
+  {
+    url: clusterApiUrl('mainnet-beta'),
+    weight: 3
+  }
+].sort((a, b) => a.weight - b.weight).map(endpoint => endpoint.url);
 
 // Create connections with higher commitment level and timeout
-const connections = RPC_ENDPOINTS.map(endpoint => 
-  new Connection(endpoint, {
+const connections = RPC_ENDPOINTS.map(endpoint => {
+  debug.log('Initializing connection to:', endpoint);
+  return new Connection(endpoint, {
     commitment: 'confirmed',
     confirmTransactionInitialTimeout: 60000,
     wsEndpoint: endpoint.replace('http', 'ws')
-  })
-);
+  });
+});
 
 const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 
@@ -76,6 +95,7 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
 
   const fetchSolPrice = useCallback(async () => {
     try {
+      debug.log('Fetching SOL price from CoinGecko');
       const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd', {
         headers: {
           'Accept': 'application/json',
@@ -83,14 +103,15 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
       });
 
       if (!response.ok) {
-        console.error('Price fetch failed:', response.status);
+        debug.error('Price fetch failed:', response.status);
         return null;
       }
 
       const data = await response.json();
+      debug.log('SOL price:', data.solana.usd);
       return data.solana.usd;
     } catch (error) {
-      console.error('Error fetching SOL price:', error);
+      debug.error('Error fetching SOL price:', error);
       return null;
     }
   }, []);
@@ -103,26 +124,26 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
     while (retryCount < maxRetries) {
       for (let i = 0; i < connections.length; i++) {
         try {
-          console.log(`Attempting balance fetch from endpoint ${i + 1}/${connections.length}`);
+          debug.log(`Attempting balance fetch from endpoint ${i + 1}/${connections.length}:`, RPC_ENDPOINTS[i]);
           const connection = connections[i];
           const balance = await connection.getBalance(pubKey);
           setCurrentEndpointIndex(i);
-          console.log(`Successfully fetched balance from endpoint ${i + 1}`);
+          debug.log(`Successfully fetched balance from endpoint ${i + 1}:`, balance);
           return balance;
         } catch (error) {
-          console.error(`Error with RPC endpoint ${i}:`, error);
+          debug.error(`Error with RPC endpoint ${i}:`, error);
           lastError = error;
           continue;
         }
       }
       retryCount++;
       if (retryCount < maxRetries) {
-        console.log(`Retry attempt ${retryCount}/${maxRetries}`);
+        debug.log(`Retry attempt ${retryCount}/${maxRetries}`);
         await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
       }
     }
 
-    throw new Error(`Failed to fetch balance after ${maxRetries} attempts: ${lastError?.message}`);
+    throw new Error(`Failed to fetch balance after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
   }, []);
 
   useEffect(() => {
@@ -131,22 +152,25 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
     let isMounted = true;
     const fetchBalances = async () => {
       try {
-        console.log('Fetching wallet balances...');
+        debug.log('Starting balance fetch for address:', publicKey.toString());
         const solBalance = await fetchBalance(publicKey);
         if (!isMounted) return;
 
         const balanceInSol = solBalance / LAMPORTS_PER_SOL;
+        debug.log('SOL balance:', balanceInSol);
         setBalance(balanceInSol);
 
         const solPrice = await fetchSolPrice();
         if (!isMounted) return;
 
         if (solPrice) {
-          setBalanceUsd(balanceInSol * solPrice);
+          const usdBalance = balanceInSol * solPrice;
+          debug.log('USD balance:', usdBalance);
+          setBalanceUsd(usdBalance);
         }
 
         try {
-          console.log('Fetching token accounts...');
+          debug.log('Fetching token accounts...');
           const tokenAccounts = await connections[currentEndpointIndex].getParsedTokenAccountsByOwner(
             publicKey,
             {
@@ -156,6 +180,8 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
           );
 
           if (!isMounted) return;
+
+          debug.log('Raw token accounts:', tokenAccounts);
 
           const tokenInfos: TokenInfo[] = tokenAccounts.value
             .filter(account => {
@@ -172,11 +198,10 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
               };
             });
 
+          debug.log('Processed token accounts:', tokenInfos);
           setTokens(tokenInfos);
-          console.log(`Found ${tokenInfos.length} tokens`);
         } catch (tokenError) {
-          console.error('Error fetching token accounts:', tokenError);
-          // Don't throw here to maintain SOL balance display
+          debug.error('Error fetching token accounts:', tokenError);
           toast({
             variant: "destructive",
             title: "Token Error",
@@ -184,13 +209,13 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
           });
         }
       } catch (error: any) {
-        console.error('Error fetching balances:', error);
+        debug.error('Error in fetchBalances:', error);
         if (!isMounted) return;
 
         toast({
           variant: "destructive",
           title: "Balance Error",
-          description: "Failed to fetch wallet balances. Please try again.",
+          description: `Failed to fetch wallet balances: ${error.message}`,
         });
 
         // Reset states on error
@@ -200,10 +225,12 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
       }
     };
 
+    debug.log('Setting up balance fetching interval');
     fetchBalances();
     const interval = setInterval(fetchBalances, 30000);
 
     return () => {
+      debug.log('Cleaning up wallet effect');
       isMounted = false;
       clearInterval(interval);
     };
@@ -212,14 +239,17 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
   const connect = async () => {
     try {
       setIsConnecting(true);
+      debug.log('Initializing wallet connection...');
       const provider = window.phantom?.solana;
 
       if (!provider?.isPhantom) {
+        debug.error('Phantom wallet not found');
         throw new Error("Please install Phantom wallet");
       }
 
-      console.log('Connecting to Phantom wallet...');
+      debug.log('Connecting to Phantom wallet...');
       const resp = await provider.connect();
+      debug.log('Wallet connected:', resp);
       const newPublicKey = new PublicKey(resp.publicKey.toString());
       setPublicKey(newPublicKey);
 
@@ -228,7 +258,7 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
         description: `Connected to ${newPublicKey.toString().slice(0, 8)}...`,
       });
     } catch (error: any) {
-      console.error('Wallet connection error:', error);
+      debug.error('Wallet connection error:', error);
       toast({
         variant: "destructive",
         title: "Wallet Error",
@@ -243,6 +273,7 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
   const disconnect = async () => {
     try {
       setIsDisconnecting(true);
+      debug.log('Disconnecting wallet...');
       const provider = window.phantom?.solana;
       if (provider?.isPhantom) {
         await provider.disconnect();
@@ -254,9 +285,10 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
           title: "Wallet Disconnected",
           description: "Successfully disconnected from Phantom wallet",
         });
+        debug.log('Wallet disconnected successfully');
       }
     } catch (error: any) {
-      console.error('Wallet disconnect error:', error);
+      debug.error('Wallet disconnect error:', error);
       toast({
         variant: "destructive",
         title: "Wallet Error",
