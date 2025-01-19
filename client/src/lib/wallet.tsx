@@ -55,28 +55,33 @@ const debug = {
   }
 };
 
-// Add more reliable RPC endpoints with specific configurations
+// Updated RPC endpoints with more reliable public nodes
 const RPC_ENDPOINTS = [
   {
     url: 'https://api.mainnet-beta.solana.com',
     weight: 1
   },
   {
-    url: 'https://rpc.ankr.com/solana',
+    url: 'https://solana-api.projectserum.com',
     weight: 2
   },
   {
-    url: clusterApiUrl('mainnet-beta'),
+    url: 'https://rpc.ankr.com/solana',
     weight: 3
+  },
+  {
+    url: clusterApiUrl('mainnet-beta'),
+    weight: 4
   }
 ].sort((a, b) => a.weight - b.weight).map(endpoint => endpoint.url);
 
-// Create connections with higher commitment level and timeout
+// Create connections with specific configurations
 const connections = RPC_ENDPOINTS.map(endpoint => {
   debug.log('Initializing connection to:', endpoint);
   return new Connection(endpoint, {
     commitment: 'confirmed',
     confirmTransactionInitialTimeout: 60000,
+    disableRetryOnRateLimit: false,
     wsEndpoint: endpoint.replace('http', 'ws')
   });
 });
@@ -120,6 +125,7 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
     let lastError;
     let retryCount = 0;
     const maxRetries = 3;
+    const baseDelay = 1000; // 1 second
 
     while (retryCount < maxRetries) {
       for (let i = 0; i < connections.length; i++) {
@@ -130,16 +136,25 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
           setCurrentEndpointIndex(i);
           debug.log(`Successfully fetched balance from endpoint ${i + 1}:`, balance);
           return balance;
-        } catch (error) {
+        } catch (error: any) {
           debug.error(`Error with RPC endpoint ${i}:`, error);
+          // Check if it's a 403 error
+          if (error.message?.includes('403')) {
+            debug.log(`Endpoint ${i + 1} returned 403, trying next endpoint`);
+            lastError = error;
+            continue;
+          }
+          // For other errors, also try the next endpoint
           lastError = error;
           continue;
         }
       }
+
       retryCount++;
       if (retryCount < maxRetries) {
-        debug.log(`Retry attempt ${retryCount}/${maxRetries}`);
-        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+        const delay = baseDelay * Math.pow(2, retryCount - 1); // Exponential backoff
+        debug.log(`All endpoints failed. Retry attempt ${retryCount}/${maxRetries} after ${delay}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
 
@@ -173,9 +188,7 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
           debug.log('Fetching token accounts...');
           const tokenAccounts = await connections[currentEndpointIndex].getParsedTokenAccountsByOwner(
             publicKey,
-            {
-              programId: TOKEN_PROGRAM_ID,
-            },
+            { programId: TOKEN_PROGRAM_ID },
             'confirmed'
           );
 
@@ -384,8 +397,8 @@ export const WalletConnectButton: FC = () => {
                   </div>
                 </Card>
                 {tokens.map((token) => (
-                  <Card 
-                    key={token.mint} 
+                  <Card
+                    key={token.mint}
                     className="p-4 cursor-pointer hover:bg-accent transition-colors"
                     onClick={() => {
                       setShowTokens(false);
@@ -393,9 +406,9 @@ export const WalletConnectButton: FC = () => {
                     }}
                   >
                     <div className="flex items-center gap-2">
-                      <CryptoIcon 
-                        symbol={token.mint} 
-                        size="sm" 
+                      <CryptoIcon
+                        symbol={token.mint}
+                        size="sm"
                         isSolanaAddress={true}
                       />
                       <div>
