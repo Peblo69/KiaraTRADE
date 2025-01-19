@@ -11,10 +11,12 @@ import {
 } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2 } from 'lucide-react';
+import { useLocation } from 'wouter';
 import CryptoIcon from './CryptoIcon';
 
 export const WalletDisplay: FC = () => {
-  const { publicKey, balance, tokens, isConnecting } = useWallet();
+  const { publicKey, balance, balanceUsd, tokens, isConnecting } = useWallet();
+  const [, setLocation] = useLocation();
 
   if (!publicKey) return null;
 
@@ -31,7 +33,14 @@ export const WalletDisplay: FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <CryptoIcon symbol="SOL-USDT" size="sm" />
-              <span className="font-mono">{balance.toFixed(4)} SOL</span>
+              <div>
+                <span className="font-mono">{balance.toFixed(4)} SOL</span>
+                {balanceUsd !== null && (
+                  <span className="text-sm text-muted-foreground ml-2">
+                    (${balanceUsd.toFixed(2)})
+                  </span>
+                )}
+              </div>
             </div>
             <div className="text-sm text-muted-foreground">
               {tokens.length} tokens
@@ -55,7 +64,14 @@ export const WalletDisplay: FC = () => {
                 <CryptoIcon symbol="SOL-USDT" size="md" />
                 <div>
                   <div className="font-semibold">Solana</div>
-                  <div className="font-mono text-lg">{balance.toFixed(4)} SOL</div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-lg">{balance.toFixed(4)} SOL</span>
+                    {balanceUsd !== null && (
+                      <span className="text-sm text-muted-foreground">
+                        ${balanceUsd.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </Card>
@@ -68,7 +84,14 @@ export const WalletDisplay: FC = () => {
               <ScrollArea className="h-[calc(100vh-280px)]">
                 <div className="space-y-2">
                   {tokens.map((token) => (
-                    <Card key={token.mint} className="p-4">
+                    <Card 
+                      key={token.mint} 
+                      className="p-4 cursor-pointer hover:bg-accent transition-colors"
+                      onClick={() => {
+                        // Navigate to the token's project page
+                        setLocation(`/project/${token.mint}`);
+                      }}
+                    >
                       <div className="flex items-center gap-2">
                         <CryptoIcon 
                           symbol={token.mint} 
