@@ -9,7 +9,7 @@ import { generateAIResponse } from './services/ai';
 import axios from 'axios';
 import { getTokenImage, addPriorityToken } from './image-worker';
 
-// Cache structure for KuCoin data
+// Cache structure for API data
 const cache = {
   prices: { data: null, timestamp: 0 },
   stats24h: { data: null, timestamp: 0 },
@@ -20,6 +20,7 @@ const cache = {
 const CACHE_DURATION = 30000; // 30 seconds cache
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
 const CRYPTOPANIC_API_BASE = 'https://cryptopanic.com/api/v1';
+const COINGECKO_API_BASE = 'https://api.coingecko.com/api/v3';
 
 // Configure axios with timeout and headers
 axios.defaults.timeout = 10000;
@@ -60,7 +61,11 @@ export function registerRoutes(app: Express): Server {
         // CryptoPanic news with images and filters
         axios.get(`${CRYPTOPANIC_API_BASE}/posts/?auth_token=${process.env.CRYPTOPANIC_API_KEY}&kind=news&metadata=true&public=true&filter=hot&currencies=BTC,ETH,SOL&regions=en`),
         // CoinGecko news with project details
-        axios.get('https://api.coingecko.com/api/v3/news?per_page=50')
+        axios.get(`${COINGECKO_API_BASE}/news`, {
+          params: {
+            per_page: 50
+          }
+        })
       ]);
 
       // Process CryptoPanic news
