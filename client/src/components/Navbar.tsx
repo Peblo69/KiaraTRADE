@@ -1,16 +1,121 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import RegisterModal from "./auth/RegisterModal";
 import LoginModal from "./auth/LoginModal";
-import { WalletButton } from "./wallet/WalletButton";
-import { WalletStatusIndicator } from "./wallet/WalletStatusIndicator";
+import { Loader2 } from "lucide-react";
 
 export default function Navbar() {
+  const [isConnected, setIsConnected] = useState(false);
+  const [publicKey, setPublicKey] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const { toast } = useToast();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const { toast } = useToast();
+
+  useEffect(() => {
+    // Check if Phantom is installed and connected
+    const provider = window.phantom?.solana;
+    if (provider?.isPhantom) {
+      console.log('Phantom detected:', {
+        publicKey: provider.publicKey?.toString()
+      });
+
+      // Setup event listeners
+      provider.on('connect', (publicKey: any) => {
+        console.log('Phantom connected:', publicKey.toString());
+        setIsConnected(true);
+        setPublicKey(publicKey.toString());
+      });
+
+      provider.on('disconnect', () => {
+        console.log('Phantom disconnected');
+        setIsConnected(false);
+        setPublicKey(null);
+      });
+
+      return () => {
+        provider.on('disconnect', () => {});
+        provider.on('connect', () => {});
+      };
+    } else {
+      console.log('Phantom not available');
+    }
+  }, []);
+
+  const handleWalletClick = async () => {
+    if (isConnected) {
+      try {
+        const provider = window.phantom?.solana;
+        if (provider?.isPhantom) {
+          await provider.disconnect();
+          setIsConnected(false);
+          setPublicKey(null);
+          toast({
+            title: "Wallet Disconnected",
+            description: "Your wallet has been disconnected successfully",
+          });
+        }
+      } catch (error: any) {
+        console.error('Disconnect error:', error);
+        toast({
+          title: "Disconnection Failed",
+          description: error.message || "Failed to disconnect wallet",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    if (!window.phantom?.solana?.isPhantom) {
+      console.log('Phantom not detected');
+      toast({
+        title: "Wallet Not Found",
+        description: "Please install Phantom Wallet extension",
+        variant: "destructive",
+      });
+      window.open("https://phantom.app/", "_blank");
+      return;
+    }
+
+    setConnecting(true);
+    try {
+      const provider = window.phantom.solana;
+      const response = await provider.connect();
+      const walletPublicKey = response.publicKey.toString();
+
+      console.log('Connection successful:', {
+        publicKey: walletPublicKey
+      });
+
+      setIsConnected(true);
+      setPublicKey(walletPublicKey);
+
+      toast({
+        title: "Wallet Connected",
+        description: "Your wallet has been connected successfully",
+      });
+    } catch (error: any) {
+      console.error("Connection error:", {
+        error,
+        name: error.name,
+        message: error.message
+      });
+
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Failed to connect wallet",
+        variant: "destructive",
+      });
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const shortenAddress = (address: string) => {
+    return `${address.slice(0, 4)}...${address.slice(-4)}`;
+  };
 
   return (
     <>
@@ -67,10 +172,28 @@ export default function Navbar() {
                 Login
               </Button>
 
-              <div className="flex items-center gap-4">
-                <WalletStatusIndicator />
-                <WalletButton />
-              </div>
+              <Button 
+                onClick={handleWalletClick}
+                disabled={connecting}
+                className={`${
+                  isConnected ? 'bg-green-500 hover:bg-green-600' : 
+                  connecting ? 'bg-purple-400' : 'bg-purple-500 hover:bg-purple-600'
+                } text-white min-w-[160px] relative`}
+              >
+                {connecting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Connecting...
+                  </span>
+                ) : isConnected ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse" />
+                    {shortenAddress(publicKey || '')}
+                  </span>
+                ) : (
+                  'Connect Wallet'
+                )}
+              </Button>
             </div>
           </div>
         </div>
