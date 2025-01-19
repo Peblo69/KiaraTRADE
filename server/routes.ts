@@ -4,14 +4,13 @@ import { eq } from "drizzle-orm";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { wsManager } from './services/websocket';
-import { WebSocket } from 'ws';
 import { generateAIResponse } from './services/ai';
 import axios from 'axios';
 import { getTokenImage, addPriorityToken } from './image-worker';
 
 const CACHE_DURATION = 30000; // 30 seconds cache
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
-const CRYPTOPANIC_API_BASE = 'https://cryptopanic.com/api/v1';
+const NEWSDATA_API_BASE = 'https://newsdata.io/api/1';
 
 // Configure axios with timeout and headers
 axios.defaults.timeout = 10000;
@@ -56,35 +55,31 @@ export function registerRoutes(app: Express): Server {
         return res.json(cache.news.data);
       }
 
-      console.log('[Routes] Fetching fresh news from CryptoPanic');
+      console.log('[Routes] Fetching fresh news from NewsData.io');
 
-      const response = await axios.get(`${CRYPTOPANIC_API_BASE}/posts/`, {
+      const response = await axios.get(`${NEWSDATA_API_BASE}/news`, {
         params: {
-          auth_token: process.env.CRYPTOPANIC_API_KEY,
-          public: true,
-          kind: 'news',
-          filter: 'hot',
-          currencies: 'BTC,ETH,SOL',
-          regions: 'en'
+          apikey: process.env.NEWSDATA_API_KEY,
+          q: 'cryptocurrency OR bitcoin OR ethereum OR blockchain',
+          language: 'en',
+          category: 'business,technology',
         }
       });
 
-      console.log('[Routes] CryptoPanic response status:', response.status);
-      console.log('[Routes] Raw response data:', JSON.stringify(response.data).slice(0, 200));
+      console.log('[Routes] NewsData.io response status:', response.status);
 
       if (!response.data.results || !Array.isArray(response.data.results)) {
         throw new Error('Invalid API response format');
       }
 
-      // Process CryptoPanic news
+      // Process NewsData.io news
       const news = response.data.results.map((item: any) => ({
         title: item.title,
-        text: item.published_at ? `Published ${new Date(item.published_at).toLocaleDateString()}` : '',
-        news_url: item.url,
-        source_name: item.source.title || item.source.domain,
-        date: item.published_at,
-        // Use domain-based image as fallback
-        image_url: `https://www.google.com/s2/favicons?domain=${new URL(item.url).hostname}&sz=128`
+        text: item.description || item.title,
+        news_url: item.link,
+        source_name: item.source_id,
+        date: item.pubDate,
+        image_url: item.image_url
       }));
 
       const newsResponse = { articles: news };
