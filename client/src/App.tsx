@@ -20,10 +20,13 @@ function Router() {
 
   return (
     <>
+      {/* Navigation structure - only shown on non-landing pages */}
       {!isLandingPage && (
         <div className="bg-background">
           <MarketDataBar />
-          <Navbar />
+          <div className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <Navbar />
+          </div>
         </div>
       )}
 
