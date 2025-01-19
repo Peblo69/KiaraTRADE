@@ -55,39 +55,68 @@ const TEMP_SOL_PRICE_USD = 100; // Temporary value
 const TOTAL_SUPPLY = 1_000_000_000; // Fixed total supply for PumpFun tokens
 
 function mapPumpPortalData(data: any): PumpPortalToken {
-  // Calculate liquidity based on available data
-  const vSolInBondingCurve = data.vSolInBondingCurve ? Number(data.vSolInBondingCurve) : 0;
-  const solAmount = data.solAmount ? Number(data.solAmount) : 0;
+  try {
+    // Extract and validate the required values
+    const vSolInBondingCurve = data.vSolInBondingCurve ? Number(data.vSolInBondingCurve) : 0;
+    const vTokensInBondingCurve = data.vTokensInBondingCurve ? Number(data.vTokensInBondingCurve) : 0;
 
-  // Calculate price per token in SOL
-  const pricePerTokenSol = solAmount / (data.initialBuy || 1);
+    console.log('[PumpPortal] Mapping data:', {
+      vSolInBondingCurve,
+      vTokensInBondingCurve,
+      mint: data.mint,
+      initialBuy: data.initialBuy
+    });
 
-  // Convert to USD
-  const pricePerTokenUsd = pricePerTokenSol * TEMP_SOL_PRICE_USD;
-  const liquidityUsd = vSolInBondingCurve * TEMP_SOL_PRICE_USD;
-  const marketCapUsd = pricePerTokenUsd * TOTAL_SUPPLY;
+    // Calculate price per token in SOL
+    const pricePerTokenSol = vTokensInBondingCurve > 0 ? vSolInBondingCurve / vTokensInBondingCurve : 0;
 
-  // Calculate initial volume in USD
-  const volumeUsd = data.initialBuy ? Number(data.initialBuy) * pricePerTokenUsd : 0;
+    // Convert to USD
+    const pricePerTokenUsd = pricePerTokenSol * TEMP_SOL_PRICE_USD;
+    const liquidityUsd = vSolInBondingCurve * TEMP_SOL_PRICE_USD;
+    const marketCapUsd = pricePerTokenUsd * TOTAL_SUPPLY;
 
-  return {
-    symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
-    name: data.name || 'Unknown Token',
-    address: data.mint || '',
-    liquidity: liquidityUsd,
-    liquidityChange: 0, // Will be calculated with trade events
-    l1Liquidity: data.bondingCurveKey ? liquidityUsd : 0,
-    marketCap: marketCapUsd,
-    volume: volumeUsd,
-    swaps: 0, // Will be updated with trade events
-    timestamp: Date.now(),
-    status: {
-      mad: false,
-      fad: false,
-      lb: Boolean(data.bondingCurveKey),
-      tri: false,
-    }
-  };
+    // Calculate initial volume in USD if available
+    const volumeUsd = data.initialBuy ? Number(data.initialBuy) * TEMP_SOL_PRICE_USD : 0;
+
+    const token: PumpPortalToken = {
+      symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
+      name: data.name || 'Unknown Token',
+      address: data.mint || '',
+      liquidity: liquidityUsd,
+      liquidityChange: 0, // Will be calculated with trade events
+      l1Liquidity: data.bondingCurveKey ? liquidityUsd : 0,
+      marketCap: marketCapUsd,
+      volume: volumeUsd,
+      swaps: 0, // Will be updated with trade events
+      timestamp: Date.now(),
+      status: {
+        mad: false,
+        fad: false,
+        lb: Boolean(data.bondingCurveKey),
+        tri: false,
+      }
+    };
+
+    console.log('[PumpPortal] Mapped token:', token);
+    return token;
+
+  } catch (error) {
+    console.error('[PumpPortal] Error mapping data:', error, data);
+    // Return a fallback token with default values
+    return {
+      symbol: 'Error',
+      name: 'Error Processing Token',
+      address: '',
+      liquidity: 0,
+      liquidityChange: 0,
+      l1Liquidity: 0,
+      marketCap: 0,
+      volume: 0,
+      swaps: 0,
+      timestamp: Date.now(),
+      status: { mad: false, fad: false, lb: false, tri: false }
+    };
+  }
 }
 
 export function initializePumpPortalWebSocket() {
@@ -126,6 +155,13 @@ export function initializePumpPortalWebSocket() {
           method: "subscribeNewToken"
         }));
         console.log('[PumpPortal] Subscribed to new token events');
+
+        // Also subscribe to trade events for updates
+        ws.send(JSON.stringify({
+          method: "subscribeTokenTrade",
+          keys: [] // Empty array to subscribe to all token trades
+        }));
+        console.log('[PumpPortal] Subscribed to token trade events');
       }
     };
 
@@ -139,7 +175,7 @@ export function initializePumpPortalWebSocket() {
           store.addToken(token);
           console.log('[PumpPortal] Added new token:', token.symbol);
         }
-        // Handle trade updates here when implemented
+        // We'll handle trade events in the next iteration
       } catch (error) {
         console.error('[PumpPortal] Failed to parse message:', error);
       }
@@ -165,6 +201,12 @@ export function initializePumpPortalWebSocket() {
   } catch (error) {
     console.error('[PumpPortal] Failed to initialize WebSocket:', error);
     store.setConnected(false);
+
+    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      reconnectAttempts++;
+      console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+      reconnectTimeout = setTimeout(initializePumpPortalWebSocket, RECONNECT_DELAY);
+    }
   }
 }
 
