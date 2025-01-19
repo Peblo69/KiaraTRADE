@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -14,6 +14,25 @@ export default function Navbar() {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
+  useEffect(() => {
+    // Listen for Phantom wallet state changes
+    if (window.phantom?.solana) {
+      window.phantom.solana.on('connect', () => {
+        console.log('Phantom connected:', window.phantom?.solana?.publicKey?.toString());
+      });
+
+      window.phantom.solana.on('disconnect', () => {
+        console.log('Phantom disconnected');
+      });
+
+      // Check if Phantom is actually available
+      console.log('Phantom availability check:', {
+        isPhantom: window.phantom?.solana?.isPhantom,
+        publicKey: window.phantom?.solana?.publicKey?.toString()
+      });
+    }
+  }, []);
+
   const handleWalletClick = async () => {
     if (connected) {
       try {
@@ -23,6 +42,7 @@ export default function Navbar() {
           description: "Your wallet has been disconnected successfully",
         });
       } catch (error: any) {
+        console.error('Disconnect error:', error);
         toast({
           title: "Disconnection Failed",
           description: error.message || "Failed to disconnect wallet",
@@ -32,8 +52,9 @@ export default function Navbar() {
       return;
     }
 
-    // Check if Phantom is available
-    if (!window?.phantom?.solana) {
+    // Check if Phantom is properly injected
+    if (!window.phantom?.solana?.isPhantom) {
+      console.log('Phantom not detected:', window.phantom);
       toast({
         title: "Wallet Not Found",
         description: "Please install Phantom Wallet extension",
@@ -44,16 +65,29 @@ export default function Navbar() {
     }
 
     try {
+      console.log('Attempting to connect to Phantom...');
       await connect();
+      console.log('Connection successful:', publicKey?.toString());
       toast({
         title: "Wallet Connected",
         description: "Your wallet has been connected successfully",
       });
     } catch (error: any) {
       console.error("Connection error:", error);
+      let errorMessage = "Failed to connect wallet";
+
+      // Specific error handling
+      if (error.name === 'WalletConnectionError') {
+        errorMessage = "Failed to connect to Phantom. Please try again.";
+      } else if (error.name === 'WalletDisconnectedError') {
+        errorMessage = "Wallet was disconnected. Please try reconnecting.";
+      } else if (error.name === 'WalletTimeoutError') {
+        errorMessage = "Connection attempt timed out. Please try again.";
+      }
+
       toast({
         title: "Connection Failed",
-        description: error.message || "Failed to connect to wallet",
+        description: errorMessage,
         variant: "destructive",
       });
     }
