@@ -4,7 +4,6 @@ import { Link } from "wouter";
 import { WalletConnectButton } from "@/lib/wallet";
 import RegisterModal from "./auth/RegisterModal";
 import LoginModal from "./auth/LoginModal";
-import WalletDisplay from "./WalletDisplay";
 
 export default function Navbar() {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
@@ -65,7 +64,6 @@ export default function Navbar() {
                 Login
               </Button>
 
-              <WalletDisplay />
               <WalletConnectButton />
             </div>
           </div>

@@ -252,7 +252,7 @@ export const WalletConnectButton: FC = () => {
           variant="outline"
           className="font-mono"
         >
-          ${balanceUsd?.toFixed(2) || '0.00'} • {publicKey.toString().slice(0, 4)}...{publicKey.toString().slice(-4)}
+          {balanceUsd?.toFixed(2) || '0.00'} • {publicKey.toString().slice(0, 4)}...{publicKey.toString().slice(-4)}
         </Button>
 
         <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-popover opacity-0 group-hover:opacity-100 transition-opacity duration-150 ease-in-out pointer-events-none group-hover:pointer-events-auto z-50">
@@ -286,58 +286,36 @@ export const WalletConnectButton: FC = () => {
             </SheetHeader>
 
             <div className="mt-6">
-              <div className="space-y-4">
-                <Card className="p-4">
-                  <div className="flex items-center gap-2">
-                    <CryptoIcon symbol="SOL" size="md" />
-                    <div>
-                      <div className="font-semibold">Solana</div>
-                      <div className="flex items-baseline gap-2">
-                        <span className="font-mono text-lg">
-                          ${balanceUsd?.toFixed(2) || '0.00'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-
-                {isConnecting ? (
-                  <div className="flex items-center justify-center p-4">
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  </div>
-                ) : (
-                  <ScrollArea className="h-[calc(100vh-280px)]">
-                    <div className="space-y-2">
-                      {tokens.map((token) => (
-                        <Card 
-                          key={token.mint} 
-                          className="p-4 cursor-pointer hover:bg-accent transition-colors"
-                          onClick={() => {
-                            setShowTokens(false);
-                            setLocation(`/project/${token.mint}`);
-                          }}
-                        >
-                          <div className="flex items-center gap-2">
-                            <CryptoIcon 
-                              symbol={token.mint} 
-                              size="sm" 
-                              isSolanaAddress={true}
-                            />
-                            <div>
-                              <div className="font-mono text-sm text-muted-foreground">
-                                {token.mint.slice(0, 4)}...{token.mint.slice(-4)}
-                              </div>
-                              <div className="font-mono">
-                                {token.balance.toFixed(token.decimals)} {token.symbol || 'tokens'}
-                              </div>
-                            </div>
+              <ScrollArea className="h-[calc(100vh-180px)]">
+                <div className="space-y-2">
+                  {tokens.map((token) => (
+                    <Card 
+                      key={token.mint} 
+                      className="p-4 cursor-pointer hover:bg-accent transition-colors"
+                      onClick={() => {
+                        setShowTokens(false);
+                        setLocation(`/project/${token.mint}`);
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <CryptoIcon 
+                          symbol={token.mint} 
+                          size="sm" 
+                          isSolanaAddress={true}
+                        />
+                        <div>
+                          <div className="font-mono text-sm text-muted-foreground">
+                            {token.mint.slice(0, 4)}...{token.mint.slice(-4)}
                           </div>
-                        </Card>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
-              </div>
+                          <div className="font-mono">
+                            {token.balance.toFixed(token.decimals)} {token.symbol || 'tokens'}
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
             </div>
           </SheetContent>
         </Sheet>
