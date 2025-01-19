@@ -28,15 +28,63 @@ export const WalletProvider: FC<Props> = ({ children }) => {
     });
   };
 
-  // Add console logging for debugging
+  // Add proper Phantom provider detection and event handling
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      console.log('Checking Phantom availability:', {
-        hasPhantom: !!window.phantom,
-        hasSolana: !!window.phantom?.solana,
-        isPhantom: !!window.phantom?.solana?.isPhantom,
-      });
-    }
+    const connectEagerly = async () => {
+      const provider = window.phantom?.solana;
+
+      if (provider?.isPhantom) {
+        try {
+          // Only connect if the wallet was previously connected
+          const response = await provider.connect({ onlyIfTrusted: true });
+          console.log("Eagerly connected to wallet:", response.publicKey.toString());
+        } catch (error) {
+          // This is expected if the wallet wasn't previously connected
+          console.log("Eager connection skipped - wallet not previously connected");
+        }
+      }
+    };
+
+    const setupEventListeners = () => {
+      const provider = window.phantom?.solana;
+
+      if (provider?.isPhantom) {
+        provider.on('connect', (publicKey: any) => {
+          console.log("Phantom connected:", publicKey.toString());
+        });
+
+        provider.on('disconnect', () => {
+          console.log("Phantom disconnected");
+        });
+
+        provider.on('accountChanged', (publicKey: any) => {
+          if (publicKey) {
+            console.log(`Switched to account: ${publicKey.toString()}`);
+          } else {
+            console.log("Disconnected from account");
+          }
+        });
+
+        return () => {
+          provider.removeAllListeners();
+        };
+      }
+    };
+
+    // Log initial Phantom availability
+    console.log('Initial Phantom state:', {
+      hasPhantom: !!window.phantom,
+      hasSolana: !!window.phantom?.solana,
+      isPhantom: !!window.phantom?.solana?.isPhantom,
+      endpoint
+    });
+
+    connectEagerly();
+    const cleanup = setupEventListeners();
+
+    return () => {
+      if (cleanup) cleanup();
+    };
   }, []);
 
   return (
@@ -44,7 +92,7 @@ export const WalletProvider: FC<Props> = ({ children }) => {
       <SolanaWalletProvider 
         wallets={wallets} 
         onError={onError}
-        autoConnect={false} // Changed to false to prevent connection issues on load
+        autoConnect={false} // Manual connection handling for better control
       >
         {children}
       </SolanaWalletProvider>

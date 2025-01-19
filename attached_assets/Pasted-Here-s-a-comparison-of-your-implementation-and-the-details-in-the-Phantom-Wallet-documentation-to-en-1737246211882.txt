@@ -1,0 +1,154 @@
+Here’s a comparison of your implementation and the details in the Phantom Wallet documentation to ensure nothing critical is missing or done incorrectly:
+
+Key Differences or Missing Steps:
+1. Detecting the Provider
+Documentation: The documentation explicitly mentions checking for the provider using:
+
+javascript
+Copy
+Edit
+const provider = window.phantom?.solana || null;
+Your code does check for the provider (window.phantom) but only logs whether Phantom is available. If window.phantom.solana is not properly initialized, your logic might fail silently.
+
+Solution: Ensure you check for the provider with a fallback like this:
+
+javascript
+Copy
+Edit
+const provider = window.phantom?.solana;
+if (!provider?.isPhantom) {
+    console.error("Phantom Wallet not detected. Please install it.");
+}
+2. Manual Connection Handling
+Documentation: The connect() method should explicitly be called like this:
+
+javascript
+Copy
+Edit
+const response = await provider.connect();
+console.log(response.publicKey.toString());
+In your WalletProvider, you rely on the wallet adapter to handle the connection logic automatically (onError, etc.), but you haven’t shown any explicit manual call to connect(). If autoConnect is false, you must ensure the connect() method is triggered manually (e.g., when a "Connect Wallet" button is clicked).
+
+Solution: Add a manual connect function:
+
+javascript
+Copy
+Edit
+const handleConnect = async () => {
+  const provider = window.phantom?.solana;
+  if (!provider?.isPhantom) {
+    toast({
+      title: "Phantom Not Detected",
+      description: "Please install Phantom Wallet to continue.",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  try {
+    const response = await provider.connect();
+    console.log("Wallet connected:", response.publicKey.toString());
+  } catch (error) {
+    console.error("Failed to connect to wallet:", error);
+  }
+};
+3. Handling Events
+Documentation: Phantom emits several useful events like connect, disconnect, and accountChanged. You should register handlers for these to keep your app in sync with the wallet state.
+
+connect: Log when the wallet is connected.
+disconnect: Handle when the user disconnects the wallet.
+accountChanged: Detect when the user switches accounts.
+Solution: Add event listeners in your WalletProvider:
+
+javascript
+Copy
+Edit
+useEffect(() => {
+  const provider = window.phantom?.solana;
+
+  if (provider?.isPhantom) {
+    provider.on("connect", (publicKey) => {
+      console.log("Connected to:", publicKey.toBase58());
+    });
+
+    provider.on("disconnect", () => {
+      console.log("Wallet disconnected.");
+    });
+
+    provider.on("accountChanged", (publicKey) => {
+      if (publicKey) {
+        console.log(`Switched to account ${publicKey.toBase58()}`);
+      } else {
+        console.log("Disconnected from account.");
+      }
+    });
+  }
+
+  return () => {
+    provider?.off("connect");
+    provider?.off("disconnect");
+    provider?.off("accountChanged");
+  };
+}, []);
+4. Eager Connection
+Documentation: Phantom supports "eager connection," where the app tries to reconnect automatically if it was previously trusted.
+
+Solution: Update the eager connection logic in your WalletProvider:
+
+javascript
+Copy
+Edit
+useEffect(() => {
+  const connectEagerly = async () => {
+    const provider = window.phantom?.solana;
+
+    if (provider?.isPhantom) {
+      try {
+        const response = await provider.connect({ onlyIfTrusted: true });
+        console.log("Eagerly connected to wallet:", response.publicKey.toString());
+      } catch (error) {
+        console.warn("Eager connection failed:", error.message);
+      }
+    }
+  };
+
+  connectEagerly();
+}, []);
+5. Disconnecting Gracefully
+Documentation: Phantom supports programmatically disconnecting the wallet using provider.disconnect().
+
+Solution: Add a disconnect function:
+
+javascript
+Copy
+Edit
+const handleDisconnect = async () => {
+  const provider = window.phantom?.solana;
+
+  if (provider?.isPhantom) {
+    try {
+      await provider.disconnect();
+      console.log("Wallet disconnected.");
+    } catch (error) {
+      console.error("Failed to disconnect wallet:", error);
+    }
+  }
+};
+6. HTTPS Requirement
+Documentation: Phantom requires the app to be served over HTTPS unless running on http://localhost.
+
+Solution: Ensure your app is running on http://localhost for development or is deployed on HTTPS. If you're testing on a remote server without HTTPS, Phantom will not work.
+
+What Might Be Causing Your Issue:
+Provider Detection Failure:
+
+If window.phantom?.solana is not properly initialized, the wallet won't connect.
+Network Mismatch:
+
+Ensure Phantom is set to the same network as your app (devnet in your case).
+HTTPS Issue:
+
+If the app is not running on http://localhost or HTTPS, Phantom won't connect.
+Event Handlers Missing:
+
+Without proper event handlers, you might not be detecting connection/disconnection events.
