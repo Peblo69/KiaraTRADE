@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ExternalLink } from 'lucide-react';
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 
 interface NewsArticle {
   title: string;
@@ -15,17 +16,33 @@ interface NewsArticle {
 export default function CryptoNews() {
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchNews = async () => {
       try {
+        console.log('[CryptoNews] Fetching news...');
         const response = await fetch('/api/crypto-news');
-        if (response.ok) {
-          const data = await response.json();
-          setNews(data.articles || []);
+        console.log('[CryptoNews] API Response status:', response.status);
+
+        const data = await response.json();
+        console.log('[CryptoNews] Received news data:', {
+          success: response.ok,
+          articleCount: data.articles?.length || 0
+        });
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch news');
         }
-      } catch (error) {
-        console.error('Error fetching news:', error);
+
+        setNews(data.articles || []);
+      } catch (error: any) {
+        console.error('[CryptoNews] Error:', error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message || "Failed to load news articles"
+        });
       } finally {
         setLoading(false);
       }
@@ -36,7 +53,7 @@ export default function CryptoNews() {
     // Refresh news every 5 minutes
     const interval = setInterval(fetchNews, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [toast]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -72,33 +89,31 @@ export default function CryptoNews() {
                 rel="noopener noreferrer"
                 className="group"
               >
-                <Card className="overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+                <Card className="h-full overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
                   {article.image_url && (
-                    <div className="aspect-video overflow-hidden">
+                    <div className="w-full h-12 flex items-center justify-center p-2 bg-background border-b">
                       <img
                         src={article.image_url}
-                        alt={article.title}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        alt={article.source_name}
+                        className="h-full w-auto object-contain"
+                        onError={(e) => {
+                          console.log('[CryptoNews] Image load error:', article.image_url);
+                          e.currentTarget.style.display = 'none';
+                        }}
                       />
                     </div>
                   )}
-                  <div className="p-4">
-                    <h2 className="text-xl font-semibold mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+                  <div className="p-4 flex flex-col h-full">
+                    <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+                      <span>{article.source_name}</span>
+                      <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <h2 className="text-lg font-semibold mb-2 line-clamp-2 group-hover:text-primary transition-colors">
                       {article.title}
                     </h2>
-                    <p className="text-muted-foreground mb-4 line-clamp-3">
+                    <p className="text-muted-foreground text-sm mt-auto">
                       {article.text}
                     </p>
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <span>{article.source_name}</span>
-                      <time dateTime={article.date}>
-                        {new Date(article.date).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
-                      </time>
-                    </div>
                   </div>
                 </Card>
               </a>

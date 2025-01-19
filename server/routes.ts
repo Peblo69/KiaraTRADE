@@ -9,18 +9,9 @@ import { generateAIResponse } from './services/ai';
 import axios from 'axios';
 import { getTokenImage, addPriorityToken } from './image-worker';
 
-// Cache structure for API data
-const cache = {
-  prices: { data: null, timestamp: 0 },
-  stats24h: { data: null, timestamp: 0 },
-  trending: { data: null, timestamp: 0 },
-  news: { data: null, timestamp: 0 }
-};
-
 const CACHE_DURATION = 30000; // 30 seconds cache
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
 const CRYPTOPANIC_API_BASE = 'https://cryptopanic.com/api/v1';
-const COINGECKO_API_BASE = 'https://api.coingecko.com/api/v3';
 
 // Configure axios with timeout and headers
 axios.defaults.timeout = 10000;
@@ -42,6 +33,14 @@ axios.interceptors.request.use(async (config) => {
   return config;
 });
 
+// Cache structure for API data
+const cache = {
+  prices: { data: null, timestamp: 0 },
+  stats24h: { data: null, timestamp: 0 },
+  trending: { data: null, timestamp: 0 },
+  news: { data: null, timestamp: 0 }
+};
+
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
@@ -53,60 +52,60 @@ export function registerRoutes(app: Express): Server {
     try {
       const now = Date.now();
       if (cache.news.data && (now - cache.news.timestamp) < CACHE_DURATION) {
+        console.log('[Routes] Returning cached news data');
         return res.json(cache.news.data);
       }
 
-      // Fetch news from multiple sources
-      const [cryptoPanicNews, coinGeckoNews] = await Promise.all([
-        // CryptoPanic news with images and filters
-        axios.get(`${CRYPTOPANIC_API_BASE}/posts/?auth_token=${process.env.CRYPTOPANIC_API_KEY}&kind=news&metadata=true&public=true&filter=hot&currencies=BTC,ETH,SOL&regions=en`),
-        // CoinGecko news with project details
-        axios.get(`${COINGECKO_API_BASE}/news`, {
-          params: {
-            per_page: 50
-          }
-        })
-      ]);
+      console.log('[Routes] Fetching fresh news from CryptoPanic');
+
+      const response = await axios.get(`${CRYPTOPANIC_API_BASE}/posts/`, {
+        params: {
+          auth_token: process.env.CRYPTOPANIC_API_KEY,
+          public: true,
+          kind: 'news',
+          filter: 'hot',
+          currencies: 'BTC,ETH,SOL',
+          regions: 'en'
+        }
+      });
+
+      console.log('[Routes] CryptoPanic response status:', response.status);
+      console.log('[Routes] Raw response data:', JSON.stringify(response.data).slice(0, 200));
+
+      if (!response.data.results || !Array.isArray(response.data.results)) {
+        throw new Error('Invalid API response format');
+      }
 
       // Process CryptoPanic news
-      const news = cryptoPanicNews.data.results.map((item: any) => ({
+      const news = response.data.results.map((item: any) => ({
         title: item.title,
-        text: item.metadata?.description || item.title,
+        text: item.published_at ? `Published ${new Date(item.published_at).toLocaleDateString()}` : '',
         news_url: item.url,
         source_name: item.source.title || item.source.domain,
         date: item.published_at,
-        image_url: item.metadata?.image?.url || null
+        // Use domain-based image as fallback
+        image_url: `https://www.google.com/s2/favicons?domain=${new URL(item.url).hostname}&sz=128`
       }));
 
-      // Process CoinGecko news
-      const geckoNews = coinGeckoNews.data.map((item: any) => ({
-        title: item.title,
-        text: item.description,
-        news_url: item.url,
-        source_name: 'CoinGecko',
-        date: item.created_at,
-        image_url: item.thumb_2x || item.thumb
-      }));
-
-      // Combine, filter out items without images, and sort by date
-      const allNews = [...news, ...geckoNews]
-        .filter(item => item.image_url) // Only keep items with images
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 50); // Limit to 50 most recent news
-
-      const response = { articles: allNews };
+      const newsResponse = { articles: news };
 
       cache.news = {
-        data: response,
+        data: newsResponse,
         timestamp: now
       };
 
-      res.json(response);
+      console.log('[Routes] Sending news response with', news.length, 'articles');
+      res.json(newsResponse);
     } catch (error: any) {
-      console.error('News fetch error:', error.response?.data || error.message);
+      console.error('[Routes] News fetch error:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+
       res.status(error.response?.status || 500).json({
         error: 'Failed to fetch crypto news',
-        details: error.response?.data?.msg || error.message
+        details: error.response?.data || error.message
       });
     }
   });
@@ -452,7 +451,7 @@ const COIN_METADATA: Record<string, { name: string, image: string }> = {
   },
   'XRP': {
     name: 'XRP',
-    image: 'https://assets.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png'
+    image: 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/xrp.png'
   }
 };
 
