@@ -1,51 +1,61 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import { useWallet } from '@solana/wallet-adapter-react';
 import { useToast } from "@/hooks/use-toast";
 import RegisterModal from "./auth/RegisterModal";
 import LoginModal from "./auth/LoginModal";
 import { Loader2 } from "lucide-react";
 
 export default function Navbar() {
-  const { publicKey, connect, disconnect, connected, connecting } = useWallet();
+  const [isConnected, setIsConnected] = useState(false);
+  const [publicKey, setPublicKey] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   useEffect(() => {
-    // Listen for Phantom wallet state changes
-    if (window.phantom?.solana) {
-      window.phantom.solana.on('connect', () => {
-        console.log('Phantom connected:', window.phantom?.solana?.publicKey?.toString());
+    // Check if Phantom is installed and connected
+    const provider = window.phantom?.solana;
+    if (provider?.isPhantom) {
+      console.log('Phantom detected:', {
+        publicKey: provider.publicKey?.toString()
       });
 
-      window.phantom.solana.on('disconnect', () => {
+      // Setup event listeners
+      provider.on('connect', (publicKey: any) => {
+        console.log('Phantom connected:', publicKey.toString());
+        setIsConnected(true);
+        setPublicKey(publicKey.toString());
+      });
+
+      provider.on('disconnect', () => {
         console.log('Phantom disconnected');
+        setIsConnected(false);
+        setPublicKey(null);
       });
 
-      // Check if Phantom is actually available
-      console.log('Phantom availability check:', {
-        isPhantom: window.phantom?.solana?.isPhantom,
-        publicKey: window.phantom?.solana?.publicKey?.toString()
-      });
+      return () => {
+        provider.removeAllListeners();
+      };
     } else {
-      console.log('Phantom not available on initial load:', {
-        phantom: !!window.phantom,
-        solana: !!window?.phantom?.solana
-      });
+      console.log('Phantom not available');
     }
   }, []);
 
   const handleWalletClick = async () => {
-    if (connected) {
+    if (isConnected) {
       try {
-        await disconnect();
-        toast({
-          title: "Wallet Disconnected",
-          description: "Your wallet has been disconnected successfully",
-        });
+        const provider = window.phantom?.solana;
+        if (provider?.isPhantom) {
+          await provider.disconnect();
+          setIsConnected(false);
+          setPublicKey(null);
+          toast({
+            title: "Wallet Disconnected",
+            description: "Your wallet has been disconnected successfully",
+          });
+        }
       } catch (error: any) {
         console.error('Disconnect error:', error);
         toast({
@@ -57,13 +67,8 @@ export default function Navbar() {
       return;
     }
 
-    // Check if Phantom is properly injected
     if (!window.phantom?.solana?.isPhantom) {
-      console.log('Phantom not detected:', {
-        phantom: window.phantom,
-        solana: window.phantom?.solana,
-        isPhantom: window.phantom?.solana?.isPhantom
-      });
+      console.log('Phantom not detected');
       toast({
         title: "Wallet Not Found",
         description: "Please install Phantom Wallet extension",
@@ -73,23 +78,18 @@ export default function Navbar() {
       return;
     }
 
+    setConnecting(true);
     try {
-      console.log('Starting Phantom connection attempt...', {
-        connected,
-        connecting,
-        currentPublicKey: publicKey?.toString()
-      });
-
-      await connect();
+      const provider = window.phantom.solana;
+      const response = await provider.connect();
+      const walletPublicKey = response.publicKey.toString();
 
       console.log('Connection successful:', {
-        publicKey: publicKey?.toString(),
-        connected: connected,
-        phantom: {
-          isConnected: window.phantom?.solana?.isConnected,
-          publicKey: window.phantom?.solana?.publicKey?.toString()
-        }
+        publicKey: walletPublicKey
       });
+
+      setIsConnected(true);
+      setPublicKey(walletPublicKey);
 
       toast({
         title: "Wallet Connected",
@@ -99,55 +99,16 @@ export default function Navbar() {
       console.error("Connection error:", {
         error,
         name: error.name,
-        message: error.message,
-        stack: error.stack
+        message: error.message
       });
-
-      let errorMessage = "Failed to connect wallet";
-
-      // Specific error handling
-      if (error.name === 'WalletConnectionError') {
-        errorMessage = "Failed to connect to Phantom. Please try again.";
-      } else if (error.name === 'WalletDisconnectedError') {
-        errorMessage = "Wallet was disconnected. Please try reconnecting.";
-      } else if (error.name === 'WalletTimeoutError') {
-        errorMessage = "Connection attempt timed out. Please try again.";
-      }
 
       toast({
         title: "Connection Failed",
-        description: errorMessage,
+        description: error.message || "Failed to connect wallet",
         variant: "destructive",
       });
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      const response = await fetch('/api/logout', {
-        method: 'POST',
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error('Logout failed');
-      }
-
-      toast({
-        title: "Logged out",
-        description: "You have been logged out successfully",
-      });
-
-      // Clear any session data
-      sessionStorage.removeItem('isAuthenticated');
-      sessionStorage.removeItem('shouldPlayInteractive');
-      window.location.href = '/';
-    } catch (error) {
-      toast({
-        title: "Logout failed",
-        description: "Failed to logout. Please try again.",
-        variant: "destructive",
-      });
+    } finally {
+      setConnecting(false);
     }
   };
 
@@ -214,7 +175,7 @@ export default function Navbar() {
                 onClick={handleWalletClick}
                 disabled={connecting}
                 className={`${
-                  connected ? 'bg-green-500 hover:bg-green-600' : 
+                  isConnected ? 'bg-green-500 hover:bg-green-600' : 
                   connecting ? 'bg-purple-400' : 'bg-purple-500 hover:bg-purple-600'
                 } text-white min-w-[160px] relative`}
               >
@@ -223,16 +184,15 @@ export default function Navbar() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Connecting...
                   </span>
-                ) : connected ? (
+                ) : isConnected ? (
                   <span className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse" />
-                    {shortenAddress(publicKey?.toBase58() || '')}
+                    {shortenAddress(publicKey || '')}
                   </span>
                 ) : (
                   'Connect Wallet'
                 )}
               </Button>
-
               <Button
                 onClick={handleLogout}
                 variant="ghost"

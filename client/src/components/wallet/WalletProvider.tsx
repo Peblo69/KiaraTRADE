@@ -36,8 +36,10 @@ export const WalletProvider: FC<Props> = ({ children }) => {
       if (provider?.isPhantom) {
         try {
           // Only connect if the wallet was previously connected
-          const response = await provider.connect({ onlyIfTrusted: true });
-          console.log("Eagerly connected to wallet:", response.publicKey.toString());
+          await provider.connect({ onlyIfTrusted: true }).catch(() => {
+            // Ignore error if not previously connected
+            console.log("No previous trusted connection");
+          });
         } catch (error) {
           // This is expected if the wallet wasn't previously connected
           console.log("Eager connection skipped - wallet not previously connected");
@@ -49,24 +51,32 @@ export const WalletProvider: FC<Props> = ({ children }) => {
       const provider = window.phantom?.solana;
 
       if (provider?.isPhantom) {
-        provider.on('connect', (publicKey: any) => {
-          console.log("Phantom connected:", publicKey.toString());
-        });
-
-        provider.on('disconnect', () => {
-          console.log("Phantom disconnected");
-        });
-
-        provider.on('accountChanged', (publicKey: any) => {
-          if (publicKey) {
-            console.log(`Switched to account: ${publicKey.toString()}`);
-          } else {
-            console.log("Disconnected from account");
+        const handlers = {
+          connect: (publicKey: any) => {
+            console.log("Phantom connected:", publicKey.toString());
+          },
+          disconnect: () => {
+            console.log("Phantom disconnected");
+          },
+          accountChanged: (publicKey: any) => {
+            if (publicKey) {
+              console.log(`Switched to account: ${publicKey.toString()}`);
+            } else {
+              console.log("Disconnected from account");
+            }
           }
-        });
+        };
+
+        // Add event listeners
+        provider.on('connect', handlers.connect);
+        provider.on('disconnect', handlers.disconnect);
+        provider.on('accountChanged', handlers.accountChanged);
 
         return () => {
-          provider.removeAllListeners();
+          // Remove event listeners
+          provider.off('connect', handlers.connect);
+          provider.off('disconnect', handlers.disconnect);
+          provider.off('accountChanged', handlers.accountChanged);
         };
       }
     };
@@ -79,7 +89,11 @@ export const WalletProvider: FC<Props> = ({ children }) => {
       endpoint
     });
 
-    connectEagerly();
+    // Only attempt eager connection after a short delay to ensure Phantom is injected
+    setTimeout(() => {
+      connectEagerly();
+    }, 500);
+
     const cleanup = setupEventListeners();
 
     return () => {

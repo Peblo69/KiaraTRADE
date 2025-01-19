@@ -9,7 +9,7 @@ import KiaraStageI from "@/pages/kiara-stage-i";
 import About from "@/pages/about";
 import Landing from "@/pages/landing";
 import { Layout } from "@/components/Layout";
-import { WalletProvider } from "@/components/wallet/WalletProvider";
+import { WalletContextProvider } from "@/lib/wallet";
 
 function Router() {
   return (
@@ -37,14 +37,14 @@ function Router() {
 
 function App() {
   return (
-    <WalletProvider>
+    <WalletContextProvider>
       <QueryClientProvider client={queryClient}>
         <div className="min-h-screen bg-background text-foreground">
           <Router />
           <Toaster />
         </div>
       </QueryClientProvider>
-    </WalletProvider>
+    </WalletContextProvider>
   );
 }
 
