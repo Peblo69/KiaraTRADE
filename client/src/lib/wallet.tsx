@@ -250,36 +250,32 @@ export const WalletConnectButton: FC = () => {
       <div className="relative group">
         <Button
           variant="outline"
-          className="font-mono"
+          className="font-mono transition-colors"
         >
-          {balanceUsd?.toFixed(2) || '0.00'} • {publicKey.toString().slice(0, 4)}...{publicKey.toString().slice(-4)}
+          ${balanceUsd?.toFixed(2) || '0.00'} • {publicKey.toString().slice(0, 4)}...{publicKey.toString().slice(-4)}
         </Button>
 
-        <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-popover opacity-0 group-hover:opacity-100 transition-opacity duration-150 ease-in-out pointer-events-none group-hover:pointer-events-auto z-50">
-          <div className="rounded-md ring-1 ring-black ring-opacity-5">
-            <div className="py-1" role="menu" aria-orientation="vertical">
-              <button
-                className="block px-4 py-2 text-sm text-foreground hover:bg-accent w-full text-left"
-                role="menuitem"
-                onClick={() => setShowTokens(true)}
-              >
-                View Tokens
-              </button>
-              <button
-                className="block px-4 py-2 text-sm text-destructive hover:bg-accent w-full text-left"
-                role="menuitem"
-                onClick={disconnect}
-              >
-                Disconnect
-              </button>
-            </div>
+        <div className="absolute right-0 mt-1 w-40 bg-background rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 ease-in-out pointer-events-none group-hover:pointer-events-auto z-50">
+          <div className="py-1 rounded-md ring-1 ring-border">
+            <button
+              className="block w-full px-3 py-2 text-sm text-left hover:bg-accent hover:text-accent-foreground transition-colors"
+              onClick={() => setShowTokens(true)}
+            >
+              Tokens
+            </button>
+            <button
+              className="block w-full px-3 py-2 text-sm text-left text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors"
+              onClick={disconnect}
+            >
+              Logout
+            </button>
           </div>
         </div>
 
         <Sheet open={showTokens} onOpenChange={setShowTokens}>
           <SheetContent>
             <SheetHeader>
-              <SheetTitle>Your Wallet</SheetTitle>
+              <SheetTitle>Your Tokens</SheetTitle>
               <SheetDescription>
                 Connected to Phantom • {publicKey.toString().slice(0, 4)}...{publicKey.toString().slice(-4)}
               </SheetDescription>
