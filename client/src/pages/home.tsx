@@ -1,5 +1,4 @@
 import { FC } from "react";
-import Navbar from "@/components/Navbar";
 import SpaceBackground from "@/components/SpaceBackground";
 import AiChat from "@/components/AiChat";
 import KiaraVideoWrapper from "@/components/KiaraVideoWrapper";
@@ -10,7 +9,6 @@ const Home: FC = () => {
     <div className="min-h-screen bg-black relative overflow-hidden">
       <SpaceBackground />
       <div className="relative z-10">
-        <Navbar />
         <main className="container mx-auto px-4 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             <div className="h-[600px]">
