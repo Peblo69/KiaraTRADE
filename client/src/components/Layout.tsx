@@ -11,17 +11,15 @@ export const Layout: FC<PropsWithChildren> = ({ children }) => {
         <MarketDataBar />
       </div>
 
-      {/* Fixed Navigation Bar */}
+      {/* Single Fixed Navigation Bar */}
       <div className="fixed top-12 left-0 right-0 z-40 bg-background/80 backdrop-blur-sm">
         <Navbar />
       </div>
 
       {/* Main Content */}
-      <div className="flex-1">
-        <main className="pt-32 px-4 lg:px-6">
-          {children}
-        </main>
-      </div>
+      <main className="pt-32 px-4 lg:px-6">
+        {children}
+      </main>
       <Toaster />
     </div>
   );
