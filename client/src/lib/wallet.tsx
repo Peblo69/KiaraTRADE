@@ -45,13 +45,16 @@ interface WalletContextProviderProps {
   children: ReactNode;
 }
 
-// Debug helper
+// Debug helper with more detailed logging
 const debug = {
   log: (...args: any[]) => {
     console.log('[Wallet]', ...args);
   },
   error: (...args: any[]) => {
     console.error('[Wallet Error]', ...args);
+  },
+  price: (...args: any[]) => {
+    console.log('[Wallet Price]', ...args);
   }
 };
 
@@ -100,7 +103,7 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
 
   const fetchSolPrice = useCallback(async () => {
     try {
-      debug.log('Fetching SOL price from CoinGecko');
+      debug.price('Fetching SOL price from CoinGecko');
       const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd', {
         headers: {
           'Accept': 'application/json',
@@ -113,7 +116,12 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
       }
 
       const data = await response.json();
-      debug.log('SOL price:', data.solana.usd);
+      if (!data?.solana?.usd) {
+        debug.error('Invalid price data format:', data);
+        return null;
+      }
+
+      debug.price('SOL price:', data.solana.usd);
       return data.solana.usd;
     } catch (error) {
       debug.error('Error fetching SOL price:', error);
@@ -121,11 +129,45 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
     }
   }, []);
 
+  const fetchTokenAccounts = useCallback(async (pubKey: PublicKey) => {
+    try {
+      debug.log('Fetching token accounts for:', pubKey.toString());
+      const tokenAccounts = await connections[currentEndpointIndex].getParsedTokenAccountsByOwner(
+        pubKey,
+        { programId: TOKEN_PROGRAM_ID },
+        'confirmed'
+      );
+
+      debug.log('Raw token accounts:', tokenAccounts);
+
+      const tokenInfos: TokenInfo[] = tokenAccounts.value
+        .filter(account => {
+          const tokenAmount = account.account.data.parsed.info.tokenAmount;
+          return tokenAmount.uiAmount > 0;
+        })
+        .map(account => {
+          const { mint, tokenAmount } = account.account.data.parsed.info;
+          return {
+            mint,
+            symbol: '',
+            balance: tokenAmount.uiAmount,
+            decimals: tokenAmount.decimals,
+          };
+        });
+
+      debug.log('Processed token accounts:', tokenInfos);
+      return tokenInfos;
+    } catch (error) {
+      debug.error('Token account fetch error:', error);
+      throw error;
+    }
+  }, [currentEndpointIndex]);
+
   const fetchBalance = useCallback(async (pubKey: PublicKey) => {
     let lastError;
     let retryCount = 0;
     const maxRetries = 3;
-    const baseDelay = 1000; // 1 second
+    const baseDelay = 1000;
 
     while (retryCount < maxRetries) {
       for (let i = 0; i < connections.length; i++) {
@@ -144,7 +186,6 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
             lastError = error;
             continue;
           }
-          // For other errors, also try the next endpoint
           lastError = error;
           continue;
         }
@@ -152,7 +193,7 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
 
       retryCount++;
       if (retryCount < maxRetries) {
-        const delay = baseDelay * Math.pow(2, retryCount - 1); // Exponential backoff
+        const delay = baseDelay * Math.pow(2, retryCount - 1);
         debug.log(`All endpoints failed. Retry attempt ${retryCount}/${maxRetries} after ${delay}ms`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
@@ -175,43 +216,23 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
         debug.log('SOL balance:', balanceInSol);
         setBalance(balanceInSol);
 
+        // Fetch price and calculate USD value
         const solPrice = await fetchSolPrice();
         if (!isMounted) return;
 
-        if (solPrice) {
+        if (solPrice !== null) {
           const usdBalance = balanceInSol * solPrice;
-          debug.log('USD balance:', usdBalance);
+          debug.price('Calculated USD balance:', usdBalance);
           setBalanceUsd(usdBalance);
+        } else {
+          debug.error('Failed to calculate USD balance - no price available');
+          setBalanceUsd(null);
         }
 
+        // Fetch token accounts with retries
         try {
-          debug.log('Fetching token accounts...');
-          const tokenAccounts = await connections[currentEndpointIndex].getParsedTokenAccountsByOwner(
-            publicKey,
-            { programId: TOKEN_PROGRAM_ID },
-            'confirmed'
-          );
-
+          const tokenInfos = await fetchTokenAccounts(publicKey);
           if (!isMounted) return;
-
-          debug.log('Raw token accounts:', tokenAccounts);
-
-          const tokenInfos: TokenInfo[] = tokenAccounts.value
-            .filter(account => {
-              const tokenAmount = account.account.data.parsed.info.tokenAmount;
-              return tokenAmount.uiAmount > 0;
-            })
-            .map(account => {
-              const { mint, tokenAmount } = account.account.data.parsed.info;
-              return {
-                mint,
-                symbol: '',
-                balance: tokenAmount.uiAmount,
-                decimals: tokenAmount.decimals,
-              };
-            });
-
-          debug.log('Processed token accounts:', tokenInfos);
           setTokens(tokenInfos);
         } catch (tokenError) {
           debug.error('Error fetching token accounts:', tokenError);
@@ -247,7 +268,7 @@ export const WalletContextProvider: FC<WalletContextProviderProps> = ({ children
       isMounted = false;
       clearInterval(interval);
     };
-  }, [publicKey, toast, fetchBalance, fetchSolPrice, currentEndpointIndex]);
+  }, [publicKey, toast, fetchBalance, fetchSolPrice, fetchTokenAccounts]);
 
   const connect = async () => {
     try {
