@@ -70,6 +70,7 @@
     "lightweight-charts": "^4.2.2",
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
+    "millify": "^6.1.0",
     "openai": "^4.79.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
