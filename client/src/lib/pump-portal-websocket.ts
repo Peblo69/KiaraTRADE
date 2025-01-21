@@ -16,6 +16,14 @@ export interface PumpPortalToken {
   volume: number;
   swaps: number;
   timestamp: number;
+  heliusData?: {
+    currentHolders: number;
+    tokenVolume24h: number;
+    lastTrade: {
+      price: number;
+      timestamp: number;
+    };
+  };
   status: {
     mad: boolean;
     fad: false;
@@ -39,6 +47,7 @@ interface PumpPortalStore {
 // -----------------------------------
 const TOTAL_SUPPLY = 1_000_000_000; // Fixed 1 billion supply for all PumpFun tokens
 const COINGECKO_API = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd";
+const HELIUS_API_URL = "https://mainnet.helius-rpc.com/v0";
 const CACHE_DURATION = 30000; // 30 seconds cache
 
 // Cache mechanism for SOL price
@@ -69,6 +78,38 @@ async function fetchSolPrice(): Promise<number> {
 
   // Return last known price or fallback
   return cachedSolPrice || 100;
+}
+
+async function fetchHeliusData(mintAddress: string): Promise<any> {
+  try {
+    const response = await axios.post(HELIUS_API_URL, {
+      jsonrpc: "2.0",
+      id: "my-id",
+      method: "getAssetByMint",
+      params: {
+        id: mintAddress,
+        displayOptions: {
+          showUnverifiedCollections: true,
+          showCollectionMetadata: true,
+          showFungible: true
+        }
+      }
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_HELIUS_API_KEY}`
+      }
+    });
+
+    if (response.data?.result) {
+      console.log('[PumpPortal] Helius data for', mintAddress, ':', response.data.result);
+      return response.data.result;
+    }
+    return null;
+  } catch (error) {
+    console.error('[PumpPortal] Error fetching Helius data:', error);
+    return null;
+  }
 }
 
 // -----------------------------------
@@ -114,6 +155,22 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
     // Calculate market cap
     const marketCapUsd = pricePerTokenUsd * TOTAL_SUPPLY;
 
+    // Fetch Helius data for additional metrics
+    let heliusData = undefined;
+    if (data.mint) {
+      const heliusResponse = await fetchHeliusData(data.mint);
+      if (heliusResponse) {
+        heliusData = {
+          currentHolders: heliusResponse.ownership?.totalHolders || 0,
+          tokenVolume24h: heliusResponse.recent?.volume24h || 0,
+          lastTrade: {
+            price: heliusResponse.recent?.price || pricePerTokenUsd,
+            timestamp: heliusResponse.recent?.lastTradeTimestamp || Date.now()
+          }
+        };
+      }
+    }
+
     const token: PumpPortalToken = {
       symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
       name: data.name || `Token ${data.mint?.slice(0, 8)}`,
@@ -126,6 +183,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       volume: volumeUsd,
       swaps: 0,
       timestamp: Date.now(),
+      heliusData,
       status: {
         mad: false,
         fad: false,
