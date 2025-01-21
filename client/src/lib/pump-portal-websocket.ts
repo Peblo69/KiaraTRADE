@@ -142,38 +142,40 @@ export const usePumpPortalStore = create<PumpPortalStore>((set) => ({
 async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
   try {
     console.log('[PumpPortal] Raw data received:', data);
+    // Only fetch SOL price when needed for USD conversions
     const solPrice = await fetchSolPrice();
 
-    // Extract all available data from the single WebSocket message
+    // Destructure all available data from the single WebSocket message
     const {
       mint,                    // Token address ending with 'pump'
       vSolInBondingCurve,     // Total SOL in bonding curve (liquidity)
+      marketCapSol,           // Direct market cap in SOL from PumpPortal
       bondingCurveKey,        // Bonding curve address
       name,                   // Token name
       symbol,                 // Token symbol
       solAmount,             // Trade amount in SOL
-      initialBuy,            // Initial buy in lamports
-      marketCapSol,          // Market cap in SOL
-      uri                    // Token metadata URI
+      traderPublicKey,       // Trader's public key
+      uri,                   // Token metadata URI
+      txType                 // Transaction type (create/trade)
     } = data;
 
-    // Calculate core metrics from the single message
-    const liquidity = Number(vSolInBondingCurve || 0);
-    const marketCap = Number(marketCapSol || 0) * solPrice;
-    const price = marketCap / TOTAL_SUPPLY;
-    const volume = Number(solAmount || 0) * solPrice;
+    // Calculate core metrics using PumpPortal's direct data
+    const marketCapUsd = Number(marketCapSol || 0) * solPrice;
+    const priceUsd = marketCapUsd / TOTAL_SUPPLY;
+    const liquidityUsd = Number(vSolInBondingCurve || 0) * solPrice;
+    const volumeUsd = Number(solAmount || 0) * solPrice;
 
-    // Only fetch Helius data for additional metadata if not available in PumpPortal data
+    // Only fetch Helius data if we need additional metadata not provided by PumpPortal
     let heliusData = undefined;
-    if (mint && (!data.holders || !data.volume24h)) {
+    if (mint && txType === 'create') {
       try {
         const heliusResponse = await fetchHeliusData(mint);
         if (heliusResponse) {
           heliusData = {
             currentHolders: heliusResponse.ownership?.totalHolders || 0,
-            tokenVolume24h: heliusResponse.recent?.volume24h || 0,
+            tokenVolume24h: heliusResponse.recent?.volume24h || volumeUsd,
             lastTrade: {
-              price: heliusResponse.recent?.price || price,
+              price: heliusResponse.recent?.price || priceUsd,
               timestamp: heliusResponse.recent?.lastTradeTimestamp || Date.now()
             }
           };
@@ -191,20 +193,20 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       symbol: symbol || mint?.slice(0, 6) || 'Unknown',
       name: name || `Token ${mint?.slice(0, 8)}`,
       address: mint || '',
-      price,
-      marketCap,
-      liquidity: liquidity * solPrice,
+      price: priceUsd,
+      marketCap: marketCapUsd,
+      liquidity: liquidityUsd,
       liquidityChange: 0,
-      l1Liquidity: liquidity * solPrice,
-      volume,
-      swaps: 0,
+      l1Liquidity: liquidityUsd,
+      volume: volumeUsd,
+      swaps: txType === 'trade' ? 1 : 0,
       timestamp: Date.now(),
       heliusData,
       status: {
         mad: false,
         fad: false,
         lb: Boolean(bondingCurveKey),
-        tri: false,
+        tri: false
       }
     };
 
