@@ -13,45 +13,14 @@ import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import millify from "millify";
 
 /** 
- * Safely convert the string "12345.67" -> "$12K" style. 
- * If "N/A", returns "N/A". 
- */
-function formatUsdShort(value: string): string {
-  if (value === "N/A") return "N/A";
-  const numeric = parseFloat(value);
-  if (Number.isNaN(numeric)) return "N/A";
-  // e.g. "15000" => "$15K", with 2 decimals
-  return `$${millify(numeric, { precision: 2 })}`;
-}
-
-/** 
- * If you want to abbreviate large volumes (which is a numeric field),
- * do the same approach but for number. 
- */
-function formatNumberShort(num: number): string {
-  if (!num || num <= 0) return "$0";
-  return `$${millify(num, { precision: 2 })}`;
-}
-
-/** 
- * Convert time difference (timestamp -> "10s ago").
+ * Convert time difference (timestamp -> "10s ago")
  */
 function getTimeDiff(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  return `${seconds}s ago`;
-}
-
-/** 
- * Convert status booleans -> array of label strings:
- * e.g. { mad: true, fad: true, lb: false, tri: true } => ["MAD","FAD","T10"]
- */
-function getStatusLabels(status: any): string[] { //Type changed to any to avoid errors.  Ideally, the correct type should be used from the original code.
-  const labels: string[] = [];
-  if (status.mad) labels.push("MAD");
-  if (status.fad) labels.push("FAD");
-  if (status.lb) labels.push("LB");
-  if (status.tri) labels.push("T10");
-  return labels;
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
 }
 
 const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) => {
@@ -78,7 +47,11 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
             <div className="flex items-center gap-2">
               <div className="text-right">
                 <div className="text-xl font-bold">${token.price.toFixed(6)}</div>
-                <div className="text-sm text-green-500">+2.45%</div>
+                <div className={token.timeWindows['1m'].closePrice > token.timeWindows['1m'].openPrice ? 
+                  "text-sm text-green-500" : "text-sm text-red-500"}>
+                  {((token.timeWindows['1m'].closePrice - token.timeWindows['1m'].openPrice) / 
+                    token.timeWindows['1m'].openPrice * 100).toFixed(2)}%
+                </div>
               </div>
             </div>
           </div>
@@ -99,7 +72,22 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
                 {[
                   { label: "Market Cap", value: `$${millify(token.marketCap)}` },
                   { label: "Liquidity", value: `$${millify(token.liquidity)}` },
-                  { label: "Volume 24h", value: `$${millify(token.volume)}` },
+                  { label: "Volume 24h", value: `$${millify(token.timeWindows['24h'].volume)}` },
+                ].map((stat, idx) => (
+                  <Card key={idx} className="p-4 bg-background/50 border-purple-500/20">
+                    <div className="text-sm text-muted-foreground">{stat.label}</div>
+                    <div className="text-lg font-bold mt-1">{stat.value}</div>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Additional Stats */}
+              <div className="grid grid-cols-4 gap-4">
+                {[
+                  { label: "1m Volume", value: `$${millify(token.timeWindows['1m'].volume)}` },
+                  { label: "5m Volume", value: `$${millify(token.timeWindows['5m'].volume)}` },
+                  { label: "15m Volume", value: `$${millify(token.timeWindows['15m'].volume)}` },
+                  { label: "1h Volume", value: `$${millify(token.timeWindows['1h'].volume)}` },
                 ].map((stat, idx) => (
                   <Card key={idx} className="p-4 bg-background/50 border-purple-500/20">
                     <div className="text-sm text-muted-foreground">{stat.label}</div>
@@ -116,34 +104,37 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
               </div>
               <ScrollArea className="h-[calc(100vh-180px)]">
                 <div className="p-2 space-y-2">
-                  {/* Example trades - will be replaced with real data */}
-                  {Array.from({ length: 20 }).map((_, idx) => (
+                  {token.recentTrades.map((trade, idx) => (
                     <Card
-                      key={idx}
+                      key={`${trade.timestamp}-${idx}`}
                       className={`p-3 flex items-center justify-between ${
-                        idx % 2 === 0
+                        trade.isBuy
                           ? "bg-green-500/10 border-green-500/20"
                           : "bg-red-500/10 border-red-500/20"
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        {idx % 2 === 0 ? (
+                        {trade.isBuy ? (
                           <ArrowUpRight className="h-4 w-4 text-green-500" />
                         ) : (
                           <ArrowDownRight className="h-4 w-4 text-red-500" />
                         )}
                         <div>
                           <div className="text-sm font-medium">
-                            {idx % 2 === 0 ? "Buy" : "Sell"}
+                            {trade.isBuy ? "Buy" : "Sell"}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            Gx8k...j29F
+                            {trade.wallet.slice(0, 4)}...{trade.wallet.slice(-4)}
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-medium">0.5 SOL</div>
-                        <div className="text-xs text-muted-foreground">5s ago</div>
+                        <div className="text-sm font-medium">
+                          ${trade.volume.toFixed(2)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {getTimeDiff(trade.timestamp)}
+                        </div>
                       </div>
                     </Card>
                   ))}
