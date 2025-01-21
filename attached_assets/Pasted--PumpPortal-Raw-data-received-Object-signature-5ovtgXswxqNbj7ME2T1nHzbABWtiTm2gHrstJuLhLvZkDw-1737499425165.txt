@@ -1,0 +1,44 @@
+[PumpPortal] Raw data received: 
+Object {signature: "5ovtgXswxqNbj7ME2T1nHzbABWtiTm2gHrstJuLhLvZkDwbzxyGxb9udPQcf3XjxqrWiDE2ZFLNNdFktKV3fJ4nT", mint: "J3pW2UCDH2xKcrY4AXbGu4bRctQhRjyXnRSUv8VVZh71", traderPublicKey: "DzxprRQhbdSp95q7Xufu1Lf1ECN9hdCm5JYZ3Gg6ibce", txType: "create", initialBuy: 31252427.184466, …}
+[PumpPortal] Received event: 
+Object {signature: "vTtoTQ58s23rbbj5K7HArdqu3xCbLaMQAsPFXxwBsLV8MhvtZsYmLKPDS3WaoL32EhrFuinaWNuBEb8ua86uQ8j", mint: "Hy5tCdpR9sxk857wrMsu2L6PMB342TbYhxsGEq2zpump", traderPublicKey: "2h1XxzKBPpzxPo32ZhywNVag2iT3i5ZUUEnZiK34dg4G", txType: "create", initialBuy: 153285714.285714, …}
+[PumpPortal] Raw data received: 
+Object {signature: "vTtoTQ58s23rbbj5K7HArdqu3xCbLaMQAsPFXxwBsLV8MhvtZsYmLKPDS3WaoL32EhrFuinaWNuBEb8ua86uQ8j", mint: "Hy5tCdpR9sxk857wrMsu2L6PMB342TbYhxsGEq2zpump", traderPublicKey: "2h1XxzKBPpzxPo32ZhywNVag2iT3i5ZUUEnZiK34dg4G", txType: "create", initialBuy: 153285714.285714, …}
+[PumpPortal] Updated SOL price: 253.62
+[PumpPortal] Mapped token: 
+Object {symbol: "EMBRI", name: "Embri Agent AI", address: "4nwwr7NE6FiNVhw2vPrTzTFmpJWbikva6hnwFPPEpump", price: 0.000008115839999999992, marketCap: 8115.839999999992, …}
+[PumpPortal] Added new token: EMBRI
+[PumpPortal] Updated SOL price: 253.62
+[PumpPortal] Mapped token: 
+Object {symbol: "BARRON", name: "Cracker of the Century", address: "BLgVRFLzCZBfUaKoroF57j3Pbf4fzZRKskMKegDNpump", price: 0.000007710047999999997, marketCap: 7710.047999999997, …}
+[PumpPortal] Added new token: BARRON
+[PumpPortal] Updated SOL price: 253.62
+[PumpPortal] Mapped token: 
+Object {symbol: "LBANK", name: "LBank.com Al", address: "J3pW2UCDH2xKcrY4AXbGu4bRctQhRjyXnRSUv8VVZh71", price: 0.000007836858, marketCap: 7836.857999999999, …}
+address: "J3pW2UCDH2xKcrY4AXbGu4bRctQhRjyXnRSUv8VVZh71"
+l1Liquidity: 7836.858
+liquidity: 7836.858
+liquidityChange: 0
+marketCap: 7836.857999999999
+name: "LBank.com Al"
+price: 0.000007836858
+status: Object
+swaps: 0
+symbol: "LBANK"
+timestamp: 1737499398562
+volume: 7926240582.524267
+[[Prototype]]: Object
+constructor: ƒ Object()
+hasOwnProperty: ƒ hasOwnProperty()
+isPrototypeOf: ƒ isPrototypeOf()
+propertyIsEnumerable: ƒ propertyIsEnumerable()
+toLocaleString: ƒ toLocaleString()
+toString: ƒ toString()
+valueOf: ƒ valueOf()
+__defineGetter__: ƒ __defineGetter__()
+__defineSetter__: ƒ __defineSetter__()
+__lookupGetter__: ƒ __lookupGetter__()
+__lookupSetter__: ƒ __lookupSetter__()
+__proto__: Object
+get __proto__: ƒ get __proto__()
+set __proto__: ƒ set __proto__(
