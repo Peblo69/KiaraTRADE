@@ -4,6 +4,19 @@ import axios from "axios";
 // -----------------------------------
 // TYPES
 // -----------------------------------
+export interface TimeWindowStats {
+  startTime: number;
+  endTime: number;
+  openPrice: number;
+  closePrice: number;
+  highPrice: number;
+  lowPrice: number;
+  volume: number;
+  trades: number;
+  buys: number;
+  sells: number;
+}
+
 export interface PumpPortalToken {
   symbol: string;
   name: string;
@@ -21,6 +34,20 @@ export interface PumpPortalToken {
   sells24h: number;
   walletCount: number;
   timestamp: number;
+  timeWindows: {
+    '1s': TimeWindowStats;
+    '5s': TimeWindowStats;
+    '15s': TimeWindowStats;
+    '30s': TimeWindowStats;
+    '1m': TimeWindowStats;
+    '5m': TimeWindowStats;
+    '15m': TimeWindowStats;
+    '30m': TimeWindowStats;
+    '1h': TimeWindowStats;
+    '4h': TimeWindowStats;
+    '12h': TimeWindowStats;
+    '24h': TimeWindowStats;
+  };
   priceHistory: {
     [timeframe: string]: {
       timestamp: number;
@@ -59,13 +86,50 @@ interface PumpPortalStore {
 // -----------------------------------
 const TOTAL_SUPPLY = 1_000_000_000;
 const COINGECKO_API = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd";
-const HELIUS_API_URL = "https://mainnet.helius-rpc.com/v0";
 const CACHE_DURATION = 30000;
-const TIMEFRAMES = ['5m', '1h', '4h', '24h'];
+
+// Time windows in milliseconds
+const TIME_WINDOWS = {
+  '1s': 1000,
+  '5s': 5000,
+  '15s': 15000,
+  '30s': 30000,
+  '1m': 60000,
+  '5m': 300000,
+  '15m': 900000,
+  '30m': 1800000,
+  '1h': 3600000,
+  '4h': 14400000,
+  '12h': 43200000,
+  '24h': 86400000,
+};
 
 // Cache mechanism for SOL price
 let cachedSolPrice: number | null = null;
 let lastPriceUpdate = 0;
+
+function createEmptyTimeWindow(startTime: number): TimeWindowStats {
+  return {
+    startTime,
+    endTime: startTime + 1000, // Default to 1s window
+    openPrice: 0,
+    closePrice: 0,
+    highPrice: 0,
+    lowPrice: Infinity,
+    volume: 0,
+    trades: 0,
+    buys: 0,
+    sells: 0,
+  };
+}
+
+function createEmptyTimeWindows(timestamp: number) {
+  const windows: any = {};
+  Object.keys(TIME_WINDOWS).forEach(window => {
+    windows[window] = createEmptyTimeWindow(timestamp);
+  });
+  return windows;
+}
 
 async function fetchSolPrice(): Promise<number> {
   const now = Date.now();
@@ -114,28 +178,44 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       const solPrice = get().solPrice || 100;
       const tradeVolume = Number(trade.solAmount || 0) * solPrice;
       const isBuy = trade.txType === 'buy';
+      const tradePrice = token.price;
 
-      // Update price history for each timeframe
-      const updatedPriceHistory = { ...token.priceHistory };
-      TIMEFRAMES.forEach(timeframe => {
-        const history = updatedPriceHistory[timeframe] || [];
-        history.push({
-          timestamp: now,
-          price: token.price,
-          volume: tradeVolume
-        });
+      // Update time windows
+      const updatedWindows = { ...token.timeWindows };
+      Object.entries(TIME_WINDOWS).forEach(([window, duration]) => {
+        const currentWindow = updatedWindows[window];
+        const windowStart = Math.floor(now / duration) * duration;
 
-        // Keep last 100 data points per timeframe
-        if (history.length > 100) {
-          history.shift();
+        // Check if we need to create a new window
+        if (now > currentWindow.endTime) {
+          updatedWindows[window] = {
+            startTime: windowStart,
+            endTime: windowStart + duration,
+            openPrice: tradePrice,
+            closePrice: tradePrice,
+            highPrice: tradePrice,
+            lowPrice: tradePrice,
+            volume: tradeVolume,
+            trades: 1,
+            buys: isBuy ? 1 : 0,
+            sells: isBuy ? 0 : 1,
+          };
+        } else {
+          // Update existing window
+          currentWindow.closePrice = tradePrice;
+          currentWindow.highPrice = Math.max(currentWindow.highPrice, tradePrice);
+          currentWindow.lowPrice = Math.min(currentWindow.lowPrice, tradePrice);
+          currentWindow.volume += tradeVolume;
+          currentWindow.trades += 1;
+          if (isBuy) currentWindow.buys += 1;
+          else currentWindow.sells += 1;
         }
-        updatedPriceHistory[timeframe] = history;
       });
 
       // Update recent trades
       const newTrade = {
         timestamp: now,
-        price: token.price,
+        price: tradePrice,
         volume: tradeVolume,
         isBuy,
         wallet: trade.traderPublicKey
@@ -161,7 +241,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
             trades24h: trades24h.length,
             buys24h,
             sells24h,
-            priceHistory: updatedPriceHistory,
+            timeWindows: updatedWindows,
             recentTrades,
             walletCount: new Set([...recentTrades.map(trade => trade.wallet)]).size
           } : t
@@ -195,6 +275,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
     const liquidityUsd = Number(vSolInBondingCurve || 0) * solPrice;
     const volumeUsd = Number(solAmount || 0) * solPrice;
 
+    const now = Date.now();
     const token: PumpPortalToken = {
       symbol: symbol || mint?.slice(0, 6) || 'Unknown',
       name: name || `Token ${mint?.slice(0, 8)}`,
@@ -211,10 +292,11 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       buys24h: txType === 'buy' ? 1 : 0,
       sells24h: txType === 'sell' ? 1 : 0,
       walletCount: 1,
-      timestamp: Date.now(),
+      timestamp: now,
+      timeWindows: createEmptyTimeWindows(now),
       priceHistory: {},
       recentTrades: [{
-        timestamp: Date.now(),
+        timestamp: now,
         price: priceUsd,
         volume: volumeUsd,
         isBuy: txType === 'buy',
