@@ -147,36 +147,48 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
 
     // Get values from PumpPortal with defaults
     const vSolInBondingCurve = Number(data.vSolInBondingCurve || 0);
-    const initialBuy = Number(data.initialBuy || 0);
+    const initialBuyLamports = Number(data.initialBuy || 0);
+
+    // Convert lamports to SOL (1 SOL = 1e9 lamports)
+    const initialBuySol = initialBuyLamports / 1e9;
 
     // Calculate metrics
     const liquiditySol = vSolInBondingCurve;
     const liquidityUsd = liquiditySol * solPrice;
 
-    // Calculate volume in USD (initialBuy is in lamports, need to convert to SOL first)
-    const volumeSol = data.solAmount || 0;
+    // Calculate volume in USD (using SOL amount directly as it's already in SOL)
+    const volumeSol = Number(data.solAmount || 0);
     const volumeUsd = volumeSol * solPrice;
 
     // Calculate price per token (in SOL and USD)
     const pricePerTokenSol = vSolInBondingCurve / TOTAL_SUPPLY;
     const pricePerTokenUsd = pricePerTokenSol * solPrice;
 
-    // Calculate market cap
+    // Calculate market cap (using actual supply)
     const marketCapUsd = pricePerTokenUsd * TOTAL_SUPPLY;
 
     // Fetch Helius data for additional metrics
     let heliusData = undefined;
     if (data.mint) {
-      const heliusResponse = await fetchHeliusData(data.mint);
-      if (heliusResponse) {
-        heliusData = {
-          currentHolders: heliusResponse.ownership?.totalHolders || 0,
-          tokenVolume24h: heliusResponse.recent?.volume24h || 0,
-          lastTrade: {
-            price: heliusResponse.recent?.price || pricePerTokenUsd,
-            timestamp: heliusResponse.recent?.lastTradeTimestamp || Date.now()
-          }
-        };
+      try {
+        const heliusResponse = await fetchHeliusData(data.mint);
+        if (heliusResponse) {
+          heliusData = {
+            currentHolders: heliusResponse.ownership?.totalHolders || 0,
+            tokenVolume24h: heliusResponse.recent?.volume24h || 0,
+            lastTrade: {
+              price: heliusResponse.recent?.price || pricePerTokenUsd,
+              timestamp: heliusResponse.recent?.lastTradeTimestamp || Date.now()
+            }
+          };
+        }
+      } catch (error: any) {
+        // Handle 404 gracefully - new tokens may not be indexed yet
+        if (error?.response?.status === 404) {
+          console.log(`[PumpPortal] Token ${data.mint} not yet indexed by Helius`);
+        } else {
+          console.error('[PumpPortal] Error fetching Helius data:', error);
+        }
       }
     }
 
@@ -187,7 +199,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       price: pricePerTokenUsd,
       marketCap: marketCapUsd,
       liquidity: liquidityUsd,
-      liquidityChange: 0, // Will be calculated on updates
+      liquidityChange: 0,
       l1Liquidity: liquidityUsd,
       volume: volumeUsd,
       swaps: 0,
