@@ -8,8 +8,8 @@ export interface PumpPortalToken {
   symbol: string;
   name: string;
   address: string;
-  marketCap: number; 
   price: number;     
+  marketCap: number;
   liquidity: number;
   liquidityChange: number;
   l1Liquidity: number;
@@ -29,12 +29,50 @@ interface PumpPortalStore {
   isConnected: boolean;
   solPrice: number | null;
   addToken: (token: PumpPortalToken) => void;
+  updateToken: (address: string, updates: Partial<PumpPortalToken>) => void;
   setConnected: (connected: boolean) => void;
   setSolPrice: (price: number) => void;
 }
 
 // -----------------------------------
-// ZUSTAND STORE
+// CONSTANTS
+// -----------------------------------
+const TOTAL_SUPPLY = 1_000_000_000; // Fixed 1 billion supply for all PumpFun tokens
+const COINGECKO_API = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd";
+const CACHE_DURATION = 30000; // 30 seconds cache
+
+// Cache mechanism for SOL price
+let cachedSolPrice: number | null = null;
+let lastPriceUpdate = 0;
+
+async function fetchSolPrice(): Promise<number> {
+  const now = Date.now();
+
+  // Return cached price if still valid
+  if (cachedSolPrice && (now - lastPriceUpdate < CACHE_DURATION)) {
+    return cachedSolPrice;
+  }
+
+  try {
+    const response = await axios.get(COINGECKO_API);
+    const price = response.data?.solana?.usd;
+
+    if (price) {
+      cachedSolPrice = price;
+      lastPriceUpdate = now;
+      console.log('[PumpPortal] Updated SOL price:', price);
+      return price;
+    }
+  } catch (error) {
+    console.error('[PumpPortal] Error fetching SOL price:', error);
+  }
+
+  // Return last known price or fallback
+  return cachedSolPrice || 100;
+}
+
+// -----------------------------------
+// STORE
 // -----------------------------------
 export const usePumpPortalStore = create<PumpPortalStore>((set) => ({
   tokens: [],
@@ -44,97 +82,41 @@ export const usePumpPortalStore = create<PumpPortalStore>((set) => ({
     set((state) => ({
       tokens: [token, ...state.tokens].slice(0, 10),
     })),
+  updateToken: (address, updates) =>
+    set((state) => ({
+      tokens: state.tokens.map((token) =>
+        token.address === address ? { ...token, ...updates } : token
+      ),
+    })),
   setConnected: (connected) => set({ isConnected: connected }),
   setSolPrice: (price) => set({ solPrice: price }),
 }));
-
-// -----------------------------------
-// CONSTANTS
-// -----------------------------------
-const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${import.meta.env.VITE_HELIUS_API_KEY}`;
-
-// Cache for SOL price to avoid too frequent updates
-let lastSolPriceUpdate = 0;
-const SOL_PRICE_UPDATE_INTERVAL = 60000; // 1 minute
-
-async function fetchSolPrice() {
-  const store = usePumpPortalStore.getState();
-  const now = Date.now();
-
-  // Only update price if enough time has passed
-  if (now - lastSolPriceUpdate < SOL_PRICE_UPDATE_INTERVAL) {
-    return store.solPrice || 100; // Fallback to 100 if no price available
-  }
-
-  try {
-    const response = await axios.post(HELIUS_RPC_URL, {
-      jsonrpc: "2.0",
-      id: "sol-price",
-      method: "getAssetPrice",
-      params: ["So11111111111111111111111111111111111111112"]
-    });
-
-    if (response.data?.result?.price) {
-      const price = response.data.result.price;
-      store.setSolPrice(price);
-      lastSolPriceUpdate = now;
-      console.log('[PumpPortal] Updated SOL price:', price);
-      return price;
-    }
-  } catch (error) {
-    console.error('[PumpPortal] Error fetching SOL price:', error);
-  }
-
-  return store.solPrice || 100; // Fallback to existing price or 100
-}
-
-async function fetchTokenMetadata(mint: string) {
-  try {
-    const response = await axios.post(HELIUS_RPC_URL, {
-      jsonrpc: "2.0",
-      id: "token-metadata",
-      method: "getAsset",
-      params: [mint]
-    });
-
-    if (response.data?.result) {
-      return response.data.result;
-    }
-  } catch (error) {
-    console.error('[PumpPortal] Error fetching token metadata:', error);
-  }
-  return null;
-}
 
 async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
   try {
     console.log('[PumpPortal] Raw data received:', data);
 
     const solPrice = await fetchSolPrice();
-    const metadata = await fetchTokenMetadata(data.mint);
 
-    // Extract basic data
+    // Get values from PumpPortal with defaults
     const vSolInBondingCurve = Number(data.vSolInBondingCurve || 0);
     const initialBuy = Number(data.initialBuy || 0);
 
-    // Calculate metrics in USD
-    const liquidityUsd = vSolInBondingCurve * solPrice;
+    // Calculate metrics
+    const liquiditySol = vSolInBondingCurve;
+    const liquidityUsd = liquiditySol * solPrice;
     const volumeUsd = initialBuy * solPrice;
 
-    // Get total supply from metadata or use default
-    const totalSupply = metadata?.tokenInfo?.supply?.amount || 1_000_000_000;
-    const decimals = metadata?.tokenInfo?.decimals || 9;
-
-    // Calculate price per token in USD
-    const pricePerTokenSol = data.price || 0;
+    // Calculate price per token (in SOL and USD)
+    const pricePerTokenSol = vSolInBondingCurve / TOTAL_SUPPLY;
     const pricePerTokenUsd = pricePerTokenSol * solPrice;
 
     // Calculate market cap
-    const marketCapUsd = pricePerTokenUsd * (totalSupply / Math.pow(10, decimals));
+    const marketCapUsd = pricePerTokenUsd * TOTAL_SUPPLY;
 
     const token: PumpPortalToken = {
-      symbol: metadata?.symbol || data.symbol || data.mint?.slice(0, 6) || 'Unknown',
-      name: metadata?.name || data.name || `Token ${data.mint?.slice(0, 8)}`,
+      symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
+      name: data.name || `Token ${data.mint?.slice(0, 8)}`,
       address: data.mint || '',
       price: pricePerTokenUsd,
       marketCap: marketCapUsd,
@@ -153,6 +135,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
     };
 
     console.log('[PumpPortal] Mapped token:', token);
+    usePumpPortalStore.getState().setSolPrice(solPrice);
     return token;
 
   } catch (error) {
@@ -229,8 +212,13 @@ export function initializePumpPortalWebSocket() {
 
         // Handle trade events
         if (data.txType === 'trade' && data.mint) {
-          // TODO: Update volume and swaps
-          // Will be implemented in next iteration
+          const existingToken = store.tokens.find(t => t.address === data.mint);
+          if (existingToken) {
+            store.updateToken(data.mint, {
+              swaps: (existingToken.swaps || 0) + 1,
+              volume: (existingToken.volume || 0) + Number(data.tradeVolume || 0),
+            });
+          }
         }
       } catch (error) {
         console.error('[PumpPortal] Failed to parse message:', error);
