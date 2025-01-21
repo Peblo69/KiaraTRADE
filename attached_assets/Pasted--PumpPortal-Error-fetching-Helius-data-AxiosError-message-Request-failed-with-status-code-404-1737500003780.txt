@@ -1,0 +1,40 @@
+[PumpPortal] Error fetching Helius data: 
+AxiosError {message: "Request failed with status code 404", name: "AxiosError", code: "ERR_BAD_REQUEST", config: {…}, request: XMLHttpRequest, …}
+
+[PumpPortal] Mapped token: 
+Object {symbol: "SAVETIKTOK", name: "Trump Save TikTok", address: "76uFb7PYvo6rmtoyB8GubkpPmcqqTYHS8zPcdK76pump", price: 0.000008055286999142601, marketCap: 8055.286999142601, …}
+[PumpPortal] Added new token: SAVETIKTOK
+[PumpPortal] Received event: 
+Object {signature: "2CjPrdXXCGu9KcMUstjyRmdyG769jr37BZe4swXtApiCzdVWsFoAG7ULQ8QkJj4CLnu2zU35Pr5riUtwzEZQd5H4", mint: "GnuCYvfXZSoSeHCtUuGT95akdoWGBVaLabPxfrz8pump", traderPublicKey: "GiEUukYsv8n5eDkVSUVZvreHvT8EMNtGfLntqJcPQ78Z", txType: "create", initialBuy: 67062499.999999, …}
+[PumpPortal] Raw data received: 
+Object {signature: "2CjPrdXXCGu9KcMUstjyRmdyG769jr37BZe4swXtApiCzdVWsFoAG7ULQ8QkJj4CLnu2zU35Pr5riUtwzEZQd5H4", mint: "GnuCYvfXZSoSeHCtUuGT95akdoWGBVaLabPxfrz8pump", traderPublicKey: "GiEUukYsv8n5eDkVSUVZvreHvT8EMNtGfLntqJcPQ78Z", txType: "create", initialBuy: 67062499.999999, …}
+[PumpPortal] Received event: 
+Object {signature: "2bPN8D6R8bHUGDRWKUinviwy9knSupoCeXYMSZL3WJFbgAEfPWXMUHPw5kjj9fbwKPX8Ebqw3LFKY9bEYfH3YE1x", mint: "3hWmADMSDZJVY5HCA7PMnEfFkGPaQZxadvDnfPwZpump", traderPublicKey: "6C5nzsPC7UXj8HANuZHwi3QU2q2ym2iGrAnJr9sQyMw2", txType: "create", initialBuy: 67062499.999999, …}
+[PumpPortal] Raw data received: 
+Object {signature: "2bPN8D6R8bHUGDRWKUinviwy9knSupoCeXYMSZL3WJFbgAEfPWXMUHPw5kjj9fbwKPX8Ebqw3LFKY9bEYfH3YE1x", mint: "3hWmADMSDZJVY5HCA7PMnEfFkGPaQZxadvDnfPwZpump", traderPublicKey: "6C5nzsPC7UXj8HANuZHwi3QU2q2ym2iGrAnJr9sQyMw2", txType: "create", initialBuy: 67062499.999999, …}
+[PumpPortal] Error fetching Helius data: 
+AxiosError {message: "Request failed with status code 404", name: "AxiosError", code: "ERR_BAD_REQUEST", config: {…}, request: XMLHttpRequest, …}
+
+[PumpPortal] Mapped token: 
+Object {symbol: "TFRC", name: "Barron Real Estate Company", address: "GnuCYvfXZSoSeHCtUuGT95akdoWGBVaLabPxfrz8pump", price: 0.000008131519999999993, marketCap: 8131.519999999993, …}
+[PumpPortal] Added new token: TFRC
+[PumpPortal] Error fetching Helius data: 
+AxiosError {message: "Request failed with status code 404", name: "AxiosError", code: "ERR_BAD_REQUEST", config: {…}, request: XMLHttpRequest, …}
+code: "ERR_BAD_REQUEST"
+config: Object
+message: "Request failed with status code 404"
+name: "AxiosError"
+request: XMLHttpRequest
+response: Object
+config: Object
+data: Object
+headers: AxiosHeaders
+request: XMLHttpRequest
+status: 404
+statusText: ""
+[[Prototype]]: Object
+status: 404
+stack: "AxiosError: Request failed with status code 404↵ at settle (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/axios.js?v=40789c13:1235:12)↵ at XMLHttpRequest.onloadend (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/axios.js?v=40789c13:1566:7)↵ at Axios.request (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/axios.js?v=40789c13:2124:41)↵ at async fetchHeliusData (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/lib/pump-portal-websocket.ts:30:22)↵ at async mapPumpPortalData (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/lib/pump-portal-websocket.ts:87:30)↵ at async ws.onmessage (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/lib/pump-portal-websocket.ts:170:27)"
+get stack: ƒ ()
+set stack: ƒ ()
+[[Prototype]]: Object

@@ -107,7 +107,13 @@ async function fetchHeliusData(mintAddress: string): Promise<any> {
     }
     return null;
   } catch (error) {
-    console.error('[PumpPortal] Error fetching Helius data:', error);
+    // Only log actual error for non-404 responses
+    if (error?.response?.status !== 404) {
+      console.error('[PumpPortal] Error fetching Helius data:', error);
+    } else {
+      // For 404s, just log that the token isn't indexed yet
+      console.log(`[PumpPortal] Token ${mintAddress} not yet indexed by Helius`);
+    }
     return null;
   }
 }
