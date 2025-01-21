@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import axios from "axios";
 
 // -----------------------------------
 // TYPES
@@ -7,16 +8,8 @@ export interface PumpPortalToken {
   symbol: string;
   name: string;
   address: string;
-
-  // We'll store these numeric fields as strings, e.g. "1234.56"
-  liquidity: string;
-  l1Liquidity: string;
-  marketCap: string;
-
-  liquidityChange: number;
-  volume: number;
-  swaps: number;
-
+  marketCap: string; // Market cap in SOL
+  price: string; // Token price in SOL
   timestamp: number;
   status: {
     mad: boolean;
@@ -26,16 +19,11 @@ export interface PumpPortalToken {
   };
 }
 
+// Zustand store interface
 interface PumpPortalStore {
   tokens: PumpPortalToken[];
   isConnected: boolean;
-
-  // We'll store the current SOL price here
-  solPrice: number | null;
-  setSolPrice: (price: number | null) => void;
-
   addToken: (token: PumpPortalToken) => void;
-  updateToken: (address: string, updates: Partial<PumpPortalToken>) => void;
   setConnected: (connected: boolean) => void;
 }
 
@@ -45,238 +33,156 @@ interface PumpPortalStore {
 export const usePumpPortalStore = create<PumpPortalStore>((set) => ({
   tokens: [],
   isConnected: false,
-
-  // Initially, we don't know the SOL price
-  solPrice: null,
-  setSolPrice: (price) => set({ solPrice: price }),
-
   addToken: (token) =>
-    set((state) => {
-      const exists = state.tokens.some((t) => t.address === token.address);
-      if (!exists) {
-        // Keep the 10 newest tokens. Remove .slice(...) if you want all
-        return {
-          tokens: [token, ...state.tokens].slice(0, 10),
-        };
-      }
-      return state;
-    }),
-
-  updateToken: (address, updates) =>
     set((state) => ({
-      tokens: state.tokens.map((token) =>
-        token.address === address ? { ...token, ...updates } : token
-      ),
+      tokens: [token, ...state.tokens].slice(0, 10), // Keep only the last 10 tokens
     })),
-
   setConnected: (connected) => set({ isConnected: connected }),
 }));
 
 // -----------------------------------
-// 1. FETCH SOL PRICE FROM CRYPTOCOMPARE
+// CONSTANTS
 // -----------------------------------
-async function fetchSolPrice(): Promise<number | null> {
+const HELIUS_API_KEY = "004f9b13-f526-4952-9998-52f5c7bec6ee"; // Your Helius API Key
+const HELIUS_BASE_URL = "https://api.helius.xyz/v0/";
+const REFRESH_INTERVAL = 5000; // 5 seconds
+const REQUEST_QUEUE: (() => Promise<void>)[] = [];
+let IS_PROCESSING_QUEUE = false;
+
+// -----------------------------------
+// PROCESS REQUEST QUEUE
+// -----------------------------------
+async function processQueue() {
+  if (IS_PROCESSING_QUEUE) return;
+  IS_PROCESSING_QUEUE = true;
+
+  while (REQUEST_QUEUE.length > 0) {
+    const request = REQUEST_QUEUE.shift();
+    if (request) await request();
+    await new Promise((resolve) => setTimeout(resolve, 100)); // Wait 100ms between requests
+  }
+
+  IS_PROCESSING_QUEUE = false;
+}
+
+// -----------------------------------
+// FETCH TOKEN DATA FROM HELIUS
+// -----------------------------------
+async function fetchTokenData(mint: string) {
   try {
-    // Basic CryptoCompare endpoint: returns { "USD": 25.12 } for example
-    const response = await fetch(
-      "https://min-api.cryptocompare.com/data/price?fsym=SOL&tsyms=USD"
+    console.log("[DEBUG] Fetching token data for mint:", mint);
+    console.log("[DEBUG] Using API Key:", HELIUS_API_KEY);
+
+    const response = await axios.post(
+      `${HELIUS_BASE_URL}token-metadata`,
+      { mintAccounts: [mint] },
+      {
+        headers: {
+          Authorization: `Bearer ${HELIUS_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
     );
-    const data = await response.json();
-    return data?.USD ?? null;
+
+    const metadata = response.data[0];
+    console.log("[Helius] Token Metadata:", metadata);
+
+    return {
+      symbol: metadata.symbol || "UNKNOWN",
+      name: metadata.name || "Unknown Name",
+      marketCap: "N/A", // Placeholder for now
+      price: "N/A", // Placeholder for now
+      address: mint,
+      timestamp: Date.now(),
+      status: {
+        mad: false,
+        fad: false,
+        lb: false,
+        tri: false,
+      },
+    };
   } catch (error) {
-    console.error("[SOL Price] Fetch failed:", error);
+    console.error("[Helius] Error fetching token data:", error.response?.data || error.message);
     return null;
   }
 }
 
-/**
- * Start polling CryptoCompare every 15 seconds for an updated SOL price.
- */
-function startSolPricePolling() {
+// -----------------------------------
+// HANDLE NEW TOKEN
+// -----------------------------------
+async function handleNewToken(data: any) {
   const store = usePumpPortalStore.getState();
+  const mint = data.mint;
 
-  // Immediately fetch once at startup
-  fetchSolPrice().then((price) => {
-    store.setSolPrice(price);
-    if (price) {
-      console.log("[SolPrice] Initial SOL Price:", price);
+  // Add fetch task to queue
+  REQUEST_QUEUE.push(async () => {
+    const tokenData = await fetchTokenData(mint);
+    if (tokenData) {
+      store.addToken(tokenData);
+      console.log("[PumpPortal] Added new token:", tokenData);
     }
   });
 
-  // Then poll every 15s
+  processQueue();
+}
+
+// -----------------------------------
+// AUTO-REFRESH DATA
+// -----------------------------------
+function autoRefreshTokens() {
   setInterval(async () => {
-    try {
-      const price = await fetchSolPrice();
-      store.setSolPrice(price);
-      if (price !== null) {
-        console.log("[SolPrice Poll] Updated SOL price to:", price);
-      }
-    } catch (err) {
-      console.error("[SolPrice Poll] Error:", err);
-    }
-  }, 15000);
-}
-
-// -----------------------------------
-// 2. HELPER: CONVERT A RAW VALUE * SOL PRICE => USD STRING
-// -----------------------------------
-function getValueInUsd(rawValue: any, solPrice: number | null): string {
-  // If we haven't fetched the SOL price yet, we can't compute
-  if (!solPrice) return "N/A";
-
-  const numeric = parseFloat(rawValue);
-  if (Number.isNaN(numeric)) {
-    return "N/A";
-  }
-  // Multiply rawValue by solPrice, format to 2 decimals
-  return (numeric * solPrice).toFixed(2);
-}
-
-// -----------------------------------
-// 3. MAP WEBSOCKET DATA => PumpPortalToken
-//    using `initialBuy` as "Liquidity"
-// -----------------------------------
-async function mapPumpPortalData(data: any): Promise<PumpPortalToken | null> {
-  try {
-    console.log("[PumpPortal] Raw WS data:", data);
-
     const store = usePumpPortalStore.getState();
-    const solPrice = store.solPrice;
+    const tokens = store.tokens;
 
-    // For each field, use the last-known solPrice
-    // If your backend sends other field names for L1 or marketCap, adjust here
-    const token: PumpPortalToken = {
-      symbol: data.symbol || "UNKNOWN",
-      name: data.name || "Unknown Name",
-      address: data.mint || "",
-
-      // Use data.initialBuy to represent "Liquidity"
-      liquidity: data.initialBuy
-        ? getValueInUsd(data.initialBuy, solPrice)
-        : "N/A",
-
-      // If your backend doesn't provide these yet, they stay "N/A"
-      l1Liquidity: "N/A",
-      marketCap: "N/A",
-
-      liquidityChange: data.liquidityChange || 0,
-      volume: data.volume || 0,
-      swaps: data.swaps || 0,
-
-      timestamp: Date.now(),
-      status: {
-        mad: data.status?.mad || false,
-        fad: data.status?.fad || false,
-        lb: data.status?.lb || false,
-        tri: data.status?.tri || false,
-      },
-    };
-
-    console.log("[PumpPortal] Mapped token =>", token);
-    return token;
-  } catch (error) {
-    console.error("[PumpPortal] Error mapping data:", error, data);
-    return null;
-  }
-}
-
-// -----------------------------------
-// 4. INIT/RECONNECT THE WEBSOCKET & POLL SOL PRICE
-// -----------------------------------
-export function initializePumpPortalWebSocket() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  // 4a. Start polling the CryptoCompare API for SOL price
-  startSolPricePolling();
-
-  const store = usePumpPortalStore.getState();
-  let ws: WebSocket | null = null;
-  let reconnectTimeout: NodeJS.Timeout | null = null;
-  let reconnectAttempts = 0;
-  const MAX_RECONNECT_ATTEMPTS = 3;
-  const RECONNECT_DELAY = 5000;
-
-  function connect() {
-    // Cleanup old socket if any
-    if (ws) {
-      try {
-        ws.close();
-      } catch (err) {
-        console.error("[PumpPortal] Error closing old WebSocket:", err);
-      }
-      ws = null;
+    for (const token of tokens) {
+      REQUEST_QUEUE.push(async () => {
+        const refreshedData = await fetchTokenData(token.address);
+        if (refreshedData) {
+          store.addToken(refreshedData);
+          console.log("[PumpPortal] Refreshed token:", refreshedData);
+        }
+      });
     }
 
-    console.log("[PumpPortal] Initializing WebSocket...");
-    ws = new WebSocket("wss://pumpportal.fun/api/data");
-
-    ws.onopen = () => {
-      console.log("[PumpPortal] Connected!");
-      store.setConnected(true);
-      reconnectAttempts = 0;
-
-      if (ws?.readyState === WebSocket.OPEN) {
-        // Example subscription
-        ws.send(JSON.stringify({ method: "subscribeNewToken" }));
-        console.log("[PumpPortal] Subscribed to new token events");
-      }
-    };
-
-    ws.onmessage = async (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("[PumpPortal] Received event:", data);
-
-        // Skip "Successfully subscribed" system message
-        if (data.message && data.message.includes("Successfully subscribed")) {
-          return;
-        }
-
-        if (data.txType === "create") {
-          const newToken = await mapPumpPortalData(data);
-          if (newToken) {
-            store.addToken(newToken);
-            console.log("[PumpPortal] Added new token:", newToken.symbol);
-          }
-        } else if (data.txType === "update" || data.txType === "trade") {
-          const updatedToken = await mapPumpPortalData(data);
-          if (updatedToken) {
-            store.updateToken(updatedToken.address, updatedToken);
-            console.log("[PumpPortal] Updated token:", updatedToken.symbol);
-          }
-        } else {
-          console.log("[PumpPortal] Unknown txType:", data.txType);
-        }
-      } catch (err) {
-        console.error("[PumpPortal] Failed to parse WS message:", err);
-      }
-    };
-
-    ws.onerror = (err) => {
-      console.error("[PumpPortal] WebSocket error:", err);
-      store.setConnected(false);
-    };
-
-    ws.onclose = () => {
-      console.warn("[PumpPortal] WebSocket closed");
-      store.setConnected(false);
-
-      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-        reconnectAttempts++;
-        reconnectTimeout = setTimeout(connect, RECONNECT_DELAY);
-      } else {
-        console.error("[PumpPortal] Max reconnect attempts reached, not retrying.");
-      }
-    };
-  }
-
-  // Kick off the first connection
-  connect();
+    processQueue();
+  }, REFRESH_INTERVAL);
 }
 
-// Auto-initialize in the browser
-if (typeof window !== "undefined") {
-  initializePumpPortalWebSocket();
+// -----------------------------------
+// WEBSOCKET CONNECTION
+// -----------------------------------
+function initializePumpPortalWebSocket() {
+  const ws = new WebSocket("wss://pumpportal.fun/api/data");
+  const store = usePumpPortalStore.getState();
+
+  ws.onopen = () => {
+    console.log("[PumpPortal] WebSocket connected.");
+    store.setConnected(true);
+    ws.send(JSON.stringify({ method: "subscribeNewToken" }));
+  };
+
+  ws.onmessage = async (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      console.log("[PumpPortal] Received data:", data);
+      if (data.txType === "create") {
+        await handleNewToken(data);
+      }
+    } catch (error) {
+      console.error("[PumpPortal] WebSocket message error:", error);
+    }
+  };
+
+  ws.onerror = (error) => console.error("[PumpPortal] WebSocket error:", error);
+
+  ws.onclose = () => {
+    console.warn("[PumpPortal] WebSocket disconnected. Reconnecting in 5 seconds...");
+    setTimeout(initializePumpPortalWebSocket, 5000);
+  };
 }
+
+// -----------------------------------
+// INITIALIZE
+// -----------------------------------
+initializePumpPortalWebSocket();
+autoRefreshTokens();
