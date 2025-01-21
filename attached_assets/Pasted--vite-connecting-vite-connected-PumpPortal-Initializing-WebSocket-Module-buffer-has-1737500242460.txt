@@ -1,0 +1,33 @@
+[vite] connecting...
+[vite] connected.
+[PumpPortal] Initializing WebSocket...
+Module "buffer" has been externalized for browser compatibility. Cannot access "buffer.Buffer" in client code. See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[Wallet] Initializing connection to: https://solana-mainnet.g.alchemy.com/v2/demo
+[Wallet] Initializing connection to: https://api.mainnet-beta.solana.com
+[Wallet] Initializing connection to: https://solana-api.projectserum.com
+[Wallet] Initializing connection to: https://rpc.ankr.com/solana
+[PumpPortal] WebSocket connected.
+[PumpPortal] Subscribed to new token events
+[PumpPortal] Subscribed to token trade events
+[PumpPortal] Received event: 
+Object {message: "Successfully subscribed to token creation events."}
+[PumpPortal] Received event: 
+Object {errors: "Invalid message. Message must contain parameter 'keys' which should be an array of strings."}
+[PumpPortal] Received event: 
+Object {signature: "2HgcrewFeeux4SXrFYT7CA1iDcyCao9MoyJaBFV6GcaKtupGvwydP327uD17diBVMrJNwD4wv4xhjESq82TehNLu", mint: "H3979iny7TiDF9acmdUoBGhUg1zksnjYtDW4rsgvpump", traderPublicKey: "GVvxdA5VMG5CY2GiFqqFRamyA43xWUZ3uazXgtK3XJX6", txType: "create", initialBuy: 34612903.225806, …}
+[PumpPortal] Raw data received: 
+Object {signature: "2HgcrewFeeux4SXrFYT7CA1iDcyCao9MoyJaBFV6GcaKtupGvwydP327uD17diBVMrJNwD4wv4xhjESq82TehNLu", mint: "H3979iny7TiDF9acmdUoBGhUg1zksnjYtDW4rsgvpump", traderPublicKey: "GVvxdA5VMG5CY2GiFqqFRamyA43xWUZ3uazXgtK3XJX6", txType: "create", initialBuy: 34612903.225806, …}
+bondingCurveKey: "9xHVB4oDWc9vFTjB6UFRDB18eZgzV8qmWuhpD79Pdq3Q"
+initialBuy: 34612903.225806
+marketCapSol: 29.853991922957412
+mint: "H3979iny7TiDF9acmdUoBGhUg1zksnjYtDW4rsgvpump"
+name: "Double Zero Ai"
+pool: "pump"
+signature: "2HgcrewFeeux4SXrFYT7CA1iDcyCao9MoyJaBFV6GcaKtupGvwydP327uD17diBVMrJNwD4wv4xhjESq82TehNLu"
+solAmount: 1
+symbol: "DZ"
+traderPublicKey: "GVvxdA5VMG5CY2GiFqqFRamyA43xWUZ3uazXgtK3XJX6"
+txType: "create"
+uri: "https://ipfs.io/ipfs/QmSH2JUrJXB4oCPT4AmBfu9RpeFnjhYVQL1iWYLGWWkGVf"
+vSolInBondingCurve: 30.999999999999986
+vTokensInBondingCurve: 1038387096.774194

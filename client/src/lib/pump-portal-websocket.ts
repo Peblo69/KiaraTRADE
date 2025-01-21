@@ -152,7 +152,10 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
     // Calculate metrics
     const liquiditySol = vSolInBondingCurve;
     const liquidityUsd = liquiditySol * solPrice;
-    const volumeUsd = initialBuy * solPrice;
+
+    // Calculate volume in USD (initialBuy is in lamports, need to convert to SOL first)
+    const volumeSol = data.solAmount || 0;
+    const volumeUsd = volumeSol * solPrice;
 
     // Calculate price per token (in SOL and USD)
     const pricePerTokenSol = vSolInBondingCurve / TOTAL_SUPPLY;
@@ -184,7 +187,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       price: pricePerTokenUsd,
       marketCap: marketCapUsd,
       liquidity: liquidityUsd,
-      liquidityChange: 0,
+      liquidityChange: 0, // Will be calculated on updates
       l1Liquidity: liquidityUsd,
       volume: volumeUsd,
       swaps: 0,
