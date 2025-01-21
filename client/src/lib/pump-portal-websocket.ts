@@ -8,8 +8,13 @@ export interface PumpPortalToken {
   symbol: string;
   name: string;
   address: string;
-  marketCap: string; // Market cap in SOL
-  price: string; // Token price in SOL
+  marketCap: number; 
+  price: number;     
+  liquidity: number;
+  liquidityChange: number;
+  l1Liquidity: number;
+  volume: number;
+  swaps: number;
   timestamp: number;
   status: {
     mad: boolean;
@@ -43,146 +48,174 @@ export const usePumpPortalStore = create<PumpPortalStore>((set) => ({
 // -----------------------------------
 // CONSTANTS
 // -----------------------------------
-const HELIUS_API_KEY = "004f9b13-f526-4952-9998-52f5c7bec6ee"; // Your Helius API Key
-const HELIUS_BASE_URL = "https://api.helius.xyz/v0/";
-const REFRESH_INTERVAL = 5000; // 5 seconds
-const REQUEST_QUEUE: (() => Promise<void>)[] = [];
-let IS_PROCESSING_QUEUE = false;
+const TEMP_SOL_PRICE_USD = 100; // Temporary SOL price for calculations
+const TOTAL_SUPPLY = 1_000_000_000; // Fixed total supply for PumpFun tokens
 
-// -----------------------------------
-// PROCESS REQUEST QUEUE
-// -----------------------------------
-async function processQueue() {
-  if (IS_PROCESSING_QUEUE) return;
-  IS_PROCESSING_QUEUE = true;
-
-  while (REQUEST_QUEUE.length > 0) {
-    const request = REQUEST_QUEUE.shift();
-    if (request) await request();
-    await new Promise((resolve) => setTimeout(resolve, 100)); // Wait 100ms between requests
-  }
-
-  IS_PROCESSING_QUEUE = false;
-}
-
-// -----------------------------------
-// FETCH TOKEN DATA FROM HELIUS
-// -----------------------------------
-async function fetchTokenData(mint: string) {
+function mapPumpPortalData(data: any): PumpPortalToken {
   try {
-    console.log("[DEBUG] Fetching token data for mint:", mint);
-    console.log("[DEBUG] Using API Key:", HELIUS_API_KEY);
+    console.log('[PumpPortal] Raw data received:', data);
 
-    const response = await axios.post(
-      `${HELIUS_BASE_URL}token-metadata`,
-      { mintAccounts: [mint] },
-      {
-        headers: {
-          Authorization: `Bearer ${HELIUS_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    // Extract all the values with proper defaults
+    const vSolInBondingCurve = Number(data.vSolInBondingCurve || 0);
+    const initialBuy = Number(data.initialBuy || 0);
+    const marketCapSol = Number(data.marketCapSol || 0);
 
-    const metadata = response.data[0];
-    console.log("[Helius] Token Metadata:", metadata);
+    // Convert all SOL values to USD using our temporary price
+    const liquidityUsd = vSolInBondingCurve * TEMP_SOL_PRICE_USD;
+    const volumeUsd = initialBuy * TEMP_SOL_PRICE_USD;
+    const marketCapUsd = marketCapSol * TEMP_SOL_PRICE_USD;
 
-    return {
-      symbol: metadata.symbol || "UNKNOWN",
-      name: metadata.name || "Unknown Name",
-      marketCap: "N/A", // Placeholder for now
-      price: "N/A", // Placeholder for now
-      address: mint,
+    // Calculate price from marketCap
+    const priceUsd = marketCapUsd / TOTAL_SUPPLY;
+
+    const token: PumpPortalToken = {
+      // Use the provided name/symbol, or create from mint address
+      symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
+      name: data.name || `Token ${data.mint?.slice(0, 8)}`,
+      address: data.mint || '',
+      // Financial metrics
+      price: priceUsd,
+      marketCap: marketCapUsd,
+      liquidity: liquidityUsd,
+      liquidityChange: 0,
+      l1Liquidity: liquidityUsd, // Same as liquidity for now
+      volume: volumeUsd,
+      swaps: 0,
       timestamp: Date.now(),
+      // Status flags
       status: {
         mad: false,
         fad: false,
-        lb: false,
+        lb: Boolean(data.bondingCurveKey),
         tri: false,
-      },
+      }
     };
+
+    console.log('[PumpPortal] Mapped token:', token);
+    return token;
+
   } catch (error) {
-    console.error("[Helius] Error fetching token data:", error.response?.data || error.message);
-    return null;
+    console.error('[PumpPortal] Error mapping data:', error, data);
+    // Return a basic token instead of throwing
+    return {
+      symbol: data.mint?.slice(0, 6) || 'Unknown',
+      name: 'Unknown Token',
+      address: data.mint || '',
+      price: 0,
+      marketCap: 0,
+      liquidity: 0,
+      liquidityChange: 0,
+      l1Liquidity: 0,
+      volume: 0,
+      swaps: 0,
+      timestamp: Date.now(),
+      status: { mad: false, fad: false, lb: false, tri: false }
+    };
   }
 }
 
-// -----------------------------------
-// HANDLE NEW TOKEN
-// -----------------------------------
-async function handleNewToken(data: any) {
-  const store = usePumpPortalStore.getState();
-  const mint = data.mint;
+let ws: WebSocket | null = null;
+let reconnectTimeout: NodeJS.Timeout | null = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY = 5000;
 
-  // Add fetch task to queue
-  REQUEST_QUEUE.push(async () => {
-    const tokenData = await fetchTokenData(mint);
-    if (tokenData) {
-      store.addToken(tokenData);
-      console.log("[PumpPortal] Added new token:", tokenData);
-    }
-  });
+export function initializePumpPortalWebSocket() {
+  if (typeof window === 'undefined') return;
 
-  processQueue();
-}
-
-// -----------------------------------
-// AUTO-REFRESH DATA
-// -----------------------------------
-function autoRefreshTokens() {
-  setInterval(async () => {
-    const store = usePumpPortalStore.getState();
-    const tokens = store.tokens;
-
-    for (const token of tokens) {
-      REQUEST_QUEUE.push(async () => {
-        const refreshedData = await fetchTokenData(token.address);
-        if (refreshedData) {
-          store.addToken(refreshedData);
-          console.log("[PumpPortal] Refreshed token:", refreshedData);
-        }
-      });
-    }
-
-    processQueue();
-  }, REFRESH_INTERVAL);
-}
-
-// -----------------------------------
-// WEBSOCKET CONNECTION
-// -----------------------------------
-function initializePumpPortalWebSocket() {
-  const ws = new WebSocket("wss://pumpportal.fun/api/data");
   const store = usePumpPortalStore.getState();
 
-  ws.onopen = () => {
-    console.log("[PumpPortal] WebSocket connected.");
-    store.setConnected(true);
-    ws.send(JSON.stringify({ method: "subscribeNewToken" }));
-  };
-
-  ws.onmessage = async (event) => {
+  // Clean up existing connection
+  if (ws) {
     try {
-      const data = JSON.parse(event.data);
-      console.log("[PumpPortal] Received data:", data);
-      if (data.txType === "create") {
-        await handleNewToken(data);
-      }
-    } catch (error) {
-      console.error("[PumpPortal] WebSocket message error:", error);
+      ws.close();
+    } catch (e) {
+      console.error('[PumpPortal] Error closing WebSocket:', e);
     }
-  };
+    ws = null;
+  }
 
-  ws.onerror = (error) => console.error("[PumpPortal] WebSocket error:", error);
+  try {
+    console.log('[PumpPortal] Initializing WebSocket...');
+    ws = new WebSocket('wss://pumpportal.fun/api/data');
 
-  ws.onclose = () => {
-    console.warn("[PumpPortal] WebSocket disconnected. Reconnecting in 5 seconds...");
-    setTimeout(initializePumpPortalWebSocket, 5000);
-  };
+    ws.onopen = () => {
+      console.log('[PumpPortal] WebSocket connected.');
+      store.setConnected(true);
+      reconnectAttempts = 0;
+
+      // Subscribe to new token events
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          method: "subscribeNewToken"
+        }));
+        console.log('[PumpPortal] Subscribed to new token events');
+
+        // Also subscribe to trade events
+        ws.send(JSON.stringify({
+          method: "subscribeTokenTrade"
+        }));
+        console.log('[PumpPortal] Subscribed to token trade events');
+      }
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('[PumpPortal] Received event:', data);
+
+        // Skip subscription confirmation messages
+        if (data.message && data.message.includes('Successfully subscribed')) {
+          return;
+        }
+
+        // Handle new token creation
+        if (data.mint && data.txType === 'create') {
+          try {
+            const token = mapPumpPortalData(data);
+            store.addToken(token);
+            console.log('[PumpPortal] Added new token:', token.symbol);
+          } catch (err) {
+            console.error('[PumpPortal] Failed to process token:', err);
+          }
+        }
+
+        // Handle trade events (to be implemented)
+        if (data.txType === 'trade') {
+          // Update volume and swaps in future implementation
+        }
+      } catch (error) {
+        console.error('[PumpPortal] Failed to parse message:', error);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('[PumpPortal] WebSocket disconnected');
+      store.setConnected(false);
+
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+        reconnectTimeout = setTimeout(initializePumpPortalWebSocket, RECONNECT_DELAY);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('[PumpPortal] WebSocket error:', error);
+      store.setConnected(false);
+    };
+
+  } catch (error) {
+    console.error('[PumpPortal] Failed to initialize WebSocket:', error);
+    store.setConnected(false);
+
+    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      reconnectAttempts++;
+      console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+      reconnectTimeout = setTimeout(initializePumpPortalWebSocket, RECONNECT_DELAY);
+    }
+  }
 }
 
-// -----------------------------------
-// INITIALIZE
-// -----------------------------------
+// Initialize the WebSocket connection
 initializePumpPortalWebSocket();
-autoRefreshTokens();

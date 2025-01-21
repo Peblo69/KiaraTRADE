@@ -1,0 +1,59 @@
+We are building a real-time token tracker for new tokens launched on the PumpPortal platform. The code integrates with two main sources of data:
+
+PumpPortal WebSocket:
+
+Subscribes to and listens for new token creation events.
+Receives details about new tokens, such as their mint addresses, initial buy amounts, and trader details.
+The WebSocket feed is the entry point for detecting new tokens as soon as they are created.
+Helius API:
+
+Once a new token is detected, the Helius API is used to fetch on-chain metadata about the token using its mint address.
+This metadata includes critical details like the token's name, symbol, supply, and other on-chain information.
+The combination of these two data sources allows us to scan and display tokens in real-time with relevant metadata, market cap, price, and liquidity.
+
+What the Code Does
+Listen to PumpPortal WebSocket:
+
+Connects to PumpPortal's WebSocket and subscribes to the subscribeNewToken event.
+Receives data for each new token detected on PumpPortal (e.g., mint address, signature, and more).
+Fetch Token Metadata from Helius:
+
+Uses the mint address provided by PumpPortal to call the Helius API and retrieve token metadata.
+Formats the data into a standardized format that includes:
+Name: The token's name (e.g., "PumpToken").
+Symbol: The token's symbol (e.g., "PUMP").
+Market Cap: Placeholder for now (future enhancement to calculate it dynamically).
+Price: Placeholder for now (future enhancement to calculate price dynamically).
+Address: The token's mint address.
+Timestamp: The time the token was added.
+Display Data:
+
+Stores the formatted token data in a Zustand store.
+Keeps a history of up to 10 tokens, displaying their details on the interface.
+Refresh Data:
+
+Periodically refreshes token data to keep it up-to-date using the Helius API.
+What We Need
+From PumpPortal:
+
+Mint Address: The unique address of the token.
+Other Metadata: Any additional metadata PumpPortal provides, such as initial buy details, is helpful but not mandatory for fetching on-chain data.
+From Helius:
+
+On-Chain Metadata:
+Name
+Symbol
+Decimals
+Supply
+Account Info:
+Balance or liquidity details (if available).
+Final Output
+The application should display real-time data for new tokens, including:
+
+Token Name: The name of the token fetched from Helius.
+Symbol: The token's symbol.
+Market Cap: Placeholder (to be enhanced later).
+Price: Placeholder (to be enhanced later).
+Liquidity: Placeholder (to be enhanced later).
+Address: The mint address of the token.
+Timestamp: When the token was detected.
