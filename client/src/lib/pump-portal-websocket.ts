@@ -14,16 +14,27 @@ export interface PumpPortalToken {
   liquidityChange: number;
   l1Liquidity: number;
   volume: number;
-  swaps: number;
+  volume24h: number;
+  trades: number;
+  trades24h: number;
+  buys24h: number;
+  sells24h: number;
+  walletCount: number;
   timestamp: number;
-  heliusData?: {
-    currentHolders: number;
-    tokenVolume24h: number;
-    lastTrade: {
-      price: number;
+  priceHistory: {
+    [timeframe: string]: {
       timestamp: number;
-    };
+      price: number;
+      volume: number;
+    }[];
   };
+  recentTrades: {
+    timestamp: number;
+    price: number;
+    volume: number;
+    isBuy: boolean;
+    wallet: string;
+  }[];
   status: {
     mad: boolean;
     fad: false;
@@ -38,6 +49,7 @@ interface PumpPortalStore {
   solPrice: number | null;
   addToken: (token: PumpPortalToken) => void;
   updateToken: (address: string, updates: Partial<PumpPortalToken>) => void;
+  addTradeToHistory: (address: string, trade: any) => void;
   setConnected: (connected: boolean) => void;
   setSolPrice: (price: number) => void;
 }
@@ -45,10 +57,11 @@ interface PumpPortalStore {
 // -----------------------------------
 // CONSTANTS
 // -----------------------------------
-const TOTAL_SUPPLY = 1_000_000_000; // Fixed 1 billion supply for all PumpFun tokens
+const TOTAL_SUPPLY = 1_000_000_000;
 const COINGECKO_API = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd";
 const HELIUS_API_URL = "https://mainnet.helius-rpc.com/v0";
-const CACHE_DURATION = 30000; // 30 seconds cache
+const CACHE_DURATION = 30000;
+const TIMEFRAMES = ['5m', '1h', '4h', '24h'];
 
 // Cache mechanism for SOL price
 let cachedSolPrice: number | null = null;
@@ -56,8 +69,6 @@ let lastPriceUpdate = 0;
 
 async function fetchSolPrice(): Promise<number> {
   const now = Date.now();
-
-  // Return cached price if still valid
   if (cachedSolPrice && (now - lastPriceUpdate < CACHE_DURATION)) {
     return cachedSolPrice;
   }
@@ -65,7 +76,6 @@ async function fetchSolPrice(): Promise<number> {
   try {
     const response = await axios.get(COINGECKO_API);
     const price = response.data?.solana?.usd;
-
     if (price) {
       cachedSolPrice = price;
       lastPriceUpdate = now;
@@ -75,53 +85,13 @@ async function fetchSolPrice(): Promise<number> {
   } catch (error) {
     console.error('[PumpPortal] Error fetching SOL price:', error);
   }
-
-  // Return last known price or fallback
   return cachedSolPrice || 100;
-}
-
-async function fetchHeliusData(mintAddress: string): Promise<any> {
-  try {
-    const response = await axios.post(HELIUS_API_URL, {
-      jsonrpc: "2.0",
-      id: "my-id",
-      method: "getAssetByMint",
-      params: {
-        id: mintAddress,
-        displayOptions: {
-          showUnverifiedCollections: true,
-          showCollectionMetadata: true,
-          showFungible: true
-        }
-      }
-    }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_HELIUS_API_KEY}`
-      }
-    });
-
-    if (response.data?.result) {
-      console.log('[PumpPortal] Helius data for', mintAddress, ':', response.data.result);
-      return response.data.result;
-    }
-    return null;
-  } catch (error) {
-    // Only log actual error for non-404 responses
-    if (error?.response?.status !== 404) {
-      console.error('[PumpPortal] Error fetching Helius data:', error);
-    } else {
-      // For 404s, just log that the token isn't indexed yet
-      console.log(`[PumpPortal] Token ${mintAddress} not yet indexed by Helius`);
-    }
-    return null;
-  }
 }
 
 // -----------------------------------
 // STORE
 // -----------------------------------
-export const usePumpPortalStore = create<PumpPortalStore>((set) => ({
+export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
   isConnected: false,
   solPrice: null,
@@ -135,6 +105,69 @@ export const usePumpPortalStore = create<PumpPortalStore>((set) => ({
         token.address === address ? { ...token, ...updates } : token
       ),
     })),
+  addTradeToHistory: (address, trade) =>
+    set((state) => {
+      const token = state.tokens.find(t => t.address === address);
+      if (!token) return state;
+
+      const now = Date.now();
+      const solPrice = get().solPrice || 100;
+      const tradeVolume = Number(trade.solAmount || 0) * solPrice;
+      const isBuy = trade.txType === 'buy';
+
+      // Update price history for each timeframe
+      const updatedPriceHistory = { ...token.priceHistory };
+      TIMEFRAMES.forEach(timeframe => {
+        const history = updatedPriceHistory[timeframe] || [];
+        history.push({
+          timestamp: now,
+          price: token.price,
+          volume: tradeVolume
+        });
+
+        // Keep last 100 data points per timeframe
+        if (history.length > 100) {
+          history.shift();
+        }
+        updatedPriceHistory[timeframe] = history;
+      });
+
+      // Update recent trades
+      const newTrade = {
+        timestamp: now,
+        price: token.price,
+        volume: tradeVolume,
+        isBuy,
+        wallet: trade.traderPublicKey
+      };
+
+      const recentTrades = [newTrade, ...(token.recentTrades || [])].slice(0, 50);
+
+      // Calculate 24h stats
+      const last24h = now - 24 * 60 * 60 * 1000;
+      const trades24h = recentTrades.filter(t => t.timestamp > last24h);
+      const volume24h = trades24h.reduce((sum, t) => sum + t.volume, 0);
+      const buys24h = trades24h.filter(t => t.isBuy).length;
+      const sells24h = trades24h.filter(t => !t.isBuy).length;
+
+      // Update token with new data
+      return {
+        tokens: state.tokens.map(t => 
+          t.address === address ? {
+            ...t,
+            volume: t.volume + tradeVolume,
+            volume24h,
+            trades: t.trades + 1,
+            trades24h: trades24h.length,
+            buys24h,
+            sells24h,
+            priceHistory: updatedPriceHistory,
+            recentTrades,
+            walletCount: new Set([...recentTrades.map(trade => trade.wallet)]).size
+          } : t
+        )
+      };
+    }),
   setConnected: (connected) => set({ isConnected: connected }),
   setSolPrice: (price) => set({ solPrice: price }),
 }));
@@ -142,52 +175,25 @@ export const usePumpPortalStore = create<PumpPortalStore>((set) => ({
 async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
   try {
     console.log('[PumpPortal] Raw data received:', data);
-    // Only fetch SOL price when needed for USD conversions
     const solPrice = await fetchSolPrice();
 
-    // Destructure all available data from the single WebSocket message
     const {
-      mint,                    // Token address ending with 'pump'
-      vSolInBondingCurve,     // Total SOL in bonding curve (liquidity)
-      marketCapSol,           // Direct market cap in SOL from PumpPortal
-      bondingCurveKey,        // Bonding curve address
-      name,                   // Token name
-      symbol,                 // Token symbol
-      solAmount,             // Trade amount in SOL
-      traderPublicKey,       // Trader's public key
-      uri,                   // Token metadata URI
-      txType                 // Transaction type (create/trade)
+      mint,
+      vSolInBondingCurve,
+      marketCapSol,
+      bondingCurveKey,
+      name,
+      symbol,
+      solAmount,
+      traderPublicKey,
+      uri,
+      txType
     } = data;
 
-    // Calculate core metrics using PumpPortal's direct data
     const marketCapUsd = Number(marketCapSol || 0) * solPrice;
     const priceUsd = marketCapUsd / TOTAL_SUPPLY;
     const liquidityUsd = Number(vSolInBondingCurve || 0) * solPrice;
     const volumeUsd = Number(solAmount || 0) * solPrice;
-
-    // Only fetch Helius data if we need additional metadata not provided by PumpPortal
-    let heliusData = undefined;
-    if (mint && txType === 'create') {
-      try {
-        const heliusResponse = await fetchHeliusData(mint);
-        if (heliusResponse) {
-          heliusData = {
-            currentHolders: heliusResponse.ownership?.totalHolders || 0,
-            tokenVolume24h: heliusResponse.recent?.volume24h || volumeUsd,
-            lastTrade: {
-              price: heliusResponse.recent?.price || priceUsd,
-              timestamp: heliusResponse.recent?.lastTradeTimestamp || Date.now()
-            }
-          };
-        }
-      } catch (error: any) {
-        if (error?.response?.status === 404) {
-          console.log(`[PumpPortal] Token ${mint} not yet indexed by Helius`);
-        } else {
-          console.error('[PumpPortal] Error fetching Helius data:', error);
-        }
-      }
-    }
 
     const token: PumpPortalToken = {
       symbol: symbol || mint?.slice(0, 6) || 'Unknown',
@@ -199,9 +205,21 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       liquidityChange: 0,
       l1Liquidity: liquidityUsd,
       volume: volumeUsd,
-      swaps: txType === 'trade' ? 1 : 0,
+      volume24h: volumeUsd,
+      trades: 1,
+      trades24h: 1,
+      buys24h: txType === 'buy' ? 1 : 0,
+      sells24h: txType === 'sell' ? 1 : 0,
+      walletCount: 1,
       timestamp: Date.now(),
-      heliusData,
+      priceHistory: {},
+      recentTrades: [{
+        timestamp: Date.now(),
+        price: priceUsd,
+        volume: volumeUsd,
+        isBuy: txType === 'buy',
+        wallet: traderPublicKey
+      }],
       status: {
         mad: false,
         fad: false,
@@ -213,9 +231,8 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
     console.log('[PumpPortal] Mapped token:', token);
     usePumpPortalStore.getState().setSolPrice(solPrice);
     return token;
-
   } catch (error) {
-    console.error('[PumpPortal] Error mapping data:', error, data);
+    console.error('[PumpPortal] Error mapping data:', error);
     throw error;
   }
 }
@@ -231,7 +248,6 @@ export function initializePumpPortalWebSocket() {
 
   const store = usePumpPortalStore.getState();
 
-  // Clean up existing connection
   if (ws) {
     try {
       ws.close();
@@ -257,7 +273,7 @@ export function initializePumpPortalWebSocket() {
         }));
         console.log('[PumpPortal] Subscribed to new token events');
 
-        // Subscribe to trade events
+        // Subscribe to trade events for all tokens
         ws.send(JSON.stringify({
           method: "subscribeTokenTrade"
         }));
@@ -270,13 +286,12 @@ export function initializePumpPortalWebSocket() {
         const data = JSON.parse(event.data);
         console.log('[PumpPortal] Received event:', data);
 
-        // Skip subscription confirmation messages
-        if (data.message && data.message.includes('Successfully subscribed')) {
+        if (data.message?.includes('Successfully subscribed')) {
           return;
         }
 
         // Handle new token creation
-        if (data.mint && data.txType === 'create') {
+        if (data.txType === 'create' && data.mint) {
           try {
             const token = await mapPumpPortalData(data);
             store.addToken(token);
@@ -287,15 +302,11 @@ export function initializePumpPortalWebSocket() {
         }
 
         // Handle trade events
-        if (data.txType === 'trade' && data.mint) {
-          const existingToken = store.tokens.find(t => t.address === data.mint);
-          if (existingToken) {
-            store.updateToken(data.mint, {
-              swaps: (existingToken.swaps || 0) + 1,
-              volume: (existingToken.volume || 0) + Number(data.tradeVolume || 0),
-            });
-          }
+        if (['buy', 'sell'].includes(data.txType) && data.mint) {
+          store.addTradeToHistory(data.mint, data);
+          console.log(`[PumpPortal] Added ${data.txType} trade for ${data.mint}`);
         }
+
       } catch (error) {
         console.error('[PumpPortal] Failed to parse message:', error);
       }
@@ -329,5 +340,4 @@ export function initializePumpPortalWebSocket() {
   }
 }
 
-// Initialize the WebSocket connection
 initializePumpPortalWebSocket();
