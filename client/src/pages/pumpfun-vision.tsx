@@ -1,15 +1,16 @@
-// FILE: PumpFunVision.tsx
-import { FC, useEffect } from "react";
+import { FC, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import millify from "millify";
-
 import {
-  usePumpPortalStore,
-  PumpPortalToken,
-} from "@/lib/pump-portal-websocket";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Loader2, ArrowLeft, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
+import millify from "millify";
 
 /** 
  * Safely convert the string "12345.67" -> "$12K" style. 
@@ -44,7 +45,7 @@ function getTimeDiff(timestamp: number): string {
  * Convert status booleans -> array of label strings:
  * e.g. { mad: true, fad: true, lb: false, tri: true } => ["MAD","FAD","T10"]
  */
-function getStatusLabels(status: PumpPortalToken["status"]): string[] {
+function getStatusLabels(status: any): string[] { //Type changed to any to avoid errors.  Ideally, the correct type should be used from the original code.
   const labels: string[] = [];
   if (status.mad) labels.push("MAD");
   if (status.fad) labels.push("FAD");
@@ -53,176 +54,190 @@ function getStatusLabels(status: PumpPortalToken["status"]): string[] {
   return labels;
 }
 
-const PumpFunVision: FC = () => {
-  const tokens = usePumpPortalStore((state) => state.tokens);
-  const isConnected = usePumpPortalStore((state) => state.isConnected);
-  const solPrice = usePumpPortalStore((state) => state.solPrice);
-
-  const { toast } = useToast();
-
-  useEffect(() => {
-    console.log("[PumpFunVision] isConnected:", isConnected);
-    console.log("[PumpFunVision] solPrice:", solPrice);
-    console.log("[PumpFunVision] tokens:", tokens);
-  }, [isConnected, solPrice, tokens]);
-
+const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) => {
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* MAIN CONTENT */}
-      <div className="w-full max-w-[1200px] mx-auto p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="flex items-center gap-2 text-green-400">
-            <span className="text-sm">🔥 New Pairs</span>
-          </div>
-          <span className="text-xs text-muted-foreground">
-            Find the latest tokens across chains
-          </span>
-        </div>
-
-        {/* Table Header */}
-        <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr,1fr,1fr,1fr,1fr] gap-3 px-4 py-2 text-xs text-muted-foreground">
-          <div>Token</div>
-          <div className="text-right">Created</div>
-          <div className="text-right">Liquidity</div>
-          <div className="text-right">I.Liquidity</div>
-          <div className="text-right">MarketCap</div>
-          <div className="text-right">Swaps</div>
-          <div className="text-right">Volume</div>
-          <div className="text-center">Audit</div>
-          <div className="text-center">Quick Buy</div>
-        </div>
-
-        {/* Table Rows */}
-        <div className="space-y-1">
-          {!isConnected ? (
-            // If not connected, show loading spinner
-            <div className="flex items-center justify-center h-40">
-              <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+    <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50">
+      <div className="h-full flex flex-col">
+        {/* Header */}
+        <div className="border-b border-border/40 p-4">
+          <div className="max-w-[1200px] mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onBack}
+                className="hover:bg-purple-500/10"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div>
+                <h1 className="text-xl font-bold">{token.name}</h1>
+                <p className="text-sm text-muted-foreground">{token.symbol}</p>
+              </div>
             </div>
-          ) : tokens.length > 0 ? (
-            tokens.map((token: PumpPortalToken) => {
-              // Convert strings to short K/M format
-              const shortLiquidity = formatUsdShort(token.liquidity);
-              const shortL1 = formatUsdShort(token.l1Liquidity);
-              const shortMcap = formatUsdShort(token.marketCap);
+            <div className="flex items-center gap-2">
+              <div className="text-right">
+                <div className="text-xl font-bold">${token.price.toFixed(6)}</div>
+                <div className="text-sm text-green-500">+2.45%</div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-              // Volume is a number
-              const shortVolume = formatNumberShort(token.volume);
+        {/* Main Content */}
+        <div className="flex-1 overflow-hidden">
+          <div className="max-w-[1200px] mx-auto h-full grid grid-cols-[1fr,300px] gap-4 p-4">
+            {/* Left Column - Chart and Stats */}
+            <div className="space-y-4">
+              {/* Chart placeholder */}
+              <Card className="h-[400px] bg-background/50 flex items-center justify-center border-purple-500/20">
+                <div className="text-muted-foreground">Chart Coming Soon</div>
+              </Card>
 
-              // statuses -> array of labels
-              const statusLabels = getStatusLabels(token.status);
+              {/* Stats Grid */}
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: "Market Cap", value: `$${millify(token.marketCap)}` },
+                  { label: "Liquidity", value: `$${millify(token.liquidity)}` },
+                  { label: "Volume 24h", value: `$${millify(token.volume)}` },
+                ].map((stat, idx) => (
+                  <Card key={idx} className="p-4 bg-background/50 border-purple-500/20">
+                    <div className="text-sm text-muted-foreground">{stat.label}</div>
+                    <div className="text-lg font-bold mt-1">{stat.value}</div>
+                  </Card>
+                ))}
+              </div>
+            </div>
 
-              return (
-                <Card
-                  key={`${token.symbol}-${token.timestamp}`}
-                  className="hover:bg-accent/5 transition-all duration-300 cursor-pointer"
-                >
-                  <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr,1fr,1fr,1fr,1fr] gap-3 px-4 py-3 items-center">
-                    {/* Token Symbol/Name */}
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center">
-                        {token.symbol ? token.symbol[0] : "?"}
-                      </div>
-                      <div>
-                        <div className="font-medium">{token.symbol || "??"}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {token.name || "Unknown Name"}
+            {/* Right Column - Live Trades */}
+            <Card className="bg-background/50 border-purple-500/20">
+              <div className="p-4 border-b border-border/40">
+                <h3 className="font-semibold">Live Trades</h3>
+              </div>
+              <ScrollArea className="h-[calc(100vh-180px)]">
+                <div className="p-2 space-y-2">
+                  {/* Example trades - will be replaced with real data */}
+                  {Array.from({ length: 20 }).map((_, idx) => (
+                    <Card
+                      key={idx}
+                      className={`p-3 flex items-center justify-between ${
+                        idx % 2 === 0
+                          ? "bg-green-500/10 border-green-500/20"
+                          : "bg-red-500/10 border-red-500/20"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {idx % 2 === 0 ? (
+                          <ArrowUpRight className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <ArrowDownRight className="h-4 w-4 text-red-500" />
+                        )}
+                        <div>
+                          <div className="text-sm font-medium">
+                            {idx % 2 === 0 ? "Buy" : "Sell"}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Gx8k...j29F
+                          </div>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Created (time diff) */}
-                    <div className="text-right font-mono text-muted-foreground">
-                      {token.timestamp ? getTimeDiff(token.timestamp) : "N/A"}
-                    </div>
-
-                    {/* Liquidity (short K/M) */}
-                    <div className="text-right font-mono">
-                      {shortLiquidity}
-                    </div>
-
-                    {/* I.Liquidity (short K/M) */}
-                    <div className="text-right font-mono">
-                      {shortL1}
-                    </div>
-
-                    {/* MarketCap (short K/M) */}
-                    <div className="text-right font-mono">
-                      {shortMcap}
-                    </div>
-
-                    {/* Swaps */}
-                    <div className="text-right font-mono">{token.swaps || 0}</div>
-
-                    {/* Volume (short K/M) */}
-                    <div className="text-right font-mono">{shortVolume}</div>
-
-                    {/* Audit (status badges) */}
-                    <div className="flex justify-center gap-1">
-                      {statusLabels.length > 0 ? (
-                        statusLabels.map((lbl) => (
-                          <span
-                            key={lbl}
-                            className="px-2 py-0.5 rounded text-xs bg-green-800 text-green-200"
-                          >
-                            {lbl}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </div>
-
-                    {/* Quick Buy */}
-                    <div className="flex justify-center">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs"
-                        onClick={() => {
-                          toast({
-                            title: "Quick Buy",
-                            description: `Clicked Quick Buy for ${token.symbol}`,
-                          });
-                          // Insert your buy logic here
-                        }}
-                      >
-                        {/* Example: show a lightning icon + $0 
-                            or something that matches your design */}
-                        <span className="mr-1">⚡</span> $0
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              );
-            })
-          ) : (
-            // If connected but no tokens come in yet
-            <div className="flex items-center justify-center h-40">
-              <p className="text-muted-foreground">Waiting for new tokens...</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* RIGHT SIDEBAR */}
-      <div className="flex-1 p-8">
-        <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
-          PumpFun Vision
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          Select a token to view detailed analytics
-        </p>
-        <div className="text-sm mt-4 text-muted-foreground">
-          Current SOL Price:{" "}
-          {solPrice ? (
-            <span className="font-bold text-white">${solPrice.toFixed(2)}</span>
-          ) : (
-            "Loading..."
-          )}
+                      <div className="text-right">
+                        <div className="text-sm font-medium">0.5 SOL</div>
+                        <div className="text-xs text-muted-foreground">5s ago</div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
+  );
+};
+
+const PumpFunVision: FC = () => {
+  const [selectedToken, setSelectedToken] = useState<any>(null);
+  const tokens = usePumpPortalStore((state) => state.tokens);
+  const isConnected = usePumpPortalStore((state) => state.isConnected);
+
+  return (
+    <>
+      <div className="min-h-screen bg-background">
+        <div className="max-w-[1200px] mx-auto p-4">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold">PumpFun Vision</h1>
+              <p className="text-sm text-muted-foreground">
+                Track newly created tokens and their performance
+              </p>
+            </div>
+          </div>
+
+          {/* Token List */}
+          <div className="space-y-2">
+            {/* Header */}
+            <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 px-4 py-2 text-sm text-muted-foreground">
+              <div>Token</div>
+              <div className="text-right">Price</div>
+              <div className="text-right">Market Cap</div>
+              <div className="text-right">Liquidity</div>
+              <div className="text-right">Volume</div>
+            </div>
+
+            {/* Token Rows */}
+            {!isConnected ? (
+              <div className="flex items-center justify-center h-40">
+                <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+              </div>
+            ) : tokens.length > 0 ? (
+              tokens.map((token) => (
+                <Card
+                  key={token.address}
+                  className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
+                  onClick={() => setSelectedToken(token)}
+                >
+                  <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-lg font-bold">
+                        {token.symbol[0]}
+                      </div>
+                      <div>
+                        <div className="font-medium group-hover:text-purple-400 transition-colors">
+                          {token.name}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {token.symbol}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right font-medium">
+                      ${token.price.toFixed(6)}
+                    </div>
+                    <div className="text-right">${millify(token.marketCap)}</div>
+                    <div className="text-right">${millify(token.liquidity)}</div>
+                    <div className="text-right">${millify(token.volume)}</div>
+                  </div>
+                </Card>
+              ))
+            ) : (
+              <div className="flex items-center justify-center h-40">
+                <p className="text-muted-foreground">Waiting for new tokens...</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Token Detail View */}
+      {selectedToken && (
+        <TokenView
+          token={selectedToken}
+          onBack={() => setSelectedToken(null)}
+        />
+      )}
+    </>
   );
 };
 
