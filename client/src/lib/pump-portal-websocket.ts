@@ -142,50 +142,45 @@ export const usePumpPortalStore = create<PumpPortalStore>((set) => ({
 async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
   try {
     console.log('[PumpPortal] Raw data received:', data);
-
     const solPrice = await fetchSolPrice();
 
-    // Get values from PumpPortal with defaults
-    const vSolInBondingCurve = Number(data.vSolInBondingCurve || 0);
-    const initialBuyLamports = Number(data.initialBuy || 0);
+    // Extract all available data from the single WebSocket message
+    const {
+      mint,                    // Token address ending with 'pump'
+      vSolInBondingCurve,     // Total SOL in bonding curve (liquidity)
+      bondingCurveKey,        // Bonding curve address
+      name,                   // Token name
+      symbol,                 // Token symbol
+      solAmount,             // Trade amount in SOL
+      initialBuy,            // Initial buy in lamports
+      marketCapSol,          // Market cap in SOL
+      uri                    // Token metadata URI
+    } = data;
 
-    // Convert lamports to SOL (1 SOL = 1e9 lamports)
-    const initialBuySol = initialBuyLamports / 1e9;
+    // Calculate core metrics from the single message
+    const liquidity = Number(vSolInBondingCurve || 0);
+    const marketCap = Number(marketCapSol || 0) * solPrice;
+    const price = marketCap / TOTAL_SUPPLY;
+    const volume = Number(solAmount || 0) * solPrice;
 
-    // Calculate metrics
-    const liquiditySol = vSolInBondingCurve;
-    const liquidityUsd = liquiditySol * solPrice;
-
-    // Calculate volume in USD (using SOL amount directly as it's already in SOL)
-    const volumeSol = Number(data.solAmount || 0);
-    const volumeUsd = volumeSol * solPrice;
-
-    // Calculate price per token (in SOL and USD)
-    const pricePerTokenSol = vSolInBondingCurve / TOTAL_SUPPLY;
-    const pricePerTokenUsd = pricePerTokenSol * solPrice;
-
-    // Calculate market cap (using actual supply)
-    const marketCapUsd = pricePerTokenUsd * TOTAL_SUPPLY;
-
-    // Fetch Helius data for additional metrics
+    // Only fetch Helius data for additional metadata if not available in PumpPortal data
     let heliusData = undefined;
-    if (data.mint) {
+    if (mint && (!data.holders || !data.volume24h)) {
       try {
-        const heliusResponse = await fetchHeliusData(data.mint);
+        const heliusResponse = await fetchHeliusData(mint);
         if (heliusResponse) {
           heliusData = {
             currentHolders: heliusResponse.ownership?.totalHolders || 0,
             tokenVolume24h: heliusResponse.recent?.volume24h || 0,
             lastTrade: {
-              price: heliusResponse.recent?.price || pricePerTokenUsd,
+              price: heliusResponse.recent?.price || price,
               timestamp: heliusResponse.recent?.lastTradeTimestamp || Date.now()
             }
           };
         }
       } catch (error: any) {
-        // Handle 404 gracefully - new tokens may not be indexed yet
         if (error?.response?.status === 404) {
-          console.log(`[PumpPortal] Token ${data.mint} not yet indexed by Helius`);
+          console.log(`[PumpPortal] Token ${mint} not yet indexed by Helius`);
         } else {
           console.error('[PumpPortal] Error fetching Helius data:', error);
         }
@@ -193,22 +188,22 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
     }
 
     const token: PumpPortalToken = {
-      symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
-      name: data.name || `Token ${data.mint?.slice(0, 8)}`,
-      address: data.mint || '',
-      price: pricePerTokenUsd,
-      marketCap: marketCapUsd,
-      liquidity: liquidityUsd,
+      symbol: symbol || mint?.slice(0, 6) || 'Unknown',
+      name: name || `Token ${mint?.slice(0, 8)}`,
+      address: mint || '',
+      price,
+      marketCap,
+      liquidity: liquidity * solPrice,
       liquidityChange: 0,
-      l1Liquidity: liquidityUsd,
-      volume: volumeUsd,
+      l1Liquidity: liquidity * solPrice,
+      volume,
       swaps: 0,
       timestamp: Date.now(),
       heliusData,
       status: {
         mad: false,
         fad: false,
-        lb: Boolean(data.bondingCurveKey),
+        lb: Boolean(bondingCurveKey),
         tri: false,
       }
     };
