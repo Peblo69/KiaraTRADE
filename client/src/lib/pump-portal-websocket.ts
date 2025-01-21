@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import axios from "axios";
+import { useHeliusStore } from './helius-websocket'; // Fixed import path
 
 // -----------------------------------
 // TYPES
@@ -377,6 +378,8 @@ export function initializePumpPortalWebSocket() {
           try {
             const token = await mapPumpPortalData(data);
             store.addToken(token);
+            // Subscribe to this token's address in Helius
+            useHeliusStore.getState().subscribeToToken(data.mint);
             console.log('[PumpPortal] Added new token:', token.symbol);
           } catch (err) {
             console.error('[PumpPortal] Failed to process token:', err);
