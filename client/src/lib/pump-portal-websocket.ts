@@ -245,7 +245,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
       // Update token with new data
       return {
-        tokens: state.tokens.map(t => 
+        tokens: state.tokens.map(t =>
           t.address === address ? {
             ...t,
             price: newPrice,
@@ -382,7 +382,15 @@ export function initializePumpPortalWebSocket() {
     ws.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('[PumpPortal] Received event:', data);
+        console.log('[PumpPortal] Raw event data:', {
+          type: data.txType,
+          mint: data.mint,
+          price: data.price,
+          marketCap: data.marketCapSol,
+          liquidity: data.vSolInBondingCurve,
+          trader: data.traderPublicKey,
+          timestamp: new Date().toISOString()
+        });
 
         if (data.message?.includes('Successfully subscribed')) {
           return;
@@ -395,7 +403,12 @@ export function initializePumpPortalWebSocket() {
             store.addToken(token);
             // Subscribe to this token's address in Helius
             useHeliusStore.getState().subscribeToToken(data.mint);
-            console.log('[PumpPortal] Added new token:', token.symbol);
+            console.log('[PumpPortal] Added new token:', {
+              symbol: token.symbol,
+              price: token.price,
+              marketCap: token.marketCap,
+              liquidity: token.liquidity
+            });
           } catch (err) {
             console.error('[PumpPortal] Failed to process token:', err);
           }
@@ -403,8 +416,14 @@ export function initializePumpPortalWebSocket() {
 
         // Handle trade events
         if (['buy', 'sell'].includes(data.txType) && data.mint) {
+          console.log('[PumpPortal] Processing trade:', {
+            type: data.txType,
+            mint: data.mint,
+            solAmount: data.solAmount,
+            trader: data.traderPublicKey,
+            timestamp: new Date().toISOString()
+          });
           store.addTradeToHistory(data.mint, data);
-          console.log(`[PumpPortal] Added ${data.txType} trade for ${data.mint}`);
         }
 
       } catch (error) {

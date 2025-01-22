@@ -109,6 +109,13 @@ async function handleAccountUpdate(data: any) {
   try {
     if (!data.signature) return;
 
+    console.log('[Helius] Received account update:', {
+      signature: data.signature,
+      accountId: data.accountId,
+      type: data.type,
+      timestamp: new Date().toISOString()
+    });
+
     // Verify transaction using getSignatureStatuses
     const statuses = await connection.getSignatureStatuses([data.signature]);
     if (!statuses.value[0]?.confirmationStatus) return;
@@ -119,6 +126,16 @@ async function handleAccountUpdate(data: any) {
     });
 
     if (!tx || !tx.meta) return;
+
+    console.log('[Helius] Transaction details:', {
+      signature: data.signature,
+      blockTime: tx.blockTime,
+      accountKeys: tx.transaction.message.getAccountKeys().map(key => key.toString()),
+      preBalances: tx.meta.preBalances,
+      postBalances: tx.meta.postBalances,
+      preTokenBalances: tx.meta.preTokenBalances,
+      postTokenBalances: tx.meta.postTokenBalances
+    });
 
     // Extract token transfer information
     const preBalances = tx.meta.preBalances;
@@ -169,8 +186,9 @@ async function handleAccountUpdate(data: any) {
       type: isBuy ? 'buy' : 'sell'
     };
 
-    useHeliusStore.getState().addTrade(data.accountId, trade);
     console.log('[Helius] Processed trade:', trade);
+
+    useHeliusStore.getState().addTrade(data.accountId, trade);
 
   } catch (error) {
     console.error('[Helius] Error processing account update:', error);
