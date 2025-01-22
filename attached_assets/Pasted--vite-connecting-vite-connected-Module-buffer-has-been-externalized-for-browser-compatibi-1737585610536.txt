@@ -1,0 +1,26 @@
+[vite] connecting...
+[vite] connected.
+Module "buffer" has been externalized for browser compatibility. Cannot access "buffer.Buffer" in client code. See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[Helius] Initializing WebSocket...
+[PumpPortal] Initializing WebSocket...
+[Wallet] Initializing connection to: https://solana-mainnet.g.alchemy.com/v2/demo
+[Wallet] Initializing connection to: https://api.mainnet-beta.solana.com
+[Wallet] Initializing connection to: https://solana-api.projectserum.com
+[Wallet] Initializing connection to: https://rpc.ankr.com/solana
+[PumpPortal] Updated SOL price: 263.92
+[PumpPortal] Setting SOL price: 263.92
+[Helius] Error fetching SOL price via REST: 
+AxiosError {message: "Request failed with status code 404", name: "AxiosError", code: "ERR_BAD_REQUEST", config: {…}, request: XMLHttpRequest, …}
+
+AxiosError {message: "Request failed with status code 404", name: "AxiosError", code: "ERR_BAD_REQUEST", config: {…}, request: XMLHttpRequest, …}
+code: "ERR_BAD_REQUEST"
+config: Object
+message: "Request failed with status code 404"
+name: "AxiosError"
+request: XMLHttpRequest
+response: Object
+status: 404
+stack: "AxiosError: Request failed with status code 404↵ at settle (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/axios.js?v=fed51457:1235:12)↵ at XMLHttpRequest.onloadend (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/axios.js?v=fed51457:1566:7)↵ at Axios.request (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/axios.js?v=fed51457:2124:41)↵ at async fetchSolPriceViaRest (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/lib/helius-websocket.ts:86:22)"
+get stack: ƒ ()
+set stack: ƒ ()
+[[Prototype]]: Object
