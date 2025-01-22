@@ -37,6 +37,13 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
 
     // Update PumpPortal store with trade data
     const pumpPortalStore = usePumpPortalStore.getState();
+    console.log('[Helius] Adding trade to history:', {
+      token: tokenAddress,
+      type: trade.type,
+      amount: trade.amount,
+      price: trade.price
+    });
+
     pumpPortalStore.addTradeToHistory(tokenAddress, {
       txType: trade.type,
       solAmount: trade.amount,
@@ -77,18 +84,27 @@ const connection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HEL
 
 async function handleAccountUpdate(data: any) {
   try {
-    if (!data.signature) return;
+    if (!data.signature) {
+      console.log('[Helius] Skipping update - no signature:', data);
+      return;
+    }
 
     // Verify transaction using getSignatureStatuses
     const statuses = await connection.getSignatureStatuses([data.signature]);
-    if (!statuses.value[0]?.confirmationStatus) return;
+    if (!statuses.value[0]?.confirmationStatus) {
+      console.log('[Helius] Skipping unconfirmed transaction:', data.signature);
+      return;
+    }
 
     // Get full transaction details
     const tx = await connection.getTransaction(data.signature, {
       maxSupportedTransactionVersion: 0
     });
 
-    if (!tx || !tx.meta) return;
+    if (!tx || !tx.meta) {
+      console.log('[Helius] Invalid transaction data:', data.signature);
+      return;
+    }
 
     // Extract token transfer information
     const preBalances = tx.meta.preBalances;
@@ -99,8 +115,11 @@ async function handleAccountUpdate(data: any) {
     const isBuy = balanceChanges[0] < 0;
 
     // Get account keys
-    const accountKeys = tx.transaction.message.getAccountKeys();
-    if (!accountKeys) return;
+    const accountKeys = tx.transaction.message.accountKeys;
+    if (!accountKeys) {
+      console.log('[Helius] No account keys found:', data.signature);
+      return;
+    }
 
     // Extract token balance changes
     const preTokenBalances = tx.meta.preTokenBalances || [];
@@ -124,8 +143,14 @@ async function handleAccountUpdate(data: any) {
       type: isBuy ? 'buy' : 'sell'
     };
 
+    console.log('[Helius] Processing trade:', {
+      token: data.accountId,
+      type: trade.type,
+      amount: trade.amount,
+      price: trade.price
+    });
+
     useHeliusStore.getState().addTrade(data.accountId, trade);
-    console.log('[Helius] Processed trade:', trade);
 
   } catch (error) {
     console.error('[Helius] Error processing account update:', error);

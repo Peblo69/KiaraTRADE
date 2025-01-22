@@ -343,15 +343,17 @@ export function initializePumpPortalWebSocket() {
       reconnectAttempts = 0;
 
       if (ws?.readyState === WebSocket.OPEN) {
-        // Subscribe to new token events
+        // Subscribe to new token events with proper keys parameter
         ws.send(JSON.stringify({
-          method: "subscribeNewToken"
+          method: "subscribeNewToken",
+          keys: ["*"]  // Subscribe to all new tokens
         }));
         console.log('[PumpPortal] Subscribed to new token events');
 
         // Subscribe to trade events for all tokens
         ws.send(JSON.stringify({
-          method: "subscribeTokenTrade"
+          method: "subscribeTokenTrade",
+          keys: ["*"]  // Subscribe to all token trades
         }));
         console.log('[PumpPortal] Subscribed to token trade events');
       }
