@@ -101,7 +101,7 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
 const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
-  const [timeframe, setTimeframe] = useState<'1s' | '1m' | '5m' | '15m' | '1h'>('1m');
+  const [timeframe, setTimeframe] = useState<'1s' | '5s' | '30s' | '1m' | '5m' | '15m' | '1h'>('1s');
 
   const updatedToken = usePumpPortalStore(
     (state) => state.tokens.find((t) => t.address === token.address)
@@ -112,6 +112,8 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
 
     const timeframeMs = {
       '1s': 1000,
+      '5s': 5000,
+      '30s': 30000,
       '1m': 60 * 1000,
       '5m': 5 * 60 * 1000,
       '15m': 15 * 60 * 1000,
@@ -120,9 +122,19 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
 
     const candles: any[] = [];
     let currentCandle: any = null;
+    let lastPrice = allTrades[0]?.price || 0; // Handle potential undefined
 
-    allTrades.forEach(trade => {
+    const calculatePriceImpact = (trade: Trade, basePrice: number) => {
+      const impactPercentage = Math.min(trade.volume / 100, 0.01); // Max 1% impact per trade
+      return basePrice * (1 + (trade.isBuy ? impactPercentage : -impactPercentage));
+    };
+
+    // Sort trades chronologically
+    const sortedTrades = [...allTrades].sort((a, b) => a.timestamp - b.timestamp);
+
+    sortedTrades.forEach((trade, index) => {
       const candleTimestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
+      const tradePrice = calculatePriceImpact(trade, lastPrice);
 
       if (!currentCandle || currentCandle.timestamp !== candleTimestamp) {
         if (currentCandle) {
@@ -132,18 +144,27 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
         currentCandle = {
           timestamp: candleTimestamp,
           time: Math.floor(candleTimestamp / 1000),
-          open: trade.price,
-          high: trade.price,
-          low: trade.price,
-          close: trade.price,
+          open: lastPrice,
+          high: tradePrice,
+          low: tradePrice,
+          close: tradePrice,
           volume: trade.volume,
+          buyVolume: trade.isBuy ? trade.volume : 0,
+          sellVolume: !trade.isBuy ? trade.volume : 0
         };
       } else {
-        currentCandle.high = Math.max(currentCandle.high, trade.price);
-        currentCandle.low = Math.min(currentCandle.low, trade.price);
-        currentCandle.close = trade.price;
+        currentCandle.high = Math.max(currentCandle.high, tradePrice);
+        currentCandle.low = Math.min(currentCandle.low, tradePrice);
+        currentCandle.close = tradePrice;
         currentCandle.volume += trade.volume;
+        if (trade.isBuy) {
+          currentCandle.buyVolume += trade.volume;
+        } else {
+          currentCandle.sellVolume += trade.volume;
+        }
       }
+
+      lastPrice = tradePrice;
     });
 
     if (currentCandle) {
