@@ -1,0 +1,64 @@
+[PumpPortal] Raw event data: 
+Object {type: "create", mint: "B374rkMS4tYnq2B9nPmAZgLGEcCvccLYfCm38uJgpump", price: undefined, marketCap: 29.853991922957412, liquidity: 30.999999999999986, …}
+[PumpPortal] Raw data received: 
+Object {signature: "4grmDUVWFKk9sVTrRLpDSJUqb3WpH8TDNKkjNNcUQcgQD1xA9gFuvjU4dmQYLa98sYuAT2WzgWdyv5sfqfx1zps", mint: "B374rkMS4tYnq2B9nPmAZgLGEcCvccLYfCm38uJgpump", traderPublicKey: "HkexZUaEEpRn3fBZ7P6BFi9y5d4qUxJ34YUS6CC9MH4x", txType: "create", initialBuy: 34612903.225806, …}
+[PumpPortal] Mapped token: 
+Object {symbol: "CAL1", name: "Cal the Dragon", address: "B374rkMS4tYnq2B9nPmAZgLGEcCvccLYfCm38uJgpump", price: 0.000007506189189189183, marketCap: 7506.189189189183, …}
+[Helius] Subscribed to token: B374rkMS4tYnq2B9nPmAZgLGEcCvccLYfCm38uJgpump
+[PumpPortal] Added new token: 
+Object {symbol: "CAL1", price: 0.000007506189189189183, marketCap: 7506.189189189183, liquidity: 7794.329999999996}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", result: 113993, id: 1}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", result: 113994, id: 2}
+[PumpPortal] Raw event data: 
+Object {type: "create", mint: "CtSkH8m7Qn3WechJD2jgQW3CaN7oaPj4Ez4UKcgQpump", price: undefined, marketCap: 42.52873563218381, liquidity: 36.99999999999996, …}
+[PumpPortal] Raw data received: 
+Object {signature: "2Ux4SfypeSGnLdxCK5tiyVyZ9w1GtCSaoSRhQEMqYRTkGUJaSL1cjMThyuYzhEbETbouJFSucadFDt8rvDEKbV1B", mint: "CtSkH8m7Qn3WechJD2jgQW3CaN7oaPj4Ez4UKcgQpump", traderPublicKey: "E5p1x3A1PRmUqDvdELkchdHQSzhntNGHq72pzXKaooYD", txType: "create", initialBuy: 202999999.999999, …}
+[PumpPortal] Mapped token: 
+Object {symbol: "TRUMPTYPE", name: "TRUMP TYPE SHII", address: "CtSkH8m7Qn3WechJD2jgQW3CaN7oaPj4Ez4UKcgQpump", price: 0.000010692999999999977, marketCap: 10692.999999999976, …}
+[Helius] Subscribed to token: CtSkH8m7Qn3WechJD2jgQW3CaN7oaPj4Ez4UKcgQpump
+[PumpPortal] Added new token: 
+Object {symbol: "TRUMPTYPE", price: 0.000010692999999999977, marketCap: 10692.999999999976, liquidity: 9302.909999999989}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", result: 113995, id: 1}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", result: 113996, id: 2}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "accountNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "accountNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "programNotification", params: {…}}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "progr
