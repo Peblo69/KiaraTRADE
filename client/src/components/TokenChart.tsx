@@ -1,7 +1,10 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { useHeliusStore } from "@/lib/helius-websocket";
+import { FaTwitter, FaTelegram, FaDiscord, FaGlobe } from "react-icons/fa";
+import { getTokenMetadata } from "@/lib/token-metadata";
 import {
   Area,
   XAxis,
@@ -12,11 +15,25 @@ import {
   AreaChart,
 } from 'recharts';
 
+interface TokenMetadata {
+  name: string;
+  symbol: string;
+  description?: string;
+  image?: string;
+  externalUrl?: string;
+  socialLinks?: {
+    twitter?: string;
+    telegram?: string;
+    discord?: string;
+  };
+}
+
 interface TokenChartProps {
   tokenAddress: string;
 }
 
 export function TokenChart({ tokenAddress }: TokenChartProps) {
+  const [metadata, setMetadata] = useState<TokenMetadata | null>(null);
   const token = usePumpPortalStore(state => 
     state.tokens.find(t => t.address === tokenAddress)
   );
@@ -25,11 +42,26 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
     state.trades[tokenAddress] || []
   );
 
+  // Fetch metadata when token changes
+  useEffect(() => {
+    if (token?.uri) {
+      getTokenMetadata(token.uri)
+        .then(meta => {
+          if (meta) {
+            console.log(`[TokenChart] Loaded metadata for ${token.symbol}:`, meta);
+            setMetadata(meta);
+          }
+        })
+        .catch(error => {
+          console.error(`[TokenChart] Failed to load metadata for ${token.symbol}:`, error);
+        });
+    }
+  }, [token?.uri]);
+
   // Combine both data sources for richer information
   const chartData = useMemo(() => {
     if (!token) return [];
 
-    // Convert trade history to chart data points
     return token.recentTrades.map(trade => ({
       time: new Date(trade.timestamp).toLocaleTimeString(),
       price: trade.price,
@@ -54,23 +86,103 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
 
   return (
     <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <div className="space-y-1">
-          <h3 className="font-semibold text-lg tracking-tight">
-            {token.symbol} ({token.name})
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Current Price: ${token.price.toFixed(8)}
-          </p>
+      <CardHeader className="flex flex-col space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            {metadata?.image && (
+              <img 
+                src={metadata.image} 
+                alt={token.symbol}
+                className="w-10 h-10 rounded-full"
+              />
+            )}
+            <div className="space-y-1">
+              <h3 className="font-semibold text-lg tracking-tight">
+                {token.symbol} ({token.name})
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Current Price: ${token.price.toFixed(8)}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            {metadata?.socialLinks?.twitter && (
+              <Button 
+                variant="ghost" 
+                size="icon"
+                asChild
+              >
+                <a 
+                  href={metadata.socialLinks.twitter} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <FaTwitter className="w-4 h-4" />
+                </a>
+              </Button>
+            )}
+            {metadata?.socialLinks?.telegram && (
+              <Button 
+                variant="ghost" 
+                size="icon"
+                asChild
+              >
+                <a 
+                  href={metadata.socialLinks.telegram} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <FaTelegram className="w-4 h-4" />
+                </a>
+              </Button>
+            )}
+            {metadata?.socialLinks?.discord && (
+              <Button 
+                variant="ghost" 
+                size="icon"
+                asChild
+              >
+                <a 
+                  href={metadata.socialLinks.discord} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <FaDiscord className="w-4 h-4" />
+                </a>
+              </Button>
+            )}
+            {metadata?.externalUrl && (
+              <Button 
+                variant="ghost" 
+                size="icon"
+                asChild
+              >
+                <a 
+                  href={metadata.externalUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <FaGlobe className="w-4 h-4" />
+                </a>
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="text-right space-y-1">
-          <p className="text-sm font-medium" id={`mcap-${tokenAddress}`}>
-            Market Cap: ${token.marketCap.toFixed(2)}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Liquidity: ${token.liquidity.toFixed(2)}
-          </p>
+        <div className="flex justify-between items-center">
+          <div className="text-right space-y-1">
+            <p className="text-sm font-medium" id={`mcap-${tokenAddress}`}>
+              Market Cap: ${token.marketCap.toFixed(2)}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Liquidity: ${token.liquidity.toFixed(2)}
+            </p>
+          </div>
         </div>
+        {metadata?.description && (
+          <p className="text-sm text-muted-foreground mt-2">
+            {metadata.description}
+          </p>
+        )}
       </CardHeader>
       <CardContent>
         <div className="h-[300px] w-full">

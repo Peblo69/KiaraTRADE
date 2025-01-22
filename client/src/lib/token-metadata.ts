@@ -2,59 +2,106 @@ import { useUnifiedTokenStore } from './unified-token-store';
 
 // Cache for successful image loads
 const imageCache = new Map<string, string>();
+const metadataCache = new Map<string, TokenMetadata>();
 let hasPreloaded = false;
 
+interface TokenMetadata {
+  name: string;
+  symbol: string;
+  description?: string;
+  image?: string;
+  externalUrl?: string;
+  socialLinks?: {
+    twitter?: string;
+    telegram?: string;
+    discord?: string;
+  };
+}
+
 /**
- * Get image URL for a single token
- * Uses database-backed system with memory cache
+ * Transform IPFS URI to HTTP URL
  */
-export async function getTokenImage(symbol: string): Promise<string> {
-  if (!symbol) {
-    console.warn('[Token Metadata] No symbol provided');
-    return '';
+function transformUri(uri: string): string {
+  if (!uri) return '';
+
+  // Handle IPFS URIs
+  if (uri.startsWith('ipfs://')) {
+    return uri.replace('ipfs://', 'https://ipfs.io/ipfs/');
   }
 
-  // Normalize symbol
-  const normalizedSymbol = symbol.toUpperCase();
+  // Handle direct IPFS paths
+  if (uri.startsWith('Qm') || uri.startsWith('bafy')) {
+    return `https://ipfs.io/ipfs/${uri}`;
+  }
 
-  // Check memory cache first
-  if (imageCache.has(normalizedSymbol)) {
-    console.log(`[Token Metadata] Cache hit for ${normalizedSymbol}`);
-    return imageCache.get(normalizedSymbol)!;
+  return uri;
+}
+
+/**
+ * Fetch metadata for a token from its URI
+ */
+async function fetchTokenMetadata(uri: string): Promise<TokenMetadata | null> {
+  if (!uri) {
+    console.warn('[Token Metadata] No URI provided');
+    return null;
   }
 
   try {
-    // Try to preload all images if not done yet
-    if (!hasPreloaded) {
-      await preloadStoredImages();
+    const url = transformUri(uri);
+    console.log(`[Token Metadata] Fetching from ${url}`);
 
-      // Check cache again after preload
-      if (imageCache.has(normalizedSymbol)) {
-        console.log(`[Token Metadata] Found ${normalizedSymbol} after preload`);
-        return imageCache.get(normalizedSymbol)!;
-      }
-    }
-
-    const response = await fetch(`/api/token-image/${encodeURIComponent(normalizedSymbol)}`);
+    const response = await fetch(url);
     if (!response.ok) {
-      console.warn(`[Token Metadata] Error fetching image for ${normalizedSymbol}: ${response.status}`);
-      return '';
+      console.warn(`[Token Metadata] Error fetching metadata: ${response.status}`);
+      return null;
     }
 
     const data = await response.json();
-    console.log(`[Token Metadata] API response for ${normalizedSymbol}:`, data);
+    console.log(`[Token Metadata] Received metadata:`, data);
 
-    if (data.imageUrl) {
-      // Update memory cache
-      imageCache.set(normalizedSymbol, data.imageUrl);
-      return data.imageUrl;
+    // Parse and normalize metadata
+    const metadata: TokenMetadata = {
+      name: data.name || '',
+      symbol: data.symbol || '',
+      description: data.description,
+      image: transformUri(data.image),
+      externalUrl: data.external_url || data.website,
+      socialLinks: {
+        twitter: data.twitter_url || data.twitter,
+        telegram: data.telegram_url || data.telegram,
+        discord: data.discord_url || data.discord
+      }
+    };
+
+    // Cache the result
+    metadataCache.set(uri, metadata);
+    if (metadata.image) {
+      imageCache.set(metadata.symbol, metadata.image);
     }
 
-    return '';
+    return metadata;
   } catch (error) {
-    console.error(`[Token Metadata] Failed to fetch image for ${normalizedSymbol}:`, error);
-    return '';
+    console.error(`[Token Metadata] Failed to fetch metadata:`, error);
+    return null;
   }
+}
+
+/**
+ * Get metadata for a token by its URI
+ * Uses cache if available
+ */
+export async function getTokenMetadata(uri: string): Promise<TokenMetadata | null> {
+  if (!uri) {
+    console.warn('[Token Metadata] No URI provided');
+    return null;
+  }
+
+  // Check cache first
+  if (metadataCache.has(uri)) {
+    return metadataCache.get(uri)!;
+  }
+
+  return await fetchTokenMetadata(uri);
 }
 
 /**
@@ -102,7 +149,7 @@ export async function preloadTokenImages(symbols: string[]): Promise<void> {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         symbols: normalizedSymbols,
         priority: true // Signal these are priority tokens
       }),
@@ -127,19 +174,14 @@ export async function preloadTokenImages(symbols: string[]): Promise<void> {
   }
 }
 
-// Clear memory cache periodically (every 30 minutes)
+// Clear caches periodically (every 30 minutes)
 setInterval(() => {
-  console.log('[Token Metadata] Clearing image cache');
+  console.log('[Token Metadata] Clearing metadata and image caches');
+  metadataCache.clear();
   imageCache.clear();
   hasPreloaded = false;
 }, 1800000);
 
-interface TokenMetadata {
-  name: string;
-  symbol: string;
-  uri: string;
-  image?: string;
-}
 
 export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMetadata | null> {
   if (!mintAddress) {
@@ -148,14 +190,16 @@ export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMet
   }
 
   try {
-    const metadata: TokenMetadata = {
-      name: "Token Name",
-      symbol: "SYMBOL",
-      uri: "",
-    };
+    //  This section needs to be significantly altered to fetch metadata using the new functions.  The original implementation is insufficient.  Assuming an API endpoint exists to get the URI from mintAddress.
+    const response = await fetch(`/api/token-uri/${encodeURIComponent(mintAddress)}`);
+    if (!response.ok) {
+      console.warn(`[Token Metadata] Error fetching URI for ${mintAddress}: ${response.status}`);
+      return null;
+    }
+    const { uri } = await response.json();
 
-    metadata.image = await getTokenImage(metadata.symbol);
-    return metadata;
+    return await getTokenMetadata(uri);
+
   } catch (error) {
     console.error('[Token Metadata] Error enriching token metadata:', error);
     return null;
@@ -164,5 +208,5 @@ export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMet
 
 export function getImageUrl(uri?: string): string {
   if (!uri) return '/placeholder.png';
-  return uri;
+  return transformUri(uri);
 }

@@ -79,7 +79,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
 }));
 
 let ws: WebSocket | null = null;
-const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY || '';
+const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY;
 const connection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
 
 async function handleAccountUpdate(data: any) {
@@ -114,8 +114,8 @@ async function handleAccountUpdate(data: any) {
     // Determine if this is a buy or sell
     const isBuy = balanceChanges[0] < 0;
 
-    // Get account keys
-    const accountKeys = tx.transaction.message.accountKeys;
+    // Get account keys using getAccountKeys()
+    const accountKeys = tx.transaction.message.getAccountKeys();
     if (!accountKeys) {
       console.log('[Helius] No account keys found:', data.signature);
       return;
@@ -131,6 +131,9 @@ async function handleAccountUpdate(data: any) {
       (preTokenBalances[0]?.uiTokenAmount.uiAmount || 0)
     );
 
+    const buyerIndex = isBuy ? 1 : 0;
+    const sellerIndex = isBuy ? 0 : 1;
+
     const trade: TokenTrade = {
       signature: data.signature,
       timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
@@ -138,8 +141,8 @@ async function handleAccountUpdate(data: any) {
       amount: Math.abs(balanceChanges[0]) / 1e9, // Convert lamports to SOL
       price: tokenAmount,
       priceUsd: 0, // Will be calculated using current SOL price
-      buyer: accountKeys.get(isBuy ? 1 : 0)?.toString() || '',
-      seller: accountKeys.get(isBuy ? 0 : 1)?.toString() || '',
+      buyer: accountKeys.get(buyerIndex)?.toBase58() || '',
+      seller: accountKeys.get(sellerIndex)?.toBase58() || '',
       type: isBuy ? 'buy' : 'sell'
     };
 
@@ -176,7 +179,10 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 5000;
 
 export function initializeHeliusWebSocket() {
-  if (typeof window === 'undefined' || !HELIUS_API_KEY) return;
+  if (typeof window === 'undefined' || !HELIUS_API_KEY) {
+    console.error('[Helius] No API key found or not in browser environment');
+    return;
+  }
 
   if (ws) {
     try {

@@ -17,7 +17,7 @@ interface Trade {
 export const LiveTrades: FC = () => {
   const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
   const tokens = usePumpPortalStore(state => state.tokens);
-  
+
   // Watch for trade updates across all tokens
   useEffect(() => {
     const trades: Trade[] = [];
@@ -50,8 +50,10 @@ export const LiveTrades: FC = () => {
             {recentTrades.map((trade, i) => (
               <div 
                 key={`${trade.timestamp}-${i}`} 
-                className={`flex items-center justify-between p-2 rounded-lg animate-in fade-in slide-in-from-right-5 
-                  ${trade.type === 'buy' ? 'bg-green-500/10' : 'bg-red-500/10'}`}
+                className={`flex items-center justify-between p-2 rounded-lg 
+                  ${trade.type === 'buy' 
+                    ? 'bg-green-500/10 border-l-4 border-green-500/50' 
+                    : 'bg-red-500/10 border-l-4 border-red-500/50'}`}
               >
                 <div className="flex items-center gap-2">
                   {trade.type === 'buy' ? (
@@ -67,7 +69,7 @@ export const LiveTrades: FC = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-medium">
+                  <div className={`text-sm font-medium ${trade.type === 'buy' ? 'text-green-500' : 'text-red-500'}`}>
                     ${trade.volume.toFixed(2)}
                   </div>
                   <div className="text-xs text-muted-foreground">
@@ -76,6 +78,11 @@ export const LiveTrades: FC = () => {
                 </div>
               </div>
             ))}
+            {!recentTrades.length && (
+              <div className="text-center text-muted-foreground py-4">
+                Waiting for trades...
+              </div>
+            )}
           </div>
         </ScrollArea>
       </CardContent>

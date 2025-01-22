@@ -34,6 +34,7 @@ export interface PumpPortalToken {
   sells24h: number;
   walletCount: number;
   timestamp: number;
+  uri: string;  // Added URI field for metadata
   timeWindows: {
     [K in keyof typeof TIME_WINDOWS]: TimeWindowStats;
   };
@@ -234,7 +235,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
       // Update token with new data
       return {
-        tokens: state.tokens.map(t => 
+        tokens: state.tokens.map(t =>
           t.address === address ? {
             ...t,
             price: newPrice,
@@ -269,7 +270,8 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       symbol,
       solAmount,
       traderPublicKey,
-      txType
+      txType,
+      uri
     } = data;
 
     const marketCapUsd = Number(marketCapSol || 0) * solPrice;
@@ -293,6 +295,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       sells24h: txType === 'sell' ? 1 : 0,
       walletCount: 1,
       timestamp: now,
+      uri: uri || '',  // Added URI from WebSocket data
       timeWindows: createEmptyTimeWindows(now),
       recentTrades: [{
         timestamp: now,
