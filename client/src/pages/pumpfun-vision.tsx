@@ -1,5 +1,4 @@
 // FILE: /src/pages/pumpfun-vision.tsx
-
 import '@/lib/pump-portal-websocket';
 import '@/lib/helius-websocket';
 import { FC, useState, useRef, useEffect } from "react";
@@ -10,9 +9,7 @@ import { Loader2, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import millify from "millify";
 import { AdvancedChart as TradingViewChart } from "react-tradingview-embed";
-
-// Import getTokenImage
-import { getTokenImage } from "@/lib/token-metadata";
+import type { PumpPortalToken } from '@/lib/types/pump-portal';
 
 function getTimeDiff(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -31,7 +28,6 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
     >
       <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
         <div className="flex items-center gap-3">
-          {/* Display Token Image */}
           <img
             src={token.imageLink || 'https://via.placeholder.com/150'}
             alt={`${token.symbol} logo`}
@@ -69,6 +65,7 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
 const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [allTrades, setAllTrades] = useState<Array<any>>([]);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
 
   const updatedToken = usePumpPortalStore(
     (state) => state.tokens.find((t) => t.address === token.address)
@@ -101,6 +98,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
   }, [allTrades.length]);
 
   const currentToken = updatedToken || token;
+  const formattedSymbol = `CRYPTO:${currentToken.symbol}USDT`;
 
   return (
     <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 overflow-auto">
@@ -204,18 +202,18 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
               </Card>
             </div>
 
-            {/* Center Column - TradingView Price Chart */}
+            {/* Center Column - TradingView Chart */}
             <div className="space-y-4">
-              <Card className="bg-background/50 border-purple-500/20">
+              <Card className="bg-background/50 border-purple-500/20 h-[600px]">
                 <CardHeader>
                   <h3 className="font-semibold">Price Chart</h3>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-[500px]">
+                <CardContent className="h-[calc(100%-4rem)]">
+                  <div className="w-full h-full" ref={chartContainerRef}>
                     <TradingViewChart
                       widgetProps={{
+                        symbol: formattedSymbol,
                         theme: "dark",
-                        symbol: `CRYPTO:${token.symbol}USDT`,
                         interval: "1",
                         timezone: "Etc/UTC",
                         style: "1",
@@ -223,9 +221,10 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                         enable_publishing: false,
                         allow_symbol_change: true,
                         hide_side_toolbar: false,
-                        container_id: "tradingview_chart",
+                        container_id: `tradingview_${currentToken.address}`,
                         height: "100%",
                         width: "100%",
+                        autosize: true,
                         studies: [
                           "MASimple@tv-basicstudies",
                           "Volume@tv-basicstudies",
@@ -239,8 +238,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                         ],
                         enabled_features: [
                           "create_volume_indicator_by_default",
-                          "use_localstorage_for_settings",
-                          "save_chart_properties_to_local_storage"
+                          "use_localstorage_for_settings"
                         ],
                         loading_screen: { backgroundColor: "#131722" },
                         overrides: {
