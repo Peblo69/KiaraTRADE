@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import axios from "axios";
-import { useHeliusStore } from './helius-websocket'; // Fixed import path
+import { useHeliusStore } from './helius-websocket';
 
 // -----------------------------------
 // TYPES
@@ -36,18 +36,7 @@ export interface PumpPortalToken {
   walletCount: number;
   timestamp: number;
   timeWindows: {
-    '1s': TimeWindowStats;
-    '5s': TimeWindowStats;
-    '15s': TimeWindowStats;
-    '30s': TimeWindowStats;
-    '1m': TimeWindowStats;
-    '5m': TimeWindowStats;
-    '15m': TimeWindowStats;
-    '30m': TimeWindowStats;
-    '1h': TimeWindowStats;
-    '4h': TimeWindowStats;
-    '12h': TimeWindowStats;
-    '24h': TimeWindowStats;
+    [K in keyof typeof TIME_WINDOWS]: TimeWindowStats;
   };
   priceHistory: {
     [timeframe: string]: {
@@ -103,7 +92,7 @@ const TIME_WINDOWS = {
   '4h': 14400000,
   '12h': 43200000,
   '24h': 86400000,
-};
+} as const;
 
 // Cache mechanism for SOL price
 let cachedSolPrice: number | null = null;
@@ -112,7 +101,7 @@ let lastPriceUpdate = 0;
 function createEmptyTimeWindow(startTime: number): TimeWindowStats {
   return {
     startTime,
-    endTime: startTime + 1000, // Default to 1s window
+    endTime: startTime + 1000,
     openPrice: 0,
     closePrice: 0,
     highPrice: 0,
@@ -125,9 +114,9 @@ function createEmptyTimeWindow(startTime: number): TimeWindowStats {
 }
 
 function createEmptyTimeWindows(timestamp: number) {
-  const windows: any = {};
+  const windows: Record<keyof typeof TIME_WINDOWS, TimeWindowStats> = {} as any;
   Object.keys(TIME_WINDOWS).forEach(window => {
-    windows[window] = createEmptyTimeWindow(timestamp);
+    windows[window as keyof typeof TIME_WINDOWS] = createEmptyTimeWindow(timestamp);
   });
   return windows;
 }
@@ -162,7 +151,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   solPrice: null,
   addToken: (token) =>
     set((state) => ({
-      tokens: [token, ...state.tokens].slice(0, 10),
+      tokens: [token, ...state.tokens].slice(0, 100), // Keep up to 100 tokens
     })),
   updateToken: (address, updates) =>
     set((state) => ({
@@ -183,8 +172,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
       // Update time windows
       const updatedWindows = { ...token.timeWindows };
-      Object.entries(TIME_WINDOWS).forEach(([window, duration]) => {
+      (Object.keys(TIME_WINDOWS) as Array<keyof typeof TIME_WINDOWS>).forEach(window => {
         const currentWindow = updatedWindows[window];
+        const duration = TIME_WINDOWS[window];
         const windowStart = Math.floor(now / duration) * duration;
 
         // Check if we need to create a new window
@@ -267,9 +257,14 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       symbol,
       solAmount,
       traderPublicKey,
-      uri,
       txType
     } = data;
+
+    // Validate PumpFun token
+    if (!mint?.toLowerCase().endsWith('pump')) {
+      console.log('[PumpPortal] Skipping non-PumpFun token:', mint);
+      throw new Error('Not a PumpFun token');
+    }
 
     const marketCapUsd = Number(marketCapSol || 0) * solPrice;
     const priceUsd = marketCapUsd / TOTAL_SUPPLY;

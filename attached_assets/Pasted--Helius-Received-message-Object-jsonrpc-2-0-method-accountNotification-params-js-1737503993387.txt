@@ -1,0 +1,51 @@
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "accountNotification", params: {…}}
+jsonrpc: "2.0"
+method: "accountNotification"
+params: Object
+[[Prototype]]: Object
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "accountNotification", params: {…}}
+jsonrpc: "2.0"
+method: "accountNotification"
+params: Object
+[[Prototype]]: Object
+[PumpPortal] Received event: 
+Object {signature: "2j4L86XjBs14mAzJbQemUCZS4G8qFcm5LG6AnvsmLb3HvfDo1AqtJXuEMUfwiR9zLWRSCxwYsef2QavohVhAYwzQ", mint: "CYXMGK5u59oNHwdg4AJ6tqABXL3H317KbkSqdrxupump", traderPublicKey: "6Wkq1znNRV2Kf8JmJfhFTT2udrRkJF5pAtYv8ykY3tK6", txType: "create", initialBuy: 0.035766, …}
+[PumpPortal] Raw data received: 
+Object {signature: "2j4L86XjBs14mAzJbQemUCZS4G8qFcm5LG6AnvsmLb3HvfDo1AqtJXuEMUfwiR9zLWRSCxwYsef2QavohVhAYwzQ", mint: "CYXMGK5u59oNHwdg4AJ6tqABXL3H317KbkSqdrxupump", traderPublicKey: "6Wkq1znNRV2Kf8JmJfhFTT2udrRkJF5pAtYv8ykY3tK6", txType: "create", initialBuy: 0.035766, …}
+[PumpPortal] Mapped token: 
+Object {symbol: "GIRLQUANT ", name: "Louiza Adeline Meme", address: "CYXMGK5u59oNHwdg4AJ6tqABXL3H317KbkSqdrxupump", price: 0.000007001211556850709, marketCap: 7001.211556850709, …}
+[Helius] Subscribed to token: CYXMGK5u59oNHwdg4AJ6tqABXL3H317KbkSqdrxupump
+[PumpPortal] Added new token: GIRLQUANT 
+[Helius] Received message: 
+Object {jsonrpc: "2.0", result: 3862189, id: 1}
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "accountNotification", params: {…}}
+[PumpPortal] Received event: 
+Object {signature: "3cgoPaZuaH2qhMKAPzyi3DzTFJ93EVLxTGk7bdedk72gug6rT98uzYFeR1uauaqW9mRBAe67ModM1ZkhRQPLvdzF", mint: "3tWU8oKWGeEMGWg9juFxiTotR4g5xjA6WkmnwX235CoS", traderPublicKey: "36DWP52MVRDooYNrcRVDyoCh2R1fPXCYqKJQYg9pFQoE", txType: "create", initialBuy: 94580547.112462, …}
+[PumpPortal] Raw data received: 
+Object {signature: "3cgoPaZuaH2qhMKAPzyi3DzTFJ93EVLxTGk7bdedk72gug6rT98uzYFeR1uauaqW9mRBAe67ModM1ZkhRQPLvdzF", mint: "3tWU8oKWGeEMGWg9juFxiTotR4g5xjA6WkmnwX235CoS", traderPublicKey: "36DWP52MVRDooYNrcRVDyoCh2R1fPXCYqKJQYg9pFQoE", txType: "create", initialBuy: 94580547.112462, …}
+[PumpPortal] Mapped token: 
+Object {symbol: "RB21T62", name: "ROSS PARDON ID", address: "3tWU8oKWGeEMGWg9juFxiTotR4g5xjA6WkmnwX235CoS", price: 0.00000842020155638397, marketCap: 8420.20155638397, …}
+[Helius] Subscribed to token: 3tWU8oKWGeEMGWg9juFxiTotR4g5xjA6WkmnwX235CoS
+[PumpPortal] Added new token: RB21T62
+[Helius] Received message: 
+Object {jsonrpc: "2.0", result: 3862195, id: 1}
+id: 1
+jsonrpc: "2.0"
+result: 3862195
+[[Prototype]]: Object
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "accountNotification", params: {…}}
+jsonrpc: "2.0"
+method: "accountNotification"
+params: Object
+[[Prototype]]: Object
+[Helius] Received message: 
+Object {jsonrpc: "2.0", method: "accountNotification", params: {…}}
+jsonrpc: "2.0"
+method: "accountNotification"
+params: Object
+[[Prototype]]: Object
+[PumpPortal] Received event: 

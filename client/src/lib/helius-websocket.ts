@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { Connection } from '@solana/web3.js';
 
 interface TokenTrade {
   signature: string;
