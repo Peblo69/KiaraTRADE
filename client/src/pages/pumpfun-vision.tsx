@@ -98,9 +98,12 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
   );
 };
 
-const calculatePriceImpact = (trade: Trade, basePrice: number): number => {
-  const volumeImpact = Math.min(trade.volume / 10, 0.02); // Max 2% impact per trade
-  return basePrice * (1 + (trade.isBuy ? volumeImpact : -volumeImpact));
+const calculatePriceImpact = (trade: Trade, currentPrice: number): number => {
+  // Calculate price impact based on trade volume and direction
+  // More volume = bigger impact, but capped at 2% per trade
+  const volumeInSOL = trade.volume;
+  const impactPercentage = Math.min(volumeInSOL * 0.001, 0.02); // 0.1% per SOL, max 2%
+  return currentPrice * (1 + (trade.isBuy ? impactPercentage : -impactPercentage));
 };
 
 
@@ -124,41 +127,52 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
       '1h': 60 * 60 * 1000,
     }[timeframe];
 
+    // Initialize candles array
     const candles: any[] = [];
     let currentCandle: any = null;
-    let lastPrice = allTrades[0]?.price || 0; // Handle potential undefined for empty allTrades
 
     // Sort trades by timestamp
     const sortedTrades = [...allTrades].sort((a, b) => a.timestamp - b.timestamp);
 
-    sortedTrades.forEach((trade, index) => {
+    // Start with the first trade's price
+    let currentPrice = sortedTrades[0]?.price || 0;
+
+    sortedTrades.forEach((trade) => {
       const candleTimestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
-      const newPrice = calculatePriceImpact(trade, lastPrice);
+      const candleTime = Math.floor(candleTimestamp / 1000);
+
+      // Calculate new price based on trade
+      const newPrice = calculatePriceImpact(trade, currentPrice);
 
       if (!currentCandle || currentCandle.timestamp !== candleTimestamp) {
+        // Close previous candle and start new one
         if (currentCandle) {
           candles.push(currentCandle);
         }
 
+        // Create new candle starting at current price
         currentCandle = {
+          time: candleTime,
           timestamp: candleTimestamp,
-          time: Math.floor(candleTimestamp / 1000),
-          open: lastPrice,
+          open: currentPrice,
           high: newPrice,
           low: newPrice,
           close: newPrice,
-          volume: trade.volume,
+          volume: trade.volume
         };
       } else {
+        // Update existing candle
         currentCandle.high = Math.max(currentCandle.high, newPrice);
         currentCandle.low = Math.min(currentCandle.low, newPrice);
         currentCandle.close = newPrice;
         currentCandle.volume += trade.volume;
       }
 
-      lastPrice = newPrice;
+      // Update current price for next iteration
+      currentPrice = newPrice;
     });
 
+    // Add the last candle
     if (currentCandle) {
       candles.push(currentCandle);
     }
@@ -258,14 +272,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
             <div className="space-y-4">
               <Card className="bg-[#111111] border-purple-500/20">
                 <AdvancedChart
-                  data={candleData.map(d => ({
-                    time: d.time,
-                    open: d.open,
-                    high: d.high,
-                    low: d.low,
-                    close: d.close,
-                    volume: d.volume
-                  }))}
+                  data={candleData}
                   timeframe={timeframe}
                   onTimeframeChange={(tf) => setTimeframe(tf as any)}
                   symbol={currentToken.symbol}
