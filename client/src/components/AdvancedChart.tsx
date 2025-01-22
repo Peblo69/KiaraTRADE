@@ -1,5 +1,15 @@
 import { FC, useEffect, useRef, useState } from 'react';
-import { createChart, ColorType, IChartApi, Time, CrosshairMode, LineStyle } from 'lightweight-charts';
+import {
+  createChart,
+  ColorType,
+  IChartApi,
+  Time,
+  CrosshairMode,
+  LineStyle,
+  CandlestickData,
+  HistogramData,
+  Marker,
+} from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import {
   Select,
@@ -8,20 +18,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
+
 
 interface ChartProps {
-  data: {
-    time: Time;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-  }[];
+  data: CandlestickData[];
   onTimeframeChange?: (timeframe: string) => void;
   timeframe?: string;
   symbol: string;
   className?: string;
+  recentTrades?: {
+    timestamp: number;
+    price: number;
+    isBuy: boolean;
+  }[];
 }
 
 export const AdvancedChart: FC<ChartProps> = ({
@@ -30,6 +40,7 @@ export const AdvancedChart: FC<ChartProps> = ({
   timeframe = '1s',
   symbol,
   className,
+  recentTrades = [],
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,13 +51,6 @@ export const AdvancedChart: FC<ChartProps> = ({
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    const handleResize = () => {
-      chartRef.current?.applyOptions({
-        width: chartContainerRef.current?.clientWidth || 600,
-      });
-    };
-
-    // Create chart with exact Bullx styling
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: '#0A0A0A' },
@@ -55,11 +59,11 @@ export const AdvancedChart: FC<ChartProps> = ({
       },
       grid: {
         vertLines: {
-          color: 'rgba(35, 38, 47, 0.1)', // Reduced opacity to match Bullx
+          color: 'rgba(35, 38, 47, 0.1)',
           style: LineStyle.Solid,
         },
         horzLines: {
-          color: 'rgba(35, 38, 47, 0.1)', // Reduced opacity to match Bullx
+          color: 'rgba(35, 38, 47, 0.1)',
           style: LineStyle.Solid,
         },
       },
@@ -68,7 +72,7 @@ export const AdvancedChart: FC<ChartProps> = ({
       rightPriceScale: {
         borderColor: 'rgba(35, 38, 47, 0.6)',
         scaleMargins: {
-          top: 0.2,  // Adjusted to match Bullx layout
+          top: 0.2,
           bottom: 0.2,
         },
       },
@@ -76,7 +80,7 @@ export const AdvancedChart: FC<ChartProps> = ({
         borderColor: 'rgba(35, 38, 47, 0.6)',
         timeVisible: true,
         secondsVisible: true,
-        barSpacing: 3, // Tighter spacing like Bullx
+        barSpacing: 3,
       },
       crosshair: {
         mode: CrosshairMode.Normal,
@@ -93,7 +97,6 @@ export const AdvancedChart: FC<ChartProps> = ({
       },
     });
 
-    // Add candlestick series with exact Bullx colors
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: '#00C805',
       downColor: '#FF3B69',
@@ -102,12 +105,11 @@ export const AdvancedChart: FC<ChartProps> = ({
       wickDownColor: '#FF3B69',
     });
 
-    // Add volume series with exact Bullx styling
     const volumeSeries = chart.addHistogramSeries({
       priceFormat: {
         type: 'volume',
       },
-      priceScaleId: '', // Separate scale for volume
+      priceScaleId: '',
       scaleMargins: {
         top: 0.8,
         bottom: 0,
@@ -115,16 +117,26 @@ export const AdvancedChart: FC<ChartProps> = ({
     });
 
     if (data.length > 0) {
-      // Process and set candlestick data
       candlestickSeries.setData(data);
 
-      // Process volume data with matching candle colors
       const volumeData = data.map(d => ({
         time: d.time,
         value: d.volume,
         color: d.close >= d.open ? 'rgba(0, 200, 5, 0.5)' : 'rgba(255, 59, 105, 0.5)',
       }));
       volumeSeries.setData(volumeData);
+
+      if (recentTrades.length) {
+        const markers = recentTrades.map(trade => ({
+          time: Math.floor(trade.timestamp / 1000),
+          position: trade.isBuy ? 'belowBar' : 'aboveBar',
+          color: trade.isBuy ? '#00C805' : '#FF3B69',
+          shape: trade.isBuy ? 'arrowUp' : 'arrowDown',
+          text: trade.isBuy ? 'B' : 'S',
+          size: 1,
+        }));
+        candlestickSeries.setMarkers(markers);
+      }
 
       chart.timeScale().fitContent();
       setIsLoading(false);
@@ -134,29 +146,44 @@ export const AdvancedChart: FC<ChartProps> = ({
     candlestickSeriesRef.current = candlestickSeries;
     volumeSeriesRef.current = volumeSeries;
 
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    };
+
     window.addEventListener('resize', handleResize);
 
     return () => {
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [data]);
+  }, [data, recentTrades]);
+
+  // Handle timeframe changes
+  const handleTimeframeChange = useCallback((newTimeframe: string) => {
+    setIsLoading(true);
+    onTimeframeChange?.(newTimeframe);
+  }, [onTimeframeChange]);
 
   return (
     <Card className={className}>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 px-4 pt-4">
         <h3 className="text-lg font-semibold">{symbol} Price Chart</h3>
-        <Select value={timeframe} onValueChange={onTimeframeChange}>
+        <Select value={timeframe} onValueChange={handleTimeframeChange}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select timeframe" />
           </SelectTrigger>
           <SelectContent>
             {[
-              { value: '1s', label: '1 second' },
-              { value: '1m', label: '1 minute' },
-              { value: '5m', label: '5 minutes' },
-              { value: '15m', label: '15 minutes' },
-              { value: '1h', label: '1 hour' },
+              { value: '1s', label: '1 Second' },
+              { value: '1m', label: '1 Minute' },
+              { value: '5m', label: '5 Minutes' },
+              { value: '15m', label: '15 Minutes' },
+              { value: '1h', label: '1 Hour' },
+              { value: '4h', label: '4 Hours' },
+              { value: '1d', label: '1 Day' },
+              { value: '1w', label: '1 Week' },
             ].map((tf) => (
               <SelectItem key={tf.value} value={tf.value}>
                 {tf.label}
@@ -165,7 +192,13 @@ export const AdvancedChart: FC<ChartProps> = ({
           </SelectContent>
         </Select>
       </div>
-      <div ref={chartContainerRef} className="relative" />
+      {isLoading ? (
+        <div className="flex items-center justify-center h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+        </div>
+      ) : (
+        <div ref={chartContainerRef} className="w-full h-[400px]" />
+      )}
     </Card>
   );
 };
