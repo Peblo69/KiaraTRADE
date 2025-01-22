@@ -44,7 +44,6 @@ export const AdvancedChart: FC<ChartProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [noDataForTimeframe, setNoDataForTimeframe] = useState(false);
 
-  // Initialize chart
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
@@ -62,48 +61,48 @@ export const AdvancedChart: FC<ChartProps> = ({
         fontSize: 12,
       },
       grid: {
-        vertLines: { color: 'rgba(35, 38, 47, 1)' },
-        horzLines: { color: 'rgba(35, 38, 47, 1)' },
+        vertLines: { 
+          color: 'rgba(35, 38, 47, 1)',
+          style: LineStyle.Solid,
+        },
+        horzLines: { 
+          color: 'rgba(35, 38, 47, 1)',
+          style: LineStyle.Solid,
+        },
       },
       width: chartContainerRef.current.clientWidth,
       height: 400,
       timeScale: {
         timeVisible: true,
-        secondsVisible: timeframe === '1s' || timeframe === '1m',
-        tickMarkFormatter: (time: any) => {
-          const date = new Date(time * 1000);
-          const hours = date.getHours().toString().padStart(2, '0');
-          const minutes = date.getMinutes().toString().padStart(2, '0');
-          const seconds = date.getSeconds().toString().padStart(2, '0');
-          return timeframe === '1s' ? `${hours}:${minutes}:${seconds}` : `${hours}:${minutes}`;
-        },
+        secondsVisible: true,
         borderColor: 'rgba(35, 38, 47, 1)',
+        barSpacing: 6,
       },
       rightPriceScale: {
         borderColor: 'rgba(35, 38, 47, 1)',
         entireTextOnly: true,
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.2,
+        },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: {
+          color: 'rgba(224, 227, 235, 0.1)',
           width: 1,
-          color: 'rgba(224, 227, 235, 0.4)',
           style: LineStyle.Solid,
+          labelBackgroundColor: '#0A0A0A',
         },
         horzLine: {
+          color: 'rgba(224, 227, 235, 0.1)',
           width: 1,
-          color: 'rgba(224, 227, 235, 0.4)',
           style: LineStyle.Solid,
+          labelBackgroundColor: '#0A0A0A',
         },
-      },
-      handleScroll: {
-        mouseWheel: true,
-        pressedMouseMove: true,
       },
       handleScale: {
         axisPressedMouseMove: true,
-        mouseWheel: true,
-        pinch: true,
       },
     });
 
@@ -121,23 +120,21 @@ export const AdvancedChart: FC<ChartProps> = ({
       },
     });
 
-    // Add volume series with matching colors
+    // Add volume series with exact Bullx styling
     const volumeSeries = chart.addHistogramSeries({
-      color: '#26a69a',
       priceFormat: {
         type: 'volume',
       },
-      priceScaleId: '', // Overlay with the main chart
+      priceScaleId: '',
       scaleMargins: {
         top: 0.8,
         bottom: 0,
       },
     });
 
-    // Set initial data
     if (data.length) {
       try {
-        // Sort data by time to ensure proper order
+        // Sort data by time
         const sortedData = [...data].sort((a, b) => {
           const timeA = typeof a.time === 'number' ? a.time : new Date(a.time as string).getTime();
           const timeB = typeof b.time === 'number' ? b.time : new Date(b.time as string).getTime();
@@ -157,40 +154,15 @@ export const AdvancedChart: FC<ChartProps> = ({
         // Set markers for recent trades
         if (recentTrades.length) {
           const markers = recentTrades.map(trade => ({
-            time: trade.timestamp,
+            time: Math.floor(trade.timestamp / 1000),
             position: trade.isBuy ? 'belowBar' : 'aboveBar',
             color: trade.isBuy ? '#00C805' : '#FF3B69',
             shape: trade.isBuy ? 'arrowUp' : 'arrowDown',
-            text: trade.isBuy ? 'BUY' : 'SELL'
+            text: trade.isBuy ? 'B' : 'S',
+            size: 1
           }));
           candlestickSeries.setMarkers(markers);
         }
-
-        // Subscribe to crosshair move
-        chart.subscribeCrosshairMove(param => {
-          if (!param.time || !param.point || param.point.x < 0 || param.point.y < 0) return;
-
-          const dataPoint = sortedData.find(d => d.time === param.time);
-          if (dataPoint) {
-            const tooltip = document.getElementById('chart-tooltip');
-            if (tooltip) {
-              tooltip.style.display = 'block';
-              tooltip.style.left = `${param.point.x}px`;
-              tooltip.style.top = `${param.point.y}px`;
-              tooltip.innerHTML = `
-                <div class="px-2 py-1 bg-background/95 border rounded shadow-lg">
-                  <div class="grid grid-cols-2 gap-2 text-xs">
-                    <div>O: $${dataPoint.open.toFixed(8)}</div>
-                    <div>C: $${dataPoint.close.toFixed(8)}</div>
-                    <div>H: $${dataPoint.high.toFixed(8)}</div>
-                    <div>L: $${dataPoint.low.toFixed(8)}</div>
-                    <div class="col-span-2">V: ${dataPoint.volume.toFixed(2)} SOL</div>
-                  </div>
-                </div>
-              `;
-            }
-          }
-        });
 
         chart.timeScale().fitContent();
         setIsLoading(false);
@@ -213,59 +185,49 @@ export const AdvancedChart: FC<ChartProps> = ({
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [timeframe]);
+  }, [timeframe, data, recentTrades]);
 
   // Update data in real-time
   useEffect(() => {
-    if (!candlestickSeriesRef.current || !volumeSeriesRef.current || !data.length) {
-      setNoDataForTimeframe(true);
-      return;
-    }
+    if (!candlestickSeriesRef.current || !volumeSeriesRef.current || !data.length) return;
 
     try {
       const lastDataPoint = data[data.length - 1];
-
-      // Validate time data
-      const currentTime = typeof lastDataPoint.time === 'number'
-        ? lastDataPoint.time
-        : new Date(lastDataPoint.time as string).getTime() / 1000;
-
-      if (!currentTime) {
-        console.warn('Invalid time data in chart update');
-        return;
-      }
+      const currentTime = Math.floor(
+        typeof lastDataPoint.time === 'number' 
+          ? lastDataPoint.time 
+          : new Date(lastDataPoint.time as string).getTime() / 1000
+      );
 
       candlestickSeriesRef.current.update({
-        ...lastDataPoint,
         time: currentTime,
+        open: lastDataPoint.open,
+        high: lastDataPoint.high,
+        low: lastDataPoint.low,
+        close: lastDataPoint.close
       });
 
-      // Update volume bars with matching colors
       volumeSeriesRef.current.update({
         time: currentTime,
         value: lastDataPoint.volume,
-        color: lastDataPoint.close >= lastDataPoint.open
-          ? 'rgba(0, 200, 5, 0.5)'
+        color: lastDataPoint.close >= lastDataPoint.open 
+          ? 'rgba(0, 200, 5, 0.5)' 
           : 'rgba(255, 59, 105, 0.5)',
       });
 
-      // Update trade markers
       if (recentTrades && recentTrades.length > 0) {
         const markers = recentTrades.map(trade => ({
-          time: trade.timestamp,
+          time: Math.floor(trade.timestamp / 1000),
           position: trade.isBuy ? 'belowBar' : 'aboveBar',
           color: trade.isBuy ? '#00C805' : '#FF3B69',
           shape: trade.isBuy ? 'arrowUp' : 'arrowDown',
-          text: trade.isBuy ? 'BUY' : 'SELL'
+          text: trade.isBuy ? 'B' : 'S',
+          size: 1
         }));
         candlestickSeriesRef.current.setMarkers(markers);
       }
-
-      setIsLoading(false);
-      setNoDataForTimeframe(false);
     } catch (error) {
       console.error('Error updating chart:', error);
-      setNoDataForTimeframe(true);
     }
   }, [data, recentTrades]);
 
@@ -302,25 +264,7 @@ export const AdvancedChart: FC<ChartProps> = ({
           </SelectContent>
         </Select>
       </div>
-      <div ref={chartContainerRef} className="relative">
-        <div
-          id="chart-tooltip"
-          className="absolute z-50 pointer-events-none hidden"
-          style={{ transform: 'translate(-50%, -100%)' }}
-        />
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/50">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        )}
-        {noDataForTimeframe && !isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/50">
-            <div className="text-muted-foreground text-sm">
-              No data available for selected timeframe
-            </div>
-          </div>
-        )}
-      </div>
+      <div ref={chartContainerRef} className="relative" />
     </Card>
   );
 };

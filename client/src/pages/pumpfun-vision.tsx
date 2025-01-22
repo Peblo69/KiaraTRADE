@@ -98,6 +98,12 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
   );
 };
 
+const calculatePriceImpact = (trade: Trade, basePrice: number): number => {
+  const volumeImpact = Math.min(trade.volume / 10, 0.02); // Max 2% impact per trade
+  return basePrice * (1 + (trade.isBuy ? volumeImpact : -volumeImpact));
+};
+
+
 const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
@@ -120,70 +126,41 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
 
     const candles: any[] = [];
     let currentCandle: any = null;
+    let lastPrice = allTrades[0]?.price || 0; // Handle potential undefined for empty allTrades
 
     // Sort trades by timestamp
     const sortedTrades = [...allTrades].sort((a, b) => a.timestamp - b.timestamp);
 
-    sortedTrades.forEach(trade => {
+    sortedTrades.forEach((trade, index) => {
       const candleTimestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
+      const newPrice = calculatePriceImpact(trade, lastPrice);
 
       if (!currentCandle || currentCandle.timestamp !== candleTimestamp) {
         if (currentCandle) {
-          // Finalize the current candle
-          candles.push({
-            ...currentCandle,
-            // Ensure volume-based price impact
-            close: calculateFinalPrice(
-              currentCandle.open,
-              currentCandle.buyVolume,
-              currentCandle.sellVolume
-            ),
-          });
+          candles.push(currentCandle);
         }
 
-        // Start a new candle
         currentCandle = {
           timestamp: candleTimestamp,
-          open: trade.price, // Start from the actual trade price
-          high: trade.price,
-          low: trade.price,
-          close: trade.price,
+          time: Math.floor(candleTimestamp / 1000),
+          open: lastPrice,
+          high: newPrice,
+          low: newPrice,
+          close: newPrice,
           volume: trade.volume,
-          buyVolume: trade.isBuy ? trade.volume : 0,
-          sellVolume: !trade.isBuy ? trade.volume : 0,
-          trades: 1
         };
       } else {
-        // Update the current candle
-        currentCandle.high = Math.max(currentCandle.high, trade.price);
-        currentCandle.low = Math.min(currentCandle.low, trade.price);
+        currentCandle.high = Math.max(currentCandle.high, newPrice);
+        currentCandle.low = Math.min(currentCandle.low, newPrice);
+        currentCandle.close = newPrice;
         currentCandle.volume += trade.volume;
-        if (trade.isBuy) {
-          currentCandle.buyVolume += trade.volume;
-        } else {
-          currentCandle.sellVolume += trade.volume;
-        }
-        currentCandle.trades += 1;
-
-        // Calculate the current price based on buy/sell pressure
-        currentCandle.close = calculateFinalPrice(
-          currentCandle.open,
-          currentCandle.buyVolume,
-          currentCandle.sellVolume
-        );
       }
+
+      lastPrice = newPrice;
     });
 
-    // Add the last candle if exists
     if (currentCandle) {
-      candles.push({
-        ...currentCandle,
-        close: calculateFinalPrice(
-          currentCandle.open,
-          currentCandle.buyVolume,
-          currentCandle.sellVolume
-        ),
-      });
+      candles.push(currentCandle);
     }
 
     return candles;
@@ -282,7 +259,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
               <Card className="bg-[#111111] border-purple-500/20">
                 <AdvancedChart
                   data={candleData.map(d => ({
-                    time: Math.floor(d.timestamp / 1000),
+                    time: d.time,
                     open: d.open,
                     high: d.high,
                     low: d.low,
@@ -365,6 +342,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
 };
 
 const calculateFinalPrice = (openPrice: number, buyVolume: number, sellVolume: number) => {
+  //This function is not used anymore, but keeping for future reference.
   const totalVolume = buyVolume + sellVolume;
   if (totalVolume === 0) return openPrice;
 
