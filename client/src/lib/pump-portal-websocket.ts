@@ -22,7 +22,7 @@ export interface PumpPortalToken {
   symbol: string;
   name: string;
   address: string;
-  price: number;     
+  price: number;
   marketCap: number;
   liquidity: number;
   liquidityChange: number;
@@ -88,6 +88,7 @@ interface PumpPortalStore {
 const TOTAL_SUPPLY = 1_000_000_000;
 const COINGECKO_API = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd";
 const CACHE_DURATION = 30000;
+const PRICE_IMPACT_FACTOR = 0.00001; // Adjust based on actual market behavior
 
 // Time windows in milliseconds
 const TIME_WINDOWS = {
@@ -112,7 +113,7 @@ let lastPriceUpdate = 0;
 function createEmptyTimeWindow(startTime: number): TimeWindowStats {
   return {
     startTime,
-    endTime: startTime + 1000, // Default to 1s window
+    endTime: startTime + 1000,
     openPrice: 0,
     closePrice: 0,
     highPrice: 0,
@@ -153,6 +154,12 @@ async function fetchSolPrice(): Promise<number> {
   return cachedSolPrice || 100;
 }
 
+function calculatePriceImpact(token: PumpPortalToken, tradeVolume: number, isBuy: boolean): number {
+  const liquidityUsd = token.liquidity;
+  const impact = (tradeVolume / liquidityUsd) * PRICE_IMPACT_FACTOR;
+  return isBuy ? token.price * (1 + impact) : token.price * (1 - impact);
+}
+
 // -----------------------------------
 // STORE
 // -----------------------------------
@@ -179,7 +186,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       const solPrice = get().solPrice || 100;
       const tradeVolume = Number(trade.solAmount || 0) * solPrice;
       const isBuy = trade.txType === 'buy';
-      const tradePrice = token.price;
+
+      // Calculate new price with impact
+      const newPrice = calculatePriceImpact(token, tradeVolume, isBuy);
 
       // Update time windows
       const updatedWindows = { ...token.timeWindows };
@@ -187,25 +196,23 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         const currentWindow = updatedWindows[window];
         const windowStart = Math.floor(now / duration) * duration;
 
-        // Check if we need to create a new window
         if (now > currentWindow.endTime) {
           updatedWindows[window] = {
             startTime: windowStart,
             endTime: windowStart + duration,
-            openPrice: tradePrice,
-            closePrice: tradePrice,
-            highPrice: tradePrice,
-            lowPrice: tradePrice,
+            openPrice: newPrice,
+            closePrice: newPrice,
+            highPrice: newPrice,
+            lowPrice: newPrice,
             volume: tradeVolume,
             trades: 1,
             buys: isBuy ? 1 : 0,
             sells: isBuy ? 0 : 1,
           };
         } else {
-          // Update existing window
-          currentWindow.closePrice = tradePrice;
-          currentWindow.highPrice = Math.max(currentWindow.highPrice, tradePrice);
-          currentWindow.lowPrice = Math.min(currentWindow.lowPrice, tradePrice);
+          currentWindow.closePrice = newPrice;
+          currentWindow.highPrice = Math.max(currentWindow.highPrice, newPrice);
+          currentWindow.lowPrice = Math.min(currentWindow.lowPrice, newPrice);
           currentWindow.volume += tradeVolume;
           currentWindow.trades += 1;
           if (isBuy) currentWindow.buys += 1;
@@ -216,7 +223,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       // Update recent trades
       const newTrade = {
         timestamp: now,
-        price: tradePrice,
+        price: newPrice,
         volume: tradeVolume,
         isBuy,
         wallet: trade.traderPublicKey
@@ -231,11 +238,20 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       const buys24h = trades24h.filter(t => t.isBuy).length;
       const sells24h = trades24h.filter(t => !t.isBuy).length;
 
+      // Calculate new market cap and liquidity
+      const newMarketCap = newPrice * TOTAL_SUPPLY;
+      const newLiquidity = token.liquidity + (isBuy ? tradeVolume : -tradeVolume);
+      const liquidityChange = ((newLiquidity - token.liquidity) / token.liquidity) * 100;
+
       // Update token with new data
       return {
         tokens: state.tokens.map(t => 
           t.address === address ? {
             ...t,
+            price: newPrice,
+            marketCap: newMarketCap,
+            liquidity: newLiquidity,
+            liquidityChange,
             volume: t.volume + tradeVolume,
             volume24h,
             trades: t.trades + 1,
@@ -267,7 +283,6 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       symbol,
       solAmount,
       traderPublicKey,
-      uri,
       txType
     } = data;
 

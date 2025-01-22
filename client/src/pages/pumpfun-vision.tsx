@@ -1,8 +1,8 @@
-import { FC, useState } from "react";
+import { FC, useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, ArrowLeft, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Loader2, ArrowLeft, ArrowUpRight, ArrowDownRight, TrendingUp, TrendingDown } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import millify from "millify";
 
@@ -15,6 +15,23 @@ function getTimeDiff(timestamp: number): string {
 }
 
 const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) => {
+  // Track previous values for animations
+  const [prevPrice, setPrevPrice] = useState(token.price);
+  const [prevMarketCap, setPrevMarketCap] = useState(token.marketCap);
+  const [prevLiquidity, setPrevLiquidity] = useState(token.liquidity);
+
+  // Update previous values when they change
+  useEffect(() => {
+    setPrevPrice(token.price);
+    setPrevMarketCap(token.marketCap);
+    setPrevLiquidity(token.liquidity);
+  }, [token.price, token.marketCap, token.liquidity]);
+
+  // Calculate change indicators
+  const priceChange = token.price - prevPrice;
+  const mcapChange = token.marketCap - prevMarketCap;
+  const liqChange = token.liquidity - prevLiquidity;
+
   return (
     <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50">
       <div className="h-full flex flex-col">
@@ -37,7 +54,18 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
             </div>
             <div className="flex items-center gap-2">
               <div className="text-right">
-                <div className="text-xl font-bold">${token.price.toFixed(6)}</div>
+                <div className={`text-xl font-bold transition-colors duration-300 ${
+                  priceChange > 0 ? 'text-green-500' : 
+                  priceChange < 0 ? 'text-red-500' : ''
+                }`}>
+                  ${token.price.toFixed(6)}
+                  {priceChange !== 0 && (
+                    <span className="ml-2">
+                      {priceChange > 0 ? <TrendingUp className="inline h-4 w-4" /> : 
+                       priceChange < 0 ? <TrendingDown className="inline h-4 w-4" /> : null}
+                    </span>
+                  )}
+                </div>
                 <div className={token.timeWindows['1m'].closePrice > token.timeWindows['1m'].openPrice ? 
                   "text-sm text-green-500" : "text-sm text-red-500"}>
                   {((token.timeWindows['1m'].closePrice - token.timeWindows['1m'].openPrice) / 
@@ -61,13 +89,36 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
               {/* Stats Grid */}
               <div className="grid grid-cols-3 gap-4">
                 {[
-                  { label: "Market Cap", value: `$${millify(token.marketCap)}` },
-                  { label: "Liquidity", value: `$${millify(token.liquidity)}` },
-                  { label: "Volume 24h", value: `$${millify(token.timeWindows['24h'].volume)}` },
+                  { 
+                    label: "Market Cap", 
+                    value: `$${millify(token.marketCap)}`,
+                    change: mcapChange 
+                  },
+                  { 
+                    label: "Liquidity", 
+                    value: `$${millify(token.liquidity)}`,
+                    change: liqChange 
+                  },
+                  { 
+                    label: "Volume 24h", 
+                    value: `$${millify(token.timeWindows['24h'].volume)}`,
+                    change: 0 
+                  },
                 ].map((stat, idx) => (
                   <Card key={idx} className="p-4 bg-background/50 border-purple-500/20">
                     <div className="text-sm text-muted-foreground">{stat.label}</div>
-                    <div className="text-lg font-bold mt-1">{stat.value}</div>
+                    <div className={`text-lg font-bold mt-1 transition-colors duration-300 ${
+                      stat.change > 0 ? 'text-green-500' : 
+                      stat.change < 0 ? 'text-red-500' : ''
+                    }`}>
+                      {stat.value}
+                      {stat.change !== 0 && (
+                        <span className="ml-2">
+                          {stat.change > 0 ? <TrendingUp className="inline h-4 w-4" /> : 
+                           stat.change < 0 ? <TrendingDown className="inline h-4 w-4" /> : null}
+                        </span>
+                      )}
+                    </div>
                   </Card>
                 ))}
               </div>

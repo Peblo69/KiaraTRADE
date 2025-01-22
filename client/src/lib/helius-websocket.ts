@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Connection } from '@solana/web3.js';
+import { Connection, PublicKey } from '@solana/web3.js';
 import { usePumpPortalStore } from './pump-portal-websocket';
 
 interface TokenTrade {
@@ -35,12 +35,19 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
       },
     }));
 
-    // Update PumpPortal store with trade data
+    // Update PumpPortal store with trade data and calculate price impact
     const pumpPortalStore = usePumpPortalStore.getState();
+    const solPrice = pumpPortalStore.solPrice || 100;
+
+    // Calculate trade volume in USD
+    const tradeVolumeUsd = trade.amount * solPrice;
+
     pumpPortalStore.addTradeToHistory(tokenAddress, {
       txType: trade.type,
       solAmount: trade.amount,
-      traderPublicKey: trade.type === 'buy' ? trade.buyer : trade.seller
+      traderPublicKey: trade.type === 'buy' ? trade.buyer : trade.seller,
+      priceImpact: tradeVolumeUsd / 1000000, // Basic price impact calculation
+      timestamp: trade.timestamp
     });
   },
   setConnected: (connected) => set({ isConnected: connected }),
@@ -49,6 +56,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
     if (subscribedTokens.has(tokenAddress)) return;
 
     if (ws?.readyState === WebSocket.OPEN) {
+      // Subscribe to account updates
       ws.send(JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
@@ -60,6 +68,28 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
             encoding: 'jsonParsed',
             transactionDetails: 'full',
             showEvents: true
+          }
+        ]
+      }));
+
+      // Also subscribe to all token program events for this token
+      ws.send(JSON.stringify({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'programSubscribe',
+        params: [
+          'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+          {
+            commitment: 'confirmed',
+            encoding: 'jsonParsed',
+            filters: [
+              {
+                memcmp: {
+                  offset: 0,
+                  bytes: tokenAddress
+                }
+              }
+            ]
           }
         ]
       }));
@@ -95,9 +125,6 @@ async function handleAccountUpdate(data: any) {
     const postBalances = tx.meta.postBalances;
     const balanceChanges = postBalances.map((post, i) => post - preBalances[i]);
 
-    // Determine if this is a buy or sell
-    const isBuy = balanceChanges[0] < 0;
-
     // Get account keys
     const accountKeys = tx.transaction.message.getAccountKeys();
     if (!accountKeys) return;
@@ -106,11 +133,29 @@ async function handleAccountUpdate(data: any) {
     const preTokenBalances = tx.meta.preTokenBalances || [];
     const postTokenBalances = tx.meta.postTokenBalances || [];
 
-    // Calculate token amount transferred
+    // Check if this is a token program transaction
+    const isTokenTx = tx.transaction.message.accountKeys.some(
+      key => key.equals(new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'))
+    );
+
+    if (!isTokenTx) return;
+
+    // Find the relevant token account
+    const tokenAccount = preTokenBalances.find(
+      balance => balance.mint === data.accountId
+    );
+
+    if (!tokenAccount) return;
+
+    // Calculate token amount change
     const tokenAmount = Math.abs(
       (postTokenBalances[0]?.uiTokenAmount.uiAmount || 0) -
       (preTokenBalances[0]?.uiTokenAmount.uiAmount || 0)
     );
+
+    // Determine if this is a buy or sell based on token flow
+    const isBuy = (postTokenBalances[0]?.uiTokenAmount.uiAmount || 0) >
+                 (preTokenBalances[0]?.uiTokenAmount.uiAmount || 0);
 
     const trade: TokenTrade = {
       signature: data.signature,
