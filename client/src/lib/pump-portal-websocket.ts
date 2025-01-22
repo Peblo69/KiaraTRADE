@@ -164,7 +164,10 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   addTradeToHistory: (address, trade) =>
     set((state) => {
       const token = state.tokens.find(t => t.address === address);
-      if (!token) return state;
+      if (!token) {
+        console.warn('[PumpPortal] No token found for trade:', address);
+        return state;
+      }
 
       const now = Date.now();
       const solPrice = state.solPrice;
@@ -173,20 +176,28 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         return state;
       }
 
+      console.log('[PumpPortal] Processing trade:', {
+        type: trade.txType,
+        mint: trade.mint,
+        solAmount: trade.solAmount,
+        trader: trade.traderPublicKey,
+        timestamp: new Date().toISOString()
+      });
+
       const tradeVolume = Number(trade.solAmount || 0) * solPrice;
       const isBuy = trade.txType === 'buy';
 
-      // Calculate new price with increased impact
+      // Calculate new price with impact
       const priceImpact = calculatePriceImpact(token.liquidity || 1, tradeVolume, isBuy);
       const newPrice = (token.price || 0) * priceImpact;
 
-      // Update time windows with forced window reset on large changes
+      // Update time windows
       const updatedWindows = { ...token.timeWindows };
       Object.entries(TIME_WINDOWS).forEach(([window, duration]) => {
         const currentWindow = updatedWindows[window as keyof typeof TIME_WINDOWS];
         const windowStart = Math.floor(now / duration) * duration;
 
-        // Reset window if price change is significant or window expired
+        // Reset window if expired or significant price change
         const priceChange = Math.abs((newPrice - currentWindow.closePrice) / currentWindow.closePrice);
         const shouldResetWindow = now > currentWindow.endTime || priceChange > 0.05;
 
@@ -214,7 +225,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         }
       });
 
-      // Update recent trades with new trade at the beginning
+      // Create new trade record
       const newTrade = {
         timestamp: now,
         price: newPrice,
@@ -223,19 +234,28 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         wallet: trade.traderPublicKey
       };
 
-      const recentTrades = [newTrade, ...(token.recentTrades || [])].slice(0, 1000);
+      // Keep all trades in history, no limit
+      const recentTrades = [newTrade, ...(token.recentTrades || [])];
 
-      // Calculate 24h stats using the full trade history
+      // Calculate 24h stats using full trade history
       const last24h = now - 24 * 60 * 60 * 1000;
       const trades24h = recentTrades.filter(t => t.timestamp > last24h);
       const volume24h = trades24h.reduce((sum, t) => sum + t.volume, 0);
       const buys24h = trades24h.filter(t => t.isBuy).length;
       const sells24h = trades24h.filter(t => !t.isBuy).length;
 
-      // Calculate new market cap and liquidity with higher sensitivity
+      // Calculate market cap and liquidity
       const newMarketCap = newPrice * TOTAL_SUPPLY;
       const newLiquidity = token.liquidity + (isBuy ? tradeVolume : -tradeVolume);
       const liquidityChange = ((newLiquidity - token.liquidity) / token.liquidity) * 100;
+
+      console.log('[PumpPortal] Updated trade stats:', {
+        address,
+        newPrice,
+        tradeVolume,
+        totalTrades: recentTrades.length,
+        trades24h: trades24h.length
+      });
 
       return {
         tokens: state.tokens.map(t =>
@@ -251,7 +271,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
             trades24h: trades24h.length,
             buys24h,
             sells24h,
-            timeWindows: updatedWindows,
+            timeWindows: updatedTrades,
             recentTrades,
             walletCount: new Set([...recentTrades.map(trade => trade.wallet)]).size
           } : t
@@ -474,8 +494,7 @@ export function initializePumpPortalWebSocket() {
           } catch (err) {
             console.error('[PumpPortal] Failed to process token:', err);
           }
-        }
-        else if (['buy', 'sell'].includes(data.txType) && data.mint) {
+        } else if (['buy', 'sell'].includes(data.txType) && data.mint) {
           console.log('[PumpPortal] Processing trade:', {
             type: data.txType,
             mint: data.mint,
