@@ -1,5 +1,5 @@
 import { FC, useEffect, useRef, useState, useCallback } from 'react';
-import { createChart, ColorType, IChartApi, Time } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, Time, CrosshairMode, LineStyle } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import {
   Select,
@@ -22,19 +22,26 @@ interface ChartProps {
   timeframe?: string;
   symbol: string;
   className?: string;
+  recentTrades?: {
+    timestamp: number;
+    price: number;
+    isBuy: boolean;
+  }[];
 }
 
-export const AdvancedChart: FC<ChartProps> = ({ 
-  data, 
-  onTimeframeChange, 
-  timeframe = '1m',
-  symbol, 
-  className 
+export const AdvancedChart: FC<ChartProps> = ({
+  data,
+  onTimeframeChange,
+  timeframe = '1s',
+  symbol,
+  className,
+  recentTrades = [],
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
+  const tradeMarkerSeriesRef = useRef<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [noDataForTimeframe, setNoDataForTimeframe] = useState(false);
 
@@ -48,43 +55,46 @@ export const AdvancedChart: FC<ChartProps> = ({
       });
     };
 
-    // Create chart with professional styling
+    // Create chart with Bullx-like styling
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: '#0A0A0A' },
         textColor: '#D9D9D9',
+        fontSize: 12,
       },
       grid: {
-        vertLines: { color: 'rgba(42, 46, 57, 0.3)' },
-        horzLines: { color: 'rgba(42, 46, 57, 0.3)' },
+        vertLines: { color: 'rgba(35, 38, 47, 1)' },
+        horzLines: { color: 'rgba(35, 38, 47, 1)' },
       },
       width: chartContainerRef.current.clientWidth,
       height: 400,
       timeScale: {
         timeVisible: true,
-        secondsVisible: timeframe === '1m',
+        secondsVisible: timeframe === '1s' || timeframe === '1m',
         tickMarkFormatter: (time: any) => {
           const date = new Date(time * 1000);
           const hours = date.getHours().toString().padStart(2, '0');
           const minutes = date.getMinutes().toString().padStart(2, '0');
-          return `${hours}:${minutes}`;
+          const seconds = date.getSeconds().toString().padStart(2, '0');
+          return timeframe === '1s' ? `${hours}:${minutes}:${seconds}` : `${hours}:${minutes}`;
         },
-        borderColor: 'rgba(197, 203, 206, 0.3)',
+        borderColor: 'rgba(35, 38, 47, 1)',
       },
       rightPriceScale: {
-        borderColor: 'rgba(197, 203, 206, 0.3)',
+        borderColor: 'rgba(35, 38, 47, 1)',
+        entireTextOnly: true,
       },
       crosshair: {
-        mode: 1,
+        mode: CrosshairMode.Normal,
         vertLine: {
           width: 1,
           color: 'rgba(224, 227, 235, 0.4)',
-          style: 0,
+          style: LineStyle.Solid,
         },
         horzLine: {
           width: 1,
           color: 'rgba(224, 227, 235, 0.4)',
-          style: 0,
+          style: LineStyle.Solid,
         },
       },
       handleScroll: {
@@ -124,6 +134,17 @@ export const AdvancedChart: FC<ChartProps> = ({
       },
     });
 
+    // Add series for trade markers
+    const tradeMarkerSeries = chart.addCandlestickSeries({
+      lastValueVisible: false,
+      priceLineVisible: false,
+      priceFormat: {
+        type: 'price',
+        precision: 8,
+        minMove: 0.00000001,
+      },
+    });
+
     // Set initial data
     if (data.length) {
       try {
@@ -143,6 +164,18 @@ export const AdvancedChart: FC<ChartProps> = ({
           color: d.close >= d.open ? 'rgba(0, 200, 5, 0.5)' : 'rgba(255, 59, 105, 0.5)',
         }));
         volumeSeries.setData(volumeData);
+
+        // Set markers for recent trades
+        if (recentTrades.length) {
+          const markers = recentTrades.map(trade => ({
+            time: trade.timestamp,
+            position: trade.isBuy ? 'belowBar' : 'aboveBar',
+            color: trade.isBuy ? '#00C805' : '#FF3B69',
+            shape: trade.isBuy ? 'arrowUp' : 'arrowDown',
+            text: trade.isBuy ? 'BUY' : 'SELL'
+          }));
+          candlestickSeries.setMarkers(markers);
+        }
 
         // Subscribe to crosshair move to show detailed price information
         chart.subscribeCrosshairMove(param => {
@@ -189,6 +222,7 @@ export const AdvancedChart: FC<ChartProps> = ({
     chartRef.current = chart;
     candlestickSeriesRef.current = candlestickSeries;
     volumeSeriesRef.current = volumeSeries;
+    tradeMarkerSeriesRef.current = tradeMarkerSeries;
 
     window.addEventListener('resize', handleResize);
 
@@ -196,7 +230,7 @@ export const AdvancedChart: FC<ChartProps> = ({
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [timeframe]); // Re-initialize chart when timeframe changes
+  }, [timeframe]);
 
   // Update data in real-time
   useEffect(() => {
@@ -206,13 +240,12 @@ export const AdvancedChart: FC<ChartProps> = ({
     }
 
     try {
-      // Update last candle or add new one
       const lastDataPoint = data[data.length - 1];
 
       // Validate time data
-      const currentTime = typeof lastDataPoint.time === 'number' 
-        ? lastDataPoint.time 
-        : new Date(lastDataPoint.time as string).getTime() / 1000; // Convert to seconds for chart
+      const currentTime = typeof lastDataPoint.time === 'number'
+        ? lastDataPoint.time
+        : new Date(lastDataPoint.time as string).getTime() / 1000;
 
       if (!currentTime) {
         console.warn('Invalid time data in chart update');
@@ -227,10 +260,22 @@ export const AdvancedChart: FC<ChartProps> = ({
       volumeSeriesRef.current.update({
         time: currentTime,
         value: lastDataPoint.volume,
-        color: lastDataPoint.close >= lastDataPoint.open 
-          ? 'rgba(0, 200, 5, 0.5)' 
+        color: lastDataPoint.close >= lastDataPoint.open
+          ? 'rgba(0, 200, 5, 0.5)'
           : 'rgba(255, 59, 105, 0.5)',
       });
+
+      // Update trade markers
+      if (recentTrades && recentTrades.length > 0) {
+        const markers = recentTrades.map(trade => ({
+          time: trade.timestamp,
+          position: trade.isBuy ? 'belowBar' : 'aboveBar',
+          color: trade.isBuy ? '#00C805' : '#FF3B69',
+          shape: trade.isBuy ? 'arrowUp' : 'arrowDown',
+          text: trade.isBuy ? 'BUY' : 'SELL'
+        }));
+        candlestickSeriesRef.current.setMarkers(markers);
+      }
 
       setIsLoading(false);
       setNoDataForTimeframe(false);
@@ -238,17 +283,16 @@ export const AdvancedChart: FC<ChartProps> = ({
       console.error('Error updating chart:', error);
       setNoDataForTimeframe(true);
     }
-  }, [data]);
+  }, [data, recentTrades]);
 
   const handleTimeframeChange = useCallback((newTimeframe: string) => {
-    // Reset error state when changing timeframes
     setNoDataForTimeframe(false);
     setIsLoading(true);
     onTimeframeChange?.(newTimeframe);
   }, [onTimeframeChange]);
 
   return (
-    <Card className={`p-4 ${className}`}>
+    <Card className={className}>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold">{symbol} Price Chart</h3>
         <Select value={timeframe} onValueChange={handleTimeframeChange}>
@@ -257,6 +301,7 @@ export const AdvancedChart: FC<ChartProps> = ({
           </SelectTrigger>
           <SelectContent>
             {[
+              { value: '1s', label: '1 second' },
               { value: '1m', label: '1 minute' },
               { value: '5m', label: '5 minutes' },
               { value: '15m', label: '15 minutes' },
@@ -274,9 +319,8 @@ export const AdvancedChart: FC<ChartProps> = ({
         </Select>
       </div>
       <div ref={chartContainerRef} className="relative">
-        {/* Chart tooltip */}
-        <div 
-          id="chart-tooltip" 
+        <div
+          id="chart-tooltip"
           className="absolute z-50 pointer-events-none hidden"
           style={{ transform: 'translate(-50%, -100%)' }}
         />

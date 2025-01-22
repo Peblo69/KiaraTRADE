@@ -101,7 +101,7 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
 const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
-  const [timeframe, setTimeframe] = useState<'1m' | '5m' | '15m' | '1h'>('1m');
+  const [timeframe, setTimeframe] = useState<'1s' | '1m' | '5m' | '15m' | '1h'>('1s');
 
   const updatedToken = usePumpPortalStore(
     (state) => state.tokens.find((t) => t.address === token.address)
@@ -111,6 +111,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
     if (!allTrades.length) return [];
 
     const timeframeMs = {
+      '1s': 1000,
       '1m': 60 * 1000,
       '5m': 5 * 60 * 1000,
       '15m': 15 * 60 * 1000,
@@ -182,9 +183,9 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
   const currentToken = updatedToken || token;
 
   return (
-    <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 overflow-auto">
+    <div className="fixed inset-0 bg-[#0A0A0A] z-50 overflow-hidden">
       <div className="h-full flex flex-col">
-        <div className="border-b border-border/40 p-4">
+        <div className="border-b border-border/40 bg-[#111111] p-4">
           <div className="max-w-[1400px] mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button
@@ -199,111 +200,75 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                 <img
                   src={getTokenImage(currentToken)}
                   alt={`${currentToken.symbol} logo`}
-                  className="w-12 h-12 rounded-full object-cover bg-purple-500/20"
+                  className="w-8 h-8 rounded-full object-cover bg-purple-500/20"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150';
                   }}
                 />
                 <div>
-                  <h1 className="text-xl font-bold">{currentToken.name}</h1>
-                  <p className="text-sm text-muted-foreground">{currentToken.symbol}</p>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg font-bold">{currentToken.symbol}</h1>
+                    <span className="text-sm text-muted-foreground">{currentToken.name}</span>
+                  </div>
+                  <div className={`text-sm ${
+                    currentToken.price > token.price ? 'text-green-500' :
+                    currentToken.price < token.price ? 'text-red-500' : ''
+                  }`}>
+                    ${currentToken.price.toFixed(8)}
+                  </div>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="text-right">
-                <div className={`text-xl font-bold transition-colors duration-300 ${
-                  currentToken.price > token.price ? 'text-green-500' :
-                    currentToken.price < token.price ? 'text-red-500' : ''
-                }`}>
-                  ${currentToken.price.toFixed(6)}
-                </div>
-                <div className={currentToken.timeWindows['1m'].closePrice > currentToken.timeWindows['1m'].openPrice ?
-                  "text-sm text-green-500" : "text-sm text-red-500"}>
-                  {((currentToken.timeWindows['1m'].closePrice - currentToken.timeWindows['1m'].openPrice) /
-                    currentToken.timeWindows['1m'].openPrice * 100).toFixed(2)}%
-                </div>
+
+            <div className="grid grid-cols-4 gap-8 text-right">
+              <div>
+                <div className="text-sm text-muted-foreground">Market Cap</div>
+                <div className="font-medium">${millify(currentToken.marketCap)}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Liquidity</div>
+                <div className="font-medium">${millify(currentToken.liquidity)}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Volume 24h</div>
+                <div className="font-medium">${millify(currentToken.volume24h)}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Holders</div>
+                <div className="font-medium">{currentToken.walletCount}</div>
               </div>
             </div>
           </div>
         </div>
 
         <div className="flex-1 overflow-hidden">
-          <div className="max-w-[1400px] mx-auto h-full grid grid-cols-[300px,1fr,300px] gap-4 p-4">
+          <div className="h-full grid grid-cols-[1fr,300px] gap-4 p-4">
             <div className="space-y-4">
-              <Card className="bg-background/50 border-purple-500/20">
-                <CardHeader>
-                  <h3 className="font-semibold">Token Information</h3>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Market Cap</span>
-                      <span className="font-medium">${millify(currentToken.marketCap)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Liquidity</span>
-                      <span className="font-medium">${millify(currentToken.liquidity)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Volume 24h</span>
-                      <span className="font-medium">${millify(currentToken.volume24h)}</span>
-                    </div>
-                  </div>
-                </CardContent>
+              <Card className="bg-[#111111] border-purple-500/20">
+                <AdvancedChart
+                  data={candleData.map(d => ({
+                    time: Math.floor(d.timestamp / 1000),
+                    open: d.open,
+                    high: d.high,
+                    low: d.low,
+                    close: d.close,
+                    volume: d.volume
+                  }))}
+                  timeframe={timeframe}
+                  onTimeframeChange={(tf) => setTimeframe(tf as any)}
+                  symbol={currentToken.symbol}
+                  className="bg-transparent border-0"
+                />
               </Card>
-
-              <Card className="bg-background/50 border-purple-500/20">
-                <CardHeader>
-                  <h3 className="font-semibold">Trading Stats</h3>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">24h Trades</span>
-                      <span className="font-medium">{currentToken.trades24h}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Buys</span>
-                      <span className="font-medium text-green-500">{currentToken.buys24h}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Sells</span>
-                      <span className="font-medium text-red-500">{currentToken.sells24h}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Unique Wallets</span>
-                      <span className="font-medium">{currentToken.walletCount}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="space-y-4">
-              <AdvancedChart
-                data={candleData.map(d => ({
-                  time: Math.floor(d.timestamp / 1000), // Convert to seconds for the chart
-                  open: d.open,
-                  high: d.high,
-                  low: d.low,
-                  close: d.close,
-                  volume: d.volume
-                }))}
-                timeframe={timeframe}
-                onTimeframeChange={(tf) => setTimeframe(tf as any)}
-                symbol={currentToken.symbol}
-                className="bg-background/50 border-purple-500/20"
-              />
 
               <div className="grid grid-cols-4 gap-4">
                 {[
+                  { label: "1s Volume", value: `$${millify(currentToken.timeWindows['1m'].volume)}` },
                   { label: "1m Volume", value: `$${millify(currentToken.timeWindows['1m'].volume)}` },
                   { label: "5m Volume", value: `$${millify(currentToken.timeWindows['5m'].volume)}` },
-                  { label: "15m Volume", value: `$${millify(currentToken.timeWindows['15m'].volume)}` },
                   { label: "1h Volume", value: `$${millify(currentToken.timeWindows['1h'].volume)}` },
                 ].map((stat, idx) => (
-                  <Card key={idx} className="p-4 bg-background/50 border-purple-500/20">
+                  <Card key={idx} className="p-4 bg-[#111111] border-purple-500/20">
                     <div className="text-sm text-muted-foreground">{stat.label}</div>
                     <div className="text-lg font-bold mt-1">{stat.value}</div>
                   </Card>
@@ -311,7 +276,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
               </div>
             </div>
 
-            <Card className="bg-background/50 border-purple-500/20">
+            <Card className="bg-[#111111] border-purple-500/20">
               <div className="p-4 border-b border-border/40">
                 <h3 className="font-semibold">Live Trades</h3>
                 <div className="text-xs text-muted-foreground">
@@ -325,8 +290,8 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                       key={`${trade.timestamp}-${idx}`}
                       className={`p-3 flex items-center justify-between ${
                         trade.isBuy
-                          ? "bg-green-500/10 border-green-500/20"
-                          : "bg-red-500/10 border-red-500/20"
+                          ? "bg-green-500/5 border-green-500/20"
+                          : "bg-red-500/5 border-red-500/20"
                       }`}
                     >
                       <div className="flex items-center gap-2">
