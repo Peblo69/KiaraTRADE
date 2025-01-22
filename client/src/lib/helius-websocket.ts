@@ -1,3 +1,5 @@
+// FILE: /src/lib/helius-websocket.ts
+
 import { create } from 'zustand';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { usePumpPortalStore } from './pump-portal-websocket';
@@ -181,8 +183,8 @@ async function handleAccountUpdate(data: any) {
       amount: Math.abs(balanceChanges[0]) / 1e9, // Convert lamports to SOL
       price: tokenAmount,
       priceUsd: 0, // Will be calculated using current SOL price
-      buyer: accountKeys.get(isBuy ? 1 : 0)?.toString() || '',
-      seller: accountKeys.get(isBuy ? 0 : 1)?.toString() || '',
+      buyer: isBuy ? accountKeys.get(1)?.toString() || '' : '',
+      seller: !isBuy ? accountKeys.get(0)?.toString() || '' : '',
       type: isBuy ? 'buy' : 'sell'
     };
 
