@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import axios from "axios";
 import { useHeliusStore } from './helius-websocket';
-import { preloadTokenImages } from './token-metadata';
+import { preloadTokenImages, getTokenImage } from './token-metadata';
 
 // -----------------------------------
 // TYPES
@@ -26,8 +26,11 @@ export interface PumpPortalToken {
   name: string;
   address: string;
   price: number;
+  previousPrice: number; // New field for comparison
   marketCap: number;
+  previousMarketCap: number; // New field for comparison
   liquidity: number;
+  previousLiquidity: number; // New field for comparison
   liquidityChange: number;
   l1Liquidity: number;
   volume: number;
@@ -72,14 +75,14 @@ export interface PumpPortalToken {
     lb: boolean;
     tri: boolean;
   };
-  imageLink?: string; // Added imageLink
+  imageLink?: string; // Updated to hold the actual image URL
 }
 
 interface PumpPortalStore {
   tokens: PumpPortalToken[];
   isConnected: boolean;
   solPrice: number | null;
-  addToken: (token: PumpPortalToken) => void;
+  addToken: (token: PumpPortalToken) => Promise<void>;
   updateToken: (address: string, updates: Partial<PumpPortalToken>) => void;
   addTradeToHistory: (address: string, trade: any) => void;
   setConnected: (connected: boolean) => void;
@@ -172,16 +175,24 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
   isConnected: false,
   solPrice: null,
-  addToken: (token) =>
+
+  addToken: async (token: PumpPortalToken) => {
+    // Fetch and set the actual image URL
+    const imageUrl = await getTokenImage(token);
+    token.imageLink = imageUrl;
+
     set((state) => ({
       tokens: [token, ...state.tokens].slice(0, 10), // Keep only the latest 10 tokens
-    })),
+    }));
+  },
+
   updateToken: (address, updates) =>
     set((state) => ({
       tokens: state.tokens.map((token) =>
         token.address === address ? { ...token, ...updates } : token
       ),
     })),
+
   addTradeToHistory: (address, trade) =>
     set((state) => {
       const token = state.tokens.find(t => t.address === address);
@@ -191,6 +202,11 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       const solPrice = state.solPrice || 100;
       const tradeVolume = Number(trade.solAmount || 0) * solPrice;
       const isBuy = trade.txType === 'buy';
+
+      // Store previous values before updating
+      const previousPrice = token.price;
+      const previousMarketCap = token.marketCap;
+      const previousLiquidity = token.liquidity;
 
       // Calculate new price with increased impact
       const newPrice = calculatePriceImpact(token, tradeVolume, isBuy);
@@ -229,7 +245,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         }
       });
 
-      // Update recent trades with new trade at the beginning
+      // Update recent trades by appending without limit
       const newTrade = {
         timestamp: now, // Ensure this is a number
         price: newPrice,
@@ -238,9 +254,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         wallet: trade.traderPublicKey
       };
 
-      const recentTrades = [newTrade, ...(token.recentTrades || [])].slice(0, 1000); // Increased from 50 to 1000
+      const recentTrades = [newTrade, ...(token.recentTrades || [])]; // No slicing
 
-      // Calculate 24h stats using the full trade history
+      // Calculate 24h stats
       const last24h = now - 24 * 60 * 60 * 1000;
       const trades24h = recentTrades.filter(t => t.timestamp > last24h);
       const volume24h = trades24h.reduce((sum, t) => sum + t.volume, 0);
@@ -252,11 +268,14 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       const newLiquidity = token.liquidity + (isBuy ? tradeVolume : -tradeVolume);
       const liquidityChange = ((newLiquidity - token.liquidity) / token.liquidity) * 100;
 
-      // Update token with new data, ensuring we keep all trades
+      // Update token with new data and previous fields
       return {
         tokens: state.tokens.map(t =>
           t.address === address ? {
             ...t,
+            previousPrice,
+            previousMarketCap,
+            previousLiquidity,
             price: newPrice,
             marketCap: newMarketCap,
             liquidity: newLiquidity,
@@ -268,12 +287,13 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
             buys24h,
             sells24h,
             timeWindows: updatedWindows,
-            recentTrades,
+            recentTrades, // No slicing, store all trades
             walletCount: new Set([...recentTrades.map(trade => trade.wallet)]).size
           } : t
         )
       };
     }),
+
   setConnected: (connected) => set({ isConnected: connected }),
   setSolPrice: (price) => set({ solPrice: price }),
 }));
@@ -297,6 +317,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       symbol,
       solAmount,
       traderPublicKey,
+      txType,
       imageLink // Ensure this field is present in your data
     } = data;
 
@@ -311,16 +332,19 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       name: name || `Token ${mint?.slice(0, 8)}`,
       address: mint || '',
       price: priceUsd,
+      previousPrice: priceUsd, // Initialize previousPrice
       marketCap: marketCapUsd,
+      previousMarketCap: marketCapUsd, // Initialize previousMarketCap
       liquidity: liquidityUsd,
+      previousLiquidity: liquidityUsd, // Initialize previousLiquidity
       liquidityChange: 0,
       l1Liquidity: liquidityUsd,
       volume: volumeUsd,
       volume24h: volumeUsd,
       trades: 1,
       trades24h: 1,
-      buys24h: data.txType === 'buy' ? 1 : 0,
-      sells24h: data.txType === 'sell' ? 1 : 0,
+      buys24h: txType === 'buy' ? 1 : 0,
+      sells24h: txType === 'sell' ? 1 : 0,
       walletCount: 1,
       timestamp: now,
       timeWindows: createEmptyTimeWindows(now),
@@ -329,7 +353,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
         timestamp: now, // Ensure this is a number
         price: priceUsd,
         volume: volumeUsd,
-        isBuy: data.txType === 'buy',
+        isBuy: txType === 'buy',
         wallet: traderPublicKey
       }],
       status: {
@@ -338,7 +362,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
         lb: Boolean(bondingCurveKey),
         tri: false
       },
-      imageLink: imageLink || 'https://via.placeholder.com/150', // Assign a default image
+      imageLink: imageLink || 'https://via.placeholder.com/150', // Will be updated in addToken
     };
 
     console.log('[PumpPortal] Mapped token:', token);
@@ -422,7 +446,7 @@ export function initializePumpPortalWebSocket() {
         if (data.txType === 'create' && data.mint) {
           try {
             const token = await mapPumpPortalData(data);
-            store.addToken(token);
+            await store.addToken(token);
             // Subscribe to this token's address in Helius
             useHeliusStore.getState().subscribeToToken(data.mint);
             console.log('[PumpPortal] Added new token:', {
@@ -433,8 +457,8 @@ export function initializePumpPortalWebSocket() {
             });
 
             // Preload token images
-            preloadTokenImages([{
-              imageLink: token.imageLink, // Ensure `imageLink` exists in your PumpPortalToken
+            await preloadTokenImages([{
+              imageLink: token.imageLink, // Already updated in addToken
               symbol: token.symbol
             }]);
 

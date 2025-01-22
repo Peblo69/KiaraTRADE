@@ -1,55 +1,87 @@
-import { useEffect, useRef } from 'react';
-import { Card } from "@/components/ui/card";
+// FILE: /src/components/TradingViewChart.tsx
 
-declare global {
-  interface Window {
-    TradingView: any;
-  }
+import React, { useEffect, useRef } from 'react';
+import { createChart, CrosshairMode, IChartApi, ISeriesApi } from 'lightweight-charts';
+
+interface TradingViewChartProps {
+  trades: {
+    timestamp: number;
+    price: number;
+    volume: number;
+  }[];
 }
 
-export default function TradingChart() {
-  const container = useRef<HTMLDivElement>(null);
+const TradingViewChart: React.FC<TradingViewChartProps> = ({ trades }) => {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const lineSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
 
   useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://s3.tradingview.com/tv.js';
-    script.async = true;
-    script.onload = () => {
-      if (container.current && window.TradingView) {
-        new window.TradingView.widget({
-          container_id: container.current.id,
-          width: "100%",
-          height: "400",
-          symbol: "BINANCE:BTCUSDT",
-          interval: "D",
-          timezone: "Etc/UTC",
-          theme: "dark",
-          style: "1",
-          locale: "en",
-          toolbar_bg: "#f1f3f6",
-          enable_publishing: false,
-          hide_side_toolbar: false,
-          allow_symbol_change: true,
-          details: true,
-          studies: ["RSI@tv-basicstudies"],
-          container: container.current,
-        });
-      }
-    };
-    document.head.appendChild(script);
+    if (chartContainerRef.current) {
+      // Initialize the chart
+      chartRef.current = createChart(chartContainerRef.current, {
+        width: chartContainerRef.current.clientWidth,
+        height: 400,
+        layout: {
+          backgroundColor: '#ffffff',
+          textColor: '#000',
+        },
+        grid: {
+          vertLines: {
+            color: '#eee',
+          },
+          horzLines: {
+            color: '#eee',
+          },
+        },
+        crosshair: {
+          mode: CrosshairMode.Normal,
+        },
+        rightPriceScale: {
+          borderColor: '#ccc',
+        },
+        timeScale: {
+          borderColor: '#ccc',
+          timeVisible: true,
+          secondsVisible: false,
+        },
+      });
 
-    return () => {
-      script.remove();
-    };
+      // Add a line series to the chart
+      lineSeriesRef.current = chartRef.current.addLineSeries({
+        color: '#2962FF',
+        lineWidth: 2,
+      });
+
+      // Resize chart on container resize
+      const handleResize = () => {
+        if (chartRef.current && chartContainerRef.current) {
+          chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+        }
+      };
+
+      window.addEventListener('resize', handleResize);
+
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        chartRef.current?.remove();
+      };
+    }
   }, []);
 
-  return (
-    <Card className="p-4 backdrop-blur-sm bg-transparent border-purple-500/20">
-      <div 
-        id="tradingview_chart"
-        ref={container}
-        className="w-full h-[400px]"
-      />
-    </Card>
-  );
-}
+  useEffect(() => {
+    if (lineSeriesRef.current && trades.length > 0) {
+      // Convert trades to chart data
+      const chartData = trades.map(trade => ({
+        time: Math.floor(trade.timestamp / 1000), // TradingView uses UNIX timestamps in seconds
+        value: trade.price,
+      }));
+
+      lineSeriesRef.current.setData(chartData);
+    }
+  }, [trades]);
+
+  return <div ref={chartContainerRef} />;
+};
+
+export default TradingViewChart;
