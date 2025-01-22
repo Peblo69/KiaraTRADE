@@ -86,35 +86,20 @@ interface PumpPortalStore {
 // -----------------------------------
 const TOTAL_SUPPLY = 1_000_000_000;
 const SOL_PRICE_UPDATE_INTERVAL = 30000; // 30 seconds
-const HELIUS_API_URL = 'https://mainnet.helius-rpc.com/?api-key=' + process.env.HELIUS_API_KEY;
-
-// Time windows in milliseconds
-const TIME_WINDOWS = {
-  '1s': 1000,
-  '5s': 5000,
-  '15s': 15000,
-  '30s': 30000,
-  '1m': 60000,
-  '5m': 300000,
-  '15m': 900000,
-  '30m': 1800000,
-  '1h': 3600000,
-} as const;
+const COINGECKO_API_URL = 'https://api.coingecko.com/api/v3';
 
 let solPriceInterval: NodeJS.Timeout | null = null;
 
 async function fetchSolanaPrice(): Promise<number> {
   try {
-    const response = await axios.post(HELIUS_API_URL, {
-      jsonrpc: '2.0',
-      id: 'helius-price',
-      method: 'getPriceList',
+    const response = await axios.get(`${COINGECKO_API_URL}/simple/price`, {
       params: {
-        tokens: ['So11111111111111111111111111111111111111112']
+        ids: 'solana',
+        vs_currencies: 'usd'
       }
     });
 
-    const solPrice = response.data?.result?.[0]?.price;
+    const solPrice = response.data?.solana?.usd;
     if (!solPrice) {
       throw new Error('Invalid price response');
     }
@@ -127,8 +112,7 @@ async function fetchSolanaPrice(): Promise<number> {
       console.log('[PumpPortal] Using cached SOL price:', currentPrice);
       return currentPrice;
     }
-    console.log('[PumpPortal] Using fallback SOL price');
-    return 263.11; // Fallback price if everything fails
+    throw error;
   }
 }
 
@@ -285,6 +269,20 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   },
 }));
 
+// Time windows in milliseconds
+const TIME_WINDOWS = {
+  '1s': 1000,
+  '5s': 5000,
+  '15s': 15000,
+  '30s': 30000,
+  '1m': 60000,
+  '5m': 300000,
+  '15m': 900000,
+  '30m': 1800000,
+  '1h': 3600000,
+} as const;
+
+
 async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
   try {
     console.log('[PumpPortal] Raw data received:', data);
@@ -392,23 +390,23 @@ export function initializePumpPortalWebSocket() {
   }
 
   // Initialize SOL price updates
-  fetchSolanaPrice().then(price => {
-    store.setSolPrice(price);
+  fetchSolanaPrice()
+    .then(price => {
+      store.setSolPrice(price);
 
-    // Start regular price updates
-    solPriceInterval = setInterval(async () => {
-      try {
-        const price = await fetchSolanaPrice();
-        if (price > 0) {
+      // Start regular price updates
+      solPriceInterval = setInterval(async () => {
+        try {
+          const price = await fetchSolanaPrice();
           store.setSolPrice(price);
+        } catch (error) {
+          console.error('[PumpPortal] Failed to update SOL price:', error);
         }
-      } catch (error) {
-        console.error('[PumpPortal] Failed to update SOL price:', error);
-      }
-    }, SOL_PRICE_UPDATE_INTERVAL);
-  }).catch(error => {
-    console.error('[PumpPortal] Initial SOL price fetch failed:', error);
-  });
+      }, SOL_PRICE_UPDATE_INTERVAL);
+    })
+    .catch(error => {
+      console.error('[PumpPortal] Initial SOL price fetch failed:', error);
+    });
 
   try {
     console.log('[PumpPortal] Initializing WebSocket...');
