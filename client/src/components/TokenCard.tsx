@@ -9,7 +9,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDistance } from "date-fns";
-import CryptoIcon from "./CryptoIcon";
 
 interface Trade {
   timestamp: number;
@@ -26,7 +25,6 @@ interface TokenCardProps {
     price: number;
     trades?: Trade[];
     imageUrl?: string;
-    uri?: string;
   };
 }
 
@@ -36,13 +34,16 @@ const TokenCard: FC<TokenCardProps> = ({ token }) => {
       <div className="p-4 border-b border-purple-500/30">
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-2">
-            <CryptoIcon
-              symbol={token.symbol}
-              imageUrl={token.imageUrl}
-              uri={token.uri}
-              size="lg"
-              showFallback={true}
-            />
+            {token.imageUrl && (
+              <img
+                src={token.imageUrl}
+                alt={token.symbol}
+                className="w-8 h-8 rounded-full"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            )}
             <div>
               <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">
                 {token.name}

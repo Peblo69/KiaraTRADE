@@ -1,12 +1,10 @@
 import { FC } from "react";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
-import { transformUri } from "@/lib/token-metadata";
 
 interface CryptoIconProps {
   symbol: string;
-  imageUrl?: string;  // Already transformed URL
-  uri?: string;       // Original URI that needs transformation
+  imageUrl?: string;
   className?: string;
   size?: "sm" | "md" | "lg";
   showFallback?: boolean;
@@ -15,7 +13,6 @@ interface CryptoIconProps {
 const CryptoIcon: FC<CryptoIconProps> = ({ 
   symbol, 
   imageUrl,
-  uri,
   className,
   size = "md",
   showFallback = true
@@ -59,18 +56,15 @@ const CryptoIcon: FC<CryptoIconProps> = ({
 
   if (!symbol) return null;
 
-  // Use either the provided imageUrl or transform the URI
-  const finalImageUrl = imageUrl || (uri ? transformUri(uri) : '');
-
   return (
     <div className={cn(
       "relative flex items-center justify-center overflow-hidden rounded-full bg-muted", 
       sizeClasses[size], 
       className
     )}>
-      {finalImageUrl ? (
+      {imageUrl ? (
         <img
-          src={finalImageUrl}
+          src={imageUrl}
           alt={`${symbol} icon`}
           className="w-full h-full object-cover"
           onError={(e) => {
