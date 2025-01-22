@@ -1,5 +1,5 @@
-import { FC, useEffect, useRef, useState } from 'react';
-import { createChart, ColorType, IChartApi } from 'lightweight-charts';
+import { FC, useEffect, useRef, useState, useCallback } from 'react';
+import { createChart, ColorType, IChartApi, Time } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import {
   Select,
@@ -10,21 +10,36 @@ import {
 } from "@/components/ui/select";
 
 interface ChartProps {
+  data: {
+    time: Time;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  }[];
+  onTimeframeChange?: (timeframe: string) => void;
+  timeframe?: string;
   symbol: string;
   className?: string;
 }
 
 type TimeFrame = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w';
 
-export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
+export const AdvancedChart: FC<ChartProps> = ({ 
+  data, 
+  onTimeframeChange, 
+  timeframe = '1m',
+  symbol, 
+  className 
+}) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
-  const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [timeframe, setTimeframe] = useState<TimeFrame>('1d');
   const [isLoading, setIsLoading] = useState(true);
 
+  // Initialize chart
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
@@ -34,25 +49,44 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
       });
     };
 
-    // Create chart
+    // Create chart with professional styling
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: '#999',
+        textColor: 'rgba(255, 255, 255, 0.9)',
       },
       grid: {
-        vertLines: { color: 'rgba(42, 46, 57, 0.1)' },
-        horzLines: { color: 'rgba(42, 46, 57, 0.1)' },
+        vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
       },
       width: chartContainerRef.current.clientWidth,
       height: 400,
       timeScale: {
         timeVisible: true,
-        secondsVisible: false,
+        secondsVisible: timeframe === '1m',
+        tickMarkFormatter: (time: any) => {
+          const date = new Date(time * 1000);
+          const hours = date.getHours().toString().padStart(2, '0');
+          const minutes = date.getMinutes().toString().padStart(2, '0');
+          return `${hours}:${minutes}`;
+        },
+      },
+      crosshair: {
+        mode: 1,
+        vertLine: {
+          width: 1,
+          color: 'rgba(224, 227, 235, 0.1)',
+          style: 0,
+        },
+        horzLine: {
+          width: 1,
+          color: 'rgba(224, 227, 235, 0.1)',
+          style: 0,
+        },
       },
     });
 
-    // Add candlestick series
+    // Add candlestick series with professional colors
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: '#26a69a',
       downColor: '#ef5350',
@@ -61,7 +95,7 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
       wickDownColor: '#ef5350',
     });
 
-    // Add volume series
+    // Add volume series with matching colors
     const volumeSeries = chart.addHistogramSeries({
       color: '#26a69a',
       priceFormat: {
@@ -74,84 +108,63 @@ export const AdvancedChart: FC<ChartProps> = ({ symbol, className }) => {
       },
     });
 
+    // Set initial data
+    if (data.length) {
+      candlestickSeries.setData(data);
+
+      // Create volume data with matching colors
+      const volumeData = data.map((d) => ({
+        time: d.time,
+        value: d.volume,
+        color: d.close >= d.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
+      }));
+      volumeSeries.setData(volumeData);
+
+      // Fit content and remove loading state
+      chart.timeScale().fitContent();
+      setIsLoading(false);
+    }
+
     chartRef.current = chart;
     candlestickSeriesRef.current = candlestickSeries;
     volumeSeriesRef.current = volumeSeries;
-
-    // Load chart data with update support
-    const loadChartData = async (isUpdate = false) => {
-      if (!isUpdate) setIsLoading(true);
-      try {
-        const response = await fetch(`/api/coins/${symbol}/klines?timeframe=${timeframe}`);
-        if (!response.ok) throw new Error('Failed to fetch chart data');
-
-        const data = await response.json();
-
-        if (!data.klines || !data.klines.length) {
-          console.warn('No klines data received');
-          return;
-        }
-
-        if (isUpdate) {
-          // Update only the latest candle
-          const latestKline = data.klines[data.klines.length - 1];
-          candlestickSeries.update(latestKline);
-
-          // Update volume for the latest candle
-          volumeSeries.update({
-            time: latestKline.time,
-            value: latestKline.volume,
-            color: latestKline.close >= latestKline.open 
-              ? 'rgba(38, 166, 154, 0.5)' 
-              : 'rgba(239, 83, 80, 0.5)'
-          });
-        } else {
-          // Initial load
-          candlestickSeries.setData(data.klines);
-
-          const volumeData = data.klines.map((k: any) => ({
-            time: k.time,
-            value: k.volume,
-            color: k.close >= k.open 
-              ? 'rgba(38, 166, 154, 0.5)'
-              : 'rgba(239, 83, 80, 0.5)'
-          }));
-          volumeSeries.setData(volumeData);
-
-          // Fit content
-          chart.timeScale().fitContent();
-        }
-      } catch (error) {
-        console.error('Failed to load chart data:', error);
-      } finally {
-        if (!isUpdate) setIsLoading(false);
-      }
-    };
-
-    // Initial load
-    loadChartData();
-
-    // Set up real-time updates only for 1m and 5m timeframes
-    if (timeframe === '1m' || timeframe === '5m') {
-      updateIntervalRef.current = setInterval(() => loadChartData(true), 5000);
-    }
 
     window.addEventListener('resize', handleResize);
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      if (updateIntervalRef.current) {
-        clearInterval(updateIntervalRef.current);
-      }
       chart.remove();
     };
-  }, [symbol, timeframe]);
+  }, []);
+
+  // Update data in real-time
+  useEffect(() => {
+    if (!candlestickSeriesRef.current || !volumeSeriesRef.current || !data.length) return;
+
+    // Update last candle or add new one
+    const lastDataPoint = data[data.length - 1];
+    candlestickSeriesRef.current.update(lastDataPoint);
+
+    volumeSeriesRef.current.update({
+      time: lastDataPoint.time,
+      value: lastDataPoint.volume,
+      color: lastDataPoint.close >= lastDataPoint.open 
+        ? 'rgba(38, 166, 154, 0.5)' 
+        : 'rgba(239, 83, 80, 0.5)',
+    });
+
+    setIsLoading(false);
+  }, [data]);
+
+  const handleTimeframeChange = useCallback((newTimeframe: string) => {
+    onTimeframeChange?.(newTimeframe);
+  }, [onTimeframeChange]);
 
   return (
     <Card className={`p-4 ${className}`}>
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold">Price Chart</h3>
-        <Select value={timeframe} onValueChange={(value) => setTimeframe(value as TimeFrame)}>
+        <h3 className="text-lg font-semibold">{symbol} Price Chart</h3>
+        <Select value={timeframe} onValueChange={handleTimeframeChange}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select timeframe" />
           </SelectTrigger>

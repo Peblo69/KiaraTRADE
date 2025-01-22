@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { CandlestickChart } from "@/components/CandlestickChart";
 import millify from "millify";
 import { getTokenImage } from "@/lib/token-metadata";
+import { AdvancedChart } from "@/components/AdvancedChart";
 
 interface PumpPortalToken {
   address: string;
@@ -279,10 +279,18 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
             </div>
 
             <div className="space-y-4">
-              <CandlestickChart
-                data={candleData}
+              <AdvancedChart
+                data={candleData.map(d => ({
+                  time: d.timestamp / 1000, // Convert to seconds for lightweight-charts
+                  open: d.open,
+                  high: d.high,
+                  low: d.low,
+                  close: d.close,
+                  volume: d.volume
+                }))}
                 timeframe={timeframe}
                 onTimeframeChange={(tf) => setTimeframe(tf as any)}
+                symbol={currentToken.symbol}
                 className="bg-background/50 border-purple-500/20"
               />
 
