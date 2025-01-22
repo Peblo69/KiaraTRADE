@@ -129,26 +129,61 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
 
       if (!currentCandle || currentCandle.timestamp !== candleTimestamp) {
         if (currentCandle) {
-          candles.push(currentCandle);
+          // Finalize the current candle
+          candles.push({
+            ...currentCandle,
+            // Ensure volume-based price impact
+            close: calculateFinalPrice(
+              currentCandle.open,
+              currentCandle.buyVolume,
+              currentCandle.sellVolume
+            ),
+          });
         }
+
+        // Start a new candle
         currentCandle = {
           timestamp: candleTimestamp,
-          open: trade.price,
+          open: trade.price, // Start from the actual trade price
           high: trade.price,
           low: trade.price,
           close: trade.price,
           volume: trade.volume,
+          buyVolume: trade.isBuy ? trade.volume : 0,
+          sellVolume: !trade.isBuy ? trade.volume : 0,
+          trades: 1
         };
       } else {
+        // Update the current candle
         currentCandle.high = Math.max(currentCandle.high, trade.price);
         currentCandle.low = Math.min(currentCandle.low, trade.price);
-        currentCandle.close = trade.price;
         currentCandle.volume += trade.volume;
+        if (trade.isBuy) {
+          currentCandle.buyVolume += trade.volume;
+        } else {
+          currentCandle.sellVolume += trade.volume;
+        }
+        currentCandle.trades += 1;
+
+        // Calculate the current price based on buy/sell pressure
+        currentCandle.close = calculateFinalPrice(
+          currentCandle.open,
+          currentCandle.buyVolume,
+          currentCandle.sellVolume
+        );
       }
     });
 
+    // Add the last candle if exists
     if (currentCandle) {
-      candles.push(currentCandle);
+      candles.push({
+        ...currentCandle,
+        close: calculateFinalPrice(
+          currentCandle.open,
+          currentCandle.buyVolume,
+          currentCandle.sellVolume
+        ),
+      });
     }
 
     return candles;
@@ -212,7 +247,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                   </div>
                   <div className={`text-sm ${
                     currentToken.price > token.price ? 'text-green-500' :
-                    currentToken.price < token.price ? 'text-red-500' : ''
+                      currentToken.price < token.price ? 'text-red-500' : ''
                   }`}>
                     ${currentToken.price.toFixed(8)}
                   </div>
@@ -292,7 +327,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                         trade.isBuy
                           ? "bg-green-500/5 border-green-500/20"
                           : "bg-red-500/5 border-red-500/20"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-2">
                         {trade.isBuy ? (
@@ -327,6 +362,18 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
       </div>
     </div>
   );
+};
+
+const calculateFinalPrice = (openPrice: number, buyVolume: number, sellVolume: number) => {
+  const totalVolume = buyVolume + sellVolume;
+  if (totalVolume === 0) return openPrice;
+
+  const buyPressure = buyVolume / totalVolume;
+  // Max 2% price impact per candle, scaled by volume
+  const maxPriceImpact = 0.02;
+  const priceChange = ((buyPressure - 0.5) * 2) * maxPriceImpact;
+
+  return openPrice * (1 + priceChange);
 };
 
 const PumpFunVision: FC = () => {

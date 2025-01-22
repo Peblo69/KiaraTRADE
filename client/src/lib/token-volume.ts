@@ -4,25 +4,39 @@ import { heliusSocket } from './helius-websocket';
 interface VolumeData {
   timestamp: number;
   volume: number;
+  price: number;
+  buyVolume: number;
+  sellVolume: number;
 }
 
 interface TokenVolumeState {
   volumeData: Record<string, VolumeData[]>;
-  addVolumeData: (tokenAddress: string, amount: number) => void;
+  addVolumeData: (tokenAddress: string, amount: number, price: number, isBuy: boolean) => void;
   getVolumeHistory: (tokenAddress: string) => VolumeData[];
-  updateVolume24h: (tokenAddress: string, volume: number) => void;
+  updateVolume24h: (tokenAddress: string, volume: number, price: number) => void;
 }
 
 export const useTokenVolumeStore = create<TokenVolumeState>((set, get) => ({
   volumeData: {},
 
-  addVolumeData: (tokenAddress: string, amount: number) => {
+  addVolumeData: (tokenAddress: string, amount: number, price: number, isBuy: boolean) => {
     set((state) => {
       const currentTime = Date.now();
       const tokenData = state.volumeData[tokenAddress] || [];
 
+      // Calculate new price based on buy/sell pressure
+      const lastPrice = tokenData.length > 0 ? tokenData[tokenData.length - 1].price : price;
+      const priceImpact = amount * (isBuy ? 0.01 : -0.01); // 1% price impact per volume unit
+      const newPrice = lastPrice * (1 + priceImpact);
+
       // Add new volume data point
-      const newData = [...tokenData, { timestamp: currentTime, volume: amount }];
+      const newData = [...tokenData, {
+        timestamp: currentTime,
+        volume: amount,
+        price: newPrice,
+        buyVolume: isBuy ? amount : 0,
+        sellVolume: !isBuy ? amount : 0
+      }];
 
       // Keep only last 24 hours of data
       const twentyFourHoursAgo = currentTime - 24 * 60 * 60 * 1000;
@@ -45,7 +59,7 @@ export const useTokenVolumeStore = create<TokenVolumeState>((set, get) => ({
     return state.volumeData[tokenAddress] || [];
   },
 
-  updateVolume24h: (tokenAddress: string, volume: number) => {
+  updateVolume24h: (tokenAddress: string, volume: number, price: number) => {
     set((state) => {
       const currentData = state.volumeData[tokenAddress] || [];
       const currentTime = Date.now();
@@ -54,7 +68,10 @@ export const useTokenVolumeStore = create<TokenVolumeState>((set, get) => ({
       if (currentData.length === 0) {
         const initialData = Array.from({ length: 24 }, (_, i) => ({
           timestamp: currentTime - (23 - i) * 3600000,
-          volume: volume / 24 // Distribute volume evenly across 24 hours
+          volume: volume / 24,
+          price: price,
+          buyVolume: (volume / 24) * 0.6, // Assume 60% buys
+          sellVolume: (volume / 24) * 0.4 // Assume 40% sells
         }));
 
         return {
@@ -87,9 +104,15 @@ export const processHeliusTransaction = (transaction: any) => {
           transaction.tokenTransfers.forEach((transfer: any) => {
             if (transfer.mint && transfer.amount) {
               const amount = parseFloat(transfer.amount);
+              const isBuy = transaction.type === 'SWAP' ? transfer.amount > 0 : true;
               if (!isNaN(amount) && amount > 0) {
-                console.log(`[Token Volume] Adding volume for token ${transfer.mint}: ${amount} SOL`);
-                useTokenVolumeStore.getState().addVolumeData(transfer.mint, amount);
+                console.log(`[Token Volume] Adding ${isBuy ? 'buy' : 'sell'} volume for token ${transfer.mint}: ${amount} SOL`);
+                useTokenVolumeStore.getState().addVolumeData(
+                  transfer.mint,
+                  amount,
+                  transfer.price || 0,
+                  isBuy
+                );
               }
             }
           });
@@ -105,7 +128,12 @@ export const processHeliusTransaction = (transaction: any) => {
 
           if (totalAmount > 0 && transaction.mint) {
             console.log(`[Token Volume] Adding NFT sale volume for ${transaction.mint}: ${totalAmount} SOL`);
-            useTokenVolumeStore.getState().addVolumeData(transaction.mint, totalAmount);
+            useTokenVolumeStore.getState().addVolumeData(
+              transaction.mint,
+              totalAmount,
+              transaction.price || 0,
+              true
+            );
           }
         }
         break;

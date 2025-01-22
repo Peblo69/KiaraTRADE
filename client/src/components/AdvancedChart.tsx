@@ -41,7 +41,6 @@ export const AdvancedChart: FC<ChartProps> = ({
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
-  const tradeMarkerSeriesRef = useRef<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [noDataForTimeframe, setNoDataForTimeframe] = useState(false);
 
@@ -55,7 +54,7 @@ export const AdvancedChart: FC<ChartProps> = ({
       });
     };
 
-    // Create chart with Bullx-like styling
+    // Create chart with exact Bullx styling
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: '#0A0A0A' },
@@ -108,7 +107,7 @@ export const AdvancedChart: FC<ChartProps> = ({
       },
     });
 
-    // Add candlestick series with vibrant colors
+    // Add candlestick series with exact Bullx colors
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: '#00C805',
       downColor: '#FF3B69',
@@ -124,24 +123,14 @@ export const AdvancedChart: FC<ChartProps> = ({
 
     // Add volume series with matching colors
     const volumeSeries = chart.addHistogramSeries({
+      color: '#26a69a',
       priceFormat: {
         type: 'volume',
       },
-      priceScaleId: '',
+      priceScaleId: '', // Overlay with the main chart
       scaleMargins: {
         top: 0.8,
         bottom: 0,
-      },
-    });
-
-    // Add series for trade markers
-    const tradeMarkerSeries = chart.addCandlestickSeries({
-      lastValueVisible: false,
-      priceLineVisible: false,
-      priceFormat: {
-        type: 'price',
-        precision: 8,
-        minMove: 0.00000001,
       },
     });
 
@@ -177,15 +166,11 @@ export const AdvancedChart: FC<ChartProps> = ({
           candlestickSeries.setMarkers(markers);
         }
 
-        // Subscribe to crosshair move to show detailed price information
+        // Subscribe to crosshair move
         chart.subscribeCrosshairMove(param => {
-          if (!param.time || !param.point || param.point.x < 0 || param.point.y < 0) {
-            return;
-          }
+          if (!param.time || !param.point || param.point.x < 0 || param.point.y < 0) return;
 
-          const coordinateToPrice = candlestickSeries.coordinateToPrice(param.point.y);
           const dataPoint = sortedData.find(d => d.time === param.time);
-
           if (dataPoint) {
             const tooltip = document.getElementById('chart-tooltip');
             if (tooltip) {
@@ -199,7 +184,7 @@ export const AdvancedChart: FC<ChartProps> = ({
                     <div>C: $${dataPoint.close.toFixed(8)}</div>
                     <div>H: $${dataPoint.high.toFixed(8)}</div>
                     <div>L: $${dataPoint.low.toFixed(8)}</div>
-                    <div class="col-span-2">V: $${dataPoint.volume.toFixed(2)}</div>
+                    <div class="col-span-2">V: ${dataPoint.volume.toFixed(2)} SOL</div>
                   </div>
                 </div>
               `;
@@ -207,7 +192,6 @@ export const AdvancedChart: FC<ChartProps> = ({
           }
         });
 
-        // Fit content and remove loading state
         chart.timeScale().fitContent();
         setIsLoading(false);
         setNoDataForTimeframe(false);
@@ -222,7 +206,6 @@ export const AdvancedChart: FC<ChartProps> = ({
     chartRef.current = chart;
     candlestickSeriesRef.current = candlestickSeries;
     volumeSeriesRef.current = volumeSeries;
-    tradeMarkerSeriesRef.current = tradeMarkerSeries;
 
     window.addEventListener('resize', handleResize);
 
@@ -257,6 +240,7 @@ export const AdvancedChart: FC<ChartProps> = ({
         time: currentTime,
       });
 
+      // Update volume bars with matching colors
       volumeSeriesRef.current.update({
         time: currentTime,
         value: lastDataPoint.volume,
