@@ -1,4 +1,4 @@
-import { FC, useState, useEffect } from "react";
+import { FC, useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,6 +14,72 @@ function getTimeDiff(timestamp: number): string {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
+const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) => {
+  // Track previous values for animations
+  const [prevPrice, setPrevPrice] = useState(token.price);
+  const [prevMarketCap, setPrevMarketCap] = useState(token.marketCap);
+  const [prevLiquidity, setPrevLiquidity] = useState(token.liquidity);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPrevPrice(token.price);
+      setPrevMarketCap(token.marketCap);
+      setPrevLiquidity(token.liquidity);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [token.price, token.marketCap, token.liquidity]);
+
+  const getPriceChangeClass = useCallback((current: number, previous: number) => {
+    if (current > previous) return "text-green-500 transition-colors duration-300";
+    if (current < previous) return "text-red-500 transition-colors duration-300";
+    return "";
+  }, []);
+
+  return (
+    <Card
+      key={token.address}
+      className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
+      onClick={onClick}
+    >
+      <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-lg font-bold">
+            {token.symbol[0]}
+          </div>
+          <div>
+            <div className="font-medium group-hover:text-purple-400 transition-colors">
+              {token.name}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {token.symbol}
+            </div>
+          </div>
+        </div>
+        <div className={`text-right font-medium ${getPriceChangeClass(token.price, prevPrice)}`}>
+          ${token.price.toFixed(6)}
+          {token.price !== prevPrice && (
+            <span className="ml-2">
+              {token.price > prevPrice ? 
+                <TrendingUp className="inline h-4 w-4" /> : 
+                <TrendingDown className="inline h-4 w-4" />
+              }
+            </span>
+          )}
+        </div>
+        <div className={`text-right ${getPriceChangeClass(token.marketCap, prevMarketCap)}`}>
+          ${millify(token.marketCap)}
+        </div>
+        <div className={`text-right ${getPriceChangeClass(token.liquidity, prevLiquidity)}`}>
+          ${millify(token.liquidity)}
+        </div>
+        <div className="text-right">
+          ${millify(token.volume)}
+        </div>
+      </div>
+    </Card>
+  );
+};
+
 const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) => {
   // Track previous values for animations
   const [prevPrice, setPrevPrice] = useState(token.price);
@@ -22,9 +88,12 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
 
   // Update previous values when they change
   useEffect(() => {
-    setPrevPrice(token.price);
-    setPrevMarketCap(token.marketCap);
-    setPrevLiquidity(token.liquidity);
+    const timer = setTimeout(() => {
+      setPrevPrice(token.price);
+      setPrevMarketCap(token.marketCap);
+      setPrevLiquidity(token.liquidity);
+    }, 1000);
+    return () => clearTimeout(timer);
   }, [token.price, token.marketCap, token.liquidity]);
 
   // Calculate change indicators
@@ -195,6 +264,19 @@ const PumpFunVision: FC = () => {
   const tokens = usePumpPortalStore((state) => state.tokens);
   const isConnected = usePumpPortalStore((state) => state.isConnected);
 
+  // Subscribe to token updates for the selected token
+  useEffect(() => {
+    if (selectedToken) {
+      const interval = setInterval(() => {
+        const updatedToken = tokens.find(t => t.address === selectedToken.address);
+        if (updatedToken) {
+          setSelectedToken(updatedToken);
+        }
+      }, 500);
+      return () => clearInterval(interval);
+    }
+  }, [selectedToken, tokens]);
+
   return (
     <>
       <div className="min-h-screen bg-background">
@@ -226,33 +308,11 @@ const PumpFunVision: FC = () => {
               </div>
             ) : tokens.length > 0 ? (
               tokens.map((token) => (
-                <Card
+                <TokenRow
                   key={token.address}
-                  className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
+                  token={token}
                   onClick={() => setSelectedToken(token)}
-                >
-                  <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-lg font-bold">
-                        {token.symbol[0]}
-                      </div>
-                      <div>
-                        <div className="font-medium group-hover:text-purple-400 transition-colors">
-                          {token.name}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {token.symbol}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right font-medium">
-                      ${token.price.toFixed(6)}
-                    </div>
-                    <div className="text-right">${millify(token.marketCap)}</div>
-                    <div className="text-right">${millify(token.liquidity)}</div>
-                    <div className="text-right">${millify(token.volume)}</div>
-                  </div>
-                </Card>
+                />
               ))
             ) : (
               <div className="flex items-center justify-center h-40">
