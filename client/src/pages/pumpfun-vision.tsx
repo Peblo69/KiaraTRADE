@@ -3,12 +3,21 @@
 import '@/lib/pump-portal-websocket';
 import '@/lib/helius-websocket';
 import { FC, useState, useRef, useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import millify from "millify";
+import {
+  Area,
+  AreaChart,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 
 // Import getTokenImage
 import { getTokenImage } from "@/lib/token-metadata";
@@ -65,25 +74,100 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
   );
 };
 
+const PriceChart: FC<{ token: PumpPortalToken }> = ({ token }) => {
+  const [chartData, setChartData] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (token.recentTrades?.length) {
+      const newChartData = token.recentTrades
+        .map(trade => ({
+          time: new Date(trade.timestamp).toLocaleTimeString(),
+          price: trade.price,
+          volume: trade.volume
+        }))
+        .reverse(); // Oldest first for proper chart display
+      setChartData(newChartData);
+    }
+  }, [token.recentTrades]);
+
+  return (
+    <div className="h-[400px] w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={chartData}>
+          <defs>
+            <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+          <XAxis
+            dataKey="time"
+            className="text-xs"
+            tickLine={false}
+          />
+          <YAxis
+            className="text-xs"
+            tickLine={false}
+            tickFormatter={(value) => `$${value.toFixed(8)}`}
+            domain={['auto', 'auto']}
+          />
+          <Tooltip
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const data = payload[0].payload;
+              return (
+                <div className="rounded-lg border bg-background p-2 shadow-sm">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col">
+                      <span className="text-[0.70rem] uppercase text-muted-foreground">
+                        Price
+                      </span>
+                      <span className="font-bold text-xs">
+                        ${data.price.toFixed(8)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[0.70rem] uppercase text-muted-foreground">
+                        Volume
+                      </span>
+                      <span className="font-bold text-xs">
+                        ${data.volume.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            }}
+          />
+          <Area
+            type="monotone"
+            dataKey="price"
+            stroke="hsl(var(--primary))"
+            fillOpacity={1}
+            fill="url(#priceGradient)"
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
 const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [allTrades, setAllTrades] = useState<Array<any>>([]);
 
-  // Get real-time token updates
   const updatedToken = usePumpPortalStore(
     (state) => state.tokens.find((t) => t.address === token.address)
   );
 
-  // Accumulate trades without losing history
   useEffect(() => {
     if (updatedToken?.recentTrades) {
       setAllTrades(prev => {
-        // Use a Map to deduplicate trades while preserving order
         const tradeMap = new Map(
           prev.map(trade => [`${trade.timestamp}-${trade.volume}-${trade.wallet}`, trade])
         );
 
-        // Add new trades that don't exist
         updatedToken.recentTrades.forEach(trade => {
           const key = `${trade.timestamp}-${trade.volume}-${trade.wallet}`;
           if (!tradeMap.has(key)) {
@@ -91,14 +175,12 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
           }
         });
 
-        // Convert back to array and sort by timestamp (newest first)
         return Array.from(tradeMap.values())
           .sort((a, b) => b.timestamp - a.timestamp);
       });
     }
   }, [updatedToken?.recentTrades]);
 
-  // Auto-scroll to bottom when new trades arrive
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
@@ -112,7 +194,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
       <div className="h-full flex flex-col">
         {/* Header */}
         <div className="border-b border-border/40 p-4">
-          <div className="max-w-[1200px] mx-auto flex items-center justify-between">
+          <div className="max-w-[1400px] mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button
                 variant="ghost"
@@ -155,54 +237,72 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
           </div>
         </div>
 
-        {/* Main Content */}
+        {/* Main Content - Three Column Layout */}
         <div className="flex-1 overflow-hidden">
-          <div className="max-w-[1200px] mx-auto h-full grid grid-cols-[1fr,300px] gap-4 p-4">
-            {/* Left Column - Chart and Stats */}
+          <div className="max-w-[1400px] mx-auto h-full grid grid-cols-[300px,1fr,300px] gap-4 p-4">
+            {/* Left Column - Token Info */}
             <div className="space-y-4">
-              {/* Chart placeholder */}
-              <Card className="h-[400px] bg-background/50 flex items-center justify-center border-purple-500/20">
-                <div className="text-muted-foreground">Chart Coming Soon</div>
+              <Card className="bg-background/50 border-purple-500/20">
+                <CardHeader>
+                  <h3 className="font-semibold">Token Information</h3>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Market Cap</span>
+                      <span className="font-medium">${millify(currentToken.marketCap)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Liquidity</span>
+                      <span className="font-medium">${millify(currentToken.liquidity)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Volume 24h</span>
+                      <span className="font-medium">${millify(currentToken.volume24h)}</span>
+                    </div>
+                  </div>
+                </CardContent>
               </Card>
 
-              {/* Stats Grid */}
-              <div className="grid grid-cols-3 gap-4">
-                {[
-                  {
-                    label: "Market Cap",
-                    value: `$${millify(currentToken.marketCap)}`,
-                    change: ((currentToken.marketCap - token.marketCap) / token.marketCap) * 100
-                  },
-                  {
-                    label: "Liquidity",
-                    value: `$${millify(currentToken.liquidity)}`,
-                    change: ((currentToken.liquidity - token.liquidity) / token.liquidity) * 100
-                  },
-                  {
-                    label: "Volume 24h",
-                    value: `$${millify(currentToken.volume24h)}`,
-                    change: ((currentToken.volume24h - token.volume24h) / token.volume24h) * 100
-                  },
-                ].map((stat, idx) => (
-                  <Card key={idx} className="p-4 bg-background/50 border-purple-500/20">
-                    <div className="text-sm text-muted-foreground">{stat.label}</div>
-                    <div className={`text-lg font-bold mt-1 transition-colors duration-300 ${
-                      stat.change > 0 ? 'text-green-500' :
-                      stat.change < 0 ? 'text-red-500' : ''
-                    }`}>
-                      {stat.value}
-                      {stat.change !== 0 && (
-                        <span className="ml-2">
-                          {stat.change > 0 ? <TrendingUp className="inline h-4 w-4" /> :
-                            stat.change < 0 ? <TrendingDown className="inline h-4 w-4" /> : null}
-                        </span>
-                      )}
+              <Card className="bg-background/50 border-purple-500/20">
+                <CardHeader>
+                  <h3 className="font-semibold">Trading Stats</h3>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">24h Trades</span>
+                      <span className="font-medium">{currentToken.trades24h}</span>
                     </div>
-                  </Card>
-                ))}
-              </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Buys</span>
+                      <span className="font-medium text-green-500">{currentToken.buys24h}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Sells</span>
+                      <span className="font-medium text-red-500">{currentToken.sells24h}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Unique Wallets</span>
+                      <span className="font-medium">{currentToken.walletCount}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-              {/* Additional Stats */}
+            {/* Center Column - Price Chart */}
+            <div className="space-y-4">
+              <Card className="bg-background/50 border-purple-500/20">
+                <CardHeader>
+                  <h3 className="font-semibold">Price Chart</h3>
+                </CardHeader>
+                <CardContent>
+                  <PriceChart token={currentToken} />
+                </CardContent>
+              </Card>
+
+              {/* Time Window Stats */}
               <div className="grid grid-cols-4 gap-4">
                 {[
                   { label: "1m Volume", value: `$${millify(currentToken.timeWindows['1m'].volume)}` },
@@ -280,7 +380,7 @@ const PumpFunVision: FC = () => {
   return (
     <>
       <div className="min-h-screen bg-background">
-        <div className="max-w-[1200px] mx-auto p-4">
+        <div className="max-w-[1400px] mx-auto p-4">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-bold">PumpFun Vision</h1>
