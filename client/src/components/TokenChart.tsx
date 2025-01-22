@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
+import { useHeliusStore } from "@/lib/helius-websocket";
 import {
   Area,
   XAxis,
@@ -20,6 +21,11 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
     state.tokens.find(t => t.address === tokenAddress)
   );
 
+  const heliusTrades = useHeliusStore(state => 
+    state.trades[tokenAddress] || []
+  );
+
+  // Combine both data sources for richer information
   const chartData = useMemo(() => {
     if (!token) return [];
 
@@ -28,9 +34,21 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
       time: new Date(trade.timestamp).toLocaleTimeString(),
       price: trade.price,
       volume: trade.volume,
-      type: trade.isBuy ? 'buy' : 'sell'
+      type: trade.isBuy ? 'buy' : 'sell',
+      wallet: trade.wallet
     })).reverse();
   }, [token?.recentTrades]);
+
+  useEffect(() => {
+    // Debug log for price updates
+    if (token) {
+      console.log(`[TokenChart] Price update for ${token.symbol}:`, {
+        price: token.price,
+        marketCap: token.marketCap,
+        trades24h: token.trades24h
+      });
+    }
+  }, [token?.price, token?.marketCap, token?.trades24h]);
 
   if (!token) return null;
 
@@ -46,7 +64,9 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
           </p>
         </div>
         <div className="text-right space-y-1">
-          <p className="text-sm font-medium">Market Cap: ${token.marketCap.toFixed(2)}</p>
+          <p className="text-sm font-medium" id={`mcap-${tokenAddress}`}>
+            Market Cap: ${token.marketCap.toFixed(2)}
+          </p>
           <p className="text-sm text-muted-foreground">
             Liquidity: ${token.liquidity.toFixed(2)}
           </p>
@@ -94,6 +114,22 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
                           </span>
                           <span className="font-bold text-xs">
                             ${data.volume.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[0.70rem] uppercase text-muted-foreground">
+                            Type
+                          </span>
+                          <span className={`font-bold text-xs ${data.type === 'buy' ? 'text-green-500' : 'text-red-500'}`}>
+                            {data.type.toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[0.70rem] uppercase text-muted-foreground">
+                            Wallet
+                          </span>
+                          <span className="font-bold text-xs truncate">
+                            {data.wallet.slice(0, 8)}...
                           </span>
                         </div>
                       </div>

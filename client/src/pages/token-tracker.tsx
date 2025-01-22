@@ -1,6 +1,7 @@
 import { FC, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import TokenList from "@/components/TokenList";
+import LiveTrades from "@/components/LiveTrades";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { useHeliusStore } from "@/lib/helius-websocket";
 
@@ -28,7 +29,14 @@ const TokenTracker: FC = () => {
           </div>
         </div>
 
-        <TokenList />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <TokenList />
+          </div>
+          <div className="lg:col-span-1">
+            <LiveTrades />
+          </div>
+        </div>
       </main>
     </div>
   );
