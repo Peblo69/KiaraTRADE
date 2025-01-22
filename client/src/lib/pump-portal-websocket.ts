@@ -34,7 +34,8 @@ export interface PumpPortalToken {
   sells24h: number;
   walletCount: number;
   timestamp: number;
-  imageUrl?: string;  // Direct image URL
+  uri?: string;  // Original URI from the API
+  imageUrl?: string;  // Transformed HTTP URL
   recentTrades: {
     timestamp: number;
     price: number;
@@ -46,6 +47,15 @@ export interface PumpPortalToken {
     [K in keyof typeof TIME_WINDOWS]: TimeWindowStats;
   };
   isValid: boolean;
+}
+
+// Function to transform URI to HTTP URL
+function transformUri(uri: string): string {
+  if (!uri) return '';
+  if (uri.startsWith('ipfs://')) {
+    return uri.replace('ipfs://', 'https://ipfs.io/ipfs/');
+  }
+  return uri;
 }
 
 // -----------------------------------
@@ -269,7 +279,8 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       sells24h: txType === 'sell' ? 1 : 0,
       walletCount: 1,
       timestamp: now,
-      imageUrl: uri ? uri.replace('ipfs://', 'https://ipfs.io/ipfs/') : undefined,
+      uri: uri || '',  // Store original URI
+      imageUrl: uri ? transformUri(uri) : undefined, // Transform URI to HTTP URL
       timeWindows: createEmptyTimeWindows(now),
       recentTrades: [{
         timestamp: now,

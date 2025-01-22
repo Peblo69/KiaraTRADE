@@ -1,26 +1,20 @@
 import { FC } from "react";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
+import { transformUri } from "@/lib/token-metadata";
 
 interface CryptoIconProps {
   symbol: string;
-  uri?: string;
+  imageUrl?: string;  // Already transformed URL
+  uri?: string;       // Original URI that needs transformation
   className?: string;
   size?: "sm" | "md" | "lg";
   showFallback?: boolean;
 }
 
-// Simple function to transform IPFS URIs to HTTPS
-function transformUri(uri: string): string {
-  if (!uri) return '';
-  if (uri.startsWith('ipfs://')) {
-    return uri.replace('ipfs://', 'https://ipfs.io/ipfs/');
-  }
-  return uri;
-}
-
 const CryptoIcon: FC<CryptoIconProps> = ({ 
   symbol, 
+  imageUrl,
   uri,
   className,
   size = "md",
@@ -63,9 +57,10 @@ const CryptoIcon: FC<CryptoIconProps> = ({
     return canvas.toDataURL();
   };
 
-  const imageUrl = uri ? transformUri(uri) : (showFallback ? generateFallbackIcon() : '');
-
   if (!symbol) return null;
+
+  // Use either the provided imageUrl or transform the URI
+  const finalImageUrl = imageUrl || (uri ? transformUri(uri) : '');
 
   return (
     <div className={cn(
@@ -73,20 +68,27 @@ const CryptoIcon: FC<CryptoIconProps> = ({
       sizeClasses[size], 
       className
     )}>
-      {imageUrl && (
+      {finalImageUrl ? (
         <img
-          src={imageUrl}
+          src={finalImageUrl}
           alt={`${symbol} icon`}
           className="w-full h-full object-cover"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             if (showFallback) {
               target.src = generateFallbackIcon();
+            } else {
+              target.style.display = 'none';
             }
           }}
         />
-      )}
-      {!imageUrl && showFallback && (
+      ) : showFallback ? (
+        <img
+          src={generateFallbackIcon()}
+          alt={`${symbol} icon`}
+          className="w-full h-full object-cover"
+        />
+      ) : (
         <div className="absolute inset-0 flex items-center justify-center">
           <Loader2 className={cn(
             "animate-spin",

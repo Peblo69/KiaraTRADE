@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDistance } from "date-fns";
+import CryptoIcon from "./CryptoIcon";
 
 interface Trade {
   timestamp: number;
@@ -25,6 +26,7 @@ interface TokenCardProps {
     price: number;
     trades?: Trade[];
     imageUrl?: string;
+    uri?: string;
   };
 }
 
@@ -33,21 +35,20 @@ const TokenCard: FC<TokenCardProps> = ({ token }) => {
     <Card className="overflow-hidden bg-gradient-to-br from-black/60 via-purple-900/20 to-black/60 backdrop-blur-lg border-purple-500/30 shadow-lg shadow-purple-500/10 transition-all duration-300 hover:shadow-purple-500/20">
       <div className="p-4 border-b border-purple-500/30">
         <div className="flex justify-between items-center mb-2">
-          {token.imageUrl && (
-            <img
-              src={token.imageUrl}
-              alt={token.symbol}
-              className="w-8 h-8 rounded-full mr-2"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
+          <div className="flex items-center gap-2">
+            <CryptoIcon
+              symbol={token.symbol}
+              imageUrl={token.imageUrl}
+              uri={token.uri}
+              size="lg"
+              showFallback={true}
             />
-          )}
-          <div>
-            <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">
-              {token.name}
-            </h3>
-            <span className="text-sm text-purple-400/80">{token.symbol}</span>
+            <div>
+              <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">
+                {token.name}
+              </h3>
+              <span className="text-sm text-purple-400/80">{token.symbol}</span>
+            </div>
           </div>
         </div>
         <div className="text-sm text-purple-300/60 truncate">

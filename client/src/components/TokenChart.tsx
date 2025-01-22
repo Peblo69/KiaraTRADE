@@ -1,6 +1,7 @@
 import { FC } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
+import CryptoIcon from "./CryptoIcon";
 import {
   Area,
   XAxis,
@@ -36,16 +37,13 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress }) => {
       <CardHeader className="flex flex-col space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            {token.imageUrl && (
-              <img 
-                src={token.imageUrl} 
-                alt={token.symbol}
-                className="w-10 h-10 rounded-full"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
-            )}
+            <CryptoIcon 
+              symbol={token.symbol}
+              imageUrl={token.imageUrl}
+              uri={token.uri}
+              size="lg"
+              showFallback={true}
+            />
             <div className="space-y-1">
               <h3 className="font-semibold text-lg tracking-tight">
                 {token.symbol} ({token.name})
