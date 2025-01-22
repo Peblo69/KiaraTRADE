@@ -83,7 +83,7 @@ export const AdvancedChart: FC<ChartProps> = ({
           bottom: 0.2
         },
         autoScale: true,
-        mode: 1, // Normal price scale mode
+        mode: 1,
         alignLabels: true,
       },
       crosshair: {
@@ -115,15 +115,15 @@ export const AdvancedChart: FC<ChartProps> = ({
       },
     });
 
-    // Configure candlestick appearance
+    // Configure candlestick appearance with softer colors
     const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#22c55e',
-      downColor: '#ef4444',
+      upColor: '#16a34a', // Softer green
+      downColor: '#dc2626', // Softer red
       borderVisible: true,
-      borderUpColor: '#22c55e',
-      borderDownColor: '#ef4444',
-      wickUpColor: '#22c55e',
-      wickDownColor: '#ef4444',
+      borderUpColor: '#16a34a',
+      borderDownColor: '#dc2626',
+      wickUpColor: '#16a34a',
+      wickDownColor: '#dc2626',
       priceFormat: {
         type: 'price',
         precision: 8,
@@ -137,7 +137,7 @@ export const AdvancedChart: FC<ChartProps> = ({
       priceFormat: {
         type: 'volume',
       },
-      priceScaleId: '', // Move volume to overlay
+      priceScaleId: '',
       scaleMargins: {
         top: 0.8,
         bottom: 0,
@@ -154,11 +154,11 @@ export const AdvancedChart: FC<ChartProps> = ({
 
         candlestickSeries.setData(sortedData);
 
-        // Color volume based on price action with lower opacity
+        // Color volume based on price action with softer colors
         const volumeData = sortedData.map(d => ({
           time: d.time,
           value: d.volume,
-          color: d.close >= d.open ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+          color: d.close >= d.open ? 'rgba(22, 163, 74, 0.3)' : 'rgba(220, 38, 38, 0.3)', // Softer colors
         }));
         volumeSeries.setData(volumeData);
 
@@ -167,8 +167,8 @@ export const AdvancedChart: FC<ChartProps> = ({
         const visibleBars = Math.min(20, totalBars);
 
         chart.timeScale().setVisibleLogicalRange({
-          from: totalBars - visibleBars - 10, // Add some padding on the left
-          to: totalBars + 5, // Add some padding on the right
+          from: totalBars - visibleBars - 10,
+          to: totalBars + 5,
         });
 
         // Subscribe to crosshair move
@@ -244,8 +244,8 @@ export const AdvancedChart: FC<ChartProps> = ({
         time: currentTime,
         value: lastDataPoint.volume,
         color: lastDataPoint.close >= lastDataPoint.open
-          ? 'rgba(34, 197, 94, 0.3)'
-          : 'rgba(239, 68, 68, 0.3)',
+          ? 'rgba(22, 163, 74, 0.3)' // Softer green
+          : 'rgba(220, 38, 38, 0.3)', // Softer red
       });
 
       // Add trade markers
@@ -253,7 +253,7 @@ export const AdvancedChart: FC<ChartProps> = ({
         const markers = recentTrades.map(trade => ({
           time: Math.floor(trade.timestamp / 1000),
           position: trade.isBuy ? 'belowBar' : 'aboveBar',
-          color: trade.isBuy ? '#22c55e' : '#ef4444',
+          color: trade.isBuy ? '#16a34a' : '#dc2626', // Softer colors
           shape: trade.isBuy ? 'arrowUp' : 'arrowDown',
           text: trade.isBuy ? 'B' : 'S',
           size: 1

@@ -328,8 +328,8 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       volume24h: volumeUsd,
       trades: 1,
       trades24h: 1,
-      buys24h: data.txType === 'buy' ? 1 : 0,
-      sells24h: data.txType === 'sell' ? 1 : 0,
+      buys24h: 1, // Initial transaction is a buy
+      sells24h: 0,
       walletCount: 1,
       timestamp: now,
       timeWindows: createEmptyTimeWindows(now),
@@ -338,7 +338,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
         timestamp: now,
         price: priceUsd,
         volume: volumeUsd,
-        isBuy: data.txType === 'buy',
+        isBuy: true, // Always mark initial dev wallet transaction as buy
         wallet: traderPublicKey
       }],
       status: {
