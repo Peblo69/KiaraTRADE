@@ -1,7 +1,4 @@
-// FILE: /src/lib/pump-portal-websocket.ts
-
 import { create } from "zustand";
-import axios from "axios";
 import { useHeliusStore } from './helius-websocket';
 import { preloadTokenImages } from './token-metadata';
 
@@ -48,9 +45,6 @@ export interface PumpPortalToken {
     '15m': TimeWindowStats;
     '30m': TimeWindowStats;
     '1h': TimeWindowStats;
-    '4h': TimeWindowStats;
-    '12h': TimeWindowStats;
-    '24h': TimeWindowStats;
   };
   priceHistory: {
     [timeframe: string]: {
@@ -72,27 +66,22 @@ export interface PumpPortalToken {
     lb: boolean;
     tri: boolean;
   };
-  imageLink?: string; // Added imageLink
+  imageLink?: string;
 }
 
 interface PumpPortalStore {
   tokens: PumpPortalToken[];
   isConnected: boolean;
-  solPrice: number | null;
   addToken: (token: PumpPortalToken) => void;
   updateToken: (address: string, updates: Partial<PumpPortalToken>) => void;
   addTradeToHistory: (address: string, trade: any) => void;
   setConnected: (connected: boolean) => void;
-  setSolPrice: (price: number) => void;
 }
 
 // -----------------------------------
 // CONSTANTS
 // -----------------------------------
 const TOTAL_SUPPLY = 1_000_000_000;
-const COINGECKO_API = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd";
-const CACHE_DURATION = 30000;
-const PRICE_IMPACT_FACTOR = 0.00001; // Adjust based on actual market behavior
 
 // Time windows in milliseconds
 const TIME_WINDOWS = {
@@ -109,10 +98,6 @@ const TIME_WINDOWS = {
   '12h': 43200000,
   '24h': 86400000,
 } as const;
-
-// Cache mechanism for SOL price
-let cachedSolPrice: number | null = null;
-let lastPriceUpdate = 0;
 
 function createEmptyTimeWindow(startTime: number): TimeWindowStats {
   return {
@@ -137,32 +122,9 @@ function createEmptyTimeWindows(timestamp: number) {
   return windows;
 }
 
-async function fetchSolPrice(): Promise<number> {
-  const now = Date.now();
-  if (cachedSolPrice && (now - lastPriceUpdate < CACHE_DURATION)) {
-    return cachedSolPrice;
-  }
-
-  try {
-    const response = await axios.get(COINGECKO_API);
-    const price = response.data?.solana?.usd;
-    if (price) {
-      cachedSolPrice = price;
-      lastPriceUpdate = now;
-      console.log('[PumpPortal] Updated SOL price:', price);
-      return price;
-    }
-  } catch (error) {
-    console.error('[PumpPortal] Error fetching SOL price:', error);
-  }
-  return cachedSolPrice || 100;
-}
-
-function calculatePriceImpact(token: PumpPortalToken, tradeVolume: number, isBuy: boolean): number {
-  // Stronger price impact for more accurate price movements
-  const liquidityUsd = token.liquidity;
-  const impact = (tradeVolume / liquidityUsd) * PRICE_IMPACT_FACTOR;
-  return isBuy ? token.price * (1 + impact) : token.price * (1 - impact);
+function calculatePriceImpact(liquidity: number, tradeVolume: number, isBuy: boolean): number {
+  const impact = (tradeVolume / liquidity) * 0.005; // 0.5% max impact per trade
+  return isBuy ? (1 + impact) : (1 - impact);
 }
 
 // -----------------------------------
@@ -171,7 +133,6 @@ function calculatePriceImpact(token: PumpPortalToken, tradeVolume: number, isBuy
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
   isConnected: false,
-  solPrice: null,
   addToken: (token) =>
     set((state) => ({
       tokens: [token, ...state.tokens].slice(0, 10), // Keep only the latest 10 tokens
@@ -188,12 +149,12 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       if (!token) return state;
 
       const now = Date.now();
-      const solPrice = state.solPrice || 100;
-      const tradeVolume = Number(trade.solAmount || 0) * solPrice;
+      const tradeVolume = Number(trade.solAmount || 0) * 263.11; // Current SOL price from PumpPortal
       const isBuy = trade.txType === 'buy';
 
       // Calculate new price with increased impact
-      const newPrice = calculatePriceImpact(token, tradeVolume, isBuy);
+      const priceImpact = calculatePriceImpact(token.liquidity, tradeVolume, isBuy);
+      const newPrice = token.price * priceImpact;
 
       // Update time windows with forced window reset on large changes
       const updatedWindows = { ...token.timeWindows };
@@ -231,14 +192,14 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
       // Update recent trades with new trade at the beginning
       const newTrade = {
-        timestamp: now, // Ensure this is a number
+        timestamp: now,
         price: newPrice,
         volume: tradeVolume,
         isBuy,
         wallet: trade.traderPublicKey
       };
 
-      const recentTrades = [newTrade, ...(token.recentTrades || [])].slice(0, 1000); // Increased from 50 to 1000
+      const recentTrades = [newTrade, ...(token.recentTrades || [])].slice(0, 1000);
 
       // Calculate 24h stats using the full trade history
       const last24h = now - 24 * 60 * 60 * 1000;
@@ -252,7 +213,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       const newLiquidity = token.liquidity + (isBuy ? tradeVolume : -tradeVolume);
       const liquidityChange = ((newLiquidity - token.liquidity) / token.liquidity) * 100;
 
-      // Update token with new data, ensuring we keep all trades
       return {
         tokens: state.tokens.map(t =>
           t.address === address ? {
@@ -275,19 +235,11 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       };
     }),
   setConnected: (connected) => set({ isConnected: connected }),
-  setSolPrice: (price) => set({ solPrice: price }),
 }));
 
-/**
- * Maps raw PumpPortal data to the PumpPortalToken structure.
- * @param data - Raw data received from PumpPortal.
- * @returns A Promise that resolves to a PumpPortalToken.
- */
 async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
   try {
     console.log('[PumpPortal] Raw data received:', data);
-    const solPrice = await fetchSolPrice();
-
     const {
       mint,
       vSolInBondingCurve,
@@ -297,13 +249,15 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       symbol,
       solAmount,
       traderPublicKey,
-      imageLink // Ensure this field is present in your data
+      imageLink,
+      price // Assuming PumpPortal now provides price directly
     } = data;
 
-    const marketCapUsd = Number(marketCapSol || 0) * solPrice;
-    const priceUsd = marketCapUsd / TOTAL_SUPPLY;
-    const liquidityUsd = Number(vSolInBondingCurve || 0) * solPrice;
-    const volumeUsd = Number(solAmount || 0) * solPrice;
+
+    const marketCapUsd = Number(marketCapSol || 0) * price; // Use price from PumpPortal
+    const priceUsd = price; // Use price from PumpPortal
+    const liquidityUsd = Number(vSolInBondingCurve || 0) * price; // Use price from PumpPortal
+    const volumeUsd = Number(solAmount || 0) * price; // Use price from PumpPortal
 
     const now = Date.now();
     const token: PumpPortalToken = {
@@ -326,7 +280,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       timeWindows: createEmptyTimeWindows(now),
       priceHistory: {},
       recentTrades: [{
-        timestamp: now, // Ensure this is a number
+        timestamp: now,
         price: priceUsd,
         volume: volumeUsd,
         isBuy: data.txType === 'buy',
@@ -338,11 +292,10 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
         lb: Boolean(bondingCurveKey),
         tri: false
       },
-      imageLink: imageLink || 'https://via.placeholder.com/150', // Assign a default image
+      imageLink: imageLink || 'https://via.placeholder.com/150',
     };
 
     console.log('[PumpPortal] Mapped token:', token);
-    usePumpPortalStore.getState().setSolPrice(solPrice);
     return token;
   } catch (error) {
     console.error('[PumpPortal] Error mapping data:', error);
@@ -356,10 +309,6 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 5000;
 
-/**
- * Initializes the PumpPortal WebSocket connection.
- * Handles subscription to new tokens and trade events.
- */
 export function initializePumpPortalWebSocket() {
   if (typeof window === 'undefined') return;
 
@@ -384,14 +333,12 @@ export function initializePumpPortalWebSocket() {
       reconnectAttempts = 0;
 
       if (ws?.readyState === WebSocket.OPEN) {
-        // Subscribe to new token events with required 'keys' parameter
         ws.send(JSON.stringify({
           method: "subscribeNewToken",
-          keys: [] // Adjust based on server requirements
+          keys: []
         }));
         console.log('[PumpPortal] Subscribed to new token events');
 
-        // Subscribe to trade events only for existing tokens
         const existingTokenAddresses = usePumpPortalStore.getState().tokens.map(t => t.address);
         if (existingTokenAddresses.length > 0) {
           ws.send(JSON.stringify({
@@ -412,18 +359,15 @@ export function initializePumpPortalWebSocket() {
           return;
         }
 
-        // Handle errors
         if (data.errors) {
           console.error('[PumpPortal] Error received:', data.errors);
           return;
         }
 
-        // Handle new token creation
         if (data.txType === 'create' && data.mint) {
           try {
             const token = await mapPumpPortalData(data);
             store.addToken(token);
-            // Subscribe to this token's address in Helius
             useHeliusStore.getState().subscribeToToken(data.mint);
             console.log('[PumpPortal] Added new token:', {
               symbol: token.symbol,
@@ -432,25 +376,21 @@ export function initializePumpPortalWebSocket() {
               liquidity: token.liquidity
             });
 
-            // Preload token images
             preloadTokenImages([{
-              imageLink: token.imageLink, // Ensure `imageLink` exists in your PumpPortalToken
+              imageLink: token.imageLink,
               symbol: token.symbol
             }]);
 
-            // Subscribe to trade events for this new token
             ws?.send(JSON.stringify({
               method: "subscribeTokenTrade",
-              keys: [token.address] // Subscribe to trade events for this token
+              keys: [token.address]
             }));
             console.log(`[PumpPortal] Subscribed to trade events for token: ${token.symbol}`);
           } catch (err) {
             console.error('[PumpPortal] Failed to process token:', err);
           }
         }
-
-        // Handle trade events
-        if (['buy', 'sell'].includes(data.txType) && data.mint) {
+        else if (['buy', 'sell'].includes(data.txType) && data.mint) {
           console.log('[PumpPortal] Processing trade:', {
             type: data.txType,
             mint: data.mint,
@@ -494,5 +434,4 @@ export function initializePumpPortalWebSocket() {
   }
 }
 
-// Initialize WebSocket connection
 initializePumpPortalWebSocket();
