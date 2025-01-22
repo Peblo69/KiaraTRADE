@@ -4,6 +4,9 @@ import { create } from 'zustand';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { usePumpPortalStore } from './pump-portal-websocket';
 
+// Add debug flag
+const DEBUG = false;
+
 interface TokenTrade {
   signature: string;
   timestamp: number;
@@ -58,7 +61,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
     if (subscribedTokens.has(tokenAddress)) return;
 
     if (ws?.readyState === WebSocket.OPEN) {
-      
+      // Subscribe to token account changes
       ws.send(JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
@@ -75,7 +78,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
         ]
       }));
 
-      
+      // Subscribe to token program
       ws.send(JSON.stringify({
         jsonrpc: '2.0',
         id: 2,
@@ -91,7 +94,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
         ]
       }));
 
-      
+      // Subscribe to system program
       ws.send(JSON.stringify({
         jsonrpc: '2.0',
         id: 3,
@@ -109,7 +112,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
 
       subscribedTokens.add(tokenAddress);
       set({ subscribedTokens });
-      console.log('[Helius] Subscribed to token:', tokenAddress);
+      if (DEBUG) console.log('[Helius] Subscribed to token:', tokenAddress);
     }
   }
 }));
@@ -122,65 +125,47 @@ async function handleAccountUpdate(data: any) {
   try {
     if (!data.signature) return;
 
-    console.log('[Helius] Received account update:', {
-      signature: data.signature,
-      accountId: data.accountId,
-      type: data.type,
-      timestamp: new Date().toISOString()
-    });
+    if (DEBUG) {
+      console.log('[Helius] Processing signature:', data.signature);
+    }
 
-    
     const statuses = await connection.getSignatureStatuses([data.signature]);
     if (!statuses.value[0]) return;
 
-    
     const tx = await connection.getTransaction(data.signature, {
       maxSupportedTransactionVersion: 0
     });
 
     if (!tx || !tx.meta) return;
 
-    console.log('[Helius] Transaction details:', {
-      signature: data.signature,
-      blockTime: tx.blockTime,
-      accountKeys: tx.transaction.message.accountKeys.map(key => key.toString()),
-      preBalances: tx.meta.preBalances,
-      postBalances: tx.meta.postBalances,
-      preTokenBalances: tx.meta.preTokenBalances,
-      postTokenBalances: tx.meta.postTokenBalances
-    });
+    if (DEBUG) {
+      console.log('[Helius] Found valid transaction:', data.signature);
+    }
 
-    
     const preBalances = tx.meta.preBalances;
     const postBalances = tx.meta.postBalances;
     const balanceChanges = postBalances.map((post, i) => post - preBalances[i]);
 
-    
-    const accountKeys = tx.transaction.message.accountKeys;
+    const accountKeys = tx.transaction.message.accountKeys; //fixed
     if (!accountKeys) return;
 
-    
     const preTokenBalances = tx.meta.preTokenBalances || [];
     const postTokenBalances = tx.meta.postTokenBalances || [];
 
-    
     const isTokenTx = accountKeys.some(
       key => key.equals(new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'))
     );
 
     if (!isTokenTx) return;
 
-    
     const relevantTokenAccounts = [...preTokenBalances, ...postTokenBalances];
     for (const tokenAccount of relevantTokenAccounts) {
       if (!tokenAccount) continue;
 
-      
       const preAmount = preTokenBalances.find(
         balance => balance.accountIndex === tokenAccount.accountIndex
       )?.uiTokenAmount.uiAmount || 0;
 
-      
       const postAmount = postTokenBalances.find(
         balance => balance.accountIndex === tokenAccount.accountIndex
       )?.uiTokenAmount.uiAmount || 0;
@@ -188,7 +173,6 @@ async function handleAccountUpdate(data: any) {
       const tokenAmount = Math.abs(postAmount - preAmount);
       if (tokenAmount === 0) continue;
 
-      
       const isBuy = postAmount > preAmount;
 
       const trade: TokenTrade = {
@@ -198,12 +182,17 @@ async function handleAccountUpdate(data: any) {
         amount: Math.abs(balanceChanges[0]) / 1e9, 
         price: tokenAmount,
         priceUsd: 0, 
-        buyer: isBuy ? accountKeys.get(1)?.toString() || '' : '',
-        seller: !isBuy ? accountKeys.get(0)?.toString() || '' : '',
+        buyer: isBuy ? accountKeys[1]?.toString() || '' : '', //fixed
+        seller: !isBuy ? accountKeys[0]?.toString() || '' : '', //fixed
         type: isBuy ? 'buy' : 'sell'
       };
 
-      console.log('[Helius] Processed trade:', trade);
+      console.log('[Helius] New trade:', {
+        signature: trade.signature,
+        type: trade.type,
+        amount: trade.amount,
+        price: trade.price
+      });
 
       useHeliusStore.getState().addTrade(data.accountId, trade);
     }
@@ -216,7 +205,11 @@ async function handleAccountUpdate(data: any) {
 function handleWebSocketMessage(event: MessageEvent) {
   try {
     const data = JSON.parse(event.data);
-    console.log('[Helius] Received message:', data);
+
+    // Only log non-routine messages
+    if (data.method !== 'programNotification') {
+      if (DEBUG) console.log('[Helius] Received message:', data);
+    }
 
     if (data.method === 'accountNotification') {
       handleAccountUpdate(data.params.result);
@@ -252,7 +245,7 @@ export function initializeHeliusWebSocket() {
       useHeliusStore.getState().setConnected(true);
       reconnectAttempts = 0;
 
-      
+      // Resubscribe to existing tokens
       const { subscribedTokens } = useHeliusStore.getState();
       subscribedTokens.forEach(tokenAddress => {
         useHeliusStore.getState().subscribeToToken(tokenAddress);
