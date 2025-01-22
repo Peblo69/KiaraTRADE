@@ -69,22 +69,22 @@ export const AdvancedChart: FC<ChartProps> = ({
         timeVisible: true,
         secondsVisible: true,
         borderColor: 'rgba(197, 203, 206, 0.2)',
-        barSpacing: 4, // More compact spacing
-        minBarSpacing: 2,
-        rightOffset: 5, // Less right space
-        fixLeftEdge: true,
-        fixRightEdge: true,
+        barSpacing: 6,
+        minBarSpacing: 4,
+        rightOffset: 12,
+        fixLeftEdge: false, // Allow empty space on the left
+        fixRightEdge: false, // Allow scrolling past the right edge
         lockVisibleTimeRangeOnResize: true,
-        rightBarStaysOnScroll: true,
       },
       rightPriceScale: {
         borderColor: 'rgba(197, 203, 206, 0.2)',
         scaleMargins: {
-          top: 0.1, // Less top margin
-          bottom: 0.1 // Less bottom margin
+          top: 0.1,
+          bottom: 0.2
         },
         autoScale: true,
-        entireTextOnly: true,
+        mode: 1, // Normal price scale mode
+        alignLabels: true,
       },
       crosshair: {
         mode: CrosshairMode.Normal,
@@ -133,12 +133,13 @@ export const AdvancedChart: FC<ChartProps> = ({
 
     // Configure volume appearance
     const volumeSeries = chart.addHistogramSeries({
+      color: 'rgba(76, 175, 80, 0.5)',
       priceFormat: {
         type: 'volume',
       },
       priceScaleId: '', // Move volume to overlay
       scaleMargins: {
-        top: 0.8, // Position volume at bottom
+        top: 0.8,
         bottom: 0,
       },
     });
@@ -151,13 +152,6 @@ export const AdvancedChart: FC<ChartProps> = ({
           return timeA - timeB;
         });
 
-        // Set initial visible range
-        const visibleBars = Math.min(50, sortedData.length); // Show max 50 bars initially
-        chart.timeScale().setVisibleLogicalRange({
-          from: Math.max(0, sortedData.length - visibleBars),
-          to: sortedData.length,
-        });
-
         candlestickSeries.setData(sortedData);
 
         // Color volume based on price action with lower opacity
@@ -167,6 +161,15 @@ export const AdvancedChart: FC<ChartProps> = ({
           color: d.close >= d.open ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)',
         }));
         volumeSeries.setData(volumeData);
+
+        // Set initial view to show last 20 candles by default
+        const totalBars = sortedData.length;
+        const visibleBars = Math.min(20, totalBars);
+
+        chart.timeScale().setVisibleLogicalRange({
+          from: totalBars - visibleBars - 10, // Add some padding on the left
+          to: totalBars + 5, // Add some padding on the right
+        });
 
         // Subscribe to crosshair move
         chart.subscribeCrosshairMove(param => {
@@ -194,12 +197,6 @@ export const AdvancedChart: FC<ChartProps> = ({
                 </div>
               </div>
             `;
-          }
-        });
-
-        chartContainerRef.current.addEventListener('mouseleave', () => {
-          if (tooltipRef.current) {
-            tooltipRef.current.style.display = 'none';
           }
         });
 
