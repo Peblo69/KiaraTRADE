@@ -1,5 +1,5 @@
 import { FC, useEffect, useRef, useState, useCallback } from 'react';
-import { createChart, ColorType, IChartApi, Time, CrosshairMode } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, Time, CrosshairMode, MarkerShape, MarkerType } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import {
   Select,
@@ -32,7 +32,7 @@ interface ChartProps {
 export const AdvancedChart: FC<ChartProps> = ({
   data,
   onTimeframeChange,
-  timeframe = '1m',
+  timeframe = '1s',
   symbol,
   className,
   recentTrades = [],
@@ -41,11 +41,10 @@ export const AdvancedChart: FC<ChartProps> = ({
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
-  const tradeSeriesRef = useRef<any>(null); // Reference for trade markers
   const [isLoading, setIsLoading] = useState(true);
   const [noDataForTimeframe, setNoDataForTimeframe] = useState(false);
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
-  // Initialize chart
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
@@ -69,14 +68,7 @@ export const AdvancedChart: FC<ChartProps> = ({
       height: 400,
       timeScale: {
         timeVisible: true,
-        secondsVisible: timeframe === '1s' || timeframe === '1m', //Added 1s timeframe
-        tickMarkFormatter: (time: any) => {
-          const date = new Date(time * 1000);
-          const hours = date.getHours().toString().padStart(2, '0');
-          const minutes = date.getMinutes().toString().padStart(2, '0');
-          const seconds = date.getSeconds().toString().padStart(2, '0');
-          return timeframe === '1s' ? `${hours}:${minutes}:${seconds}` : `${hours}:${minutes}`;
-        },
+        secondsVisible: true,
         borderColor: 'rgba(197, 203, 206, 0.3)',
       },
       rightPriceScale: {
@@ -128,15 +120,6 @@ export const AdvancedChart: FC<ChartProps> = ({
       priceScaleId: '',
     });
 
-    // Add series for trade markers
-    const tradeSeries = chart.addLineSeries({
-      color: 'rgba(255, 255, 255, 0.8)',
-      lineWidth: 1,
-      priceLineVisible:false,
-      crosshairMarkerVisible: false,
-    });
-    tradeSeriesRef.current = tradeSeries;
-
     // Set initial data
     if (data.length) {
       try {
@@ -159,35 +142,40 @@ export const AdvancedChart: FC<ChartProps> = ({
 
         // Subscribe to crosshair move to show detailed price information
         chart.subscribeCrosshairMove(param => {
+          const tooltip = tooltipRef.current;
+          if (!tooltip) return;
+
           if (!param.time || !param.point || param.point.x < 0 || param.point.y < 0) {
+            tooltip.style.display = 'none';
             return;
           }
 
-          const coordinateToPrice = candlestickSeries.coordinateToPrice(param.point.y);
           const dataPoint = sortedData.find(d => d.time === param.time);
-
           if (dataPoint) {
-            const tooltip = document.getElementById('chart-tooltip');
-            if (tooltip) {
-              tooltip.style.display = 'block';
-              tooltip.style.left = `${param.point.x}px`;
-              tooltip.style.top = `${param.point.y}px`;
-              tooltip.innerHTML = `
-                <div class="px-2 py-1 bg-background/95 border rounded shadow-lg">
-                  <div class="grid grid-cols-2 gap-2 text-xs">
-                    <div>O: $${dataPoint.open.toFixed(8)}</div>
-                    <div>C: $${dataPoint.close.toFixed(8)}</div>
-                    <div>H: $${dataPoint.high.toFixed(8)}</div>
-                    <div>L: $${dataPoint.low.toFixed(8)}</div>
-                    <div class="col-span-2">V: $${dataPoint.volume.toFixed(2)}</div>
-                  </div>
+            tooltip.style.display = 'block';
+            tooltip.style.left = `${param.point.x}px`;
+            tooltip.style.top = `${param.point.y}px`;
+            tooltip.innerHTML = `
+              <div class="px-2 py-1 bg-background/95 border rounded shadow-lg">
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                  <div>O: $${dataPoint.open.toFixed(8)}</div>
+                  <div>C: $${dataPoint.close.toFixed(8)}</div>
+                  <div>H: $${dataPoint.high.toFixed(8)}</div>
+                  <div>L: $${dataPoint.low.toFixed(8)}</div>
+                  <div class="col-span-2">V: $${dataPoint.volume.toFixed(2)}</div>
                 </div>
-              `;
-            }
+              </div>
+            `;
           }
         });
 
-        // Fit content and remove loading state
+        // Hide tooltip when mouse leaves chart
+        chartContainerRef.current.addEventListener('mouseleave', () => {
+          if (tooltipRef.current) {
+            tooltipRef.current.style.display = 'none';
+          }
+        });
+
         chart.timeScale().fitContent();
         setIsLoading(false);
         setNoDataForTimeframe(false);
@@ -209,7 +197,7 @@ export const AdvancedChart: FC<ChartProps> = ({
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [timeframe]); // Re-initialize chart when timeframe changes
+  }, [timeframe]);
 
   // Update data in real-time
   useEffect(() => {
@@ -220,16 +208,9 @@ export const AdvancedChart: FC<ChartProps> = ({
 
     try {
       const lastDataPoint = data[data.length - 1];
-
-      // Validate time data
       const currentTime = typeof lastDataPoint.time === 'number'
         ? lastDataPoint.time
         : new Date(lastDataPoint.time as string).getTime() / 1000;
-
-      if (!currentTime) {
-        console.warn('Invalid time data in chart update');
-        return;
-      }
 
       candlestickSeriesRef.current.update({
         ...lastDataPoint,
@@ -244,12 +225,17 @@ export const AdvancedChart: FC<ChartProps> = ({
           : 'rgba(255, 59, 105, 0.5)',
       });
 
-      // Update trade markers
+      // Update markers for recent trades
       if (recentTrades && recentTrades.length > 0) {
-        tradeSeriesRef.current.setData(recentTrades.map(trade => ({
-          time: trade.timestamp,
-          value: trade.price,
-        })));
+        const markers = recentTrades.map(trade => ({
+          time: Math.floor(trade.timestamp / 1000),
+          position: trade.isBuy ? 'belowBar' : 'aboveBar',
+          color: trade.isBuy ? '#00C805' : '#FF3B69',
+          shape: trade.isBuy ? 'arrowUp' : 'arrowDown',
+          text: trade.isBuy ? 'B' : 'S',
+          size: 1
+        }));
+        candlestickSeriesRef.current.setMarkers(markers);
       }
 
       setIsLoading(false);
@@ -261,7 +247,6 @@ export const AdvancedChart: FC<ChartProps> = ({
   }, [data, recentTrades]);
 
   const handleTimeframeChange = useCallback((newTimeframe: string) => {
-    // Reset error state when changing timeframes
     setNoDataForTimeframe(false);
     setIsLoading(true);
     onTimeframeChange?.(newTimeframe);
@@ -278,14 +263,12 @@ export const AdvancedChart: FC<ChartProps> = ({
           <SelectContent>
             {[
               { value: '1s', label: '1 second' },
+              { value: '5s', label: '5 seconds' },
+              { value: '30s', label: '30 seconds' },
               { value: '1m', label: '1 minute' },
               { value: '5m', label: '5 minutes' },
               { value: '15m', label: '15 minutes' },
-              { value: '30m', label: '30 minutes' },
               { value: '1h', label: '1 hour' },
-              { value: '4h', label: '4 hours' },
-              { value: '1d', label: '1 day' },
-              { value: '1w', label: '1 week' },
             ].map((tf) => (
               <SelectItem key={tf.value} value={tf.value}>
                 {tf.label}
@@ -296,7 +279,7 @@ export const AdvancedChart: FC<ChartProps> = ({
       </div>
       <div ref={chartContainerRef} className="relative">
         <div
-          id="chart-tooltip"
+          ref={tooltipRef}
           className="absolute z-50 pointer-events-none hidden"
           style={{ transform: 'translate(-50%, -100%)' }}
         />
