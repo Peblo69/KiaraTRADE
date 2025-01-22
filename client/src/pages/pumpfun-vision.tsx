@@ -47,6 +47,17 @@ interface Trade {
   wallet: string;
 }
 
+// Helper functions for formatting numbers
+const formatPrice = (price: number | undefined | null): string => {
+  if (typeof price !== 'number' || isNaN(price)) return '$0.00';
+  return `$${price.toFixed(8)}`;
+};
+
+const formatMarketCap = (marketCap: number | undefined | null): string => {
+  if (typeof marketCap !== 'number' || isNaN(marketCap)) return '$0';
+  return `$${millify(marketCap)}`;
+};
+
 function getTimeDiff(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
   if (seconds < 60) return `${seconds}s ago`;
@@ -56,17 +67,6 @@ function getTimeDiff(timestamp: number): string {
 }
 
 const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, onClick }) => {
-  // Helper function to safely format numbers
-  const formatPrice = (price: number | undefined | null): string => {
-    if (typeof price !== 'number' || isNaN(price)) return '$0.00';
-    return `$${price.toFixed(8)}`;
-  };
-
-  const formatMarketCap = (marketCap: number | undefined | null): string => {
-    if (typeof marketCap !== 'number' || isNaN(marketCap)) return '$0';
-    return `$${millify(marketCap)}`;
-  };
-
   return (
     <Card
       key={token.address}
