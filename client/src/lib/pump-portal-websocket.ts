@@ -155,8 +155,9 @@ async function fetchSolPrice(): Promise<number> {
 }
 
 function calculatePriceImpact(token: PumpPortalToken, tradeVolume: number, isBuy: boolean): number {
+  // Stronger price impact for more accurate price movements
   const liquidityUsd = token.liquidity;
-  const impact = (tradeVolume / liquidityUsd) * PRICE_IMPACT_FACTOR;
+  const impact = (tradeVolume / liquidityUsd) * 0.01; // Increased from 0.00001
   return isBuy ? token.price * (1 + impact) : token.price * (1 - impact);
 }
 
@@ -187,17 +188,21 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       const tradeVolume = Number(trade.solAmount || 0) * solPrice;
       const isBuy = trade.txType === 'buy';
 
-      // Calculate new price with impact
+      // Calculate new price with increased impact
       const newPrice = calculatePriceImpact(token, tradeVolume, isBuy);
 
-      // Update time windows
+      // Update time windows with forced window reset on large changes
       const updatedWindows = { ...token.timeWindows };
       Object.entries(TIME_WINDOWS).forEach(([window, duration]) => {
-        const currentWindow = updatedWindows[window];
+        const currentWindow = updatedWindows[window as keyof typeof TIME_WINDOWS];
         const windowStart = Math.floor(now / duration) * duration;
 
-        if (now > currentWindow.endTime) {
-          updatedWindows[window] = {
+        // Reset window if price change is significant or window expired
+        const priceChange = Math.abs((newPrice - currentWindow.closePrice) / currentWindow.closePrice);
+        const shouldResetWindow = now > currentWindow.endTime || priceChange > 0.05;
+
+        if (shouldResetWindow) {
+          updatedWindows[window as keyof typeof TIME_WINDOWS] = {
             startTime: windowStart,
             endTime: windowStart + duration,
             openPrice: newPrice,
@@ -220,7 +225,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         }
       });
 
-      // Update recent trades
+      // Update recent trades with new trade at the beginning
       const newTrade = {
         timestamp: now,
         price: newPrice,
@@ -238,7 +243,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       const buys24h = trades24h.filter(t => t.isBuy).length;
       const sells24h = trades24h.filter(t => !t.isBuy).length;
 
-      // Calculate new market cap and liquidity
+      // Calculate new market cap and liquidity with higher sensitivity
       const newMarketCap = newPrice * TOTAL_SUPPLY;
       const newLiquidity = token.liquidity + (isBuy ? tradeVolume : -tradeVolume);
       const liquidityChange = ((newLiquidity - token.liquidity) / token.liquidity) * 100;
