@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { useHeliusStore } from './helius-websocket';
 import { preloadTokenImages } from './token-metadata';
+import axios from 'axios';
 
 // -----------------------------------
 // TYPES
@@ -72,16 +73,20 @@ export interface PumpPortalToken {
 interface PumpPortalStore {
   tokens: PumpPortalToken[];
   isConnected: boolean;
+  solPrice: number;
   addToken: (token: PumpPortalToken) => void;
   updateToken: (address: string, updates: Partial<PumpPortalToken>) => void;
   addTradeToHistory: (address: string, trade: any) => void;
   setConnected: (connected: boolean) => void;
+  setSolPrice: (price: number) => void;
 }
 
 // -----------------------------------
 // CONSTANTS
 // -----------------------------------
 const TOTAL_SUPPLY = 1_000_000_000;
+const SOL_PRICE_UPDATE_INTERVAL = 30000; // 30 seconds
+const HELIUS_API_URL = 'https://mainnet.helius-rpc.com/?api-key=' + process.env.HELIUS_API_KEY;
 
 // Time windows in milliseconds
 const TIME_WINDOWS = {
@@ -94,10 +99,38 @@ const TIME_WINDOWS = {
   '15m': 900000,
   '30m': 1800000,
   '1h': 3600000,
-  '4h': 14400000,
-  '12h': 43200000,
-  '24h': 86400000,
 } as const;
+
+let solPriceInterval: NodeJS.Timeout | null = null;
+
+async function fetchSolanaPrice(): Promise<number> {
+  try {
+    const response = await axios.post(HELIUS_API_URL, {
+      jsonrpc: '2.0',
+      id: 'helius-price',
+      method: 'getPriceList',
+      params: {
+        tokens: ['So11111111111111111111111111111111111111112']
+      }
+    });
+
+    const solPrice = response.data?.result?.[0]?.price;
+    if (!solPrice) {
+      throw new Error('Invalid price response');
+    }
+    console.log('[PumpPortal] Updated SOL price:', solPrice);
+    return solPrice;
+  } catch (error) {
+    console.error('[PumpPortal] Error fetching SOL price:', error);
+    const currentPrice = usePumpPortalStore.getState().solPrice;
+    if (currentPrice > 0) {
+      console.log('[PumpPortal] Using cached SOL price:', currentPrice);
+      return currentPrice;
+    }
+    console.log('[PumpPortal] Using fallback SOL price');
+    return 263.11; // Fallback price if everything fails
+  }
+}
 
 function createEmptyTimeWindow(startTime: number): TimeWindowStats {
   return {
@@ -133,9 +166,10 @@ function calculatePriceImpact(liquidity: number, tradeVolume: number, isBuy: boo
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
   isConnected: false,
+  solPrice: 0,
   addToken: (token) =>
     set((state) => ({
-      tokens: [token, ...state.tokens].slice(0, 10), // Keep only the latest 10 tokens
+      tokens: [token, ...state.tokens].slice(0, 10),
     })),
   updateToken: (address, updates) =>
     set((state) => ({
@@ -149,12 +183,18 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       if (!token) return state;
 
       const now = Date.now();
-      const tradeVolume = Number(trade.solAmount || 0) * 263.11; // Current SOL price from PumpPortal
+      const solPrice = state.solPrice;
+      if (!solPrice) {
+        console.warn('[PumpPortal] No SOL price available for trade calculation');
+        return state;
+      }
+
+      const tradeVolume = Number(trade.solAmount || 0) * solPrice;
       const isBuy = trade.txType === 'buy';
 
       // Calculate new price with increased impact
-      const priceImpact = calculatePriceImpact(token.liquidity, tradeVolume, isBuy);
-      const newPrice = token.price * priceImpact;
+      const priceImpact = calculatePriceImpact(token.liquidity || 1, tradeVolume, isBuy);
+      const newPrice = (token.price || 0) * priceImpact;
 
       // Update time windows with forced window reset on large changes
       const updatedWindows = { ...token.timeWindows };
@@ -235,6 +275,14 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       };
     }),
   setConnected: (connected) => set({ isConnected: connected }),
+  setSolPrice: (price) => {
+    if (price > 0) {
+      console.log('[PumpPortal] Setting SOL price:', price);
+      set({ solPrice: price });
+    } else {
+      console.warn('[PumpPortal] Attempted to set invalid SOL price:', price);
+    }
+  },
 }));
 
 async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
@@ -250,14 +298,23 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       solAmount,
       traderPublicKey,
       imageLink,
-      price // Assuming PumpPortal now provides price directly
     } = data;
 
+    // Ensure we have a valid SOL price
+    let solPrice = usePumpPortalStore.getState().solPrice;
+    if (!solPrice) {
+      solPrice = await fetchSolanaPrice();
+      usePumpPortalStore.getState().setSolPrice(solPrice);
+    }
 
-    const marketCapUsd = Number(marketCapSol || 0) * price; // Use price from PumpPortal
-    const priceUsd = price; // Use price from PumpPortal
-    const liquidityUsd = Number(vSolInBondingCurve || 0) * price; // Use price from PumpPortal
-    const volumeUsd = Number(solAmount || 0) * price; // Use price from PumpPortal
+    // Calculate USD values using current SOL price
+    const marketCapUsd = Number(marketCapSol || 0) * solPrice;
+    const liquidityUsd = Number(vSolInBondingCurve || 0) * solPrice;
+    const volumeUsd = Number(solAmount || 0) * solPrice;
+
+    // Calculate price per token with fallback
+    const totalSupply = TOTAL_SUPPLY;
+    const priceUsd = marketCapUsd / totalSupply || 0;
 
     const now = Date.now();
     const token: PumpPortalToken = {
@@ -295,7 +352,13 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       imageLink: imageLink || 'https://via.placeholder.com/150',
     };
 
-    console.log('[PumpPortal] Mapped token:', token);
+    console.log('[PumpPortal] Mapped token:', {
+      symbol: token.symbol,
+      price: token.price,
+      marketCap: token.marketCap,
+      liquidity: token.liquidity
+    });
+
     return token;
   } catch (error) {
     console.error('[PumpPortal] Error mapping data:', error);
@@ -322,6 +385,30 @@ export function initializePumpPortalWebSocket() {
     }
     ws = null;
   }
+
+  // Clear existing SOL price interval
+  if (solPriceInterval) {
+    clearInterval(solPriceInterval);
+  }
+
+  // Initialize SOL price updates
+  fetchSolanaPrice().then(price => {
+    store.setSolPrice(price);
+
+    // Start regular price updates
+    solPriceInterval = setInterval(async () => {
+      try {
+        const price = await fetchSolanaPrice();
+        if (price > 0) {
+          store.setSolPrice(price);
+        }
+      } catch (error) {
+        console.error('[PumpPortal] Failed to update SOL price:', error);
+      }
+    }, SOL_PRICE_UPDATE_INTERVAL);
+  }).catch(error => {
+    console.error('[PumpPortal] Initial SOL price fetch failed:', error);
+  });
 
   try {
     console.log('[PumpPortal] Initializing WebSocket...');
@@ -400,7 +487,6 @@ export function initializePumpPortalWebSocket() {
           });
           store.addTradeToHistory(data.mint, data);
         }
-
       } catch (error) {
         console.error('[PumpPortal] Failed to parse message:', error);
       }
@@ -414,6 +500,12 @@ export function initializePumpPortalWebSocket() {
         reconnectAttempts++;
         console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
         reconnectTimeout = setTimeout(initializePumpPortalWebSocket, RECONNECT_DELAY);
+      }
+
+      // Clear price update interval on disconnect
+      if (solPriceInterval) {
+        clearInterval(solPriceInterval);
+        solPriceInterval = null;
       }
     };
 

@@ -69,20 +69,21 @@ export const AdvancedChart: FC<ChartProps> = ({
         timeVisible: true,
         secondsVisible: true,
         borderColor: 'rgba(197, 203, 206, 0.3)',
-        barSpacing: 4, // More compact initial view
+        barSpacing: 12, // Increased for better initial view
         minBarSpacing: 2,
-        rightOffset: 5, // Leave space on the right
-        visibleRange: {
-          from: (Math.floor(Date.now() / 1000) - 300), // Show last 5 minutes by default
-          to: Math.floor(Date.now() / 1000)
-        }
+        rightOffset: 12, // Increased space on the right
+        rightBarStaysOnScroll: true,
+        fixLeftEdge: true,
+        fixRightEdge: true,
+        lockVisibleTimeRangeOnResize: true,
       },
       rightPriceScale: {
         borderColor: 'rgba(197, 203, 206, 0.3)',
         scaleMargins: {
-          top: 0.1, // Keep some space at the top
-          bottom: 0.25 // This creates space for volume
-        }
+          top: 0.2, // Increased top margin
+          bottom: 0.2 // Increased bottom margin
+        },
+        autoScale: true,
       },
       crosshair: {
         mode: CrosshairMode.Normal,
@@ -100,14 +101,20 @@ export const AdvancedChart: FC<ChartProps> = ({
       handleScroll: {
         mouseWheel: true,
         pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true,
       },
       handleScale: {
-        axisPressedMouseMove: true,
+        axisPressedMouseMove: {
+          time: true,
+          price: true,
+        },
         mouseWheel: true,
         pinch: true,
       },
     });
 
+    // Configure proper candlestick colors
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: '#00C805',
       downColor: '#FF3B69',
@@ -125,7 +132,7 @@ export const AdvancedChart: FC<ChartProps> = ({
       priceFormat: {
         type: 'volume',
       },
-      priceScaleId: '', // Overlay the volume
+      priceScaleId: '', // Move volume to overlay
       scaleMargins: {
         top: 0.8, // Position volume at bottom
         bottom: 0,
@@ -140,8 +147,21 @@ export const AdvancedChart: FC<ChartProps> = ({
           return timeA - timeB;
         });
 
+        // Set initial visible range based on data
+        const dataStartTime = sortedData[0]?.time;
+        const dataEndTime = sortedData[sortedData.length - 1]?.time;
+        if (dataStartTime && dataEndTime) {
+          const timeRange = typeof dataEndTime === 'number' ? dataEndTime - (dataStartTime as number) : 0;
+          const visibleRange = Math.max(timeRange * 0.3, 60); // Show at least 1 minute or 30% of data
+          chart.timeScale().setVisibleLogicalRange({
+            from: 0,
+            to: Math.ceil(sortedData.length * 0.3), // Show 30% of total bars
+          });
+        }
+
         candlestickSeries.setData(sortedData);
 
+        // Color volume based on price action
         const volumeData = sortedData.map(d => ({
           time: d.time,
           value: d.volume,
@@ -184,7 +204,6 @@ export const AdvancedChart: FC<ChartProps> = ({
           }
         });
 
-        chart.timeScale().fitContent();
         setIsLoading(false);
         setNoDataForTimeframe(false);
       } catch (error) {
@@ -207,6 +226,7 @@ export const AdvancedChart: FC<ChartProps> = ({
     };
   }, [timeframe]);
 
+  // Update last candle in real-time
   useEffect(() => {
     if (!candlestickSeriesRef.current || !volumeSeriesRef.current || !data.length) {
       setNoDataForTimeframe(true);
@@ -232,6 +252,7 @@ export const AdvancedChart: FC<ChartProps> = ({
           : 'rgba(255, 59, 105, 0.5)',
       });
 
+      // Add trade markers
       if (recentTrades && recentTrades.length > 0) {
         const markers = recentTrades.map(trade => ({
           time: Math.floor(trade.timestamp / 1000),
@@ -283,19 +304,19 @@ export const AdvancedChart: FC<ChartProps> = ({
           </SelectContent>
         </Select>
       </div>
-      <div ref={chartContainerRef} className="relative">
+      <div ref={chartContainerRef} className="relative bg-[#0A0A0A] rounded-lg">
         <div
           ref={tooltipRef}
           className="absolute z-50 pointer-events-none hidden"
           style={{ transform: 'translate(-50%, -100%)' }}
         />
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+          <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         )}
         {noDataForTimeframe && !isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+          <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
             <div className="text-muted-foreground text-sm">
               No data available for selected timeframe
             </div>

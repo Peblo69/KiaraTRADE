@@ -15,10 +15,10 @@ interface PumpPortalToken {
   address: string;
   name: string;
   symbol: string;
-  price: number;
-  marketCap: number;
-  liquidity: number;
-  volume: number;
+  price: number | undefined | null;
+  marketCap: number | undefined | null;
+  liquidity: number | undefined | null;
+  volume: number | undefined | null;
   volume24h: number;
   trades24h: number;
   buys24h: number;
@@ -56,6 +56,17 @@ function getTimeDiff(timestamp: number): string {
 }
 
 const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, onClick }) => {
+  // Helper function to safely format numbers
+  const formatPrice = (price: number | undefined | null): string => {
+    if (typeof price !== 'number' || isNaN(price)) return '$0.00';
+    return `$${price.toFixed(8)}`;
+  };
+
+  const formatMarketCap = (marketCap: number | undefined | null): string => {
+    if (typeof marketCap !== 'number' || isNaN(marketCap)) return '$0';
+    return `$${millify(marketCap)}`;
+  };
+
   return (
     <Card
       key={token.address}
@@ -81,17 +92,20 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
             </div>
           </div>
         </div>
-        <div className={`text-right font-medium ${token.price > token.price ? "text-green-500" : token.price < token.price ? "text-red-500" : ""}`}>
-          ${token.price.toFixed(6)}
-        </div>
-        <div className={`text-right ${token.marketCap > token.marketCap ? "text-green-500" : token.marketCap < token.marketCap ? "text-red-500" : ""}`}>
-          ${millify(token.marketCap)}
-        </div>
-        <div className={`text-right ${token.liquidity > token.liquidity ? "text-green-500" : token.liquidity < token.liquidity ? "text-red-500" : ""}`}>
-          ${millify(token.liquidity)}
+        <div className={`text-right font-medium ${
+          token.price > (token.timeWindows['1m']?.openPrice || 0) ? "text-green-500" : 
+          token.price < (token.timeWindows['1m']?.openPrice || 0) ? "text-red-500" : ""
+        }`}>
+          {formatPrice(token.price)}
         </div>
         <div className="text-right">
-          ${millify(token.volume)}
+          {formatMarketCap(token.marketCap)}
+        </div>
+        <div className="text-right">
+          {formatMarketCap(token.liquidity)}
+        </div>
+        <div className="text-right">
+          {formatMarketCap(token.volume)}
         </div>
       </div>
     </Card>
@@ -234,7 +248,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                     currentToken.price > token.price ? 'text-green-500' :
                     currentToken.price < token.price ? 'text-red-500' : ''
                   }`}>
-                    ${currentToken.price.toFixed(8)}
+                    {formatPrice(currentToken.price)}
                   </div>
                 </div>
               </div>
@@ -243,15 +257,15 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
             <div className="grid grid-cols-4 gap-8 text-right">
               <div>
                 <div className="text-sm text-muted-foreground">Market Cap</div>
-                <div className="font-medium">${millify(currentToken.marketCap)}</div>
+                <div className="font-medium">{formatMarketCap(currentToken.marketCap)}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Liquidity</div>
-                <div className="font-medium">${millify(currentToken.liquidity)}</div>
+                <div className="font-medium">{formatMarketCap(currentToken.liquidity)}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Volume 24h</div>
-                <div className="font-medium">${millify(currentToken.volume24h)}</div>
+                <div className="font-medium">{formatMarketCap(currentToken.volume24h)}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Holders</div>

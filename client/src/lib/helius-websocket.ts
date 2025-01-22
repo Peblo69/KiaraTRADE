@@ -1,8 +1,7 @@
-// FILE: /src/lib/helius-websocket.ts
-
 import { create } from 'zustand';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { usePumpPortalStore } from './pump-portal-websocket';
+import axios from 'axios';
 
 // Add debug flag
 const DEBUG = false;
@@ -23,26 +22,33 @@ interface HeliusStore {
   trades: Record<string, TokenTrade[]>;
   isConnected: boolean;
   subscribedTokens: Set<string>;
+  solPrice: number;
   addTrade: (tokenAddress: string, trade: TokenTrade) => void;
   setConnected: (connected: boolean) => void;
   subscribeToToken: (tokenAddress: string) => void;
+  setSolPrice: (price: number) => void;
 }
 
 export const useHeliusStore = create<HeliusStore>((set, get) => ({
   trades: {},
   isConnected: false,
   subscribedTokens: new Set(),
+  solPrice: 0,
   addTrade: (tokenAddress, trade) => {
     set((state) => ({
       trades: {
         ...state.trades,
-        [tokenAddress]: [trade, ...(state.trades[tokenAddress] || [])].slice(0, 1000), 
+        [tokenAddress]: [trade, ...(state.trades[tokenAddress] || [])].slice(0, 1000),
       },
     }));
 
     // Update PumpPortal store with trade data and calculate price impact
     const pumpPortalStore = usePumpPortalStore.getState();
-    const solPrice = pumpPortalStore.solPrice || 100;
+    const solPrice = get().solPrice;
+    if (!solPrice) {
+      console.warn('[Helius] No SOL price available for trade calculation');
+      return;
+    }
 
     // Calculate trade volume in USD
     const tradeVolumeUsd = trade.amount * solPrice;
@@ -51,11 +57,20 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
       txType: trade.type,
       solAmount: trade.amount,
       traderPublicKey: trade.type === 'buy' ? trade.buyer : trade.seller,
-      priceImpact: tradeVolumeUsd / 1000000, 
+      priceImpact: tradeVolumeUsd / 1000000,
       timestamp: trade.timestamp
     });
+
+    // Update PumpPortal's SOL price
+    pumpPortalStore.setSolPrice(solPrice);
   },
   setConnected: (connected) => set({ isConnected: connected }),
+  setSolPrice: (price) => {
+    if (price > 0) {
+      set({ solPrice: price });
+      console.log('[Helius] Updated SOL price:', price);
+    }
+  },
   subscribeToToken: (tokenAddress) => {
     const { subscribedTokens } = get();
     if (subscribedTokens.has(tokenAddress)) return;
@@ -64,7 +79,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
       // Subscribe to token account changes
       ws.send(JSON.stringify({
         jsonrpc: '2.0',
-        id: 1,
+        id: 'token-sub-' + tokenAddress,
         method: 'accountSubscribe',
         params: [
           tokenAddress,
@@ -81,26 +96,10 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
       // Subscribe to token program
       ws.send(JSON.stringify({
         jsonrpc: '2.0',
-        id: 2,
+        id: 'program-sub-' + tokenAddress,
         method: 'programSubscribe',
         params: [
           'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-          {
-            commitment: 'confirmed',
-            encoding: 'jsonParsed',
-            showEvents: true,
-            maxSupportedTransactionVersion: 0
-          }
-        ]
-      }));
-
-      // Subscribe to system program
-      ws.send(JSON.stringify({
-        jsonrpc: '2.0',
-        id: 3,
-        method: 'programSubscribe',
-        params: [
-          '11111111111111111111111111111111',
           {
             commitment: 'confirmed',
             encoding: 'jsonParsed',
@@ -118,8 +117,33 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
 }));
 
 let ws: WebSocket | null = null;
-const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY || '';
-const connection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
+const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY;
+const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+const connection = new Connection(HELIUS_RPC_URL);
+
+// Function to fetch SOL price via REST API as fallback
+async function fetchSolPriceViaRest(): Promise<number> {
+  try {
+    const response = await axios.post(HELIUS_RPC_URL, {
+      jsonrpc: '2.0',
+      id: 'get-sol-price',
+      method: 'getPriceList',
+      params: {
+        tokens: ['So11111111111111111111111111111111111111112']
+      }
+    });
+
+    const price = response.data?.result?.[0]?.price;
+    if (!price || price <= 0) {
+      throw new Error('Invalid price response');
+    }
+
+    return price;
+  } catch (error) {
+    console.error('[Helius] Error fetching SOL price via REST:', error);
+    throw error;
+  }
+}
 
 async function handleAccountUpdate(data: any) {
   try {
@@ -146,7 +170,7 @@ async function handleAccountUpdate(data: any) {
     const postBalances = tx.meta.postBalances;
     const balanceChanges = postBalances.map((post, i) => post - preBalances[i]);
 
-    const accountKeys = tx.transaction.message.accountKeys; //fixed
+    const accountKeys = tx.transaction.message.accountKeys;
     if (!accountKeys) return;
 
     const preTokenBalances = tx.meta.preTokenBalances || [];
@@ -179,11 +203,11 @@ async function handleAccountUpdate(data: any) {
         signature: data.signature,
         timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
         tokenAddress: data.accountId,
-        amount: Math.abs(balanceChanges[0]) / 1e9, 
+        amount: Math.abs(balanceChanges[0]) / 1e9,
         price: tokenAmount,
-        priceUsd: 0, 
-        buyer: isBuy ? accountKeys[1]?.toString() || '' : '', //fixed
-        seller: !isBuy ? accountKeys[0]?.toString() || '' : '', //fixed
+        priceUsd: 0,
+        buyer: isBuy ? accountKeys[1]?.toString() || '' : '',
+        seller: !isBuy ? accountKeys[0]?.toString() || '' : '',
         type: isBuy ? 'buy' : 'sell'
       };
 
@@ -206,14 +230,21 @@ function handleWebSocketMessage(event: MessageEvent) {
   try {
     const data = JSON.parse(event.data);
 
-    // Only log non-routine messages
-    if (data.method !== 'programNotification') {
-      if (DEBUG) console.log('[Helius] Received message:', data);
+    // Handle SOL price subscription updates
+    if (data.method === 'priceNotification') {
+      const price = data.params?.result?.price;
+      if (price > 0) {
+        useHeliusStore.getState().setSolPrice(price);
+        usePumpPortalStore.getState().setSolPrice(price);
+      }
+      return;
     }
 
+    // Handle token updates
     if (data.method === 'accountNotification') {
       handleAccountUpdate(data.params.result);
     }
+
   } catch (error) {
     console.error('[Helius] Error handling WebSocket message:', error);
   }
@@ -223,9 +254,12 @@ let reconnectTimeout: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 5000;
+const SOL_PRICE_UPDATE_INTERVAL = 30000; // 30 seconds
 
 export function initializeHeliusWebSocket() {
   if (typeof window === 'undefined' || !HELIUS_API_KEY) return;
+
+  const store = useHeliusStore.getState();
 
   if (ws) {
     try {
@@ -236,19 +270,37 @@ export function initializeHeliusWebSocket() {
     ws = null;
   }
 
+  // Initial SOL price fetch via REST
+  fetchSolPriceViaRest()
+    .then(price => {
+      store.setSolPrice(price);
+      usePumpPortalStore.getState().setSolPrice(price);
+    })
+    .catch(console.error);
+
   try {
     console.log('[Helius] Initializing WebSocket...');
     ws = new WebSocket(`wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
 
     ws.onopen = () => {
       console.log('[Helius] WebSocket connected');
-      useHeliusStore.getState().setConnected(true);
+      store.setConnected(true);
       reconnectAttempts = 0;
 
+      // Subscribe to SOL price updates
+      ws.send(JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'sol-price-sub',
+        method: 'priceSubscribe',
+        params: {
+          tokens: ['So11111111111111111111111111111111111111112']
+        }
+      }));
+
       // Resubscribe to existing tokens
-      const { subscribedTokens } = useHeliusStore.getState();
+      const { subscribedTokens } = store;
       subscribedTokens.forEach(tokenAddress => {
-        useHeliusStore.getState().subscribeToToken(tokenAddress);
+        store.subscribeToToken(tokenAddress);
       });
     };
 
@@ -256,23 +308,36 @@ export function initializeHeliusWebSocket() {
 
     ws.onclose = () => {
       console.log('[Helius] WebSocket disconnected');
-      useHeliusStore.getState().setConnected(false);
+      store.setConnected(false);
+
+      // Fallback to REST API for SOL price
+      const priceUpdateInterval = setInterval(async () => {
+        try {
+          const price = await fetchSolPriceViaRest();
+          store.setSolPrice(price);
+          usePumpPortalStore.getState().setSolPrice(price);
+        } catch (error) {
+          console.error('[Helius] Failed to fetch SOL price:', error);
+        }
+      }, SOL_PRICE_UPDATE_INTERVAL);
 
       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         reconnectAttempts++;
         console.log(`[Helius] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
         reconnectTimeout = setTimeout(initializeHeliusWebSocket, RECONNECT_DELAY);
       }
+
+      return () => clearInterval(priceUpdateInterval);
     };
 
     ws.onerror = (error) => {
       console.error('[Helius] WebSocket error:', error);
-      useHeliusStore.getState().setConnected(false);
+      store.setConnected(false);
     };
 
   } catch (error) {
     console.error('[Helius] Failed to initialize WebSocket:', error);
-    useHeliusStore.getState().setConnected(false);
+    store.setConnected(false);
 
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
       reconnectAttempts++;
