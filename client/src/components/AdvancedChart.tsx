@@ -60,30 +60,31 @@ export const AdvancedChart: FC<ChartProps> = ({
         textColor: '#D9D9D9',
       },
       grid: {
-        vertLines: { color: 'rgba(42, 46, 57, 0.3)' },
-        horzLines: { color: 'rgba(42, 46, 57, 0.3)' },
+        vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
       },
       width: chartContainerRef.current.clientWidth,
       height: 400,
       timeScale: {
         timeVisible: true,
         secondsVisible: true,
-        borderColor: 'rgba(197, 203, 206, 0.3)',
-        barSpacing: 12, // Increased for better initial view
+        borderColor: 'rgba(197, 203, 206, 0.2)',
+        barSpacing: 4, // More compact spacing
         minBarSpacing: 2,
-        rightOffset: 12, // Increased space on the right
-        rightBarStaysOnScroll: true,
+        rightOffset: 5, // Less right space
         fixLeftEdge: true,
         fixRightEdge: true,
         lockVisibleTimeRangeOnResize: true,
+        rightBarStaysOnScroll: true,
       },
       rightPriceScale: {
-        borderColor: 'rgba(197, 203, 206, 0.3)',
+        borderColor: 'rgba(197, 203, 206, 0.2)',
         scaleMargins: {
-          top: 0.2, // Increased top margin
-          bottom: 0.2 // Increased bottom margin
+          top: 0.1, // Less top margin
+          bottom: 0.1 // Less bottom margin
         },
         autoScale: true,
+        entireTextOnly: true,
       },
       crosshair: {
         mode: CrosshairMode.Normal,
@@ -114,13 +115,15 @@ export const AdvancedChart: FC<ChartProps> = ({
       },
     });
 
-    // Configure proper candlestick colors
+    // Configure candlestick appearance
     const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#00C805',
-      downColor: '#FF3B69',
-      borderVisible: false,
-      wickUpColor: '#00C805',
-      wickDownColor: '#FF3B69',
+      upColor: '#22c55e',
+      downColor: '#ef4444',
+      borderVisible: true,
+      borderUpColor: '#22c55e',
+      borderDownColor: '#ef4444',
+      wickUpColor: '#22c55e',
+      wickDownColor: '#ef4444',
       priceFormat: {
         type: 'price',
         precision: 8,
@@ -128,6 +131,7 @@ export const AdvancedChart: FC<ChartProps> = ({
       },
     });
 
+    // Configure volume appearance
     const volumeSeries = chart.addHistogramSeries({
       priceFormat: {
         type: 'volume',
@@ -147,25 +151,20 @@ export const AdvancedChart: FC<ChartProps> = ({
           return timeA - timeB;
         });
 
-        // Set initial visible range based on data
-        const dataStartTime = sortedData[0]?.time;
-        const dataEndTime = sortedData[sortedData.length - 1]?.time;
-        if (dataStartTime && dataEndTime) {
-          const timeRange = typeof dataEndTime === 'number' ? dataEndTime - (dataStartTime as number) : 0;
-          const visibleRange = Math.max(timeRange * 0.3, 60); // Show at least 1 minute or 30% of data
-          chart.timeScale().setVisibleLogicalRange({
-            from: 0,
-            to: Math.ceil(sortedData.length * 0.3), // Show 30% of total bars
-          });
-        }
+        // Set initial visible range
+        const visibleBars = Math.min(50, sortedData.length); // Show max 50 bars initially
+        chart.timeScale().setVisibleLogicalRange({
+          from: Math.max(0, sortedData.length - visibleBars),
+          to: sortedData.length,
+        });
 
         candlestickSeries.setData(sortedData);
 
-        // Color volume based on price action
+        // Color volume based on price action with lower opacity
         const volumeData = sortedData.map(d => ({
           time: d.time,
           value: d.volume,
-          color: d.close >= d.open ? 'rgba(0, 200, 5, 0.5)' : 'rgba(255, 59, 105, 0.5)',
+          color: d.close >= d.open ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)',
         }));
         volumeSeries.setData(volumeData);
 
@@ -248,8 +247,8 @@ export const AdvancedChart: FC<ChartProps> = ({
         time: currentTime,
         value: lastDataPoint.volume,
         color: lastDataPoint.close >= lastDataPoint.open
-          ? 'rgba(0, 200, 5, 0.5)'
-          : 'rgba(255, 59, 105, 0.5)',
+          ? 'rgba(34, 197, 94, 0.3)'
+          : 'rgba(239, 68, 68, 0.3)',
       });
 
       // Add trade markers
@@ -257,7 +256,7 @@ export const AdvancedChart: FC<ChartProps> = ({
         const markers = recentTrades.map(trade => ({
           time: Math.floor(trade.timestamp / 1000),
           position: trade.isBuy ? 'belowBar' : 'aboveBar',
-          color: trade.isBuy ? '#00C805' : '#FF3B69',
+          color: trade.isBuy ? '#22c55e' : '#ef4444',
           shape: trade.isBuy ? 'arrowUp' : 'arrowDown',
           text: trade.isBuy ? 'B' : 'S',
           size: 1
@@ -281,21 +280,21 @@ export const AdvancedChart: FC<ChartProps> = ({
 
   return (
     <Card className={className}>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center p-2">
         <h3 className="text-lg font-semibold">{symbol} Price Chart</h3>
         <Select value={timeframe} onValueChange={handleTimeframeChange}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-[120px]">
             <SelectValue placeholder="Select timeframe" />
           </SelectTrigger>
           <SelectContent>
             {[
-              { value: '1s', label: '1 second' },
-              { value: '5s', label: '5 seconds' },
-              { value: '30s', label: '30 seconds' },
-              { value: '1m', label: '1 minute' },
-              { value: '5m', label: '5 minutes' },
-              { value: '15m', label: '15 minutes' },
-              { value: '1h', label: '1 hour' },
+              { value: '1s', label: '1s' },
+              { value: '5s', label: '5s' },
+              { value: '30s', label: '30s' },
+              { value: '1m', label: '1m' },
+              { value: '5m', label: '5m' },
+              { value: '15m', label: '15m' },
+              { value: '1h', label: '1h' },
             ].map((tf) => (
               <SelectItem key={tf.value} value={tf.value}>
                 {tf.label}
