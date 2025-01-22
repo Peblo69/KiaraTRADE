@@ -34,8 +34,7 @@ function Router() {
 
       <main className={!isLandingPage ? "pt-[120px]" : ""}>
         <Switch>
-          <Route path="/" component={Landing} />
-          <Route path="/home" component={Home} />
+          <Route path="/" component={Home} />
           <Route path="/crypto-news" component={CryptoNews} />
           <Route path="/project" component={Project} />
           <Route path="/kiara-stage-i" component={KiaraStageI} />

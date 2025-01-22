@@ -126,6 +126,11 @@ async function fetchSolPrice(): Promise<number> {
 // -----------------------------------
 // STORE
 // -----------------------------------
+// Add debug helper
+function debugLog(source: string, message: string, data?: any) {
+  console.log(`[PumpPortal:${source}]`, message, data ? data : '');
+}
+
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
   isConnected: false,
@@ -143,15 +148,30 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   addTradeToHistory: (address, trade) =>
     set((state) => {
       const token = state.tokens.find(t => t.address === address);
-      if (!token || !token.isValid) return state;
+      if (!token || !token.isValid) {
+        debugLog('Trade', 'Skipping invalid token:', address);
+        return state;
+      }
 
       const now = Date.now();
       const solPrice = get().solPrice || 100;
       const tradeVolume = Number(trade.solAmount || 0) * solPrice;
       const isBuy = trade.txType === 'buy';
 
+      debugLog('Trade', 'Processing trade:', {
+        token: token.symbol,
+        type: trade.txType,
+        volume: tradeVolume,
+        solPrice
+      });
+
       // Calculate new price based on trade
       const newPrice = tradeVolume / TOTAL_SUPPLY;
+      debugLog('Trade', 'New price calculated:', {
+        oldPrice: token.price,
+        newPrice,
+        change: ((newPrice - token.price) / token.price * 100).toFixed(2) + '%'
+      });
 
       // Update time windows
       const updatedWindows = { ...token.timeWindows };
@@ -203,6 +223,14 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       const volume24h = trades24h.reduce((sum, t) => sum + t.volume, 0);
       const buys24h = trades24h.filter(t => t.isBuy).length;
       const sells24h = trades24h.filter(t => !t.isBuy).length;
+
+      // Add debug log before state update
+      debugLog('Trade', 'Updating token state:', {
+        symbol: token.symbol,
+        newPrice,
+        volume24h,
+        trades24h: trades24h.length
+      });
 
       // Update token with new data
       return {
@@ -332,21 +360,32 @@ export function initializePumpPortalWebSocket() {
     ws.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('[PumpPortal] Received event:', data);
+        debugLog('WebSocket', 'Received message:', data);
 
         if (data.message?.includes('Successfully subscribed')) {
+          debugLog('WebSocket', 'Subscription confirmed');
           return;
         }
 
         // Handle new token creation
         if (data.txType === 'create' && data.mint) {
+          debugLog('Token', 'Processing new token:', {
+            mint: data.mint,
+            symbol: data.symbol
+          });
+
           try {
             const token = await mapPumpPortalData(data);
             if (token.isValid) {
               store.addToken(token);
-              // Subscribe to this token's address in Helius
               useHeliusStore.getState().subscribeToToken(data.mint);
-              console.log('[PumpPortal] Added new token:', token.symbol);
+              debugLog('Token', 'Successfully added new token:', {
+                symbol: token.symbol,
+                price: token.price,
+                marketCap: token.marketCap
+              });
+            } else {
+              debugLog('Token', 'Skipped invalid token:', data.mint);
             }
           } catch (err) {
             console.error('[PumpPortal] Failed to process token:', err);
@@ -355,8 +394,12 @@ export function initializePumpPortalWebSocket() {
 
         // Handle trade events
         if (['buy', 'sell'].includes(data.txType) && data.mint) {
+          debugLog('Trade', 'Processing trade event:', {
+            type: data.txType,
+            mint: data.mint,
+            amount: data.solAmount
+          });
           store.addTradeToHistory(data.mint, data);
-          console.log(`[PumpPortal] Added ${data.txType} trade for ${data.mint}`);
         }
 
       } catch (error) {
