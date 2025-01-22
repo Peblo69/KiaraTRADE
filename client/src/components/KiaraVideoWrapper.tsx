@@ -9,37 +9,37 @@ const VIDEOS = {
 export default function KiaraVideoWrapper() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const isMounted = useRef(false); // Prevent infinite loops
+  const isMounted = useRef(false);
 
   useEffect(() => {
-    if (isMounted.current) return; // Ensure it runs only once
+    if (isMounted.current) return;
     isMounted.current = true;
 
     const video = videoRef.current;
     if (!video) return;
 
-    // Play interactive video once on mount
+    // Play interactive video once on mount with muted audio
     playInteractiveVideo();
   }, []);
 
   const playInteractiveVideo = () => {
     const video = videoRef.current;
-    if (!video || isPlaying) return; // Prevent unnecessary state updates
+    if (!video || isPlaying) return;
 
     setIsPlaying(true);
     video.src = VIDEOS.INTERACTIVE;
-    video.muted = false;
+    video.muted = true; // Ensure video is muted
     video.loop = false;
     video.play().catch(console.error);
   };
 
   const playLoopingVideo = () => {
     const video = videoRef.current;
-    if (!video || !isPlaying) return; // Prevent unnecessary state updates
+    if (!video || !isPlaying) return;
 
     setIsPlaying(false);
     video.src = VIDEOS.DEFAULT;
-    video.muted = true;
+    video.muted = true; // Ensure video is muted
     video.loop = true;
     video.play().catch(console.error);
   };
@@ -62,6 +62,7 @@ export default function KiaraVideoWrapper() {
         ref={videoRef}
         className="w-full h-full object-contain cursor-pointer"
         playsInline
+        muted // Always muted by default
         onClick={handleVideoClick}
         onEnded={handleVideoEnd}
       />
