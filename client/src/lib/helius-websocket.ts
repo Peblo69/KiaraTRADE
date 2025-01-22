@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Connection } from '@solana/web3.js';
+import { usePumpPortalStore } from './pump-portal-websocket';
 
 interface TokenTrade {
   signature: string;
@@ -26,13 +27,22 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
   trades: {},
   isConnected: false,
   subscribedTokens: new Set(),
-  addTrade: (tokenAddress, trade) =>
+  addTrade: (tokenAddress, trade) => {
     set((state) => ({
       trades: {
         ...state.trades,
         [tokenAddress]: [trade, ...(state.trades[tokenAddress] || [])].slice(0, 100),
       },
-    })),
+    }));
+
+    // Update PumpPortal store with trade data
+    const pumpPortalStore = usePumpPortalStore.getState();
+    pumpPortalStore.addTradeToHistory(tokenAddress, {
+      txType: trade.type,
+      solAmount: trade.amount,
+      traderPublicKey: trade.type === 'buy' ? trade.buyer : trade.seller
+    });
+  },
   setConnected: (connected) => set({ isConnected: connected }),
   subscribeToToken: (tokenAddress) => {
     const { subscribedTokens } = get();
@@ -69,35 +79,45 @@ async function handleAccountUpdate(data: any) {
   try {
     if (!data.signature) return;
 
-    // Use getSignatureStatuses (v2 compatible) to verify transaction
+    // Verify transaction using getSignatureStatuses
     const statuses = await connection.getSignatureStatuses([data.signature]);
     if (!statuses.value[0]?.confirmationStatus) return;
 
-    // Get full transaction details using getTransaction (v2 endpoint)
+    // Get full transaction details
     const tx = await connection.getTransaction(data.signature, {
       maxSupportedTransactionVersion: 0
     });
 
     if (!tx || !tx.meta) return;
 
-    // Parse transaction to determine if it's a buy/sell
+    // Extract token transfer information
     const preBalances = tx.meta.preBalances;
     const postBalances = tx.meta.postBalances;
-
-    // Determine transaction type based on token balance changes
     const balanceChanges = postBalances.map((post, i) => post - preBalances[i]);
-    const isBuy = balanceChanges[0] < 0; // Simplified logic, can be enhanced
 
-    // Get account keys using getAccountKeys() method (v2 compatible)
+    // Determine if this is a buy or sell
+    const isBuy = balanceChanges[0] < 0;
+
+    // Get account keys
     const accountKeys = tx.transaction.message.getAccountKeys();
     if (!accountKeys) return;
+
+    // Extract token balance changes
+    const preTokenBalances = tx.meta.preTokenBalances || [];
+    const postTokenBalances = tx.meta.postTokenBalances || [];
+
+    // Calculate token amount transferred
+    const tokenAmount = Math.abs(
+      (postTokenBalances[0]?.uiTokenAmount.uiAmount || 0) -
+      (preTokenBalances[0]?.uiTokenAmount.uiAmount || 0)
+    );
 
     const trade: TokenTrade = {
       signature: data.signature,
       timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
       tokenAddress: data.accountId,
       amount: Math.abs(balanceChanges[0]) / 1e9, // Convert lamports to SOL
-      price: tx.meta.preTokenBalances?.[0]?.uiTokenAmount?.uiAmount || 0,
+      price: tokenAmount,
       priceUsd: 0, // Will be calculated using current SOL price
       buyer: accountKeys.get(isBuy ? 1 : 0)?.toString() || '',
       seller: accountKeys.get(isBuy ? 0 : 1)?.toString() || '',

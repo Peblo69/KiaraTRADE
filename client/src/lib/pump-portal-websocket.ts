@@ -26,7 +26,6 @@ export interface PumpPortalToken {
   marketCap: number;
   liquidity: number;
   liquidityChange: number;
-  l1Liquidity: number;
   volume: number;
   volume24h: number;
   trades: number;
@@ -38,13 +37,6 @@ export interface PumpPortalToken {
   timeWindows: {
     [K in keyof typeof TIME_WINDOWS]: TimeWindowStats;
   };
-  priceHistory: {
-    [timeframe: string]: {
-      timestamp: number;
-      price: number;
-      volume: number;
-    }[];
-  };
   recentTrades: {
     timestamp: number;
     price: number;
@@ -52,12 +44,7 @@ export interface PumpPortalToken {
     isBuy: boolean;
     wallet: string;
   }[];
-  status: {
-    mad: boolean;
-    fad: false;
-    lb: boolean;
-    tri: boolean;
-  };
+  isValid: boolean;
 }
 
 interface PumpPortalStore {
@@ -80,17 +67,11 @@ const CACHE_DURATION = 30000;
 
 // Time windows in milliseconds
 const TIME_WINDOWS = {
-  '1s': 1000,
-  '5s': 5000,
-  '15s': 15000,
-  '30s': 30000,
   '1m': 60000,
   '5m': 300000,
   '15m': 900000,
-  '30m': 1800000,
   '1h': 3600000,
   '4h': 14400000,
-  '12h': 43200000,
   '24h': 86400000,
 } as const;
 
@@ -101,7 +82,7 @@ let lastPriceUpdate = 0;
 function createEmptyTimeWindow(startTime: number): TimeWindowStats {
   return {
     startTime,
-    endTime: startTime + 1000,
+    endTime: startTime + 60000, // Default to 1m window
     openPrice: 0,
     closePrice: 0,
     highPrice: 0,
@@ -151,7 +132,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   solPrice: null,
   addToken: (token) =>
     set((state) => ({
-      tokens: [token, ...state.tokens].slice(0, 100), // Keep up to 100 tokens
+      tokens: [token, ...state.tokens].slice(0, 100),
     })),
   updateToken: (address, updates) =>
     set((state) => ({
@@ -162,13 +143,15 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   addTradeToHistory: (address, trade) =>
     set((state) => {
       const token = state.tokens.find(t => t.address === address);
-      if (!token) return state;
+      if (!token || !token.isValid) return state;
 
       const now = Date.now();
       const solPrice = get().solPrice || 100;
       const tradeVolume = Number(trade.solAmount || 0) * solPrice;
       const isBuy = trade.txType === 'buy';
-      const tradePrice = token.price;
+
+      // Calculate new price based on trade
+      const newPrice = tradeVolume / TOTAL_SUPPLY;
 
       // Update time windows
       const updatedWindows = { ...token.timeWindows };
@@ -177,15 +160,15 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         const duration = TIME_WINDOWS[window];
         const windowStart = Math.floor(now / duration) * duration;
 
-        // Check if we need to create a new window
         if (now > currentWindow.endTime) {
+          // Create new window
           updatedWindows[window] = {
             startTime: windowStart,
             endTime: windowStart + duration,
-            openPrice: tradePrice,
-            closePrice: tradePrice,
-            highPrice: tradePrice,
-            lowPrice: tradePrice,
+            openPrice: newPrice,
+            closePrice: newPrice,
+            highPrice: newPrice,
+            lowPrice: newPrice,
             volume: tradeVolume,
             trades: 1,
             buys: isBuy ? 1 : 0,
@@ -193,9 +176,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           };
         } else {
           // Update existing window
-          currentWindow.closePrice = tradePrice;
-          currentWindow.highPrice = Math.max(currentWindow.highPrice, tradePrice);
-          currentWindow.lowPrice = Math.min(currentWindow.lowPrice, tradePrice);
+          currentWindow.closePrice = newPrice;
+          currentWindow.highPrice = Math.max(currentWindow.highPrice, newPrice);
+          currentWindow.lowPrice = Math.min(currentWindow.lowPrice, newPrice);
           currentWindow.volume += tradeVolume;
           currentWindow.trades += 1;
           if (isBuy) currentWindow.buys += 1;
@@ -206,7 +189,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       // Update recent trades
       const newTrade = {
         timestamp: now,
-        price: tradePrice,
+        price: newPrice,
         volume: tradeVolume,
         isBuy,
         wallet: trade.traderPublicKey
@@ -226,6 +209,8 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         tokens: state.tokens.map(t => 
           t.address === address ? {
             ...t,
+            price: newPrice,
+            marketCap: newPrice * TOTAL_SUPPLY,
             volume: t.volume + tradeVolume,
             volume24h,
             trades: t.trades + 1,
@@ -252,7 +237,6 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       mint,
       vSolInBondingCurve,
       marketCapSol,
-      bondingCurveKey,
       name,
       symbol,
       solAmount,
@@ -260,14 +244,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       txType
     } = data;
 
-    // Validate PumpFun token
-    if (!mint?.toLowerCase().endsWith('pump')) {
-      console.log('[PumpPortal] Skipping non-PumpFun token:', mint);
-      throw new Error('Not a PumpFun token');
-    }
-
     const marketCapUsd = Number(marketCapSol || 0) * solPrice;
-    const priceUsd = marketCapUsd / TOTAL_SUPPLY;
     const liquidityUsd = Number(vSolInBondingCurve || 0) * solPrice;
     const volumeUsd = Number(solAmount || 0) * solPrice;
 
@@ -276,11 +253,10 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       symbol: symbol || mint?.slice(0, 6) || 'Unknown',
       name: name || `Token ${mint?.slice(0, 8)}`,
       address: mint || '',
-      price: priceUsd,
+      price: marketCapUsd / TOTAL_SUPPLY,
       marketCap: marketCapUsd,
       liquidity: liquidityUsd,
       liquidityChange: 0,
-      l1Liquidity: liquidityUsd,
       volume: volumeUsd,
       volume24h: volumeUsd,
       trades: 1,
@@ -290,20 +266,14 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       walletCount: 1,
       timestamp: now,
       timeWindows: createEmptyTimeWindows(now),
-      priceHistory: {},
       recentTrades: [{
         timestamp: now,
-        price: priceUsd,
+        price: marketCapUsd / TOTAL_SUPPLY,
         volume: volumeUsd,
         isBuy: txType === 'buy',
         wallet: traderPublicKey
       }],
-      status: {
-        mad: false,
-        fad: false,
-        lb: Boolean(bondingCurveKey),
-        tri: false
-      }
+      isValid: Boolean(mint && marketCapSol && vSolInBondingCurve)
     };
 
     console.log('[PumpPortal] Mapped token:', token);
@@ -372,10 +342,12 @@ export function initializePumpPortalWebSocket() {
         if (data.txType === 'create' && data.mint) {
           try {
             const token = await mapPumpPortalData(data);
-            store.addToken(token);
-            // Subscribe to this token's address in Helius
-            useHeliusStore.getState().subscribeToToken(data.mint);
-            console.log('[PumpPortal] Added new token:', token.symbol);
+            if (token.isValid) {
+              store.addToken(token);
+              // Subscribe to this token's address in Helius
+              useHeliusStore.getState().subscribeToToken(data.mint);
+              console.log('[PumpPortal] Added new token:', token.symbol);
+            }
           } catch (err) {
             console.error('[PumpPortal] Failed to process token:', err);
           }
@@ -420,4 +392,5 @@ export function initializePumpPortalWebSocket() {
   }
 }
 
+// Initialize WebSocket connection
 initializePumpPortalWebSocket();
