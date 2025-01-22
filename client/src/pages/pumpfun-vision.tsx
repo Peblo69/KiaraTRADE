@@ -1,4 +1,3 @@
-// FILE: /src/pages/pumpfun-vision.tsx
 import '@/lib/pump-portal-websocket';
 import '@/lib/helius-websocket';
 import { FC, useState, useRef, useEffect } from "react";
@@ -8,8 +7,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import millify from "millify";
-import { AdvancedChart as TradingViewChart } from "react-tradingview-embed";
 import type { PumpPortalToken } from '@/lib/types/pump-portal';
+import TradingViewChart from '@/components/TradingViewChart';
 
 function getTimeDiff(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -65,7 +64,6 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
 const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [allTrades, setAllTrades] = useState<Array<any>>([]);
-  const chartContainerRef = useRef<HTMLDivElement>(null);
 
   const updatedToken = usePumpPortalStore(
     (state) => state.tokens.find((t) => t.address === token.address)
@@ -98,7 +96,6 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
   }, [allTrades.length]);
 
   const currentToken = updatedToken || token;
-  const formattedSymbol = `CRYPTO:${currentToken.symbol}USDT`;
 
   return (
     <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 overflow-auto">
@@ -204,62 +201,16 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
 
             {/* Center Column - TradingView Chart */}
             <div className="space-y-4">
-              <Card className="bg-background/50 border-purple-500/20 h-[600px]">
+              <Card className="bg-background/50 border-purple-500/20">
                 <CardHeader>
                   <h3 className="font-semibold">Price Chart</h3>
                 </CardHeader>
-                <CardContent className="h-[calc(100%-4rem)]">
-                  <div className="w-full h-full" ref={chartContainerRef}>
+                <CardContent>
+                  <div className="h-[600px]">
                     <TradingViewChart
-                      widgetProps={{
-                        symbol: formattedSymbol,
-                        theme: "dark",
-                        interval: "1",
-                        timezone: "Etc/UTC",
-                        style: "1",
-                        locale: "en",
-                        enable_publishing: false,
-                        allow_symbol_change: true,
-                        hide_side_toolbar: false,
-                        container_id: `tradingview_${currentToken.address}`,
-                        height: "100%",
-                        width: "100%",
-                        autosize: true,
-                        studies: [
-                          "MASimple@tv-basicstudies",
-                          "Volume@tv-basicstudies",
-                          "MACD@tv-basicstudies",
-                          "RSI@tv-basicstudies"
-                        ],
-                        disabled_features: [
-                          "header_symbol_search",
-                          "header_screenshot",
-                          "header_compare"
-                        ],
-                        enabled_features: [
-                          "create_volume_indicator_by_default",
-                          "use_localstorage_for_settings"
-                        ],
-                        loading_screen: { backgroundColor: "#131722" },
-                        overrides: {
-                          "mainSeriesProperties.candleStyle.upColor": "#26a69a",
-                          "mainSeriesProperties.candleStyle.downColor": "#ef5350",
-                          "mainSeriesProperties.candleStyle.borderUpColor": "#26a69a",
-                          "mainSeriesProperties.candleStyle.borderDownColor": "#ef5350",
-                          "mainSeriesProperties.candleStyle.wickUpColor": "#26a69a",
-                          "mainSeriesProperties.candleStyle.wickDownColor": "#ef5350",
-                          "paneProperties.background": "#131722",
-                          "paneProperties.vertGridProperties.color": "#363c4e",
-                          "paneProperties.horzGridProperties.color": "#363c4e",
-                          "scalesProperties.textColor": "#AAA",
-                          "scalesProperties.lineColor": "#363c4e",
-                          "paneProperties.legendProperties.showStudyArguments": true,
-                          "paneProperties.legendProperties.showStudyTitles": true,
-                          "paneProperties.legendProperties.showStudyValues": true,
-                          "paneProperties.legendProperties.showSeriesTitle": true,
-                          "paneProperties.legendProperties.showSeriesOHLC": true,
-                        }
-                      }}
+                      symbol={currentToken.symbol}
+                      containerHeight="100%"
+                      containerId={`tradingview_${currentToken.address}`}
                     />
                   </div>
                 </CardContent>
