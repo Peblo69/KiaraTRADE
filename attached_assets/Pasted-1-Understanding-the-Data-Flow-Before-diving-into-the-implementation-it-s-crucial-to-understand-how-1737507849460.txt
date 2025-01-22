@@ -1,0 +1,758 @@
+1. Understanding the Data Flow
+Before diving into the implementation, it's crucial to understand how data flows within your application:
+
+PumpPortal WebSocket Connection (Backend):
+
+Listens for new token creation events.
+Receives basic token information, including mint address.
+Fetching Additional Metadata (Backend):
+
+Uses the mint address to fetch detailed metadata from the Helius API or PumpPortal API.
+Retrieves additional data like UI links, image links, and social media links.
+Storing and Broadcasting Data (Backend):
+
+Stores the enriched token data in an in-memory store or database.
+Broadcasts the new token data to connected frontend clients via SSE or WebSockets.
+Displaying Data (Frontend):
+
+Receives real-time updates.
+Renders token information, including UI links, images, and social media links.
+2. Backend Enhancements
+A. Updating the Token Interface
+First, extend the PumpPortalToken interface to include the additional metadata:
+
+typescript
+Copy
+// FILE: server.ts (Backend)
+interface PumpPortalToken {
+  symbol: string;
+  name: string;
+  address: string;
+  marketCap: number; // USD
+  price: number;     // USD
+  supply: number;
+  liquidity: number;
+  swaps: number;
+  volume: number;
+  timestamp: number;
+  status: {
+    mad: boolean;
+    fad: boolean;
+    lb: boolean;
+    tri: boolean;
+  };
+  uiLink?: string;           // UI Link (e.g., website)
+  imageLink?: string;        // Image/Icon URL
+  socialMediaLinks?: {       // Social Media Links
+    twitter?: string;
+    discord?: string;
+    telegram?: string;
+    [key: string]: string | undefined; // For extensibility
+  };
+}
+B. Fetching Additional Metadata
+Modify the backend to fetch uiLink, imageLink, and socialMediaLinks. Depending on where this data is available, you might need to:
+
+Fetch from Helius API:
+
+Check if Helius provides these fields directly.
+If available, extract and include them.
+Fetch from PumpPortal API:
+
+If PumpPortal offers an API endpoint to retrieve detailed token metadata, use it.
+Alternatively, parse the uiLink, imageLink, and socialMediaLinks from the data received via WebSocket.
+Assumption: For this guide, we'll assume that Helius API provides these additional fields. If not, you'll need to adjust accordingly based on the actual data sources.
+
+Implementing Metadata Fetching
+typescript
+Copy
+// FILE: server.ts (Backend)
+// ... [Existing Imports and Code]
+
+interface PumpPortalToken {
+  // ... [Existing Fields]
+  uiLink?: string;
+  imageLink?: string;
+  socialMediaLinks?: {
+    twitter?: string;
+    discord?: string;
+    telegram?: string;
+    [key: string]: string | undefined;
+  };
+}
+
+// Function to fetch token metadata from Helius API
+const fetchTokenMetadata = async (mint: string): Promise<{
+  name: string;
+  symbol: string;
+  supply: number;
+  price: number;
+  uiLink?: string;
+  imageLink?: string;
+  socialMediaLinks?: {
+    twitter?: string;
+    discord?: string;
+    telegram?: string;
+    [key: string]: string | undefined;
+  };
+}> => {
+  try {
+    const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
+    const url = `https://api.helius.xyz/v0/token-metadata?api-key=${HELIUS_API_KEY}&mint=${mint}`;
+
+    const response = await axios.get(url);
+
+    if (response.status === 200 && response.data) {
+      const { name, symbol, supply, price, uiLink, imageLink, socialMediaLinks } = response.data;
+      return {
+        name: name || "Unknown Name",
+        symbol: symbol || "UNKNOWN",
+        supply: supply || 0,
+        price: price || 0,
+        uiLink,            // Optional
+        imageLink,         // Optional
+        socialMediaLinks,  // Optional
+      };
+    } else {
+      throw new Error("Invalid response structure from Helius API.");
+    }
+  } catch (error: any) {
+    console.error(`[Backend] Error fetching metadata for mint ${mint}:`, error.message);
+    throw error;
+  }
+};
+C. Handling New Token Events with Enhanced Metadata
+Update the handleNewToken function to incorporate the additional metadata:
+
+typescript
+Copy
+// FILE: server.ts (Backend)
+// ... [Existing Imports and Code]
+
+const handleNewToken = async (data: any) => {
+  const { txType, mint } = data;
+
+  if (txType !== "create" || !mint) return;
+
+  try {
+    // Fetch metadata
+    const metadata = await fetchTokenMetadata(mint);
+
+    // Fetch additional data (liquidity, swaps, volume)
+    const additionalData = await fetchTokenAdditionalData(mint);
+
+    // Check if token address ends with "pump" and supply is 1 billion
+    if (mint.toLowerCase().endsWith("pump") && metadata.supply === 1_000_000_000) {
+      // Calculate Market Cap
+      const marketCap = calculateMarketCap(metadata.price, metadata.supply);
+
+      // Create PumpPortalToken object with additional metadata
+      const token: PumpPortalToken = {
+        symbol: metadata.symbol,
+        name: metadata.name,
+        address: mint,
+        marketCap,
+        price: metadata.price,
+        supply: metadata.supply,
+        liquidity: additionalData.liquidity,
+        swaps: additionalData.swaps,
+        volume: additionalData.volume,
+        timestamp: Date.now(),
+        status: {
+          mad: false, // Update based on your criteria or additional data
+          fad: false,
+          lb: false,
+          tri: false,
+        },
+        uiLink: metadata.uiLink,            // Optional
+        imageLink: metadata.imageLink,      // Optional
+        socialMediaLinks: metadata.socialMediaLinks, // Optional
+      };
+
+      // Store the token
+      tokensStore.unshift(token); // Add to the beginning
+      console.log(`[Backend] New PumpFun Token Added: ${token.symbol}`);
+
+      // Broadcast the new token to connected clients via WebSocket
+      broadcast(token);
+    }
+  } catch (error) {
+    console.error(`[Backend] Failed to process new token:`, error.message);
+  }
+};
+D. Broadcasting Enhanced Token Data
+Ensure that the broadcast function sends the entire token data, including the new metadata fields.
+
+typescript
+Copy
+// FILE: server.ts (Backend)
+// ... [Existing Imports and Code]
+
+// Broadcast function to send data to all connected WebSocket clients
+const broadcast = (data: PumpPortalToken) => {
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(data));
+    }
+  });
+};
+E. Exposing Enhanced Data via API Endpoints
+Ensure that your API endpoints include the new fields when responding to frontend requests.
+
+typescript
+Copy
+// FILE: server.ts (Backend)
+// ... [Existing Imports and Code]
+
+// Get all tracked tokens
+app.get("/api/tokens", (req, res) => {
+  res.json(tokensStore);
+});
+
+// Get a specific token by mint address
+app.get("/api/tokens/:mint", (req, res) => {
+  const mint = req.params.mint;
+  const token = tokensStore.find((t) => t.address.toLowerCase() === mint.toLowerCase());
+  if (token) {
+    res.json(token);
+  } else {
+    res.status(404).json({ error: "Token not found." });
+  }
+});
+
+// SSE Endpoint for real-time updates
+app.get("/api/events", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const sendTokenUpdate = (token: PumpPortalToken) => {
+    res.write(`data: ${JSON.stringify(token)}\n\n`);
+  };
+
+  // Listen for new tokens and send them to the client
+  const onNewToken = (token: PumpPortalToken) => {
+    sendTokenUpdate(token);
+  };
+
+  // Attach the listener
+  wss.on("connection", (ws) => {
+    console.log("[Backend] New WebSocket client connected for SSE.");
+  });
+
+  // Assuming broadcast already sends the token data, no need to attach separate listeners
+  // Cleanup on client disconnect
+  req.on("close", () => {
+    console.log("[Backend] SSE client disconnected.");
+    res.end();
+  });
+});
+3. Frontend Enhancements
+Now, update the frontend to utilize the additional metadata fields and display them appropriately.
+
+A. Updating the Zustand Store
+Ensure that the frontend store (pump-portal-store.ts) includes the new fields.
+
+typescript
+Copy
+// FILE: pump-portal-store.ts (Frontend)
+import { create } from "zustand";
+import axios from "axios";
+
+// -----------------------------------
+// TYPES
+// -----------------------------------
+export interface PumpPortalToken {
+  symbol: string;
+  name: string;
+  address: string;
+  marketCap: number; // USD
+  price: number;     // USD
+  supply: number;
+  liquidity: number;
+  swaps: number;
+  volume: number;
+  timestamp: number;
+  status: {
+    mad: boolean;
+    fad: boolean;
+    lb: boolean;
+    tri: boolean;
+  };
+  uiLink?: string;           // UI Link (e.g., website)
+  imageLink?: string;        // Image/Icon URL
+  socialMediaLinks?: {       // Social Media Links
+    twitter?: string;
+    discord?: string;
+    telegram?: string;
+    [key: string]: string | undefined; // For extensibility
+  };
+}
+
+// Zustand store interface
+interface PumpPortalStore {
+  tokens: PumpPortalToken[];
+  fetchTokens: () => Promise<void>;
+  loading: boolean;
+  error: string | null;
+  solPrice: number | null;
+  fetchSolPrice: () => Promise<void>;
+  addToken: (token: PumpPortalToken) => void;
+}
+
+// -----------------------------------
+// ZUSTAND STORE
+// -----------------------------------
+export const usePumpPortalStore = create<PumpPortalStore>((set) => ({
+  tokens: [],
+  loading: false,
+  error: null,
+  solPrice: null,
+  fetchTokens: async () => {
+    set({ loading: true, error: null });
+    try {
+      const response = await axios.get("/api/tokens");
+      set({ tokens: response.data, loading: false });
+    } catch (err: any) {
+      set({ error: err.message || "Failed to fetch tokens.", loading: false });
+    }
+  },
+  fetchSolPrice: async () => {
+    set({ loading: true, error: null });
+    try {
+      const response = await axios.get("https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd");
+      if (response.status === 200 && response.data.solana.usd) {
+        set({ solPrice: response.data.solana.usd, loading: false });
+      } else {
+        throw new Error("Invalid SOL price data.");
+      }
+    } catch (err: any) {
+      set({ error: err.message || "Failed to fetch SOL price.", loading: false });
+    }
+  },
+  addToken: (token: PumpPortalToken) =>
+    set((state) => ({
+      tokens: [token, ...state.tokens].slice(0, 10), // Keep only the latest 10 tokens
+    })),
+}));
+B. Updating the Frontend Component (PumpFunVision.tsx)
+Modify the PumpFunVision.tsx component to display the additional metadata:
+
+tsx
+Copy
+// FILE: PumpFunVision.tsx (Frontend)
+import { FC, useEffect } from "react";
+import { Card } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
+import millify from "millify";
+
+import { usePumpPortalStore, PumpPortalToken } from "@/lib/pump-portal-store";
+
+/** 
+ * Safely convert the number to "$12K" style. 
+ * If "N/A", returns "N/A". 
+ */
+function formatUsdShort(value: number | null): string {
+  if (value === null || value === undefined) return "N/A";
+  if (value === 0) return "$0";
+  return `$${millify(value, { precision: 2 })}`;
+}
+
+/** 
+ * If you want to abbreviate large volumes (which is a numeric field),
+ * do the same approach but for number. 
+ */
+function formatNumberShort(num: number): string {
+  if (!num || num <= 0) return "$0";
+  return `$${millify(num, { precision: 2 })}`;
+}
+
+/** 
+ * Convert time difference (timestamp -> "10s ago").
+ */
+function getTimeDiff(timestamp: number): string {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+/** 
+ * Convert status booleans -> array of label strings:
+ * e.g. { mad: true, fad: true, lb: false, tri: true } => ["MAD","FAD","T10"]
+ */
+function getStatusLabels(status: PumpPortalToken["status"]): string[] {
+  const labels: string[] = [];
+  if (status.mad) labels.push("MAD");
+  if (status.fad) labels.push("FAD");
+  if (status.lb) labels.push("LB");
+  if (status.tri) labels.push("T10");
+  return labels;
+}
+
+const PumpFunVision: FC = () => {
+  const { tokens, fetchTokens, loading, error, solPrice, fetchSolPrice, addToken } = usePumpPortalStore();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    // Initial data fetch
+    fetchTokens();
+    fetchSolPrice();
+
+    // Polling for tokens every 10 seconds
+    const tokensInterval = setInterval(() => {
+      fetchTokens();
+    }, 10000);
+
+    // Polling for SOL price every 60 seconds
+    const solPriceInterval = setInterval(() => {
+      fetchSolPrice();
+    }, 60000);
+
+    // Setup Server-Sent Events (SSE) for real-time updates
+    const eventSource = new EventSource("/api/events");
+
+    eventSource.onmessage = (event) => {
+      const token: PumpPortalToken = JSON.parse(event.data);
+      addToken(token);
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("SSE error:", error);
+      eventSource.close();
+    };
+
+    // Cleanup intervals and SSE on unmount
+    return () => {
+      clearInterval(tokensInterval);
+      clearInterval(solPriceInterval);
+      eventSource.close();
+    };
+  }, [fetchTokens, fetchSolPrice, addToken]);
+
+  return (
+    <div className="flex h-screen bg-background overflow-hidden">
+      {/* MAIN CONTENT */}
+      <div className="w-full max-w-[1200px] mx-auto p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 text-green-400">
+            <span className="text-sm">🔥 New Pairs</span>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            Find the latest tokens across chains
+          </span>
+        </div>
+
+        {/* SOL Price */}
+        <div className="mb-4">
+          <span className="text-sm text-muted-foreground">
+            Current SOL Price:{" "}
+            {solPrice !== null ? (
+              <span className="font-bold text-white">${solPrice.toFixed(2)}</span>
+            ) : (
+              "Loading..."
+            )}
+          </span>
+        </div>
+
+        {/* Error Handling */}
+        {error && (
+          <div className="mb-4 p-4 bg-red-500 text-white rounded">
+            {error}
+          </div>
+        )}
+
+        {/* Table Header */}
+        <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr,1fr,1fr,1fr,1fr] gap-3 px-4 py-2 text-xs text-muted-foreground">
+          <div>Token</div>
+          <div className="text-right">Created</div>
+          <div className="text-right">Liquidity</div>
+          <div className="text-right">I.Liquidity</div>
+          <div className="text-right">MarketCap</div>
+          <div className="text-right">Swaps</div>
+          <div className="text-right">Volume</div>
+          <div className="text-center">Audit</div>
+          <div className="text-center">Quick Buy</div>
+        </div>
+
+        {/* Table Rows */}
+        <div className="space-y-1">
+          {loading ? (
+            // Show loading spinner
+            <div className="flex items-center justify-center h-40">
+              <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+            </div>
+          ) : tokens.length > 0 ? (
+            tokens.map((token: PumpPortalToken) => {
+              // Convert numbers to short K/M format
+              const shortLiquidity = formatUsdShort(token.liquidity);
+              const shortL1 = formatUsdShort(token.l1Liquidity);
+              const shortMcap = formatUsdShort(token.marketCap);
+              const shortVolume = formatNumberShort(token.volume);
+
+              // Status labels
+              const statusLabels = getStatusLabels(token.status);
+
+              return (
+                <Card
+                  key={`${token.symbol}-${token.address}`}
+                  className="hover:bg-accent/5 transition-all duration-300 cursor-pointer"
+                >
+                  <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr,1fr,1fr,1fr,1fr] gap-3 px-4 py-3 items-center">
+                    {/* Token Symbol/Name */}
+                    <div className="flex items-center gap-2">
+                      {token.imageLink && (
+                        <img
+                          src={token.imageLink}
+                          alt={`${token.symbol} logo`}
+                          className="w-8 h-8 rounded-full"
+                        />
+                      )}
+                      {!token.imageLink && (
+                        <div className="w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center">
+                          {token.symbol ? token.symbol[0] : "?"}
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-medium">{token.symbol || "??"}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {token.name || "Unknown Name"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Created (time diff) */}
+                    <div className="text-right font-mono text-muted-foreground">
+                      {token.timestamp ? getTimeDiff(token.timestamp) : "N/A"}
+                    </div>
+
+                    {/* Liquidity (short K/M) */}
+                    <div className="text-right font-mono">
+                      {shortLiquidity}
+                    </div>
+
+                    {/* I.Liquidity (short K/M) */}
+                    <div className="text-right font-mono">
+                      {shortL1}
+                    </div>
+
+                    {/* MarketCap (short K/M) */}
+                    <div className="text-right font-mono">
+                      {shortMcap}
+                    </div>
+
+                    {/* Swaps */}
+                    <div className="text-right font-mono">{token.swaps}</div>
+
+                    {/* Volume (short K/M) */}
+                    <div className="text-right font-mono">{shortVolume}</div>
+
+                    {/* Audit (status badges) */}
+                    <div className="flex justify-center gap-1">
+                      {statusLabels.length > 0 ? (
+                        statusLabels.map((lbl) => (
+                          <span
+                            key={lbl}
+                            className="px-2 py-0.5 rounded text-xs bg-green-800 text-green-200"
+                          >
+                            {lbl}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </div>
+
+                    {/* Quick Buy */}
+                    <div className="flex justify-center">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs"
+                        onClick={() => {
+                          toast({
+                            title: "Quick Buy",
+                            description: `Clicked Quick Buy for ${token.symbol}`,
+                          });
+                          // Insert your buy logic here
+                        }}
+                      >
+                        <span className="mr-1">⚡</span> Buy
+                      </Button>
+                    </div>
+                  </div>
+                  {/* Additional Metadata */}
+                  <div className="px-4 pb-3">
+                    {token.uiLink && (
+                      <div className="mb-2">
+                        <a
+                          href={token.uiLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:underline text-sm"
+                        >
+                          Visit Website
+                        </a>
+                      </div>
+                    )}
+                    {token.socialMediaLinks && (
+                      <div className="flex gap-2">
+                        {token.socialMediaLinks.twitter && (
+                          <a
+                            href={token.socialMediaLinks.twitter}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-400 hover:text-blue-600"
+                          >
+                            {/* Twitter Icon */}
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                            >
+                              <path d="M23.954 4.569c-.885.392-1.83.656-2.825.775 1.014-.611 1.794-1.574 2.163-2.723-.949.564-2.005.974-3.127 1.195-.897-.959-2.178-1.559-3.594-1.559-2.717 0-4.92 2.203-4.92 4.917 0 .39.044.765.127 1.124-4.083-.205-7.698-2.159-10.126-5.134-.424.722-.666 1.561-.666 2.475 0 1.71.87 3.213 2.188 4.096-.807-.026-1.566-.247-2.229-.616v.061c0 2.385 1.693 4.374 3.946 4.827-.413.111-.849.171-1.296.171-.314 0-.615-.03-.916-.086.631 1.953 2.445 3.377 4.6 3.417-1.68 1.319-3.809 2.105-6.102 2.105-.39 0-.779-.023-1.17-.067 2.179 1.394 4.768 2.209 7.557 2.209 9.054 0 14-7.496 14-13.986 0-.21 0-.423-.016-.637.961-.689 1.8-1.56 2.46-2.548l-.047-.02z" />
+                            </svg>
+                          </a>
+                        )}
+                        {token.socialMediaLinks.discord && (
+                          <a
+                            href={token.socialMediaLinks.discord}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-indigo-500 hover:text-indigo-700"
+                          >
+                            {/* Discord Icon */}
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                            >
+                              <path d="M20.317 4.369a19.793 19.793 0 00-4.933-1.243.081.081 0 00-.081.04c-.58 1.664-1.118 3.377-1.616 5.113a58.52 58.52 0 00-3.218-.016c-.003-.005-.007-.009-.01-.014a.081.081 0 00-.079-.059H8.744c-.03 0-.058.01-.08.029a.081.081 0 00-.03.07c-.005.004-.01.009-.015.013a58.5 58.5 0 00-3.213.016c-.495-1.734-.933-3.447-1.52-5.109a.08.08 0 00-.082-.04c-1.314.277-2.559.685-3.722 1.194a.081.081 0 00-.036.143c.437.396.859.814 1.264 1.24a.08.08 0 00.112-.013c.72-1.613 1.465-3.168 2.213-4.747a19.738 19.738 0 00-4.915 1.222.08.08 0 00-.041.152c1.276.961 2.5 2.003 3.68 3.117a.081.081 0 00.124-.005c.33-.38.654-.764.973-1.152a.079.079 0 00-.02-.118zM9.75 15.59c-1.1 0-1.98-.888-1.98-1.98 0-1.091.88-1.98 1.98-1.98s1.98.889 1.98 1.98c0 1.092-.88 1.98-1.98 1.98zm4.5 0c-1.1 0-1.98-.888-1.98-1.98 0-1.091.88-1.98 1.98-1.98s1.98.889 1.98 1.98c0 1.092-.88 1.98-1.98 1.98z" />
+                            </svg>
+                          </a>
+                        )}
+                        {token.socialMediaLinks.telegram && (
+                          <a
+                            href={token.socialMediaLinks.telegram}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-500 hover:text-blue-700"
+                          >
+                            {/* Telegram Icon */}
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                            >
+                              <path d="M9.997 19.397l-3.657-12.27c-.194-.654.252-1.223.908-1.223h.053c.491 0 .964.36 1.096.883l1.664 5.353 4.408-3.28c.633-.473 1.415-.18 1.715.484l2.087 5.221c.222.556-.153 1.145-.705 1.345l-7.63 2.898c-.674.255-1.385-.1-1.605-.729z" />
+                            </svg>
+                          </a>
+                        )}
+                        {/* Add more social media links as needed */}
+                      </div>
+                    </div>
+                  </Card>
+                )
+              ) : (
+                // If connected but no tokens
+                <div className="flex items-center justify-center h-40">
+                  <p className="text-muted-foreground">No PumpFun tokens found yet.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT SIDEBAR */}
+          <div className="flex-1 p-8">
+            <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
+              PumpFun Vision
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Select a token to view detailed analytics
+            </p>
+            <div className="text-sm mt-4 text-muted-foreground">
+              Current SOL Price:{" "}
+              {solPrice !== null ? (
+                <span className="font-bold text-white">${solPrice.toFixed(2)}</span>
+              ) : (
+                "Loading..."
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    export default PumpFunVision;
+    ```
+
+### **C. Displaying UI Links, Images, and Social Media Links**
+
+In the updated `PumpFunVision.tsx`, the following enhancements have been made:
+
+1. **Image Display:**
+   - Checks if `imageLink` is available.
+   - If available, displays the image as the token's logo.
+   - If not, falls back to displaying the first letter of the token symbol.
+
+2. **UI Links:**
+   - Displays a "Visit Website" link if `uiLink` is available.
+   - Opens the link in a new tab with `noopener noreferrer` for security.
+
+3. **Social Media Links:**
+   - Iterates through available social media links (`twitter`, `discord`, `telegram`, etc.).
+   - Displays corresponding icons with links to the respective social media platforms.
+   - Adds more platforms as needed by extending the `socialMediaLinks` object.
+
+**Note:** The SVG icons used for social media platforms can be replaced with icons from icon libraries like [Heroicons](https://heroicons.com/) or [Font Awesome](https://fontawesome.com/) for better visuals and scalability.
+
+---
+
+## **4. Handling Missing or Incomplete Data**
+
+Sometimes, not all tokens will have complete metadata. It's essential to handle such cases gracefully to maintain a polished user experience.
+
+### **A. Conditional Rendering**
+
+- **UI Links:** Only render the "Visit Website" link if `uiLink` is provided.
+- **Images:** If `imageLink` is missing, display a default placeholder or the token symbol's first letter.
+- **Social Media Links:** Render only the icons for available social media platforms.
+
+### **B. Providing Defaults**
+
+- **Default Images:** Use a default image or icon when `imageLink` is unavailable.
+- **Fallback Text:** Display "N/A" or a similar placeholder when certain data fields are missing.
+
+**Example:**
+
+```tsx
+{/* Token Symbol/Name */}
+<div className="flex items-center gap-2">
+  {token.imageLink ? (
+    <img
+      src={token.imageLink}
+      alt={`${token.symbol} logo`}
+      className="w-8 h-8 rounded-full"
+    />
+  ) : (
+    <div className="w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center">
+      {token.symbol ? token.symbol[0] : "?"}
+    </div>
+  )}
+  <div>
+    <div className="font-medium">{token.symbol || "??"}</div>
+    <div className="text-xs text-muted-foreground">
+      {token.name || "Unknown Name"}
+    </div>
+  </div>
+</div>

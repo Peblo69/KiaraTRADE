@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import axios from "axios";
 import { useHeliusStore } from './helius-websocket';
+import axios from "axios";
 
 // -----------------------------------
 // TYPES
@@ -16,19 +16,6 @@ export interface TimeWindowStats {
   trades: number;
   buys: number;
   sells: number;
-}
-
-interface TokenMetadata {
-  name: string;
-  symbol: string;
-  description?: string;
-  image?: string;
-  externalUrl?: string;
-  socialLinks?: {
-    twitter?: string;
-    telegram?: string;
-    discord?: string;
-  };
 }
 
 export interface PumpPortalToken {
@@ -47,11 +34,7 @@ export interface PumpPortalToken {
   sells24h: number;
   walletCount: number;
   timestamp: number;
-  uri: string;
-  metadata?: TokenMetadata;
-  timeWindows: {
-    [K in keyof typeof TIME_WINDOWS]: TimeWindowStats;
-  };
+  imageUrl?: string;  // Direct image URL
   recentTrades: {
     timestamp: number;
     price: number;
@@ -59,18 +42,10 @@ export interface PumpPortalToken {
     isBuy: boolean;
     wallet: string;
   }[];
+  timeWindows: {
+    [K in keyof typeof TIME_WINDOWS]: TimeWindowStats;
+  };
   isValid: boolean;
-}
-
-interface PumpPortalStore {
-  tokens: PumpPortalToken[];
-  isConnected: boolean;
-  solPrice: number | null;
-  addToken: (token: PumpPortalToken) => void;
-  updateToken: (address: string, updates: Partial<PumpPortalToken>) => void;
-  addTradeToHistory: (address: string, trade: any) => void;
-  setConnected: (connected: boolean) => void;
-  setSolPrice: (price: number) => void;
 }
 
 // -----------------------------------
@@ -117,41 +92,6 @@ function createEmptyTimeWindows(timestamp: number) {
   return windows;
 }
 
-async function fetchTokenMetadata(uri: string): Promise<TokenMetadata | null> {
-  if (!uri) return null;
-
-  try {
-    // Handle IPFS URIs
-    const url = uri.startsWith('ipfs://')
-      ? uri.replace('ipfs://', 'https://ipfs.io/ipfs/')
-      : uri;
-
-    const response = await fetch(url);
-    if (!response.ok) return null;
-
-    const data = await response.json();
-    console.log('[PumpPortal] Fetched metadata:', data);
-
-    return {
-      name: data.name || '',
-      symbol: data.symbol || '',
-      description: data.description,
-      image: data.image?.startsWith('ipfs://')
-        ? data.image.replace('ipfs://', 'https://ipfs.io/ipfs/')
-        : data.image,
-      externalUrl: data.external_url || data.website,
-      socialLinks: {
-        twitter: data.twitter_url || data.twitter,
-        telegram: data.telegram_url || data.telegram,
-        discord: data.discord_url || data.discord
-      }
-    };
-  } catch (error) {
-    console.error('[PumpPortal] Failed to fetch metadata:', error);
-    return null;
-  }
-}
-
 async function fetchSolPrice(): Promise<number> {
   const now = Date.now();
   if (cachedSolPrice && (now - lastPriceUpdate < CACHE_DURATION)) {
@@ -176,22 +116,22 @@ async function fetchSolPrice(): Promise<number> {
 // -----------------------------------
 // STORE
 // -----------------------------------
-export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
+export const usePumpPortalStore = create<{
+  tokens: PumpPortalToken[];
+  isConnected: boolean;
+  solPrice: number | null;
+  addToken: (token: PumpPortalToken) => void;
+  updateToken: (address: string, updates: Partial<PumpPortalToken>) => void;
+  addTradeToHistory: (address: string, trade: any) => void;
+  setConnected: (connected: boolean) => void;
+  setSolPrice: (price: number) => void;
+}>((set, get) => ({
   tokens: [],
   isConnected: false,
   solPrice: null,
-  addToken: async (token) => {
-    // Fetch metadata if URI is available
-    let metadata = null;
-    if (token.uri) {
-      metadata = await fetchTokenMetadata(token.uri);
-      if (metadata) {
-        console.log('[PumpPortal] Added metadata for token:', token.symbol, metadata);
-      }
-    }
-
+  addToken: (token) => {
     set((state) => ({
-      tokens: [{ ...token, metadata }, ...state.tokens].slice(0, 100),
+      tokens: [token, ...state.tokens].slice(0, 100),
     }));
   },
   updateToken: (address, updates) =>
@@ -313,13 +253,6 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
     const volumeUsd = Number(solAmount || 0) * solPrice;
 
     const now = Date.now();
-
-    // Fetch metadata if URI is available
-    let metadata = null;
-    if (uri) {
-      metadata = await fetchTokenMetadata(uri);
-    }
-
     const token: PumpPortalToken = {
       symbol: symbol || mint?.slice(0, 6) || 'Unknown',
       name: name || `Token ${mint?.slice(0, 8)}`,
@@ -336,8 +269,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       sells24h: txType === 'sell' ? 1 : 0,
       walletCount: 1,
       timestamp: now,
-      uri: uri || '',
-      metadata,
+      imageUrl: uri ? uri.replace('ipfs://', 'https://ipfs.io/ipfs/') : undefined,
       timeWindows: createEmptyTimeWindows(now),
       recentTrades: [{
         timestamp: now,

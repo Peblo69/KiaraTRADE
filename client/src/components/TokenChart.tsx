@@ -1,9 +1,6 @@
 import { FC } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { useHeliusStore } from "@/lib/helius-websocket";
-import { FaTwitter, FaTelegram, FaDiscord, FaGlobe } from "react-icons/fa";
 import {
   Area,
   XAxis,
@@ -23,10 +20,6 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress }) => {
     state.tokens.find(t => t.address === tokenAddress)
   );
 
-  const heliusTrades = useHeliusStore(state => 
-    state.trades[tokenAddress] || []
-  );
-
   // Prepare chart data from trades
   const chartData = token?.recentTrades.map(trade => ({
     time: new Date(trade.timestamp).toLocaleTimeString(),
@@ -43,9 +36,9 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress }) => {
       <CardHeader className="flex flex-col space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            {token.metadata?.image && (
+            {token.imageUrl && (
               <img 
-                src={token.metadata.image} 
+                src={token.imageUrl} 
                 alt={token.symbol}
                 className="w-10 h-10 rounded-full"
                 onError={(e) => {
@@ -55,74 +48,12 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress }) => {
             )}
             <div className="space-y-1">
               <h3 className="font-semibold text-lg tracking-tight">
-                {token.symbol} {token.metadata?.name && `(${token.metadata.name})`}
+                {token.symbol} ({token.name})
               </h3>
               <p className="text-sm text-muted-foreground">
                 Current Price: ${token.price.toFixed(8)}
               </p>
             </div>
-          </div>
-          <div className="flex items-center space-x-2">
-            {token.metadata?.socialLinks?.twitter && (
-              <Button 
-                variant="ghost" 
-                size="icon"
-                asChild
-              >
-                <a 
-                  href={token.metadata.socialLinks.twitter} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                >
-                  <FaTwitter className="w-4 h-4" />
-                </a>
-              </Button>
-            )}
-            {token.metadata?.socialLinks?.telegram && (
-              <Button 
-                variant="ghost" 
-                size="icon"
-                asChild
-              >
-                <a 
-                  href={token.metadata.socialLinks.telegram} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                >
-                  <FaTelegram className="w-4 h-4" />
-                </a>
-              </Button>
-            )}
-            {token.metadata?.socialLinks?.discord && (
-              <Button 
-                variant="ghost" 
-                size="icon"
-                asChild
-              >
-                <a 
-                  href={token.metadata.socialLinks.discord} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                >
-                  <FaDiscord className="w-4 h-4" />
-                </a>
-              </Button>
-            )}
-            {token.metadata?.externalUrl && (
-              <Button 
-                variant="ghost" 
-                size="icon"
-                asChild
-              >
-                <a 
-                  href={token.metadata.externalUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                >
-                  <FaGlobe className="w-4 h-4" />
-                </a>
-              </Button>
-            )}
           </div>
         </div>
         <div className="flex justify-between items-center">
@@ -131,15 +62,10 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress }) => {
               Market Cap: ${token.marketCap.toFixed(2)}
             </p>
             <p className="text-sm text-muted-foreground">
-              Liquidity: ${token.liquidity.toFixed(2)}
+              Volume: ${token.volume.toFixed(2)}
             </p>
           </div>
         </div>
-        {token.metadata?.description && (
-          <p className="text-sm text-muted-foreground mt-2">
-            {token.metadata.description}
-          </p>
-        )}
       </CardHeader>
       <CardContent>
         <div className="h-[300px] w-full">
