@@ -21,7 +21,7 @@ interface TokenMetadata {
 /**
  * Transform IPFS URI to HTTP URL
  */
-function transformUri(uri: string): string {
+export function transformUri(uri: string): string {
   if (!uri) return '';
 
   // Handle IPFS URIs
@@ -104,76 +104,6 @@ export async function getTokenMetadata(uri: string): Promise<TokenMetadata | nul
   return await fetchTokenMetadata(uri);
 }
 
-/**
- * Preload all stored images from the database
- */
-async function preloadStoredImages(): Promise<void> {
-  if (hasPreloaded) return;
-
-  console.log('[Token Metadata] Preloading stored images...');
-  try {
-    const response = await fetch('/api/token-images/stored');
-    if (!response.ok) {
-      console.warn('[Token Metadata] Failed to preload stored images:', response.status);
-      return;
-    }
-
-    const data = await response.json();
-    console.log(`[Token Metadata] Preloaded ${Object.keys(data.images).length} images from database`);
-
-    // Update memory cache with all stored images
-    Object.entries(data.images).forEach(([symbol, imageUrl]) => {
-      if (imageUrl && typeof imageUrl === 'string') {
-        imageCache.set(symbol.toUpperCase(), imageUrl);
-      }
-    });
-
-    hasPreloaded = true;
-  } catch (error) {
-    console.error('[Token Metadata] Error preloading stored images:', error);
-  }
-}
-
-/**
- * Preload images for a list of tokens
- */
-export async function preloadTokenImages(symbols: string[]): Promise<void> {
-  if (!symbols.length) return;
-
-  const normalizedSymbols = symbols.map(s => s.toUpperCase());
-  console.log(`[Token Metadata] Preloading images for ${normalizedSymbols.length} tokens`);
-
-  try {
-    const response = await fetch('/api/token-images/bulk', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        symbols: normalizedSymbols,
-        priority: true // Signal these are priority tokens
-      }),
-    });
-
-    if (!response.ok) {
-      console.warn('[Token Metadata] Failed to preload token images:', response.status);
-      return;
-    }
-
-    const data = await response.json();
-    console.log(`[Token Metadata] Received bulk images response:`, data);
-
-    // Update memory cache with all received images
-    Object.entries(data.images).forEach(([symbol, imageUrl]) => {
-      if (imageUrl && typeof imageUrl === 'string') {
-        imageCache.set(symbol.toUpperCase(), imageUrl);
-      }
-    });
-  } catch (error) {
-    console.error('[Token Metadata] Error preloading token images:', error);
-  }
-}
-
 // Clear caches periodically (every 30 minutes)
 setInterval(() => {
   console.log('[Token Metadata] Clearing metadata and image caches');
@@ -181,30 +111,6 @@ setInterval(() => {
   imageCache.clear();
   hasPreloaded = false;
 }, 1800000);
-
-
-export async function enrichTokenMetadata(mintAddress: string): Promise<TokenMetadata | null> {
-  if (!mintAddress) {
-    console.warn('[Token Metadata] No mint address provided');
-    return null;
-  }
-
-  try {
-    //  This section needs to be significantly altered to fetch metadata using the new functions.  The original implementation is insufficient.  Assuming an API endpoint exists to get the URI from mintAddress.
-    const response = await fetch(`/api/token-uri/${encodeURIComponent(mintAddress)}`);
-    if (!response.ok) {
-      console.warn(`[Token Metadata] Error fetching URI for ${mintAddress}: ${response.status}`);
-      return null;
-    }
-    const { uri } = await response.json();
-
-    return await getTokenMetadata(uri);
-
-  } catch (error) {
-    console.error('[Token Metadata] Error enriching token metadata:', error);
-    return null;
-  }
-}
 
 export function getImageUrl(uri?: string): string {
   if (!uri) return '/placeholder.png';

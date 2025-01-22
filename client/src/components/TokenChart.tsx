@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { FC } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { useHeliusStore } from "@/lib/helius-websocket";
 import { FaTwitter, FaTelegram, FaDiscord, FaGlobe } from "react-icons/fa";
-import { getTokenMetadata } from "@/lib/token-metadata";
 import {
   Area,
   XAxis,
@@ -15,25 +14,11 @@ import {
   AreaChart,
 } from 'recharts';
 
-interface TokenMetadata {
-  name: string;
-  symbol: string;
-  description?: string;
-  image?: string;
-  externalUrl?: string;
-  socialLinks?: {
-    twitter?: string;
-    telegram?: string;
-    discord?: string;
-  };
-}
-
 interface TokenChartProps {
   tokenAddress: string;
 }
 
-export function TokenChart({ tokenAddress }: TokenChartProps) {
-  const [metadata, setMetadata] = useState<TokenMetadata | null>(null);
+export const TokenChart: FC<TokenChartProps> = ({ tokenAddress }) => {
   const token = usePumpPortalStore(state => 
     state.tokens.find(t => t.address === tokenAddress)
   );
@@ -42,45 +27,14 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
     state.trades[tokenAddress] || []
   );
 
-  // Fetch metadata when token changes
-  useEffect(() => {
-    if (token?.uri) {
-      getTokenMetadata(token.uri)
-        .then(meta => {
-          if (meta) {
-            console.log(`[TokenChart] Loaded metadata for ${token.symbol}:`, meta);
-            setMetadata(meta);
-          }
-        })
-        .catch(error => {
-          console.error(`[TokenChart] Failed to load metadata for ${token.symbol}:`, error);
-        });
-    }
-  }, [token?.uri]);
-
-  // Combine both data sources for richer information
-  const chartData = useMemo(() => {
-    if (!token) return [];
-
-    return token.recentTrades.map(trade => ({
-      time: new Date(trade.timestamp).toLocaleTimeString(),
-      price: trade.price,
-      volume: trade.volume,
-      type: trade.isBuy ? 'buy' : 'sell',
-      wallet: trade.wallet
-    })).reverse();
-  }, [token?.recentTrades]);
-
-  useEffect(() => {
-    // Debug log for price updates
-    if (token) {
-      console.log(`[TokenChart] Price update for ${token.symbol}:`, {
-        price: token.price,
-        marketCap: token.marketCap,
-        trades24h: token.trades24h
-      });
-    }
-  }, [token?.price, token?.marketCap, token?.trades24h]);
+  // Prepare chart data from trades
+  const chartData = token?.recentTrades.map(trade => ({
+    time: new Date(trade.timestamp).toLocaleTimeString(),
+    price: trade.price,
+    volume: trade.volume,
+    type: trade.isBuy ? 'buy' : 'sell',
+    wallet: trade.wallet
+  })).reverse() || [];
 
   if (!token) return null;
 
@@ -89,16 +43,19 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
       <CardHeader className="flex flex-col space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            {metadata?.image && (
+            {token.metadata?.image && (
               <img 
-                src={metadata.image} 
+                src={token.metadata.image} 
                 alt={token.symbol}
                 className="w-10 h-10 rounded-full"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
               />
             )}
             <div className="space-y-1">
               <h3 className="font-semibold text-lg tracking-tight">
-                {token.symbol} ({token.name})
+                {token.symbol} {token.metadata?.name && `(${token.metadata.name})`}
               </h3>
               <p className="text-sm text-muted-foreground">
                 Current Price: ${token.price.toFixed(8)}
@@ -106,14 +63,14 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            {metadata?.socialLinks?.twitter && (
+            {token.metadata?.socialLinks?.twitter && (
               <Button 
                 variant="ghost" 
                 size="icon"
                 asChild
               >
                 <a 
-                  href={metadata.socialLinks.twitter} 
+                  href={token.metadata.socialLinks.twitter} 
                   target="_blank" 
                   rel="noopener noreferrer"
                 >
@@ -121,14 +78,14 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
                 </a>
               </Button>
             )}
-            {metadata?.socialLinks?.telegram && (
+            {token.metadata?.socialLinks?.telegram && (
               <Button 
                 variant="ghost" 
                 size="icon"
                 asChild
               >
                 <a 
-                  href={metadata.socialLinks.telegram} 
+                  href={token.metadata.socialLinks.telegram} 
                   target="_blank" 
                   rel="noopener noreferrer"
                 >
@@ -136,14 +93,14 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
                 </a>
               </Button>
             )}
-            {metadata?.socialLinks?.discord && (
+            {token.metadata?.socialLinks?.discord && (
               <Button 
                 variant="ghost" 
                 size="icon"
                 asChild
               >
                 <a 
-                  href={metadata.socialLinks.discord} 
+                  href={token.metadata.socialLinks.discord} 
                   target="_blank" 
                   rel="noopener noreferrer"
                 >
@@ -151,14 +108,14 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
                 </a>
               </Button>
             )}
-            {metadata?.externalUrl && (
+            {token.metadata?.externalUrl && (
               <Button 
                 variant="ghost" 
                 size="icon"
                 asChild
               >
                 <a 
-                  href={metadata.externalUrl} 
+                  href={token.metadata.externalUrl} 
                   target="_blank" 
                   rel="noopener noreferrer"
                 >
@@ -170,7 +127,7 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
         </div>
         <div className="flex justify-between items-center">
           <div className="text-right space-y-1">
-            <p className="text-sm font-medium" id={`mcap-${tokenAddress}`}>
+            <p className="text-sm font-medium">
               Market Cap: ${token.marketCap.toFixed(2)}
             </p>
             <p className="text-sm text-muted-foreground">
@@ -178,9 +135,9 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
             </p>
           </div>
         </div>
-        {metadata?.description && (
+        {token.metadata?.description && (
           <p className="text-sm text-muted-foreground mt-2">
-            {metadata.description}
+            {token.metadata.description}
           </p>
         )}
       </CardHeader>
@@ -278,6 +235,6 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
       </CardContent>
     </Card>
   );
-}
+};
 
 export default TokenChart;

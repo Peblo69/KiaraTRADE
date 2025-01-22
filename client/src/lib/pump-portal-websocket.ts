@@ -18,6 +18,19 @@ export interface TimeWindowStats {
   sells: number;
 }
 
+interface TokenMetadata {
+  name: string;
+  symbol: string;
+  description?: string;
+  image?: string;
+  externalUrl?: string;
+  socialLinks?: {
+    twitter?: string;
+    telegram?: string;
+    discord?: string;
+  };
+}
+
 export interface PumpPortalToken {
   symbol: string;
   name: string;
@@ -34,7 +47,8 @@ export interface PumpPortalToken {
   sells24h: number;
   walletCount: number;
   timestamp: number;
-  uri: string;  // Added URI field for metadata
+  uri: string;
+  metadata?: TokenMetadata;
   timeWindows: {
     [K in keyof typeof TIME_WINDOWS]: TimeWindowStats;
   };
@@ -83,7 +97,7 @@ let lastPriceUpdate = 0;
 function createEmptyTimeWindow(startTime: number): TimeWindowStats {
   return {
     startTime,
-    endTime: startTime + 60000, // Default to 1m window
+    endTime: startTime + 60000,
     openPrice: 0,
     closePrice: 0,
     highPrice: 0,
@@ -101,6 +115,41 @@ function createEmptyTimeWindows(timestamp: number) {
     windows[window as keyof typeof TIME_WINDOWS] = createEmptyTimeWindow(timestamp);
   });
   return windows;
+}
+
+async function fetchTokenMetadata(uri: string): Promise<TokenMetadata | null> {
+  if (!uri) return null;
+
+  try {
+    // Handle IPFS URIs
+    const url = uri.startsWith('ipfs://')
+      ? uri.replace('ipfs://', 'https://ipfs.io/ipfs/')
+      : uri;
+
+    const response = await fetch(url);
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    console.log('[PumpPortal] Fetched metadata:', data);
+
+    return {
+      name: data.name || '',
+      symbol: data.symbol || '',
+      description: data.description,
+      image: data.image?.startsWith('ipfs://')
+        ? data.image.replace('ipfs://', 'https://ipfs.io/ipfs/')
+        : data.image,
+      externalUrl: data.external_url || data.website,
+      socialLinks: {
+        twitter: data.twitter_url || data.twitter,
+        telegram: data.telegram_url || data.telegram,
+        discord: data.discord_url || data.discord
+      }
+    };
+  } catch (error) {
+    console.error('[PumpPortal] Failed to fetch metadata:', error);
+    return null;
+  }
 }
 
 async function fetchSolPrice(): Promise<number> {
@@ -127,19 +176,24 @@ async function fetchSolPrice(): Promise<number> {
 // -----------------------------------
 // STORE
 // -----------------------------------
-// Add debug helper
-function debugLog(source: string, message: string, data?: any) {
-  console.log(`[PumpPortal:${source}]`, message, data ? data : '');
-}
-
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
   isConnected: false,
   solPrice: null,
-  addToken: (token) =>
+  addToken: async (token) => {
+    // Fetch metadata if URI is available
+    let metadata = null;
+    if (token.uri) {
+      metadata = await fetchTokenMetadata(token.uri);
+      if (metadata) {
+        console.log('[PumpPortal] Added metadata for token:', token.symbol, metadata);
+      }
+    }
+
     set((state) => ({
-      tokens: [token, ...state.tokens].slice(0, 100),
-    })),
+      tokens: [{ ...token, metadata }, ...state.tokens].slice(0, 100),
+    }));
+  },
   updateToken: (address, updates) =>
     set((state) => ({
       tokens: state.tokens.map((token) =>
@@ -150,7 +204,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     set((state) => {
       const token = state.tokens.find(t => t.address === address);
       if (!token || !token.isValid) {
-        debugLog('Trade', 'Skipping invalid token:', address);
+        console.log('[PumpPortal] Skipping invalid token:', address);
         return state;
       }
 
@@ -159,20 +213,8 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       const tradeVolume = Number(trade.solAmount || 0) * solPrice;
       const isBuy = trade.txType === 'buy';
 
-      debugLog('Trade', 'Processing trade:', {
-        token: token.symbol,
-        type: trade.txType,
-        volume: tradeVolume,
-        solPrice
-      });
-
       // Calculate new price based on trade
       const newPrice = tradeVolume / TOTAL_SUPPLY;
-      debugLog('Trade', 'New price calculated:', {
-        oldPrice: token.price,
-        newPrice,
-        change: ((newPrice - token.price) / token.price * 100).toFixed(2) + '%'
-      });
 
       // Update time windows
       const updatedWindows = { ...token.timeWindows };
@@ -225,14 +267,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       const buys24h = trades24h.filter(t => t.isBuy).length;
       const sells24h = trades24h.filter(t => !t.isBuy).length;
 
-      // Add debug log before state update
-      debugLog('Trade', 'Updating token state:', {
-        symbol: token.symbol,
-        newPrice,
-        volume24h,
-        trades24h: trades24h.length
-      });
-
       // Update token with new data
       return {
         tokens: state.tokens.map(t =>
@@ -279,6 +313,13 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
     const volumeUsd = Number(solAmount || 0) * solPrice;
 
     const now = Date.now();
+
+    // Fetch metadata if URI is available
+    let metadata = null;
+    if (uri) {
+      metadata = await fetchTokenMetadata(uri);
+    }
+
     const token: PumpPortalToken = {
       symbol: symbol || mint?.slice(0, 6) || 'Unknown',
       name: name || `Token ${mint?.slice(0, 8)}`,
@@ -295,7 +336,8 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       sells24h: txType === 'sell' ? 1 : 0,
       walletCount: 1,
       timestamp: now,
-      uri: uri || '',  // Added URI from WebSocket data
+      uri: uri || '',
+      metadata,
       timeWindows: createEmptyTimeWindows(now),
       recentTrades: [{
         timestamp: now,
@@ -346,17 +388,17 @@ export function initializePumpPortalWebSocket() {
       reconnectAttempts = 0;
 
       if (ws?.readyState === WebSocket.OPEN) {
-        // Subscribe to new token events with proper keys parameter
+        // Subscribe to new token events
         ws.send(JSON.stringify({
           method: "subscribeNewToken",
-          keys: ["*"]  // Subscribe to all new tokens
+          keys: ["*"]
         }));
         console.log('[PumpPortal] Subscribed to new token events');
 
         // Subscribe to trade events for all tokens
         ws.send(JSON.stringify({
           method: "subscribeTokenTrade",
-          keys: ["*"]  // Subscribe to all token trades
+          keys: ["*"]
         }));
         console.log('[PumpPortal] Subscribed to token trade events');
       }
@@ -365,32 +407,21 @@ export function initializePumpPortalWebSocket() {
     ws.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
-        debugLog('WebSocket', 'Received message:', data);
+        console.log('[PumpPortal] Received event:', data);
 
         if (data.message?.includes('Successfully subscribed')) {
-          debugLog('WebSocket', 'Subscription confirmed');
+          console.log('[PumpPortal] Subscription confirmed');
           return;
         }
 
         // Handle new token creation
         if (data.txType === 'create' && data.mint) {
-          debugLog('Token', 'Processing new token:', {
-            mint: data.mint,
-            symbol: data.symbol
-          });
-
           try {
             const token = await mapPumpPortalData(data);
             if (token.isValid) {
               store.addToken(token);
               useHeliusStore.getState().subscribeToToken(data.mint);
-              debugLog('Token', 'Successfully added new token:', {
-                symbol: token.symbol,
-                price: token.price,
-                marketCap: token.marketCap
-              });
-            } else {
-              debugLog('Token', 'Skipped invalid token:', data.mint);
+              console.log('[PumpPortal] Added new token:', token.symbol);
             }
           } catch (err) {
             console.error('[PumpPortal] Failed to process token:', err);
@@ -399,11 +430,6 @@ export function initializePumpPortalWebSocket() {
 
         // Handle trade events
         if (['buy', 'sell'].includes(data.txType) && data.mint) {
-          debugLog('Trade', 'Processing trade event:', {
-            type: data.txType,
-            mint: data.mint,
-            amount: data.solAmount
-          });
           store.addTradeToHistory(data.mint, data);
         }
 

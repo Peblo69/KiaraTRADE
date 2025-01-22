@@ -1,7 +1,7 @@
 import { FC, useState, useEffect, useRef } from "react";
-import { getTokenImage } from "@/lib/token-metadata";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
+import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 
 interface CryptoIconProps {
   symbol: string;
@@ -21,8 +21,14 @@ const CryptoIcon: FC<CryptoIconProps> = ({
   const [imgSrc, setImgSrc] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
   const mountedRef = useRef(true);
+
+  // Get token metadata from store
+  const token = usePumpPortalStore(state => 
+    state.tokens.find(t => 
+      isSolanaAddress ? t.address === symbol : t.symbol === symbol
+    )
+  );
 
   const sizeClasses = {
     sm: "w-4 h-4",
@@ -90,66 +96,23 @@ const CryptoIcon: FC<CryptoIconProps> = ({
   }, []);
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    if (!mountedRef.current) return;
 
-    async function loadImage() {
-      if (!symbol || error && retryCount >= 2) return;
-
-      try {
-        setIsLoading(true);
-        const imageUrl = await getTokenImage(symbol);
-
-        if (!mountedRef.current) return;
-
-        if (!imageUrl) {
-          throw new Error('No image URL returned');
-        }
-
-        // Preload image to ensure it loads correctly
-        const img = new Image();
-        img.src = imageUrl;
-
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          // Timeout after 5 seconds
-          timeoutId = setTimeout(() => reject(new Error('Image load timeout')), 5000);
-        });
-
-        if (!mountedRef.current) return;
-
-        clearTimeout(timeoutId);
-        setImgSrc(imageUrl);
-        setIsLoading(false);
-        setError(false);
-        setRetryCount(0);
-      } catch (err) {
-        console.error(`Error loading icon for ${symbol}:`, err);
-        if (!mountedRef.current) return;
-
-        clearTimeout(timeoutId);
-        if (retryCount < 2) {
-          // Exponential backoff for retries
-          const delay = Math.pow(2, retryCount) * 1000;
-          setTimeout(() => {
-            if (mountedRef.current) {
-              setRetryCount(prev => prev + 1);
-            }
-          }, delay);
-        } else {
-          setImgSrc(showFallback ? generateFallbackIcon() : '');
-          setError(true);
-          setIsLoading(false);
-        }
-      }
+    // If we have token metadata with an image, use it
+    if (token?.metadata?.image) {
+      setImgSrc(token.metadata.image);
+      setIsLoading(false);
+      setError(false);
+    } else if (showFallback) {
+      setImgSrc(generateFallbackIcon());
+      setIsLoading(false);
+      setError(true);
+    } else {
+      setImgSrc('');
+      setIsLoading(false);
+      setError(true);
     }
-
-    loadImage();
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [symbol, retryCount, showFallback, isSolanaAddress]);
+  }, [token?.metadata?.image, symbol, showFallback, isSolanaAddress]);
 
   if (!symbol) {
     return null;
