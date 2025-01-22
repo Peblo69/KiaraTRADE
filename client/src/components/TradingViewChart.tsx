@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { AdvancedChart } from "react-tradingview-embed";
 
 interface TradingViewChartProps {
@@ -14,10 +14,20 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
   interval = "1",
   containerId = "tradingview_chart"
 }) => {
-  const chartContainerRef = useRef<HTMLDivElement>(null);
+  // Handle invalid symbols gracefully
+  if (!symbol) {
+    return (
+      <div 
+        style={{ height: containerHeight }}
+        className="flex items-center justify-center bg-background/50"
+      >
+        <p className="text-muted-foreground">No price data available</p>
+      </div>
+    );
+  }
 
   return (
-    <div ref={chartContainerRef} style={{ height: containerHeight }}>
+    <div style={{ height: containerHeight }}>
       <AdvancedChart
         widgetProps={{
           symbol: `CRYPTO:${symbol}USDT`,
@@ -27,43 +37,8 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
           style: "1",
           locale: "en",
           enable_publishing: false,
-          allow_symbol_change: true,
-          container_id: containerId,
-          autosize: true,
-          studies: [
-            "MASimple@tv-basicstudies",
-            "Volume@tv-basicstudies",
-            "MACD@tv-basicstudies",
-            "RSI@tv-basicstudies"
-          ],
-          disabled_features: [
-            "header_symbol_search",
-            "header_screenshot",
-            "header_compare"
-          ],
-          enabled_features: [
-            "create_volume_indicator_by_default",
-            "use_localstorage_for_settings"
-          ],
-          loading_screen: { backgroundColor: "#131722" },
-          overrides: {
-            "mainSeriesProperties.candleStyle.upColor": "#26a69a",
-            "mainSeriesProperties.candleStyle.downColor": "#ef5350",
-            "mainSeriesProperties.candleStyle.borderUpColor": "#26a69a",
-            "mainSeriesProperties.candleStyle.borderDownColor": "#ef5350",
-            "mainSeriesProperties.candleStyle.wickUpColor": "#26a69a",
-            "mainSeriesProperties.candleStyle.wickDownColor": "#ef5350",
-            "paneProperties.background": "#131722",
-            "paneProperties.vertGridProperties.color": "#363c4e",
-            "paneProperties.horzGridProperties.color": "#363c4e",
-            "scalesProperties.textColor": "#AAA",
-            "scalesProperties.lineColor": "#363c4e",
-            "paneProperties.legendProperties.showStudyArguments": true,
-            "paneProperties.legendProperties.showStudyTitles": true,
-            "paneProperties.legendProperties.showStudyValues": true,
-            "paneProperties.legendProperties.showSeriesTitle": true,
-            "paneProperties.legendProperties.showSeriesOHLC": true
-          }
+          hide_side_toolbar: false,
+          container_id: containerId
         }}
       />
     </div>

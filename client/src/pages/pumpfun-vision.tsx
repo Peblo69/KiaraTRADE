@@ -64,6 +64,7 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
 const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [allTrades, setAllTrades] = useState<Array<any>>([]);
+  const [chartError, setChartError] = useState<string | null>(null);
 
   const updatedToken = usePumpPortalStore(
     (state) => state.tokens.find((t) => t.address === token.address)
@@ -131,7 +132,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
               <div className="text-right">
                 <div className={`text-xl font-bold transition-colors duration-300 ${
                   currentToken.price > currentToken.previousPrice ? 'text-green-500' :
-                    currentToken.price < currentToken.previousPrice ? 'text-red-500' : ''
+                  currentToken.price < currentToken.previousPrice ? 'text-red-500' : ''
                 }`}>
                   ${currentToken.price.toFixed(6)}
                 </div>
@@ -199,7 +200,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
               </Card>
             </div>
 
-            {/* Center Column - TradingView Chart */}
+            {/* Center Column - Chart */}
             <div className="space-y-4">
               <Card className="bg-background/50 border-purple-500/20">
                 <CardHeader>
@@ -207,11 +208,14 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                 </CardHeader>
                 <CardContent>
                   <div className="h-[600px]">
-                    <TradingViewChart
-                      symbol={currentToken.symbol}
-                      containerHeight="100%"
-                      containerId={`tradingview_${currentToken.address}`}
-                    />
+                    {chartError ? (
+                      <div>Error loading chart: {chartError}</div>
+                    ) : (
+                      <TradingViewChart
+                        symbol={currentToken.symbol}
+                        containerId={`tradingview_${currentToken.address}`}
+                      />
+                    )}
                   </div>
                 </CardContent>
               </Card>
