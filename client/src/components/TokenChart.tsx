@@ -1,36 +1,106 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createChart, CrosshairMode } from 'lightweight-charts';
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import {
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  AreaChart,
-} from 'recharts';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface TokenChartProps {
   tokenAddress: string;
 }
 
 export function TokenChart({ tokenAddress }: TokenChartProps) {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [activeTimeframe, setActiveTimeframe] = useState('1m');
+
   const token = usePumpPortalStore(state => 
     state.tokens.find(t => t.address === tokenAddress)
   );
 
-  const chartData = useMemo(() => {
-    if (!token) return [];
+  useEffect(() => {
+    if (!chartContainerRef.current || !token) return;
 
-    // Convert trade history to chart data points
-    return token.recentTrades.map(trade => ({
-      time: new Date(trade.timestamp).toLocaleTimeString(),
-      price: trade.price,
-      volume: trade.volume,
-      type: trade.isBuy ? 'buy' : 'sell'
-    })).reverse();
-  }, [token?.recentTrades]);
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { color: 'transparent' },
+        textColor: 'rgba(255, 255, 255, 0.9)',
+      },
+      grid: {
+        vertLines: { color: 'rgba(197, 203, 206, 0.1)' },
+        horzLines: { color: 'rgba(197, 203, 206, 0.1)' },
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+      },
+      rightPriceScale: {
+        borderColor: 'rgba(197, 203, 206, 0.8)',
+      },
+      timeScale: {
+        borderColor: 'rgba(197, 203, 206, 0.8)',
+        timeVisible: true,
+        secondsVisible: false,
+      },
+    });
+
+    // Add candlestick series
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderVisible: false,
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+    });
+
+    // Add volume series
+    const volumeSeries = chart.addHistogramSeries({
+      color: '#26a69a',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: '',
+      scaleMargins: {
+        top: 0.8,
+        bottom: 0,
+      },
+    });
+
+    // Convert trade history to candlestick data
+    const candleData = token.timeWindows[activeTimeframe].candles.map(candle => ({
+      time: candle.timestamp / 1000,
+      open: candle.openPrice,
+      high: candle.highPrice,
+      low: candle.lowPrice,
+      close: candle.closePrice,
+    }));
+
+    const volumeData = token.timeWindows[activeTimeframe].candles.map(candle => ({
+      time: candle.timestamp / 1000,
+      value: candle.volume,
+      color: candle.closePrice >= candle.openPrice ? '#26a69a' : '#ef5350',
+    }));
+
+    candlestickSeries.setData(candleData);
+    volumeSeries.setData(volumeData);
+
+    // Resize handler
+    const handleResize = () => {
+      chart.applyOptions({
+        width: chartContainerRef.current?.clientWidth ?? 600,
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    // Initial size
+    chart.applyOptions({
+      width: chartContainerRef.current?.clientWidth ?? 600,
+      height: 400,
+    });
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+    };
+  }, [token, activeTimeframe]);
 
   if (!token) return null;
 
@@ -53,64 +123,19 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-[300px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis 
-                dataKey="time"
-                className="text-xs"
-                tickLine={false}
-              />
-              <YAxis 
-                className="text-xs"
-                tickLine={false}
-                tickFormatter={(value) => `$${value.toFixed(8)}`}
-              />
-              <Tooltip
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null;
-                  const data = payload[0].payload;
-                  return (
-                    <div className="rounded-lg border bg-background p-2 shadow-sm">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="flex flex-col">
-                          <span className="text-[0.70rem] uppercase text-muted-foreground">
-                            Price
-                          </span>
-                          <span className="font-bold text-xs">
-                            ${data.price.toFixed(8)}
-                          </span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[0.70rem] uppercase text-muted-foreground">
-                            Volume
-                          </span>
-                          <span className="font-bold text-xs">
-                            ${data.volume.toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="price"
-                stroke="hsl(var(--primary))"
-                fillOpacity={1}
-                fill="url(#priceGradient)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        <Tabs defaultValue="1m" className="mb-4" onValueChange={setActiveTimeframe}>
+          <TabsList>
+            <TabsTrigger value="1m">1m</TabsTrigger>
+            <TabsTrigger value="5m">5m</TabsTrigger>
+            <TabsTrigger value="15m">15m</TabsTrigger>
+            <TabsTrigger value="1h">1h</TabsTrigger>
+            <TabsTrigger value="4h">4h</TabsTrigger>
+            <TabsTrigger value="1d">1D</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div ref={chartContainerRef} className="h-[400px] w-full" />
+
         <div className="mt-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span>24h Volume</span>
