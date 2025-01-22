@@ -1,3 +1,5 @@
+// FILE: /src/pages/pumpfun-vision.tsx
+
 import '@/lib/pump-portal-websocket';
 import '@/lib/helius-websocket';
 import { FC, useState, useRef, useEffect } from "react";
@@ -7,8 +9,18 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import millify from "millify";
-import type { PumpPortalToken } from '@/lib/types/pump-portal';
-import TradingViewChart from '@/components/TradingViewChart';
+import {
+  Area,
+  AreaChart,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+
+// Import getTokenImage
+import { getTokenImage } from "@/lib/token-metadata";
 
 function getTimeDiff(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -27,8 +39,9 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
     >
       <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
         <div className="flex items-center gap-3">
+          {/* Display Token Image */}
           <img
-            src={token.imageLink || 'https://via.placeholder.com/150'}
+            src={getTokenImage(token)}
             alt={`${token.symbol} logo`}
             className="w-10 h-10 rounded-full object-cover bg-purple-500/20"
             onError={(e) => {
@@ -44,13 +57,13 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
             </div>
           </div>
         </div>
-        <div className={`text-right font-medium ${token.price > token.previousPrice ? "text-green-500" : token.price < token.previousPrice ? "text-red-500" : ""}`}>
+        <div className={`text-right font-medium ${token.price > token.price ? "text-green-500" : token.price < token.price ? "text-red-500" : ""}`}>
           ${token.price.toFixed(6)}
         </div>
-        <div className={`text-right ${token.marketCap > token.previousMarketCap ? "text-green-500" : token.marketCap < token.previousMarketCap ? "text-red-500" : ""}`}>
+        <div className={`text-right ${token.marketCap > token.marketCap ? "text-green-500" : token.marketCap < token.marketCap ? "text-red-500" : ""}`}>
           ${millify(token.marketCap)}
         </div>
-        <div className={`text-right ${token.liquidity > token.previousLiquidity ? "text-green-500" : token.liquidity < token.previousLiquidity ? "text-red-500" : ""}`}>
+        <div className={`text-right ${token.liquidity > token.liquidity ? "text-green-500" : token.liquidity < token.liquidity ? "text-red-500" : ""}`}>
           ${millify(token.liquidity)}
         </div>
         <div className="text-right">
@@ -61,10 +74,88 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
   );
 };
 
+const PriceChart: FC<{ token: PumpPortalToken }> = ({ token }) => {
+  const [chartData, setChartData] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (token.recentTrades?.length) {
+      const newChartData = token.recentTrades
+        .map(trade => ({
+          time: new Date(trade.timestamp).toLocaleTimeString(),
+          price: trade.price,
+          volume: trade.volume
+        }))
+        .reverse(); // Oldest first for proper chart display
+      setChartData(newChartData);
+    }
+  }, [token.recentTrades]);
+
+  return (
+    <div className="h-[400px] w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={chartData}>
+          <defs>
+            <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+          <XAxis
+            dataKey="time"
+            className="text-xs"
+            tickLine={false}
+          />
+          <YAxis
+            className="text-xs"
+            tickLine={false}
+            tickFormatter={(value) => `$${value.toFixed(8)}`}
+            domain={['auto', 'auto']}
+          />
+          <Tooltip
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const data = payload[0].payload;
+              return (
+                <div className="rounded-lg border bg-background p-2 shadow-sm">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col">
+                      <span className="text-[0.70rem] uppercase text-muted-foreground">
+                        Price
+                      </span>
+                      <span className="font-bold text-xs">
+                        ${data.price.toFixed(8)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[0.70rem] uppercase text-muted-foreground">
+                        Volume
+                      </span>
+                      <span className="font-bold text-xs">
+                        ${data.volume.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            }}
+          />
+          <Area
+            type="monotone"
+            dataKey="price"
+            stroke="hsl(var(--primary))"
+            fillOpacity={1}
+            fill="url(#priceGradient)"
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
 const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [allTrades, setAllTrades] = useState<Array<any>>([]);
-  const [chartError, setChartError] = useState<string | null>(null);
 
   const updatedToken = usePumpPortalStore(
     (state) => state.tokens.find((t) => t.address === token.address)
@@ -115,7 +206,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
               </Button>
               <div className="flex items-center gap-3">
                 <img
-                  src={currentToken.imageLink || 'https://via.placeholder.com/150'}
+                  src={getTokenImage(currentToken)}
                   alt={`${currentToken.symbol} logo`}
                   className="w-12 h-12 rounded-full object-cover bg-purple-500/20"
                   onError={(e) => {
@@ -131,8 +222,8 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
             <div className="flex items-center gap-2">
               <div className="text-right">
                 <div className={`text-xl font-bold transition-colors duration-300 ${
-                  currentToken.price > currentToken.previousPrice ? 'text-green-500' :
-                  currentToken.price < currentToken.previousPrice ? 'text-red-500' : ''
+                  currentToken.price > token.price ? 'text-green-500' :
+                  currentToken.price < token.price ? 'text-red-500' : ''
                 }`}>
                   ${currentToken.price.toFixed(6)}
                 </div>
@@ -200,23 +291,14 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
               </Card>
             </div>
 
-            {/* Center Column - Chart */}
+            {/* Center Column - Price Chart */}
             <div className="space-y-4">
               <Card className="bg-background/50 border-purple-500/20">
                 <CardHeader>
                   <h3 className="font-semibold">Price Chart</h3>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[600px]">
-                    {chartError ? (
-                      <div>Error loading chart: {chartError}</div>
-                    ) : (
-                      <TradingViewChart
-                        symbol={currentToken.symbol}
-                        containerId={`tradingview_${currentToken.address}`}
-                      />
-                    )}
-                  </div>
+                  <PriceChart token={currentToken} />
                 </CardContent>
               </Card>
 
