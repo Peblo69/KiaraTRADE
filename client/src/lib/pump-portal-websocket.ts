@@ -235,7 +235,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       };
 
       // Keep all trades in history, no limit
-      const recentTrades = [newTrade, ...(token.recentTrades || [])];
+      const recentTrades = [newTrade, ...(token.recentTrades || [])].slice(0, 1000);
 
       // Calculate 24h stats using full trade history
       const last24h = now - 24 * 60 * 60 * 1000;
@@ -271,7 +271,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
             trades24h: trades24h.length,
             buys24h,
             sells24h,
-            timeWindows: updatedTrades,
+            timeWindows: updatedWindows,
             recentTrades,
             walletCount: new Set([...recentTrades.map(trade => trade.wallet)]).size
           } : t

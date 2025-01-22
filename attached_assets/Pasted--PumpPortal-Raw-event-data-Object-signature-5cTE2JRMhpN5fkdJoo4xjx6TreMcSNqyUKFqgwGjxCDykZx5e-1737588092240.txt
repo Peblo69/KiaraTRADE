@@ -1,0 +1,43 @@
+[PumpPortal] Raw event data: 
+Object {signature: "5cTE2JRMhpN5fkdJoo4xjx6TreMcSNqyUKFqgwGjxCDykZx5eSQRuAJAqo86gLGr6DvWRnkPspRkY4NunJYkubZ9", mint: "5gV62UAtqAWKvu5sVH435yGnpLbtEDMEVgZq21dypump", traderPublicKey: "12BRrNxzJYMx7cRhuBdhA71AchuxWRcvGydNnDoZpump", txType: "sell", tokenAmount: 34049507.444363, …}
+[PumpPortal] Processing trade: 
+Object {type: "sell", mint: "5gV62UAtqAWKvu5sVH435yGnpLbtEDMEVgZq21dypump", solAmount: 0.999917362, trader: "12BRrNxzJYMx7cRhuBdhA71AchuxWRcvGydNnDoZpump", timestamp: "2025-01-22T23:20:41.318Z"}
+[PumpPortal] Processing trade: 
+Object {type: "sell", mint: "5gV62UAtqAWKvu5sVH435yGnpLbtEDMEVgZq21dypump", solAmount: 0.999917362, trader: "12BRrNxzJYMx7cRhuBdhA71AchuxWRcvGydNnDoZpump", timestamp: "2025-01-22T23:20:41.318Z"}
+[PumpPortal] Updated trade stats: 
+Object {address: "5gV62UAtqAWKvu5sVH435yGnpLbtEDMEVgZq21dypump", newPrice: 0.00000731985854439241, tradeVolume: 257.51871740948, totalTrades: 2, trades24h: 2}
+[PumpPortal] Failed to parse message: 
+ReferenceError {}
+
+[PumpPortal] Raw event data: 
+Object {signature: "5vVrMVCHCUJqnxMZGzxmZjEBp6nc8GdCweacwK43zjQQeFa7XZfLJxo9ns5zTp9DNZaMtxi8fCT77i2XfYMner2F", mint: "9y6oMitfE4ffVXSDQWdgGV2VFBondRtL2ciZjyvUpump", traderPublicKey: "BmAsSXTXR4Z6qTxfqSNzgiv5PydKno5sNc131qpzL2pc", txType: "sell", tokenAmount: 31534453.975823, …}
+[PumpPortal] Processing trade: 
+Object {type: "sell", mint: "9y6oMitfE4ffVXSDQWdgGV2VFBondRtL2ciZjyvUpump", solAmount: 1.55, trader: "BmAsSXTXR4Z6qTxfqSNzgiv5PydKno5sNc131qpzL2pc", timestamp: "2025-01-22T23:20:41.807Z"}
+[PumpPortal] Processing trade: 
+Object {type: "sell", mint: "9y6oMitfE4ffVXSDQWdgGV2VFBondRtL2ciZjyvUpump", solAmount: 1.55, trader: "BmAsSXTXR4Z6qTxfqSNzgiv5PydKno5sNc131qpzL2pc", timestamp: "2025-01-22T23:20:41.807Z"}
+[PumpPortal] Updated trade stats: 
+Object {address: "9y6oMitfE4ffVXSDQWdgGV2VFBondRtL2ciZjyvUpump", newPrice: 0.000007936663344128609, tradeVolume: 399.18700000000007, totalTrades: 2, trades24h: 2}
+[PumpPortal] Failed to parse message: 
+ReferenceError {}
+message: "updatedTrades is not defined"
+stack: "ReferenceError: updatedTrades is not defined↵ at https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/lib/pump-portal-websocket.ts:159:24↵ at Array.map (<anonymous>)↵ at https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/lib/pump-portal-websocket.ts:146:28↵ at setState (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/zustand.js?v=fed51457:13:55)↵ at Object.addTradeToHistory (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/lib/pump-portal-websocket.ts:70:42)↵ at ws.onmessage (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/lib/pump-portal-websocket.ts:357:17)"
+get stack: ƒ ()
+set stack: ƒ ()
+[[Prototype]]: Object
+
+[PumpPortal] Raw event data: 
+Object {signature: "3Zh7m2hdiwpCHhRknFMfFJ9vbwZ5pTZBufJFi7BoFCjdpBf3bx5BQqXnYkQMvgnxuGusTg384UKvf1TZ1jEJtzQj", mint: "3noYx3uo3ptMh7PEfMxEa1kt5Yanus7ocHtLWvXhpump", traderPublicKey: "xERrTMg166Uq6MYufBUx4ExbGJzEbzcTvmEHJuoffBQ", txType: "buy", tokenAmount: 984058.435585, …}
+[PumpPortal] Processing trade: 
+Object {type: "buy", mint: "3noYx3uo3ptMh7PEfMxEa1kt5Yanus7ocHtLWvXhpump", solAmount: 0.02940594, trader: "xERrTMg166Uq6MYufBUx4ExbGJzEbzcTvmEHJuoffBQ", timestamp: "2025-01-22T23:20:42.021Z"}
+[PumpPortal] Processing trade: 
+Object {type: "buy", mint: "3noYx3uo3ptMh7PEfMxEa1kt5Yanus7ocHtLWvXhpump", solAmount: 0.02940594, trader: "xERrTMg166Uq6MYufBUx4ExbGJzEbzcTvmEHJuoffBQ", timestamp: "2025-01-22T23:20:42.021Z"}
+[PumpPortal] Updated trade stats: 
+Object {address: "3noYx3uo3ptMh7PEfMxEa1kt5Yanus7ocHtLWvXhpump", newPrice: 0.000007688633545062205, tradeVolume: 7.5732057876, totalTrades: 2, trades24h: 2}
+[PumpPortal] Failed to parse message: 
+ReferenceError {}
+
+[PumpPortal] Raw event data: 
+Object {signature: "5k2KVEp9h1iv1RHs6u9DEYAhHVLvfjZHGzGzoNhAvunjuCHYvq9j1KRZXJKssf5WLMTNKcZQoCC3By6kQwxHsoBT", mint: "C5BHzC6iG7FNwabEDDKNzkoC7nBVbn9AzNeD6KvDpump", traderPublicKey: "2ezv4U5HmPpkt2xLsKnw1FyyGmjFBeW7c166p99Hw2xB", txType: "sell", tokenAmount: 39541787.500002, …}
+[PumpPortal] Processing trade: 
+Object {type: "sell", mint: "C5BHzC6iG7FNwabEDDKNzkoC7nBVbn9AzNeD6KvDpump", solAmount: 1.758837776, trader: "2ezv4U5HmPpkt2xLsKnw1FyyGmjFBeW7c166p99Hw2xB", timestamp: "2025-01-22T23:20:42.429Z"}
+[PumpPortal] No token found for trade: C5BHzC6iG7FNwabEDDKNzkoC7nBVbn9AzNeD6KvDpump
