@@ -1,4 +1,4 @@
-import { FC, memo, useMemo } from 'react';
+import { FC, memo, useMemo, useCallback } from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -7,9 +7,13 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Line
+  Line,
+  CartesianGrid
 } from 'recharts';
 import { format } from 'date-fns';
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface CandleData {
   timestamp: number;
@@ -23,7 +27,12 @@ interface CandleData {
 
 interface Props {
   data: CandleData[];
+  timeframe?: '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
+  onTimeframeChange?: (timeframe: string) => void;
+  className?: string;
 }
+
+const timeframes = ['1m', '5m', '15m', '1h', '4h', '1d'];
 
 const formatXAxis = (timestamp: number) => {
   return format(new Date(timestamp), 'HH:mm');
@@ -32,18 +41,41 @@ const formatXAxis = (timestamp: number) => {
 const formatYAxis = (value: number) => {
   if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
-  return value.toFixed(2);
+  return value.toFixed(6);
 };
 
 const CustomTooltip = memo(({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
-      <div className="bg-gray-900/90 backdrop-blur-lg border border-gray-800 p-2 rounded-lg text-sm">
-        <p className="text-gray-400">{format(new Date(data.timestamp), 'HH:mm:ss')}</p>
-        <p className="text-white">Price: {data.close.toFixed(6)} SOL</p>
-        <p className="text-blue-400">Volume: {formatYAxis(data.volume)} SOL</p>
-        <p className="text-green-400">MCap: {formatYAxis(data.marketCap)} SOL</p>
+      <div className="bg-background/95 backdrop-blur-sm border border-border/40 p-3 rounded-lg shadow-lg">
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            {format(new Date(data.timestamp), 'HH:mm:ss')}
+          </p>
+          <div className="grid gap-1">
+            <div className="grid grid-cols-2 gap-4">
+              <span className="text-sm text-muted-foreground">Open</span>
+              <span className="text-sm font-medium">${data.open.toFixed(6)}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <span className="text-sm text-muted-foreground">High</span>
+              <span className="text-sm font-medium text-green-500">${data.high.toFixed(6)}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <span className="text-sm text-muted-foreground">Low</span>
+              <span className="text-sm font-medium text-red-500">${data.low.toFixed(6)}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <span className="text-sm text-muted-foreground">Close</span>
+              <span className="text-sm font-medium">${data.close.toFixed(6)}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <span className="text-sm text-muted-foreground">Volume</span>
+              <span className="text-sm font-medium text-blue-500">${formatYAxis(data.volume)}</span>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -52,96 +84,108 @@ const CustomTooltip = memo(({ active, payload }: any) => {
 
 CustomTooltip.displayName = 'CustomTooltip';
 
-const CandlestickChartBase: FC<Props> = ({ data }) => {
-  // Memoize the chart data to prevent unnecessary recalculations
+const CandlestickChartBase: FC<Props> = ({ 
+  data, 
+  timeframe = '1m',
+  onTimeframeChange,
+  className 
+}) => {
   const chartData = useMemo(() => {
     return data.map(candle => ({
       ...candle,
-      volumeHeight: Math.min(candle.volume * 0.1, candle.high - candle.low)
+      color: candle.close >= candle.open ? '#22c55e' : '#ef4444',
+      volumeColor: candle.close >= candle.open ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
     }));
   }, [data]);
 
+  const handleTimeframeChange = useCallback((newTimeframe: string) => {
+    onTimeframeChange?.(newTimeframe);
+  }, [onTimeframeChange]);
+
   return (
-    <div className="w-full h-48">
-      <ResponsiveContainer>
-        <ComposedChart data={chartData}>
-          {/* Price candlesticks */}
-          <Bar
-            dataKey="low"
-            fill="transparent"
-            stroke="none"
-            yAxisId="price"
-          />
-          <Bar
-            dataKey="high"
-            fill="transparent"
-            stroke="none"
-            yAxisId="price"
-          />
+    <Card className={cn("w-full", className)}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <h3 className="font-semibold text-lg">Price Chart</h3>
+        <div className="flex gap-2">
+          {timeframes.map((tf) => (
+            <Button
+              key={tf}
+              variant={tf === timeframe ? "default" : "outline"}
+              size="sm"
+              onClick={() => handleTimeframeChange(tf)}
+              className="text-xs"
+            >
+              {tf}
+            </Button>
+          ))}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="h-[400px] w-full">
+          <ResponsiveContainer>
+            <ComposedChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
 
-          {/* Market cap line */}
-          <Line
-            type="monotone"
-            dataKey="marketCap"
-            stroke="#22c55e"
-            strokeWidth={1}
-            dot={false}
-            yAxisId="marketCap"
-          />
+              {/* Volume bars */}
+              <Bar
+                dataKey="volume"
+                yAxisId="volume"
+                fill={d => d.volumeColor}
+                opacity={0.3}
+              />
 
-          {/* Volume bars */}
-          <Bar
-            dataKey="volume"
-            fill="rgba(59, 130, 246, 0.1)"
-            stroke="#3b82f6"
-            yAxisId="volume"
-          />
+              {/* Price line */}
+              <Line
+                type="linear"
+                dataKey="close"
+                stroke="hsl(var(--primary))"
+                dot={false}
+                yAxisId="price"
+              />
 
-          {/* Price line */}
-          <Line
-            type="linear"
-            dataKey="close"
-            stroke="#3b82f6"
-            strokeWidth={2}
-            dot={false}
-            yAxisId="price"
-          />
+              {/* Market cap line */}
+              <Line
+                type="monotone"
+                dataKey="marketCap"
+                stroke="#22c55e"
+                strokeWidth={1}
+                dot={false}
+                yAxisId="marketCap"
+              />
 
-          <XAxis
-            dataKey="timestamp"
-            tickFormatter={formatXAxis}
-            stroke="#4b5563"
-            tick={{ fill: '#9ca3af' }}
-          />
+              <XAxis
+                dataKey="timestamp"
+                tickFormatter={formatXAxis}
+                stroke="hsl(var(--muted))"
+              />
 
-          <YAxis
-            yAxisId="price"
-            orientation="right"
-            tickFormatter={formatYAxis}
-            stroke="#4b5563"
-            tick={{ fill: '#9ca3af' }}
-          />
+              <YAxis
+                yAxisId="price"
+                orientation="right"
+                tickFormatter={formatYAxis}
+                stroke="hsl(var(--muted))"
+              />
 
-          <YAxis
-            yAxisId="volume"
-            orientation="left"
-            tickFormatter={formatYAxis}
-            stroke="#4b5563"
-            tick={{ fill: '#9ca3af' }}
-          />
+              <YAxis
+                yAxisId="volume"
+                orientation="left"
+                tickFormatter={formatYAxis}
+                stroke="hsl(var(--muted))"
+              />
 
-          <YAxis
-            yAxisId="marketCap"
-            orientation="right"
-            tickFormatter={formatYAxis}
-            stroke="#4b5563"
-            tick={{ fill: '#9ca3af' }}
-          />
+              <YAxis
+                yAxisId="marketCap"
+                orientation="right"
+                tickFormatter={formatYAxis}
+                stroke="hsl(var(--muted))"
+              />
 
-          <Tooltip content={<CustomTooltip />} />
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
+              <Tooltip content={<CustomTooltip />} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 

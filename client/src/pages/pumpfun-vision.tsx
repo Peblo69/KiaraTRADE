@@ -1,26 +1,51 @@
 // FILE: /src/pages/pumpfun-vision.tsx
-
 import '@/lib/pump-portal-websocket';
 import '@/lib/helius-websocket';
-import { FC, useState, useRef, useEffect } from "react";
+import { FC, useState, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
+import { CandlestickChart } from "@/components/CandlestickChart";
 import millify from "millify";
-import {
-  Area,
-  AreaChart,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
-
-// Import getTokenImage
 import { getTokenImage } from "@/lib/token-metadata";
+
+interface PumpPortalToken {
+  address: string;
+  name: string;
+  symbol: string;
+  price: number;
+  marketCap: number;
+  liquidity: number;
+  volume: number;
+  volume24h: number;
+  trades24h: number;
+  buys24h: number;
+  sells24h: number;
+  walletCount: number;
+  timeWindows: {
+    '1m': TimeWindow;
+    '5m': TimeWindow;
+    '15m': TimeWindow;
+    '1h': TimeWindow;
+  };
+  recentTrades: Trade[];
+}
+
+interface TimeWindow {
+  openPrice: number;
+  closePrice: number;
+  volume: number;
+}
+
+interface Trade {
+  timestamp: number;
+  price: number;
+  volume: number;
+  isBuy: boolean;
+  wallet: string;
+}
 
 function getTimeDiff(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -39,7 +64,6 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
     >
       <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
         <div className="flex items-center gap-3">
-          {/* Display Token Image */}
           <img
             src={getTokenImage(token)}
             alt={`${token.symbol} logo`}
@@ -74,92 +98,58 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
   );
 };
 
-const PriceChart: FC<{ token: PumpPortalToken }> = ({ token }) => {
-  const [chartData, setChartData] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (token.recentTrades?.length) {
-      const newChartData = token.recentTrades
-        .map(trade => ({
-          time: new Date(trade.timestamp).toLocaleTimeString(),
-          price: trade.price,
-          volume: trade.volume
-        }))
-        .reverse(); // Oldest first for proper chart display
-      setChartData(newChartData);
-    }
-  }, [token.recentTrades]);
-
-  return (
-    <div className="h-[400px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={chartData}>
-          <defs>
-            <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis
-            dataKey="time"
-            className="text-xs"
-            tickLine={false}
-          />
-          <YAxis
-            className="text-xs"
-            tickLine={false}
-            tickFormatter={(value) => `$${value.toFixed(8)}`}
-            domain={['auto', 'auto']}
-          />
-          <Tooltip
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null;
-              const data = payload[0].payload;
-              return (
-                <div className="rounded-lg border bg-background p-2 shadow-sm">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="flex flex-col">
-                      <span className="text-[0.70rem] uppercase text-muted-foreground">
-                        Price
-                      </span>
-                      <span className="font-bold text-xs">
-                        ${data.price.toFixed(8)}
-                      </span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[0.70rem] uppercase text-muted-foreground">
-                        Volume
-                      </span>
-                      <span className="font-bold text-xs">
-                        ${data.volume.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            }}
-          />
-          <Area
-            type="monotone"
-            dataKey="price"
-            stroke="hsl(var(--primary))"
-            fillOpacity={1}
-            fill="url(#priceGradient)"
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  );
-};
-
 const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const [allTrades, setAllTrades] = useState<Array<any>>([]);
+  const [allTrades, setAllTrades] = useState<Trade[]>([]);
+  const [timeframe, setTimeframe] = useState<'1m' | '5m' | '15m' | '1h'>('1m');
 
   const updatedToken = usePumpPortalStore(
     (state) => state.tokens.find((t) => t.address === token.address)
   );
+
+  const candleData = useMemo(() => {
+    if (!allTrades.length) return [];
+
+    const timeframeMs = {
+      '1m': 60 * 1000,
+      '5m': 5 * 60 * 1000,
+      '15m': 15 * 60 * 1000,
+      '1h': 60 * 60 * 1000,
+    }[timeframe];
+
+    const candles: any[] = [];
+    let currentCandle: any = null;
+
+    allTrades.forEach(trade => {
+      const candleTimestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
+
+      if (!currentCandle || currentCandle.timestamp !== candleTimestamp) {
+        if (currentCandle) {
+          candles.push(currentCandle);
+        }
+        currentCandle = {
+          timestamp: candleTimestamp,
+          open: trade.price,
+          high: trade.price,
+          low: trade.price,
+          close: trade.price,
+          volume: trade.volume,
+          marketCap: trade.price * (updatedToken?.marketCap || token.marketCap),
+        };
+      } else {
+        currentCandle.high = Math.max(currentCandle.high, trade.price);
+        currentCandle.low = Math.min(currentCandle.low, trade.price);
+        currentCandle.close = trade.price;
+        currentCandle.volume += trade.volume;
+      }
+    });
+
+    if (currentCandle) {
+      candles.push(currentCandle);
+    }
+
+    return candles;
+  }, [allTrades, timeframe, token.marketCap, updatedToken?.marketCap]);
 
   useEffect(() => {
     if (updatedToken?.recentTrades) {
@@ -192,7 +182,6 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
   return (
     <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 overflow-auto">
       <div className="h-full flex flex-col">
-        {/* Header */}
         <div className="border-b border-border/40 p-4">
           <div className="max-w-[1400px] mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -223,7 +212,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
               <div className="text-right">
                 <div className={`text-xl font-bold transition-colors duration-300 ${
                   currentToken.price > token.price ? 'text-green-500' :
-                  currentToken.price < token.price ? 'text-red-500' : ''
+                    currentToken.price < token.price ? 'text-red-500' : ''
                 }`}>
                   ${currentToken.price.toFixed(6)}
                 </div>
@@ -237,10 +226,8 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
           </div>
         </div>
 
-        {/* Main Content - Three Column Layout */}
         <div className="flex-1 overflow-hidden">
           <div className="max-w-[1400px] mx-auto h-full grid grid-cols-[300px,1fr,300px] gap-4 p-4">
-            {/* Left Column - Token Info */}
             <div className="space-y-4">
               <Card className="bg-background/50 border-purple-500/20">
                 <CardHeader>
@@ -291,18 +278,14 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
               </Card>
             </div>
 
-            {/* Center Column - Price Chart */}
             <div className="space-y-4">
-              <Card className="bg-background/50 border-purple-500/20">
-                <CardHeader>
-                  <h3 className="font-semibold">Price Chart</h3>
-                </CardHeader>
-                <CardContent>
-                  <PriceChart token={currentToken} />
-                </CardContent>
-              </Card>
+              <CandlestickChart
+                data={candleData}
+                timeframe={timeframe}
+                onTimeframeChange={(tf) => setTimeframe(tf as any)}
+                className="bg-background/50 border-purple-500/20"
+              />
 
-              {/* Time Window Stats */}
               <div className="grid grid-cols-4 gap-4">
                 {[
                   { label: "1m Volume", value: `$${millify(currentToken.timeWindows['1m'].volume)}` },
@@ -318,7 +301,6 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
               </div>
             </div>
 
-            {/* Right Column - Live Trades */}
             <Card className="bg-background/50 border-purple-500/20">
               <div className="p-4 border-b border-border/40">
                 <h3 className="font-semibold">Live Trades</h3>
@@ -390,9 +372,7 @@ const PumpFunVision: FC = () => {
             </div>
           </div>
 
-          {/* Token List */}
           <div className="space-y-2">
-            {/* Header */}
             <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 px-4 py-2 text-sm text-muted-foreground">
               <div>Token</div>
               <div className="text-right">Price</div>
@@ -401,7 +381,6 @@ const PumpFunVision: FC = () => {
               <div className="text-right">Volume</div>
             </div>
 
-            {/* Token Rows */}
             {!isConnected ? (
               <div className="flex items-center justify-center h-40">
                 <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
@@ -423,7 +402,6 @@ const PumpFunVision: FC = () => {
         </div>
       </div>
 
-      {/* Token Detail View */}
       {selectedToken && (
         <TokenView
           token={selectedToken}
