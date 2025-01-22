@@ -53,12 +53,12 @@ export const AdvancedChart: FC<ChartProps> = ({
     // Create chart with professional styling
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: 'rgba(255, 255, 255, 0.9)',
+        background: { type: ColorType.Solid, color: '#0A0A0A' },
+        textColor: '#D9D9D9',
       },
       grid: {
-        vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
-        horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
+        vertLines: { color: 'rgba(42, 46, 57, 0.3)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.3)' },
       },
       width: chartContainerRef.current.clientWidth,
       height: 400,
@@ -71,34 +71,37 @@ export const AdvancedChart: FC<ChartProps> = ({
           const minutes = date.getMinutes().toString().padStart(2, '0');
           return `${hours}:${minutes}`;
         },
+        borderColor: 'rgba(197, 203, 206, 0.3)',
+      },
+      rightPriceScale: {
+        borderColor: 'rgba(197, 203, 206, 0.3)',
       },
       crosshair: {
         mode: 1,
         vertLine: {
           width: 1,
-          color: 'rgba(224, 227, 235, 0.1)',
+          color: 'rgba(224, 227, 235, 0.4)',
           style: 0,
         },
         horzLine: {
           width: 1,
-          color: 'rgba(224, 227, 235, 0.1)',
+          color: 'rgba(224, 227, 235, 0.4)',
           style: 0,
         },
       },
     });
 
-    // Add candlestick series with professional colors
+    // Add candlestick series with vibrant colors
     const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
+      upColor: '#00C805',
+      downColor: '#FF3B69',
       borderVisible: false,
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
+      wickUpColor: '#00C805',
+      wickDownColor: '#FF3B69',
     });
 
     // Add volume series with matching colors
     const volumeSeries = chart.addHistogramSeries({
-      color: '#26a69a',
       priceFormat: {
         type: 'volume',
       },
@@ -125,9 +128,39 @@ export const AdvancedChart: FC<ChartProps> = ({
         const volumeData = sortedData.map((d) => ({
           time: d.time,
           value: d.volume,
-          color: d.close >= d.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
+          color: d.close >= d.open ? 'rgba(0, 200, 5, 0.5)' : 'rgba(255, 59, 105, 0.5)',
         }));
         volumeSeries.setData(volumeData);
+
+        // Subscribe to crosshair move to show detailed price information
+        chart.subscribeCrosshairMove(param => {
+          if (!param.time || !param.point || param.point.x < 0 || param.point.y < 0) {
+            return;
+          }
+
+          const coordinateToPrice = candlestickSeries.coordinateToPrice(param.point.y);
+          const dataPoint = sortedData.find(d => d.time === param.time);
+
+          if (dataPoint) {
+            const tooltip = document.getElementById('chart-tooltip');
+            if (tooltip) {
+              tooltip.style.display = 'block';
+              tooltip.style.left = `${param.point.x}px`;
+              tooltip.style.top = `${param.point.y}px`;
+              tooltip.innerHTML = `
+                <div class="px-2 py-1 bg-background/95 border rounded shadow-lg">
+                  <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div>O: $${dataPoint.open.toFixed(8)}</div>
+                    <div>C: $${dataPoint.close.toFixed(8)}</div>
+                    <div>H: $${dataPoint.high.toFixed(8)}</div>
+                    <div>L: $${dataPoint.low.toFixed(8)}</div>
+                    <div class="col-span-2">V: $${dataPoint.volume.toFixed(2)}</div>
+                  </div>
+                </div>
+              `;
+            }
+          }
+        });
 
         // Fit content and remove loading state
         chart.timeScale().fitContent();
@@ -183,8 +216,8 @@ export const AdvancedChart: FC<ChartProps> = ({
         time: currentTime,
         value: lastDataPoint.volume,
         color: lastDataPoint.close >= lastDataPoint.open 
-          ? 'rgba(38, 166, 154, 0.5)' 
-          : 'rgba(239, 83, 80, 0.5)',
+          ? 'rgba(0, 200, 5, 0.5)' 
+          : 'rgba(255, 59, 105, 0.5)',
       });
 
       setIsLoading(false);
@@ -229,6 +262,12 @@ export const AdvancedChart: FC<ChartProps> = ({
         </Select>
       </div>
       <div ref={chartContainerRef} className="relative">
+        {/* Chart tooltip */}
+        <div 
+          id="chart-tooltip" 
+          className="absolute z-50 pointer-events-none hidden"
+          style={{ transform: 'translate(-50%, -100%)' }}
+        />
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
