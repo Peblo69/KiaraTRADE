@@ -86,13 +86,13 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
             </div>
           </div>
         </div>
-        <div className={`text-right font-medium ${token.price > token.price ? "text-green-500" : token.price < token.price ? "text-red-500" : ""}`}>
-          ${token.price.toFixed(6)}
+        <div className="text-right font-medium">
+          ${token.price.toFixed(8)}
         </div>
-        <div className={`text-right ${token.marketCap > token.marketCap ? "text-green-500" : token.marketCap < token.marketCap ? "text-red-500" : ""}`}>
+        <div className="text-right">
           ${millify(token.marketCap)}
         </div>
-        <div className={`text-right ${token.liquidity > token.liquidity ? "text-green-500" : token.liquidity < token.liquidity ? "text-red-500" : ""}`}>
+        <div className="text-right">
           ${millify(token.liquidity)}
         </div>
         <div className="text-right">
@@ -106,7 +106,7 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
 const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
-  const [timeframe, setTimeframe] = useState<'1s' | '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w'>('1m');
+  const [timeframe, setTimeframe] = useState<'1s' | '1m' | '5m' | '15m' | '1h'>('1s');
 
   const updatedToken = usePumpPortalStore(
     (state) => state.tokens.find((t) => t.address === token.address)
@@ -120,26 +120,14 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
       '1m': 60 * 1000,
       '5m': 5 * 60 * 1000,
       '15m': 15 * 60 * 1000,
-      '30m': 30 * 60 * 1000,
       '1h': 60 * 60 * 1000,
-      '4h': 4 * 60 * 60 * 1000,
-      '1d': 24 * 60 * 60 * 1000,
-      '1w': 7 * 24 * 60 * 60 * 1000,
     };
 
     const timeframeMs = timeframeMsMap[timeframe];
     if (!timeframeMs) return [];
 
-    // Helper function to round timestamp
-    const roundTimestamp = (timestamp: number): number => {
-      return Math.floor(timestamp / timeframeMs) * timeframeMs;
-    };
-
-    // Sort trades by timestamp ascending
-    const sortedTrades = [...allTrades].sort((a, b) => a.timestamp - b.timestamp);
-
     const candles: {
-      time: Time;
+      time: number;
       open: number;
       high: number;
       low: number;
@@ -148,40 +136,42 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
     }[] = [];
 
     let currentCandle: any = null;
+    let basePrice = allTrades[0]?.price || 0;
+
+    const sortedTrades = [...allTrades].sort((a, b) => a.timestamp - b.timestamp);
 
     sortedTrades.forEach((trade) => {
-      const roundedTime = roundTimestamp(trade.timestamp);
-      const candleTime = Math.floor(roundedTime / 1000); // Convert to seconds
+      const candleTimestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
+      const candleTime = Math.floor(candleTimestamp / 1000);
 
-      // Calculate price impact based on trade
-      const impact = (trade.volume / 1000) * (trade.isBuy ? 1 : -1); // Adjust as needed
-      const newPrice = currentCandle ? currentCandle.close * (1 + Math.min(Math.abs(impact), 0.02) * Math.sign(impact)) : trade.price;
+      // Calculate price impact based on volume and direction
+      const impact = (trade.volume / 1000) * (trade.isBuy ? 1 : -1);
+      const maxImpact = 0.02; // 2% max price impact per trade
+      const newPrice = basePrice * (1 + Math.min(Math.abs(impact), maxImpact) * Math.sign(impact));
 
       if (!currentCandle || currentCandle.time !== candleTime) {
-        // Push the previous candle
         if (currentCandle) {
           candles.push(currentCandle);
         }
 
-        // Start a new candle
         currentCandle = {
           time: candleTime,
-          open: trade.price,
-          high: newPrice,
-          low: newPrice,
+          open: basePrice,
+          high: Math.max(basePrice, newPrice),
+          low: Math.min(basePrice, newPrice),
           close: newPrice,
           volume: trade.volume,
         };
       } else {
-        // Update the existing candle
         currentCandle.high = Math.max(currentCandle.high, newPrice);
         currentCandle.low = Math.min(currentCandle.low, newPrice);
         currentCandle.close = newPrice;
         currentCandle.volume += trade.volume;
       }
+
+      basePrice = newPrice;
     });
 
-    // Push the last candle
     if (currentCandle) {
       candles.push(currentCandle);
     }
@@ -189,20 +179,18 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
     return candles;
   }, [allTrades, timeframe]);
 
-  // Update trades when new trades come in
   useEffect(() => {
     if (updatedToken?.recentTrades) {
       setAllTrades(prev => {
         const newTrades = [...prev, ...updatedToken.recentTrades];
-        // Remove duplicates based on unique trade identifiers
-        const uniqueTrades = Array.from(new Map(newTrades.map(trade => [`${trade.timestamp}-${trade.wallet}`, trade])).values());
-        // Limit to the latest 1000 trades
+        const uniqueTrades = Array.from(
+          new Map(newTrades.map(trade => [`${trade.timestamp}-${trade.wallet}`, trade])).values()
+        );
         return uniqueTrades.slice(-1000);
       });
     }
   }, [updatedToken?.recentTrades]);
 
-  // Scroll to bottom on new trades
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
@@ -239,10 +227,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                     <h1 className="text-lg font-bold">{currentToken.symbol}</h1>
                     <span className="text-sm text-muted-foreground">{currentToken.name}</span>
                   </div>
-                  <div className={`text-sm ${
-                    currentToken.price > token.price ? 'text-green-500' :
-                      currentToken.price < token.price ? 'text-red-500' : ''
-                  }`}>
+                  <div className="text-sm">
                     ${currentToken.price.toFixed(8)}
                   </div>
                 </div>
@@ -280,7 +265,6 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                   onTimeframeChange={(tf) => setTimeframe(tf as any)}
                   symbol={currentToken.symbol}
                   className="bg-transparent border-0"
-                  recentTrades={currentToken.recentTrades}
                 />
               </Card>
             </div>

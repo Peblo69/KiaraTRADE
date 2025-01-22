@@ -1,4 +1,4 @@
-import { FC, useEffect, useRef, useState, useCallback } from 'react';
+import { FC, useEffect, useRef, useState } from 'react';
 import {
   createChart,
   ColorType,
@@ -6,9 +6,6 @@ import {
   Time,
   CrosshairMode,
   LineStyle,
-  CandlestickData,
-  HistogramData,
-  Marker,
 } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import {
@@ -20,18 +17,19 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 
-
 interface ChartProps {
-  data: CandlestickData[];
+  data: {
+    time: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  }[];
   onTimeframeChange?: (timeframe: string) => void;
   timeframe?: string;
   symbol: string;
   className?: string;
-  recentTrades?: {
-    timestamp: number;
-    price: number;
-    isBuy: boolean;
-  }[];
 }
 
 export const AdvancedChart: FC<ChartProps> = ({
@@ -40,7 +38,6 @@ export const AdvancedChart: FC<ChartProps> = ({
   timeframe = '1s',
   symbol,
   className,
-  recentTrades = [],
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,6 +68,8 @@ export const AdvancedChart: FC<ChartProps> = ({
       height: 400,
       rightPriceScale: {
         borderColor: 'rgba(35, 38, 47, 0.6)',
+        mode: 0,
+        autoScale: true,
         scaleMargins: {
           top: 0.2,
           bottom: 0.2,
@@ -95,6 +94,15 @@ export const AdvancedChart: FC<ChartProps> = ({
           labelBackgroundColor: '#0A0A0A',
         },
       },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true,
+      },
     });
 
     const candlestickSeries = chart.addCandlestickSeries({
@@ -103,42 +111,43 @@ export const AdvancedChart: FC<ChartProps> = ({
       borderVisible: false,
       wickUpColor: '#00C805',
       wickDownColor: '#FF3B69',
+      priceFormat: {
+        type: 'price',
+        precision: 10,
+        minMove: 0.0000000001,
+      },
     });
 
     const volumeSeries = chart.addHistogramSeries({
+      color: 'rgba(0, 200, 5, 0.5)',
       priceFormat: {
         type: 'volume',
       },
       priceScaleId: '',
       scaleMargins: {
-        top: 0.8,
+        top: 0.85,
         bottom: 0,
       },
     });
 
-    if (data.length > 0) {
-      candlestickSeries.setData(data);
+    if (data && data.length > 0) {
+      try {
+        candlestickSeries.setData(data);
 
-      const volumeData = data.map(d => ({
-        time: d.time,
-        value: d.volume,
-        color: d.close >= d.open ? 'rgba(0, 200, 5, 0.5)' : 'rgba(255, 59, 105, 0.5)',
-      }));
-      volumeSeries.setData(volumeData);
-
-      if (recentTrades.length) {
-        const markers = recentTrades.map(trade => ({
-          time: Math.floor(trade.timestamp / 1000),
-          position: trade.isBuy ? 'belowBar' : 'aboveBar',
-          color: trade.isBuy ? '#00C805' : '#FF3B69',
-          shape: trade.isBuy ? 'arrowUp' : 'arrowDown',
-          text: trade.isBuy ? 'B' : 'S',
-          size: 1,
+        const volumeData = data.map(d => ({
+          time: d.time,
+          value: d.volume,
+          color: d.close >= d.open ? 'rgba(0, 200, 5, 0.5)' : 'rgba(255, 59, 105, 0.5)',
         }));
-        candlestickSeries.setMarkers(markers);
-      }
 
-      chart.timeScale().fitContent();
+        volumeSeries.setData(volumeData);
+        chart.timeScale().fitContent();
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error setting chart data:', error);
+        setIsLoading(false);
+      }
+    } else {
       setIsLoading(false);
     }
 
@@ -148,7 +157,11 @@ export const AdvancedChart: FC<ChartProps> = ({
 
     const handleResize = () => {
       if (chartContainerRef.current) {
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+        chart.applyOptions({ 
+          width: chartContainerRef.current.clientWidth,
+          height: 400
+        });
+        chart.timeScale().fitContent();
       }
     };
 
@@ -158,18 +171,13 @@ export const AdvancedChart: FC<ChartProps> = ({
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [data, recentTrades]);
-
-  const handleTimeframeChange = useCallback((newTimeframe: string) => {
-    setIsLoading(true);
-    onTimeframeChange?.(newTimeframe);
-  }, [onTimeframeChange]);
+  }, [data]);
 
   return (
     <Card className={className}>
       <div className="flex justify-between items-center mb-4 px-4 pt-4">
         <h3 className="text-lg font-semibold">{symbol} Price Chart</h3>
-        <Select value={timeframe} onValueChange={handleTimeframeChange}>
+        <Select value={timeframe} onValueChange={onTimeframeChange}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select timeframe" />
           </SelectTrigger>
@@ -180,9 +188,6 @@ export const AdvancedChart: FC<ChartProps> = ({
               { value: '5m', label: '5 Minutes' },
               { value: '15m', label: '15 Minutes' },
               { value: '1h', label: '1 Hour' },
-              { value: '4h', label: '4 Hours' },
-              { value: '1d', label: '1 Day' },
-              { value: '1w', label: '1 Week' },
             ].map((tf) => (
               <SelectItem key={tf.value} value={tf.value}>
                 {tf.label}
@@ -191,13 +196,13 @@ export const AdvancedChart: FC<ChartProps> = ({
           </SelectContent>
         </Select>
       </div>
-      <div className="relative">
+      <div className="relative h-[400px] w-full bg-[#0A0A0A]">
         {isLoading ? (
-          <div className="flex items-center justify-center h-[400px]">
+          <div className="absolute inset-0 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
           </div>
         ) : (
-          <div ref={chartContainerRef} className="w-full h-[400px]" />
+          <div ref={chartContainerRef} className="h-full w-full" />
         )}
       </div>
     </Card>
