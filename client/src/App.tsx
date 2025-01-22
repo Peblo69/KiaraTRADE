@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
+import TokenTracker from "@/pages/token-tracker";
 import Project from "@/pages/project";
 import KiaraStageI from "@/pages/kiara-stage-i";
 import About from "@/pages/about";
@@ -34,7 +35,9 @@ function Router() {
 
       <main className={!isLandingPage ? "pt-[120px]" : ""}>
         <Switch>
-          <Route path="/" component={Home} />
+          <Route path="/" component={Landing} />
+          <Route path="/home" component={Home} />
+          <Route path="/tokens" component={TokenTracker} />
           <Route path="/crypto-news" component={CryptoNews} />
           <Route path="/project" component={Project} />
           <Route path="/kiara-stage-i" component={KiaraStageI} />
