@@ -120,7 +120,10 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
     const candles: any[] = [];
     let currentCandle: any = null;
 
-    allTrades.forEach(trade => {
+    // Sort trades by timestamp
+    const sortedTrades = [...allTrades].sort((a, b) => a.timestamp - b.timestamp);
+
+    sortedTrades.forEach(trade => {
       const candleTimestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
 
       if (!currentCandle || currentCandle.timestamp !== candleTimestamp) {
@@ -134,7 +137,6 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
           low: trade.price,
           close: trade.price,
           volume: trade.volume,
-          marketCap: trade.price * (updatedToken?.marketCap || token.marketCap),
         };
       } else {
         currentCandle.high = Math.max(currentCandle.high, trade.price);
@@ -149,7 +151,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
     }
 
     return candles;
-  }, [allTrades, timeframe, token.marketCap, updatedToken?.marketCap]);
+  }, [allTrades, timeframe]);
 
   useEffect(() => {
     if (updatedToken?.recentTrades) {
@@ -281,7 +283,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
             <div className="space-y-4">
               <AdvancedChart
                 data={candleData.map(d => ({
-                  time: d.timestamp / 1000, // Convert to seconds for lightweight-charts
+                  time: Math.floor(d.timestamp / 1000), // Convert to seconds for the chart
                   open: d.open,
                   high: d.high,
                   low: d.low,

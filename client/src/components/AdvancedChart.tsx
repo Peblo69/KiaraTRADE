@@ -24,8 +24,6 @@ interface ChartProps {
   className?: string;
 }
 
-type TimeFrame = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w';
-
 export const AdvancedChart: FC<ChartProps> = ({ 
   data, 
   onTimeframeChange, 
@@ -89,6 +87,15 @@ export const AdvancedChart: FC<ChartProps> = ({
           style: 0,
         },
       },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true,
+      },
     });
 
     // Add candlestick series with vibrant colors
@@ -98,6 +105,11 @@ export const AdvancedChart: FC<ChartProps> = ({
       borderVisible: false,
       wickUpColor: '#00C805',
       wickDownColor: '#FF3B69',
+      priceFormat: {
+        type: 'price',
+        precision: 8,
+        minMove: 0.00000001,
+      },
     });
 
     // Add volume series with matching colors
@@ -200,7 +212,7 @@ export const AdvancedChart: FC<ChartProps> = ({
       // Validate time data
       const currentTime = typeof lastDataPoint.time === 'number' 
         ? lastDataPoint.time 
-        : new Date(lastDataPoint.time as string).getTime();
+        : new Date(lastDataPoint.time as string).getTime() / 1000; // Convert to seconds for chart
 
       if (!currentTime) {
         console.warn('Invalid time data in chart update');
