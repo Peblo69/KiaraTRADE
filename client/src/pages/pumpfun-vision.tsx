@@ -67,15 +67,34 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
 
 const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [allTrades, setAllTrades] = useState<Array<any>>([]);
+
+  // Get real-time token updates
   const updatedToken = usePumpPortalStore(
     (state) => state.tokens.find((t) => t.address === token.address)
   );
 
+  // Accumulate trades without losing history
+  useEffect(() => {
+    if (updatedToken?.recentTrades) {
+      setAllTrades(prev => {
+        const newTrades = updatedToken.recentTrades.filter(newTrade => 
+          !prev.some(existingTrade => 
+            existingTrade.timestamp === newTrade.timestamp && 
+            existingTrade.volume === newTrade.volume
+          )
+        );
+        return [...prev, ...newTrades];
+      });
+    }
+  }, [updatedToken?.recentTrades]);
+
+  // Auto-scroll to bottom when new trades arrive
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
     }
-  }, [updatedToken?.recentTrades.length]);
+  }, [allTrades.length]);
 
   const currentToken = updatedToken || token;
 
@@ -194,10 +213,13 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
             <Card className="bg-background/50 border-purple-500/20">
               <div className="p-4 border-b border-border/40">
                 <h3 className="font-semibold">Live Trades</h3>
+                <div className="text-xs text-muted-foreground">
+                  {allTrades.length} trades recorded
+                </div>
               </div>
               <ScrollArea className="h-[calc(100vh-180px)]" ref={scrollAreaRef}>
                 <div className="p-2 space-y-2">
-                  {currentToken.recentTrades.map((trade, idx) => (
+                  {allTrades.map((trade, idx) => (
                     <Card
                       key={`${trade.timestamp}-${idx}`}
                       className={`p-3 flex items-center justify-between ${

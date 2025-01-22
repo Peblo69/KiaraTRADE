@@ -18,7 +18,7 @@ export default function KiaraVideoWrapper() {
     const video = videoRef.current;
     if (!video) return;
 
-    // Play interactive video once on mount with muted audio
+    // Play interactive video once on mount
     playInteractiveVideo();
   }, []);
 
@@ -28,7 +28,7 @@ export default function KiaraVideoWrapper() {
 
     setIsPlaying(true);
     video.src = VIDEOS.INTERACTIVE;
-    video.muted = true; // Ensure video is muted
+    video.muted = false; // Allow sound for interactive video
     video.loop = false;
     video.play().catch(console.error);
   };
@@ -39,7 +39,7 @@ export default function KiaraVideoWrapper() {
 
     setIsPlaying(false);
     video.src = VIDEOS.DEFAULT;
-    video.muted = true; // Ensure video is muted
+    video.muted = true; // Mute the looping background video
     video.loop = true;
     video.play().catch(console.error);
   };
@@ -62,7 +62,6 @@ export default function KiaraVideoWrapper() {
         ref={videoRef}
         className="w-full h-full object-contain cursor-pointer"
         playsInline
-        muted // Always muted by default
         onClick={handleVideoClick}
         onEnded={handleVideoEnd}
       />
