@@ -2,6 +2,9 @@ import { create } from "zustand";
 import { useHeliusStore } from './helius-websocket';
 import { preloadTokenImages } from './token-metadata';
 import axios from 'axios';
+import { eq } from 'drizzle-orm';
+import { db, tokens, token_trades } from './db'; // Assuming db connection is defined elsewhere
+
 
 // -----------------------------------
 // TYPES
@@ -68,6 +71,18 @@ export interface PumpPortalToken {
     tri: boolean;
   };
   imageLink?: string;
+}
+
+export interface PaginatedTradeHistory {
+  trades: {
+    timestamp: number;
+    price: number;
+    volume: number;
+    isBuy: boolean;
+    wallet: string;
+  }[];
+  hasMore: boolean;
+  nextCursor?: string;
 }
 
 interface PumpPortalStore {
@@ -161,8 +176,8 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         token.address === address ? { ...token, ...updates } : token
       ),
     })),
-  addTradeToHistory: (address, trade) =>
-    set((state) => {
+  addTradeToHistory: async (address, trade) =>
+    set(async (state) => {
       const token = state.tokens.find(t => t.address === address);
       if (!token) {
         console.warn('[PumpPortal] No token found for trade:', address);
@@ -234,8 +249,24 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         wallet: trade.traderPublicKey
       };
 
-      // Keep all trades in history, no limit
-      const recentTrades = [newTrade, ...(token.recentTrades || [])].slice(0, 1000);
+      // Keep all trades in memory without limit for real-time data
+      const recentTrades = [newTrade, ...(token.recentTrades || [])];
+
+      // Store trade in database
+      try {
+        await db.insert(token_trades).values({
+          token_id: (await db.select({ id: tokens.id }).from(tokens).where(eq(tokens.address, address)))[0].id,
+          timestamp: new Date(now),
+          price_usd: newPrice,
+          volume_usd: tradeVolume,
+          amount_sol: Number(trade.solAmount),
+          is_buy: isBuy,
+          wallet_address: trade.traderPublicKey,
+          tx_signature: trade.signature,
+        });
+      } catch (error) {
+        console.error('[PumpPortal] Failed to store trade in database:', error);
+      }
 
       // Calculate 24h stats using full trade history
       const last24h = now - 24 * 60 * 60 * 1000;

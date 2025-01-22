@@ -1,5 +1,5 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { drizzle } from "drizzle-orm/neon-serverless";
+import { Pool } from "@neondatabase/serverless";
 import * as schema from "@db/schema";
 
 if (!process.env.DATABASE_URL) {
@@ -8,17 +8,6 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Configure the connection with proper SSL handling for Neon
-const client = postgres({
-  host: process.env.PGHOST,
-  port: Number(process.env.PGPORT),
-  database: process.env.PGDATABASE,
-  username: process.env.PGUSER,
-  password: process.env.PGPASSWORD,
-  ssl: "require",
-  max: 1,
-  idle_timeout: 20,
-  connect_timeout: 10,
-});
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-export const db = drizzle(client, { schema });
+export const db = drizzle(pool, { schema });
