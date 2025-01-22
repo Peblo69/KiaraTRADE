@@ -1,4 +1,4 @@
-import { FC, useEffect, useRef, useState } from 'react';
+import { FC, useEffect, useRef, useState, useCallback } from 'react';
 import {
   createChart,
   ColorType,
@@ -160,7 +160,6 @@ export const AdvancedChart: FC<ChartProps> = ({
     };
   }, [data, recentTrades]);
 
-  // Handle timeframe changes
   const handleTimeframeChange = useCallback((newTimeframe: string) => {
     setIsLoading(true);
     onTimeframeChange?.(newTimeframe);
@@ -192,13 +191,15 @@ export const AdvancedChart: FC<ChartProps> = ({
           </SelectContent>
         </Select>
       </div>
-      {isLoading ? (
-        <div className="flex items-center justify-center h-[400px]">
-          <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
-        </div>
-      ) : (
-        <div ref={chartContainerRef} className="w-full h-[400px]" />
-      )}
+      <div className="relative">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-[400px]">
+            <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+          </div>
+        ) : (
+          <div ref={chartContainerRef} className="w-full h-[400px]" />
+        )}
+      </div>
     </Card>
   );
 };
