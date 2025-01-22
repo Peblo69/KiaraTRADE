@@ -1,0 +1,60 @@
+Agave 2.0 Transition: A Developer Guide
+Introduction
+Agave v2.0 is scheduled to debut on Solana Mainnet-Beta in the weeks following Solana Breakpoint 2024 Singapore. This major update contains multiple breaking changes, API endpoint removals, and crate renamings that all Solana’s developers should be aware of. In addition to this article, we recommend developers review Anza’s recently released transition guide on GitHub.
+
+Agave v2.0 is currently live on Solana’s Testnet and Devnet clusters. The release marks an important milestone in the evolution of Solana’s ecosystem and the transition into a multi-client network. The Anza team is expected to release comprehensive, in-depth breakdowns of Agave 2.0 before launch. This article will be limited in scope to the practical aspects of transition preparations.
+
+Removed RPC Endpoints and SDK calls
+Multiple obsolete and deprecated v1 Agave RPC endpoints are set to be removed. Namely: 
+
+getRecentBlockhash, getConfirmedSignatureForAddresses2, getConfirmedTransaction, getConfirmedBlock, getStakeActivation, getFees, confirmTransaction, getSignatureStatus, getSignatureConfirmation, getTotalSupply, getConfirmedSignaturesForAddress, getConfirmedBlocks, getConfirmedBlocksWithLimit, getFeeCalculatorForBlockhash, getFeeRateGovernor, getSnapshotSlot
+
+
+Based on an internal Helius analysis, we believe most of our customers will not be affected by these changes. However, a small cohort is still actively using the following endpoints:
+
+getRecentBlockhash, getConfirmedSignatureForAddresses2, getConfirmedTransaction, getConfirmedBlock, getStakeActivation, getFees
+
+We strongly recommend all developers check for references to these calls and update them appropriately with the suggested replacements before the 2.0 Mainnet-Beta client release.
+
+The alternative approach for getAccountInfo shown in the image can be found here.
+
+SDK breaking changes include:
+
+Support for Borsh v0.9 removed, please use v1 or v0.10 (#1440)
+Copy trait is no longer derived on Rent and EpochSchedule; switch to using clone()
+solana-sdk: deprecated symbols removed 
+solana-program: deprecated symbols removed
+A complete list of breaking changes can be found on the Agave changelog.
+
+Renamed Crates
+Several crates are being renamed to accommodate the introduction of multiple Solana validator clients, such as Firedancer, which different teams will manage. By appending "Agave" to these crate names, the crates are identified as dependencies specifically maintained by Anza for the Agave validator client. This change ensures greater clarity in distinguishing Agave-related dependencies from those managed by other teams. Affected crates are: 
+
+solana-validator, solana-ledger-tool, solana-watchtower, solana-install, solana-geyser-plugin-interface, solana-cargo-registry
+
+
+Developers should check any automations or scripts for references to these crates and update them appropriately.
+
+Removed Validator Arguments
+For validator operators, the following deprecated validator arguments will be removed upon the release of Agave v2.0:
+
+--enable-rpc-obsolete_v1_7 (#1886)
+
+--accounts-db-caching-enabled (#2063)
+
+--accounts-db-index-hashing (#2063)
+
+--no-accounts-db-index-hashing (#2063)
+
+--incremental-snapshots (#2148)
+
+--halt-on-known-validators-accounts-hash-mismatch (#2157)
+
+
+Again, we recommend validator operators carefully ensure these are no longer used.
+
+Last but not least, the original Solana Labs GitHub will be archived upon the release of Agave v2.0. Developers should migrate all activities to the Anza Agave GitHub repository.
+
+In conclusion, we’ll leave you with the words of Solana DevRel team’s Nick Frostbutter on a recent changelog video, “If you're using anything that has a depreciation warning, you need to make sure you are upgrading your code.”
+
+That’s it for this short public service announcement. Hope to see many of you at Breakpoint!
+
