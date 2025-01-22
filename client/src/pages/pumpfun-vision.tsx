@@ -2,7 +2,7 @@
 
 import '@/lib/pump-portal-websocket';
 import '@/lib/helius-websocket';
-import { FC, useState } from "react";
+import { FC, useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -50,12 +50,6 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
         </div>
         <div className={`text-right font-medium ${token.price > token.price ? "text-green-500" : token.price < token.price ? "text-red-500" : ""}`}>
           ${token.price.toFixed(6)}
-          {/* 
-            Note: Since previous state tracking was removed, 
-            the price change indicator needs to be implemented differently.
-            Consider implementing a comparison with the previous price 
-            if necessary.
-          */}
         </div>
         <div className={`text-right ${token.marketCap > token.marketCap ? "text-green-500" : token.marketCap < token.marketCap ? "text-red-500" : ""}`}>
           ${millify(token.marketCap)}
@@ -72,6 +66,19 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
 };
 
 const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, onBack }) => {
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const updatedToken = usePumpPortalStore(
+    (state) => state.tokens.find((t) => t.address === token.address)
+  );
+
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    }
+  }, [updatedToken?.recentTrades.length]);
+
+  const currentToken = updatedToken || token;
+
   return (
     <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 overflow-auto">
       <div className="h-full flex flex-col">
@@ -88,39 +95,32 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               <div className="flex items-center gap-3">
-                {/* Display Token Image */}
                 <img
-                  src={getTokenImage(token)}
-                  alt={`${token.symbol} logo`}
+                  src={getTokenImage(currentToken)}
+                  alt={`${currentToken.symbol} logo`}
                   className="w-12 h-12 rounded-full object-cover bg-purple-500/20"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150';
                   }}
                 />
                 <div>
-                  <h1 className="text-xl font-bold">{token.name}</h1>
-                  <p className="text-sm text-muted-foreground">{token.symbol}</p>
+                  <h1 className="text-xl font-bold">{currentToken.name}</h1>
+                  <p className="text-sm text-muted-foreground">{currentToken.symbol}</p>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <div className="text-right">
                 <div className={`text-xl font-bold transition-colors duration-300 ${
-                  token.price > token.price ? 'text-green-500' : 
-                  token.price < token.price ? 'text-red-500' : ''
+                  currentToken.price > token.price ? 'text-green-500' : 
+                  currentToken.price < token.price ? 'text-red-500' : ''
                 }`}>
-                  ${token.price.toFixed(6)}
-                  {/* 
-                    Note: Since previous state tracking was removed, 
-                    the price change indicator needs to be implemented differently.
-                    Consider implementing a comparison with the previous price 
-                    if necessary.
-                  */}
+                  ${currentToken.price.toFixed(6)}
                 </div>
-                <div className={token.timeWindows['1m'].closePrice > token.timeWindows['1m'].openPrice ? 
+                <div className={currentToken.timeWindows['1m'].closePrice > currentToken.timeWindows['1m'].openPrice ? 
                   "text-sm text-green-500" : "text-sm text-red-500"}>
-                  {((token.timeWindows['1m'].closePrice - token.timeWindows['1m'].openPrice) / 
-                    token.timeWindows['1m'].openPrice * 100).toFixed(2)}%
+                  {((currentToken.timeWindows['1m'].closePrice - currentToken.timeWindows['1m'].openPrice) / 
+                    currentToken.timeWindows['1m'].openPrice * 100).toFixed(2)}%
                 </div>
               </div>
             </div>
@@ -142,18 +142,18 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                 {[
                   { 
                     label: "Market Cap", 
-                    value: `$${millify(token.marketCap)}`,
-                    change: 0 // Placeholder, implement if needed
+                    value: `$${millify(currentToken.marketCap)}`,
+                    change: ((currentToken.marketCap - token.marketCap) / token.marketCap) * 100
                   },
                   { 
                     label: "Liquidity", 
-                    value: `$${millify(token.liquidity)}`,
-                    change: 0 // Placeholder, implement if needed
+                    value: `$${millify(currentToken.liquidity)}`,
+                    change: ((currentToken.liquidity - token.liquidity) / token.liquidity) * 100
                   },
                   { 
                     label: "Volume 24h", 
-                    value: `$${millify(token.volume24h)}`,
-                    change: 0 // Placeholder, implement if needed
+                    value: `$${millify(currentToken.volume24h)}`,
+                    change: ((currentToken.volume24h - token.volume24h) / token.volume24h) * 100
                   },
                 ].map((stat, idx) => (
                   <Card key={idx} className="p-4 bg-background/50 border-purple-500/20">
@@ -177,10 +177,10 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
               {/* Additional Stats */}
               <div className="grid grid-cols-4 gap-4">
                 {[
-                  { label: "1m Volume", value: `$${millify(token.timeWindows['1m'].volume)}` },
-                  { label: "5m Volume", value: `$${millify(token.timeWindows['5m'].volume)}` },
-                  { label: "15m Volume", value: `$${millify(token.timeWindows['15m'].volume)}` },
-                  { label: "1h Volume", value: `$${millify(token.timeWindows['1h'].volume)}` },
+                  { label: "1m Volume", value: `$${millify(currentToken.timeWindows['1m'].volume)}` },
+                  { label: "5m Volume", value: `$${millify(currentToken.timeWindows['5m'].volume)}` },
+                  { label: "15m Volume", value: `$${millify(currentToken.timeWindows['15m'].volume)}` },
+                  { label: "1h Volume", value: `$${millify(currentToken.timeWindows['1h'].volume)}` },
                 ].map((stat, idx) => (
                   <Card key={idx} className="p-4 bg-background/50 border-purple-500/20">
                     <div className="text-sm text-muted-foreground">{stat.label}</div>
@@ -195,9 +195,9 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
               <div className="p-4 border-b border-border/40">
                 <h3 className="font-semibold">Live Trades</h3>
               </div>
-              <ScrollArea className="h-[calc(100vh-180px)]">
+              <ScrollArea className="h-[calc(100vh-180px)]" ref={scrollAreaRef}>
                 <div className="p-2 space-y-2">
-                  {token.recentTrades.map((trade, idx) => (
+                  {currentToken.recentTrades.map((trade, idx) => (
                     <Card
                       key={`${trade.timestamp}-${idx}`}
                       className={`p-3 flex items-center justify-between ${

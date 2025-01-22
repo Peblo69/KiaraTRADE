@@ -13,7 +13,6 @@ import PumpFunVision from "@/pages/pumpfun-vision";
 import { WalletContextProvider } from "@/lib/wallet";
 import MarketDataBar from "@/components/MarketDataBar";
 import Navbar from "@/components/Navbar";
-import { NewTokenAlert } from "@/components/NewTokenAlert";
 import { useLocation } from "wouter";
 
 function Router() {
@@ -34,7 +33,6 @@ function Router() {
       )}
 
       <main className={!isLandingPage ? "pt-[120px]" : ""}>
-        <NewTokenAlert />
         <Switch>
           <Route path="/" component={Landing} />
           <Route path="/home" component={Home} />
