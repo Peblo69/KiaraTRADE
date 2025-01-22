@@ -38,6 +38,7 @@ export const AdvancedChart: FC<ChartProps> = ({
   const candlestickSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [noDataForTimeframe, setNoDataForTimeframe] = useState(false);
 
   // Initialize chart
   useEffect(() => {
@@ -110,19 +111,34 @@ export const AdvancedChart: FC<ChartProps> = ({
 
     // Set initial data
     if (data.length) {
-      candlestickSeries.setData(data);
+      try {
+        // Sort data by time to ensure proper order
+        const sortedData = [...data].sort((a, b) => {
+          const timeA = typeof a.time === 'number' ? a.time : new Date(a.time as string).getTime();
+          const timeB = typeof b.time === 'number' ? b.time : new Date(b.time as string).getTime();
+          return timeA - timeB;
+        });
 
-      // Create volume data with matching colors
-      const volumeData = data.map((d) => ({
-        time: d.time,
-        value: d.volume,
-        color: d.close >= d.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
-      }));
-      volumeSeries.setData(volumeData);
+        candlestickSeries.setData(sortedData);
 
-      // Fit content and remove loading state
-      chart.timeScale().fitContent();
-      setIsLoading(false);
+        // Create volume data with matching colors
+        const volumeData = sortedData.map((d) => ({
+          time: d.time,
+          value: d.volume,
+          color: d.close >= d.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
+        }));
+        volumeSeries.setData(volumeData);
+
+        // Fit content and remove loading state
+        chart.timeScale().fitContent();
+        setIsLoading(false);
+        setNoDataForTimeframe(false);
+      } catch (error) {
+        console.error('Error setting chart data:', error);
+        setNoDataForTimeframe(true);
+      }
+    } else {
+      setNoDataForTimeframe(true);
     }
 
     chartRef.current = chart;
@@ -135,28 +151,54 @@ export const AdvancedChart: FC<ChartProps> = ({
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, []);
+  }, [timeframe]); // Re-initialize chart when timeframe changes
 
   // Update data in real-time
   useEffect(() => {
-    if (!candlestickSeriesRef.current || !volumeSeriesRef.current || !data.length) return;
+    if (!candlestickSeriesRef.current || !volumeSeriesRef.current || !data.length) {
+      setNoDataForTimeframe(true);
+      return;
+    }
 
-    // Update last candle or add new one
-    const lastDataPoint = data[data.length - 1];
-    candlestickSeriesRef.current.update(lastDataPoint);
+    try {
+      // Update last candle or add new one
+      const lastDataPoint = data[data.length - 1];
 
-    volumeSeriesRef.current.update({
-      time: lastDataPoint.time,
-      value: lastDataPoint.volume,
-      color: lastDataPoint.close >= lastDataPoint.open 
-        ? 'rgba(38, 166, 154, 0.5)' 
-        : 'rgba(239, 83, 80, 0.5)',
-    });
+      // Validate time data
+      const currentTime = typeof lastDataPoint.time === 'number' 
+        ? lastDataPoint.time 
+        : new Date(lastDataPoint.time as string).getTime();
 
-    setIsLoading(false);
+      if (!currentTime) {
+        console.warn('Invalid time data in chart update');
+        return;
+      }
+
+      candlestickSeriesRef.current.update({
+        ...lastDataPoint,
+        time: currentTime,
+      });
+
+      volumeSeriesRef.current.update({
+        time: currentTime,
+        value: lastDataPoint.volume,
+        color: lastDataPoint.close >= lastDataPoint.open 
+          ? 'rgba(38, 166, 154, 0.5)' 
+          : 'rgba(239, 83, 80, 0.5)',
+      });
+
+      setIsLoading(false);
+      setNoDataForTimeframe(false);
+    } catch (error) {
+      console.error('Error updating chart:', error);
+      setNoDataForTimeframe(true);
+    }
   }, [data]);
 
   const handleTimeframeChange = useCallback((newTimeframe: string) => {
+    // Reset error state when changing timeframes
+    setNoDataForTimeframe(false);
+    setIsLoading(true);
     onTimeframeChange?.(newTimeframe);
   }, [onTimeframeChange]);
 
@@ -190,6 +232,13 @@ export const AdvancedChart: FC<ChartProps> = ({
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        )}
+        {noDataForTimeframe && !isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+            <div className="text-muted-foreground text-sm">
+              No data available for selected timeframe
+            </div>
           </div>
         )}
       </div>
