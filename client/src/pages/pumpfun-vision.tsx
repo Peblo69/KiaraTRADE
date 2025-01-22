@@ -78,13 +78,22 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
   useEffect(() => {
     if (updatedToken?.recentTrades) {
       setAllTrades(prev => {
-        const newTrades = updatedToken.recentTrades.filter(newTrade => 
-          !prev.some(existingTrade => 
-            existingTrade.timestamp === newTrade.timestamp && 
-            existingTrade.volume === newTrade.volume
-          )
+        // Use a Map to deduplicate trades while preserving order
+        const tradeMap = new Map(
+          prev.map(trade => [`${trade.timestamp}-${trade.volume}-${trade.wallet}`, trade])
         );
-        return [...prev, ...newTrades];
+
+        // Add new trades that don't exist
+        updatedToken.recentTrades.forEach(trade => {
+          const key = `${trade.timestamp}-${trade.volume}-${trade.wallet}`;
+          if (!tradeMap.has(key)) {
+            tradeMap.set(key, trade);
+          }
+        });
+
+        // Convert back to array and sort by timestamp (newest first)
+        return Array.from(tradeMap.values())
+          .sort((a, b) => b.timestamp - a.timestamp);
       });
     }
   }, [updatedToken?.recentTrades]);
@@ -131,14 +140,14 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
             <div className="flex items-center gap-2">
               <div className="text-right">
                 <div className={`text-xl font-bold transition-colors duration-300 ${
-                  currentToken.price > token.price ? 'text-green-500' : 
+                  currentToken.price > token.price ? 'text-green-500' :
                   currentToken.price < token.price ? 'text-red-500' : ''
                 }`}>
                   ${currentToken.price.toFixed(6)}
                 </div>
-                <div className={currentToken.timeWindows['1m'].closePrice > currentToken.timeWindows['1m'].openPrice ? 
+                <div className={currentToken.timeWindows['1m'].closePrice > currentToken.timeWindows['1m'].openPrice ?
                   "text-sm text-green-500" : "text-sm text-red-500"}>
-                  {((currentToken.timeWindows['1m'].closePrice - currentToken.timeWindows['1m'].openPrice) / 
+                  {((currentToken.timeWindows['1m'].closePrice - currentToken.timeWindows['1m'].openPrice) /
                     currentToken.timeWindows['1m'].openPrice * 100).toFixed(2)}%
                 </div>
               </div>
@@ -159,18 +168,18 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
               {/* Stats Grid */}
               <div className="grid grid-cols-3 gap-4">
                 {[
-                  { 
-                    label: "Market Cap", 
+                  {
+                    label: "Market Cap",
                     value: `$${millify(currentToken.marketCap)}`,
                     change: ((currentToken.marketCap - token.marketCap) / token.marketCap) * 100
                   },
-                  { 
-                    label: "Liquidity", 
+                  {
+                    label: "Liquidity",
                     value: `$${millify(currentToken.liquidity)}`,
                     change: ((currentToken.liquidity - token.liquidity) / token.liquidity) * 100
                   },
-                  { 
-                    label: "Volume 24h", 
+                  {
+                    label: "Volume 24h",
                     value: `$${millify(currentToken.volume24h)}`,
                     change: ((currentToken.volume24h - token.volume24h) / token.volume24h) * 100
                   },
@@ -178,14 +187,14 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                   <Card key={idx} className="p-4 bg-background/50 border-purple-500/20">
                     <div className="text-sm text-muted-foreground">{stat.label}</div>
                     <div className={`text-lg font-bold mt-1 transition-colors duration-300 ${
-                      stat.change > 0 ? 'text-green-500' : 
+                      stat.change > 0 ? 'text-green-500' :
                       stat.change < 0 ? 'text-red-500' : ''
                     }`}>
                       {stat.value}
                       {stat.change !== 0 && (
                         <span className="ml-2">
-                          {stat.change > 0 ? <TrendingUp className="inline h-4 w-4" /> : 
-                           stat.change < 0 ? <TrendingDown className="inline h-4 w-4" /> : null}
+                          {stat.change > 0 ? <TrendingUp className="inline h-4 w-4" /> :
+                            stat.change < 0 ? <TrendingDown className="inline h-4 w-4" /> : null}
                         </span>
                       )}
                     </div>

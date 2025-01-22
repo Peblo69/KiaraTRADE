@@ -33,7 +33,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
     set((state) => ({
       trades: {
         ...state.trades,
-        [tokenAddress]: [trade, ...(state.trades[tokenAddress] || [])].slice(0, 100),
+        [tokenAddress]: [trade, ...(state.trades[tokenAddress] || [])].slice(0, 1000), 
       },
     }));
 
@@ -48,7 +48,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
       txType: trade.type,
       solAmount: trade.amount,
       traderPublicKey: trade.type === 'buy' ? trade.buyer : trade.seller,
-      priceImpact: tradeVolumeUsd / 1000000, // Basic price impact calculation
+      priceImpact: tradeVolumeUsd / 1000000, 
       timestamp: trade.timestamp
     });
   },
@@ -58,7 +58,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
     if (subscribedTokens.has(tokenAddress)) return;
 
     if (ws?.readyState === WebSocket.OPEN) {
-      // Subscribe to account updates
+      
       ws.send(JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
@@ -69,12 +69,13 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
             commitment: 'confirmed',
             encoding: 'jsonParsed',
             transactionDetails: 'full',
-            showEvents: true
+            showEvents: true,
+            maxSupportedTransactionVersion: 0
           }
         ]
       }));
 
-      // Also subscribe to all token program events for this token
+      
       ws.send(JSON.stringify({
         jsonrpc: '2.0',
         id: 2,
@@ -84,14 +85,24 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
           {
             commitment: 'confirmed',
             encoding: 'jsonParsed',
-            filters: [
-              {
-                memcmp: {
-                  offset: 0,
-                  bytes: tokenAddress
-                }
-              }
-            ]
+            showEvents: true,
+            maxSupportedTransactionVersion: 0
+          }
+        ]
+      }));
+
+      
+      ws.send(JSON.stringify({
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'programSubscribe',
+        params: [
+          '11111111111111111111111111111111',
+          {
+            commitment: 'confirmed',
+            encoding: 'jsonParsed',
+            showEvents: true,
+            maxSupportedTransactionVersion: 0
           }
         ]
       }));
@@ -118,11 +129,11 @@ async function handleAccountUpdate(data: any) {
       timestamp: new Date().toISOString()
     });
 
-    // Verify transaction using getSignatureStatuses
+    
     const statuses = await connection.getSignatureStatuses([data.signature]);
-    if (!statuses.value[0]?.confirmationStatus) return;
+    if (!statuses.value[0]) return;
 
-    // Get full transaction details
+    
     const tx = await connection.getTransaction(data.signature, {
       maxSupportedTransactionVersion: 0
     });
@@ -132,65 +143,70 @@ async function handleAccountUpdate(data: any) {
     console.log('[Helius] Transaction details:', {
       signature: data.signature,
       blockTime: tx.blockTime,
-      accountKeys: tx.transaction.message.getAccountKeys().map(key => key.toString()),
+      accountKeys: tx.transaction.message.accountKeys.map(key => key.toString()),
       preBalances: tx.meta.preBalances,
       postBalances: tx.meta.postBalances,
       preTokenBalances: tx.meta.preTokenBalances,
       postTokenBalances: tx.meta.postTokenBalances
     });
 
-    // Extract token transfer information
+    
     const preBalances = tx.meta.preBalances;
     const postBalances = tx.meta.postBalances;
     const balanceChanges = postBalances.map((post, i) => post - preBalances[i]);
 
-    // Get account keys
-    const accountKeys = tx.transaction.message.getAccountKeys();
+    
+    const accountKeys = tx.transaction.message.accountKeys;
     if (!accountKeys) return;
 
-    // Extract token balance changes
+    
     const preTokenBalances = tx.meta.preTokenBalances || [];
     const postTokenBalances = tx.meta.postTokenBalances || [];
 
-    // Check if this is a token program transaction
-    const isTokenTx = tx.transaction.message.accountKeys.some(
+    
+    const isTokenTx = accountKeys.some(
       key => key.equals(new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'))
     );
 
     if (!isTokenTx) return;
 
-    // Find the relevant token account
-    const tokenAccount = preTokenBalances.find(
-      balance => balance.mint === data.accountId
-    );
+    
+    const relevantTokenAccounts = [...preTokenBalances, ...postTokenBalances];
+    for (const tokenAccount of relevantTokenAccounts) {
+      if (!tokenAccount) continue;
 
-    if (!tokenAccount) return;
+      
+      const preAmount = preTokenBalances.find(
+        balance => balance.accountIndex === tokenAccount.accountIndex
+      )?.uiTokenAmount.uiAmount || 0;
 
-    // Calculate token amount change
-    const tokenAmount = Math.abs(
-      (postTokenBalances[0]?.uiTokenAmount.uiAmount || 0) -
-      (preTokenBalances[0]?.uiTokenAmount.uiAmount || 0)
-    );
+      
+      const postAmount = postTokenBalances.find(
+        balance => balance.accountIndex === tokenAccount.accountIndex
+      )?.uiTokenAmount.uiAmount || 0;
 
-    // Determine if this is a buy or sell based on token flow
-    const isBuy = (postTokenBalances[0]?.uiTokenAmount.uiAmount || 0) >
-                 (preTokenBalances[0]?.uiTokenAmount.uiAmount || 0);
+      const tokenAmount = Math.abs(postAmount - preAmount);
+      if (tokenAmount === 0) continue;
 
-    const trade: TokenTrade = {
-      signature: data.signature,
-      timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
-      tokenAddress: data.accountId,
-      amount: Math.abs(balanceChanges[0]) / 1e9, // Convert lamports to SOL
-      price: tokenAmount,
-      priceUsd: 0, // Will be calculated using current SOL price
-      buyer: isBuy ? accountKeys.get(1)?.toString() || '' : '',
-      seller: !isBuy ? accountKeys.get(0)?.toString() || '' : '',
-      type: isBuy ? 'buy' : 'sell'
-    };
+      
+      const isBuy = postAmount > preAmount;
 
-    console.log('[Helius] Processed trade:', trade);
+      const trade: TokenTrade = {
+        signature: data.signature,
+        timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
+        tokenAddress: data.accountId,
+        amount: Math.abs(balanceChanges[0]) / 1e9, 
+        price: tokenAmount,
+        priceUsd: 0, 
+        buyer: isBuy ? accountKeys.get(1)?.toString() || '' : '',
+        seller: !isBuy ? accountKeys.get(0)?.toString() || '' : '',
+        type: isBuy ? 'buy' : 'sell'
+      };
 
-    useHeliusStore.getState().addTrade(data.accountId, trade);
+      console.log('[Helius] Processed trade:', trade);
+
+      useHeliusStore.getState().addTrade(data.accountId, trade);
+    }
 
   } catch (error) {
     console.error('[Helius] Error processing account update:', error);
@@ -236,7 +252,7 @@ export function initializeHeliusWebSocket() {
       useHeliusStore.getState().setConnected(true);
       reconnectAttempts = 0;
 
-      // Resubscribe to all previously subscribed tokens
+      
       const { subscribedTokens } = useHeliusStore.getState();
       subscribedTokens.forEach(tokenAddress => {
         useHeliusStore.getState().subscribeToToken(tokenAddress);

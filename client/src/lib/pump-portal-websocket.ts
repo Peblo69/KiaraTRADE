@@ -238,9 +238,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         wallet: trade.traderPublicKey
       };
 
-      const recentTrades = [newTrade, ...(token.recentTrades || [])].slice(0, 50);
+      const recentTrades = [newTrade, ...(token.recentTrades || [])].slice(0, 1000); // Increased from 50 to 1000
 
-      // Calculate 24h stats
+      // Calculate 24h stats using the full trade history
       const last24h = now - 24 * 60 * 60 * 1000;
       const trades24h = recentTrades.filter(t => t.timestamp > last24h);
       const volume24h = trades24h.reduce((sum, t) => sum + t.volume, 0);
@@ -252,7 +252,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       const newLiquidity = token.liquidity + (isBuy ? tradeVolume : -tradeVolume);
       const liquidityChange = ((newLiquidity - token.liquidity) / token.liquidity) * 100;
 
-      // Update token with new data
+      // Update token with new data, ensuring we keep all trades
       return {
         tokens: state.tokens.map(t =>
           t.address === address ? {
@@ -297,7 +297,6 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       symbol,
       solAmount,
       traderPublicKey,
-      txType,
       imageLink // Ensure this field is present in your data
     } = data;
 
@@ -320,8 +319,8 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       volume24h: volumeUsd,
       trades: 1,
       trades24h: 1,
-      buys24h: txType === 'buy' ? 1 : 0,
-      sells24h: txType === 'sell' ? 1 : 0,
+      buys24h: data.txType === 'buy' ? 1 : 0,
+      sells24h: data.txType === 'sell' ? 1 : 0,
       walletCount: 1,
       timestamp: now,
       timeWindows: createEmptyTimeWindows(now),
@@ -330,7 +329,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
         timestamp: now, // Ensure this is a number
         price: priceUsd,
         volume: volumeUsd,
-        isBuy: txType === 'buy',
+        isBuy: data.txType === 'buy',
         wallet: traderPublicKey
       }],
       status: {
