@@ -1,5 +1,5 @@
 import { FC, useEffect, useRef, useState, useCallback } from 'react';
-import { createChart, ColorType, IChartApi, Time, CrosshairMode, MarkerShape, MarkerType } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, Time, CrosshairMode } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import {
   Select,
@@ -54,7 +54,6 @@ export const AdvancedChart: FC<ChartProps> = ({
       });
     };
 
-    // Create chart with professional styling
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: '#0A0A0A' },
@@ -70,9 +69,20 @@ export const AdvancedChart: FC<ChartProps> = ({
         timeVisible: true,
         secondsVisible: true,
         borderColor: 'rgba(197, 203, 206, 0.3)',
+        barSpacing: 4, // More compact initial view
+        minBarSpacing: 2,
+        rightOffset: 5, // Leave space on the right
+        visibleRange: {
+          from: (Math.floor(Date.now() / 1000) - 300), // Show last 5 minutes by default
+          to: Math.floor(Date.now() / 1000)
+        }
       },
       rightPriceScale: {
         borderColor: 'rgba(197, 203, 206, 0.3)',
+        scaleMargins: {
+          top: 0.1, // Keep some space at the top
+          bottom: 0.25 // This creates space for volume
+        }
       },
       crosshair: {
         mode: CrosshairMode.Normal,
@@ -98,7 +108,6 @@ export const AdvancedChart: FC<ChartProps> = ({
       },
     });
 
-    // Add candlestick series with vibrant colors
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: '#00C805',
       downColor: '#FF3B69',
@@ -112,18 +121,19 @@ export const AdvancedChart: FC<ChartProps> = ({
       },
     });
 
-    // Add volume series with matching colors
     const volumeSeries = chart.addHistogramSeries({
       priceFormat: {
         type: 'volume',
       },
-      priceScaleId: '',
+      priceScaleId: '', // Overlay the volume
+      scaleMargins: {
+        top: 0.8, // Position volume at bottom
+        bottom: 0,
+      },
     });
 
-    // Set initial data
     if (data.length) {
       try {
-        // Sort data by time to ensure proper order
         const sortedData = [...data].sort((a, b) => {
           const timeA = typeof a.time === 'number' ? a.time : new Date(a.time as string).getTime();
           const timeB = typeof b.time === 'number' ? b.time : new Date(b.time as string).getTime();
@@ -132,7 +142,6 @@ export const AdvancedChart: FC<ChartProps> = ({
 
         candlestickSeries.setData(sortedData);
 
-        // Create volume data with matching colors
         const volumeData = sortedData.map(d => ({
           time: d.time,
           value: d.volume,
@@ -140,7 +149,7 @@ export const AdvancedChart: FC<ChartProps> = ({
         }));
         volumeSeries.setData(volumeData);
 
-        // Subscribe to crosshair move to show detailed price information
+        // Subscribe to crosshair move
         chart.subscribeCrosshairMove(param => {
           const tooltip = tooltipRef.current;
           if (!tooltip) return;
@@ -169,7 +178,6 @@ export const AdvancedChart: FC<ChartProps> = ({
           }
         });
 
-        // Hide tooltip when mouse leaves chart
         chartContainerRef.current.addEventListener('mouseleave', () => {
           if (tooltipRef.current) {
             tooltipRef.current.style.display = 'none';
@@ -199,7 +207,6 @@ export const AdvancedChart: FC<ChartProps> = ({
     };
   }, [timeframe]);
 
-  // Update data in real-time
   useEffect(() => {
     if (!candlestickSeriesRef.current || !volumeSeriesRef.current || !data.length) {
       setNoDataForTimeframe(true);
@@ -225,7 +232,6 @@ export const AdvancedChart: FC<ChartProps> = ({
           : 'rgba(255, 59, 105, 0.5)',
       });
 
-      // Update markers for recent trades
       if (recentTrades && recentTrades.length > 0) {
         const markers = recentTrades.map(trade => ({
           time: Math.floor(trade.timestamp / 1000),
