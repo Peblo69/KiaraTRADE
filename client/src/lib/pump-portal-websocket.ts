@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { useHeliusStore } from './helius-websocket';
 import axios from "axios";
+import { useHeliusStore } from './helius-websocket';
 
 // -----------------------------------
 // TYPES
@@ -34,8 +34,9 @@ export interface PumpPortalToken {
   sells24h: number;
   walletCount: number;
   timestamp: number;
-  uri?: string;  // Original URI from the API
-  imageUrl?: string;  // Transformed HTTP URL
+  timeWindows: {
+    [K in keyof typeof TIME_WINDOWS]: TimeWindowStats;
+  };
   recentTrades: {
     timestamp: number;
     price: number;
@@ -43,19 +44,18 @@ export interface PumpPortalToken {
     isBuy: boolean;
     wallet: string;
   }[];
-  timeWindows: {
-    [K in keyof typeof TIME_WINDOWS]: TimeWindowStats;
-  };
   isValid: boolean;
 }
 
-// Function to transform URI to HTTP URL
-function transformUri(uri: string): string {
-  if (!uri) return '';
-  if (uri.startsWith('ipfs://')) {
-    return uri.replace('ipfs://', 'https://ipfs.io/ipfs/');
-  }
-  return uri;
+interface PumpPortalStore {
+  tokens: PumpPortalToken[];
+  isConnected: boolean;
+  solPrice: number | null;
+  addToken: (token: PumpPortalToken) => void;
+  updateToken: (address: string, updates: Partial<PumpPortalToken>) => void;
+  addTradeToHistory: (address: string, trade: any) => void;
+  setConnected: (connected: boolean) => void;
+  setSolPrice: (price: number) => void;
 }
 
 // -----------------------------------
@@ -82,7 +82,7 @@ let lastPriceUpdate = 0;
 function createEmptyTimeWindow(startTime: number): TimeWindowStats {
   return {
     startTime,
-    endTime: startTime + 60000,
+    endTime: startTime + 60000, // Default to 1m window
     openPrice: 0,
     closePrice: 0,
     highPrice: 0,
@@ -126,24 +126,19 @@ async function fetchSolPrice(): Promise<number> {
 // -----------------------------------
 // STORE
 // -----------------------------------
-export const usePumpPortalStore = create<{
-  tokens: PumpPortalToken[];
-  isConnected: boolean;
-  solPrice: number | null;
-  addToken: (token: PumpPortalToken) => void;
-  updateToken: (address: string, updates: Partial<PumpPortalToken>) => void;
-  addTradeToHistory: (address: string, trade: any) => void;
-  setConnected: (connected: boolean) => void;
-  setSolPrice: (price: number) => void;
-}>((set, get) => ({
+// Add debug helper
+function debugLog(source: string, message: string, data?: any) {
+  console.log(`[PumpPortal:${source}]`, message, data ? data : '');
+}
+
+export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
   isConnected: false,
   solPrice: null,
-  addToken: (token) => {
+  addToken: (token) =>
     set((state) => ({
       tokens: [token, ...state.tokens].slice(0, 100),
-    }));
-  },
+    })),
   updateToken: (address, updates) =>
     set((state) => ({
       tokens: state.tokens.map((token) =>
@@ -154,7 +149,7 @@ export const usePumpPortalStore = create<{
     set((state) => {
       const token = state.tokens.find(t => t.address === address);
       if (!token || !token.isValid) {
-        console.log('[PumpPortal] Skipping invalid token:', address);
+        debugLog('Trade', 'Skipping invalid token:', address);
         return state;
       }
 
@@ -163,8 +158,20 @@ export const usePumpPortalStore = create<{
       const tradeVolume = Number(trade.solAmount || 0) * solPrice;
       const isBuy = trade.txType === 'buy';
 
+      debugLog('Trade', 'Processing trade:', {
+        token: token.symbol,
+        type: trade.txType,
+        volume: tradeVolume,
+        solPrice
+      });
+
       // Calculate new price based on trade
       const newPrice = tradeVolume / TOTAL_SUPPLY;
+      debugLog('Trade', 'New price calculated:', {
+        oldPrice: token.price,
+        newPrice,
+        change: ((newPrice - token.price) / token.price * 100).toFixed(2) + '%'
+      });
 
       // Update time windows
       const updatedWindows = { ...token.timeWindows };
@@ -217,9 +224,17 @@ export const usePumpPortalStore = create<{
       const buys24h = trades24h.filter(t => t.isBuy).length;
       const sells24h = trades24h.filter(t => !t.isBuy).length;
 
+      // Add debug log before state update
+      debugLog('Trade', 'Updating token state:', {
+        symbol: token.symbol,
+        newPrice,
+        volume24h,
+        trades24h: trades24h.length
+      });
+
       // Update token with new data
       return {
-        tokens: state.tokens.map(t =>
+        tokens: state.tokens.map(t => 
           t.address === address ? {
             ...t,
             price: newPrice,
@@ -254,8 +269,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       symbol,
       solAmount,
       traderPublicKey,
-      txType,
-      uri
+      txType
     } = data;
 
     const marketCapUsd = Number(marketCapSol || 0) * solPrice;
@@ -279,8 +293,6 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       sells24h: txType === 'sell' ? 1 : 0,
       walletCount: 1,
       timestamp: now,
-      uri: uri || '',  // Store original URI
-      imageUrl: uri ? transformUri(uri) : undefined, // Transform URI to HTTP URL
       timeWindows: createEmptyTimeWindows(now),
       recentTrades: [{
         timestamp: now,
@@ -331,17 +343,17 @@ export function initializePumpPortalWebSocket() {
       reconnectAttempts = 0;
 
       if (ws?.readyState === WebSocket.OPEN) {
-        // Subscribe to new token events
+        // Subscribe to new token events with proper keys parameter
         ws.send(JSON.stringify({
           method: "subscribeNewToken",
-          keys: ["*"]
+          keys: ["*"]  // Subscribe to all new tokens
         }));
         console.log('[PumpPortal] Subscribed to new token events');
 
         // Subscribe to trade events for all tokens
         ws.send(JSON.stringify({
           method: "subscribeTokenTrade",
-          keys: ["*"]
+          keys: ["*"]  // Subscribe to all token trades
         }));
         console.log('[PumpPortal] Subscribed to token trade events');
       }
@@ -350,21 +362,32 @@ export function initializePumpPortalWebSocket() {
     ws.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('[PumpPortal] Received event:', data);
+        debugLog('WebSocket', 'Received message:', data);
 
         if (data.message?.includes('Successfully subscribed')) {
-          console.log('[PumpPortal] Subscription confirmed');
+          debugLog('WebSocket', 'Subscription confirmed');
           return;
         }
 
         // Handle new token creation
         if (data.txType === 'create' && data.mint) {
+          debugLog('Token', 'Processing new token:', {
+            mint: data.mint,
+            symbol: data.symbol
+          });
+
           try {
             const token = await mapPumpPortalData(data);
             if (token.isValid) {
               store.addToken(token);
               useHeliusStore.getState().subscribeToToken(data.mint);
-              console.log('[PumpPortal] Added new token:', token.symbol);
+              debugLog('Token', 'Successfully added new token:', {
+                symbol: token.symbol,
+                price: token.price,
+                marketCap: token.marketCap
+              });
+            } else {
+              debugLog('Token', 'Skipped invalid token:', data.mint);
             }
           } catch (err) {
             console.error('[PumpPortal] Failed to process token:', err);
@@ -373,6 +396,11 @@ export function initializePumpPortalWebSocket() {
 
         // Handle trade events
         if (['buy', 'sell'].includes(data.txType) && data.mint) {
+          debugLog('Trade', 'Processing trade event:', {
+            type: data.txType,
+            mint: data.mint,
+            amount: data.solAmount
+          });
           store.addTradeToHistory(data.mint, data);
         }
 

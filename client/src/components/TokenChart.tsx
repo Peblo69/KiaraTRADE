@@ -1,6 +1,7 @@
-import { FC } from "react";
+import { useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
+import { useHeliusStore } from "@/lib/helius-websocket";
 import {
   Area,
   XAxis,
@@ -15,56 +16,60 @@ interface TokenChartProps {
   tokenAddress: string;
 }
 
-export const TokenChart: FC<TokenChartProps> = ({ tokenAddress }) => {
+export function TokenChart({ tokenAddress }: TokenChartProps) {
   const token = usePumpPortalStore(state => 
     state.tokens.find(t => t.address === tokenAddress)
   );
 
-  if (!token) return null;
+  const heliusTrades = useHeliusStore(state => 
+    state.trades[tokenAddress] || []
+  );
 
-  // Prepare chart data from trades
-  const chartData = token.recentTrades.map(trade => ({
-    time: new Date(trade.timestamp).toLocaleTimeString(),
-    price: trade.price,
-    volume: trade.volume,
-    type: trade.isBuy ? 'buy' : 'sell',
-    wallet: trade.wallet
-  })).reverse();
+  // Combine both data sources for richer information
+  const chartData = useMemo(() => {
+    if (!token) return [];
+
+    // Convert trade history to chart data points
+    return token.recentTrades.map(trade => ({
+      time: new Date(trade.timestamp).toLocaleTimeString(),
+      price: trade.price,
+      volume: trade.volume,
+      type: trade.isBuy ? 'buy' : 'sell',
+      wallet: trade.wallet
+    })).reverse();
+  }, [token?.recentTrades]);
+
+  useEffect(() => {
+    // Debug log for price updates
+    if (token) {
+      console.log(`[TokenChart] Price update for ${token.symbol}:`, {
+        price: token.price,
+        marketCap: token.marketCap,
+        trades24h: token.trades24h
+      });
+    }
+  }, [token?.price, token?.marketCap, token?.trades24h]);
+
+  if (!token) return null;
 
   return (
     <Card className="w-full">
-      <CardHeader className="flex flex-col space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            {token.imageUrl && (
-              <img 
-                src={token.imageUrl} 
-                alt={token.symbol}
-                className="w-10 h-10 rounded-full"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
-            )}
-            <div className="space-y-1">
-              <h3 className="font-semibold text-lg tracking-tight">
-                {token.symbol} ({token.name})
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Current Price: ${token.price.toFixed(8)}
-              </p>
-            </div>
-          </div>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <div className="space-y-1">
+          <h3 className="font-semibold text-lg tracking-tight">
+            {token.symbol} ({token.name})
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Current Price: ${token.price.toFixed(8)}
+          </p>
         </div>
-        <div className="flex justify-between items-center">
-          <div className="text-right space-y-1">
-            <p className="text-sm font-medium">
-              Market Cap: ${token.marketCap.toFixed(2)}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Volume: ${token.volume.toFixed(2)}
-            </p>
-          </div>
+        <div className="text-right space-y-1">
+          <p className="text-sm font-medium" id={`mcap-${tokenAddress}`}>
+            Market Cap: ${token.marketCap.toFixed(2)}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Liquidity: ${token.liquidity.toFixed(2)}
+          </p>
         </div>
       </CardHeader>
       <CardContent>
@@ -161,6 +166,6 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress }) => {
       </CardContent>
     </Card>
   );
-};
+}
 
 export default TokenChart;
