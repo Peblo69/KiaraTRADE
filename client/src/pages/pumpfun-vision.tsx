@@ -1,20 +1,11 @@
 import { FC, useState } from "react";
 import { Card } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, ArrowLeft, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import millify from "millify";
 
-/** 
- * Convert time difference (timestamp -> "10s ago")
- */
 function getTimeDiff(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
   if (seconds < 60) return `${seconds}s ago`;
@@ -104,7 +95,7 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
               </div>
               <ScrollArea className="h-[calc(100vh-180px)]">
                 <div className="p-2 space-y-2">
-                  {token.recentTrades.map((trade, idx) => (
+                  {token.recentTrades.map((trade: any, idx: number) => (
                     <Card
                       key={`${trade.timestamp}-${idx}`}
                       className={`p-3 flex items-center justify-between ${
