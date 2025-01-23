@@ -8,16 +8,34 @@ class HeliusWebSocketManager {
   private reconnectAttempts = 0;
   private readonly MAX_RECONNECT_ATTEMPTS = 5;
   private readonly RECONNECT_DELAY = 5000;
+  private initialized = false;
 
   constructor() {
+    this.validateApiKey();
+  }
+
+  private validateApiKey() {
     if (!process.env.HELIUS_API_KEY) {
-      console.error('[Helius WebSocket] Missing HELIUS_API_KEY');
-      return;
+      const error = new Error('[Helius WebSocket] HELIUS_API_KEY environment variable is not set');
+      console.error(error.message);
+      throw error;
     }
-    console.log('[Helius WebSocket] API Key available:', !!process.env.HELIUS_API_KEY);
+
+    if (typeof process.env.HELIUS_API_KEY !== 'string' || process.env.HELIUS_API_KEY.length < 10) {
+      const error = new Error('[Helius WebSocket] HELIUS_API_KEY appears to be invalid');
+      console.error(error.message);
+      throw error;
+    }
+
+    console.log('[Helius WebSocket] API Key validation successful');
   }
 
   connect() {
+    if (!process.env.HELIUS_API_KEY) {
+      console.error('[Helius WebSocket] Cannot connect: HELIUS_API_KEY is not set');
+      return;
+    }
+
     if (this.ws?.readyState === WebSocket.OPEN) {
       console.log('[Helius WebSocket] Already connected');
       return;
@@ -167,8 +185,20 @@ class HeliusWebSocketManager {
 
   // Initialize the connection
   initialize() {
-    console.log('[Helius WebSocket] Initializing...');
-    this.connect();
+    if (this.initialized) {
+      console.log('[Helius WebSocket] Already initialized');
+      return;
+    }
+
+    try {
+      console.log('[Helius WebSocket] Initializing...');
+      this.validateApiKey();
+      this.connect();
+      this.initialized = true;
+    } catch (error) {
+      console.error('[Helius WebSocket] Failed to initialize:', error);
+      throw error; // Re-throw to prevent silent failure
+    }
   }
 }
 
