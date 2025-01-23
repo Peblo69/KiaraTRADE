@@ -1,0 +1,51 @@
+
+It looks like the Helius WebSocket Manager is working correctly in the console where this log is shown. The WebSocket connection is successfully established, and tokens are being resubscribed. However, the issue lies in the discrepancy between the two consoles: one where Helius logs are visible and the other where PumpPortal activity is displayed.
+
+Analysis of Current Logs
+Successful Helius Connection:
+
+The Helius WebSocket logs confirm:
+less
+Copy
+Edit
+[Helius WebSocket] Attempting to connect...
+[Helius WebSocket] Connecting to: wss://mainnet.helius-rpc.com/?api-key=004f9b13-f526-4952-9998-52f5c7bec6ee
+[Helius WebSocket] Connected successfully
+[Helius WebSocket] Resubscribing to all tokens...
+This means the Helius WebSocket Manager is functioning properly in this console.
+Discrepancy in Consoles:
+
+In the PumpPortal console, there’s no sign of the Helius WebSocket. This could mean:
+The PumpPortal and Helius WebSocket systems are running in separate processes.
+The logs for Helius are not being properly routed to the console where PumpPortal logs are displayed.
+Steps to Unify Logs Across Consoles
+If PumpPortal and Helius WebSocket are running in separate processes, you’ll need to unify their logs or ensure the Helius WebSocket functionality is also visible where PumpPortal activity is logged.
+
+1. Use a Shared Logger
+Set up a shared logger (e.g., winston or pino) to unify logs from both processes:
+
+javascript
+Copy
+Edit
+import winston from 'winston';
+
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
+
+export default logger;
+Replace all console.log calls in both PumpPortal and Helius WebSocket code with logger.info:
+
+javascript
+Copy
+Edit
+logger.info('[Helius WebSocket] Connected successfully');
+This ensures all logs go to the same output (console and a log file).

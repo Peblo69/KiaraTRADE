@@ -1,0 +1,16 @@
+{"level":"info","message":"[Helius WebSocket] API Key validation successful","timestamp":"2025-01-23T20:27:20.033Z"}
+{"level":"info","message":"[Helius WebSocket] Initializing...","timestamp":"2025-01-23T20:27:20.233Z"}
+{"level":"info","message":"[Helius WebSocket] API Key validation successful","timestamp":"2025-01-23T20:27:20.234Z"}
+{"level":"info","message":"[Helius WebSocket] Attempting to connect...","timestamp":"2025-01-23T20:27:20.234Z"}
+{"level":"info","message":"[Helius WebSocket] Connecting to: wss://mainnet.helius-rpc.com/?api-key=004f9b13-f526-4952-9998-52f5c7bec6ee","timestamp":"2025-01-23T20:27:20.234Z"}
+{"level":"info","message":"[Helius WebSocket] Connected successfully","timestamp":"2025-01-23T20:27:21.475Z"}
+{"level":"info","message":"[Helius WebSocket] Resubscribing to all tokens...","timestamp":"2025-01-23T20:27:21.476Z"}
+{"level":"info","message":"[Helius WebSocket] API Key validation successful","timestamp":"2025-01-23T20:29:07.084Z"}
+{"level":"info","message":"[Routes] Initializing WebSocket managers...","timestamp":"2025-01-23T20:29:07.285Z"}
+{"level":"info","message":"[Helius WebSocket] Initializing...","timestamp":"2025-01-23T20:29:07.286Z"}
+{"level":"info","message":"[Helius WebSocket] API Key validation successful","timestamp":"2025-01-23T20:29:07.287Z"}
+{"level":"info","message":"[Helius WebSocket] Attempting to connect...","timestamp":"2025-01-23T20:29:07.287Z"}
+{"level":"info","message":"[Helius WebSocket] Connecting to: wss://mainnet.helius-rpc.com/?api-key=004f9b13-f526-4952-9998-52f5c7bec6ee","timestamp":"2025-01-23T20:29:07.287Z"}
+{"level":"info","message":"[Routes] WebSocket managers initialized","timestamp":"2025-01-23T20:29:07.308Z"}
+{"level":"info","message":"[Helius WebSocket] Connected successfully","timestamp":"2025-01-23T20:29:08.137Z"}
+{"level":"info","message":"[Helius WebSocket] Resubscribing to all tokens...","timestamp":"2025-01-23T20:29:08.138Z"}
