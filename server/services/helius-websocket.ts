@@ -14,6 +14,7 @@ class HeliusWebSocketManager {
       console.error('[Helius WebSocket] Missing HELIUS_API_KEY');
       return;
     }
+    console.log('[Helius WebSocket] API Key available:', !!process.env.HELIUS_API_KEY);
   }
 
   connect() {
@@ -23,12 +24,14 @@ class HeliusWebSocketManager {
     }
 
     try {
-      console.log('[Helius WebSocket] Connecting...');
-      // Updated WebSocket URL to use the correct Helius WebSocket endpoint
-      this.ws = new WebSocket(`wss://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`);
+      console.log('[Helius WebSocket] Attempting to connect...');
+      const wsUrl = `wss://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
+      console.log(`[Helius WebSocket] Connecting to: ${wsUrl}`);
+
+      this.ws = new WebSocket(wsUrl);
 
       this.ws.on('open', () => {
-        console.log('[Helius WebSocket] Connected');
+        console.log('[Helius WebSocket] Connected successfully');
         this.reconnectAttempts = 0;
         this.resubscribeAll();
       });
@@ -36,6 +39,8 @@ class HeliusWebSocketManager {
       this.ws.on('message', (data) => {
         try {
           const message = JSON.parse(data.toString());
+          console.log('[Helius WebSocket] Message received:', message);
+
           if (message.method === 'logsNotification') {
             this.handleLogNotification(message.params);
           }
@@ -44,8 +49,17 @@ class HeliusWebSocketManager {
         }
       });
 
-      this.ws.on('close', () => {
-        console.log('[Helius WebSocket] Connection closed');
+      this.ws.on('close', (event) => {
+        const closeReason = event.reason || 'No reason provided';
+        console.log(`[Helius WebSocket] Connection closed (${event.code}): ${closeReason}`);
+
+        // Special handling for rejection codes
+        if (event.code === 1008 || event.code === 1011) {
+          console.error('[Helius WebSocket] Server rejected connection, extending delay before retry');
+          this.reconnectAttempts = this.MAX_RECONNECT_ATTEMPTS; // Force maximum delay
+          return;
+        }
+
         this.reconnect();
       });
 
@@ -81,8 +95,9 @@ class HeliusWebSocketManager {
         ]
       };
 
+      console.log(`[Helius WebSocket] Sending subscription for token: ${tokenAddress}`, subscriptionMessage);
       this.ws.send(JSON.stringify(subscriptionMessage));
-      console.log(`[Helius WebSocket] Subscribed to token: ${tokenAddress}`);
+      console.log(`[Helius WebSocket] Subscription sent for token: ${tokenAddress}`);
 
     } catch (error) {
       console.error(`[Helius WebSocket] Subscription error for ${tokenAddress}:`, error);
@@ -91,9 +106,13 @@ class HeliusWebSocketManager {
 
   private handleLogNotification(params: any) {
     try {
-      // Extract relevant data from the log
+      console.log('[Helius WebSocket] Log notification received:', params);
+
       const { result } = params;
-      if (!result) return;
+      if (!result) {
+        console.warn('[Helius WebSocket] Empty result in notification');
+        return;
+      }
 
       // Broadcast the token activity to connected clients
       wsManager.broadcast({
@@ -112,6 +131,7 @@ class HeliusWebSocketManager {
   private resubscribeAll() {
     console.log('[Helius WebSocket] Resubscribing to all tokens...');
     this.subscriptions.forEach((_, address) => {
+      console.log(`[Helius WebSocket] Resubscribing to token: ${address}`);
       this.subscribeToToken(address);
     });
   }
@@ -129,7 +149,7 @@ class HeliusWebSocketManager {
 
     this.reconnectAttempts++;
     const delay = this.RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts - 1);
-    console.log(`[Helius WebSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
+    console.log(`[Helius WebSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
 
     this.reconnectTimeout = setTimeout(() => {
       this.connect();
@@ -139,6 +159,7 @@ class HeliusWebSocketManager {
   // Public method to add new token subscription
   addToken(tokenAddress: string) {
     if (!this.subscriptions.has(tokenAddress)) {
+      console.log(`[Helius WebSocket] Adding new token subscription: ${tokenAddress}`);
       this.subscriptions.set(tokenAddress, Date.now());
       this.subscribeToToken(tokenAddress);
     }

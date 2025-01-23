@@ -1,0 +1,63 @@
+Next Steps to Debug and Resolve the Issue
+Check If HeliusWebSocketManager is Initialized
+
+Ensure that HeliusWebSocketManager.initialize() is being called somewhere in your application. For example:
+javascript
+Copy
+Edit
+import { heliusWsManager } from './HeliusWebSocketManager';
+heliusWsManager.initialize();
+Add a log in the initialize method to confirm that it’s being invoked:
+javascript
+Copy
+Edit
+console.log('[Helius WebSocket] Manager initialized');
+Check the WebSocket Connection Logs
+
+Add logs in the connect method of HeliusWebSocketManager to confirm if the WebSocket connection is being attempted:
+javascript
+Copy
+Edit
+console.log('[Helius WebSocket] Attempting to connect to Helius...');
+console.log(`[Helius WebSocket] URL: wss://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`);
+Ensure Environment Variable Is Set
+
+Check if process.env.HELIUS_API_KEY is defined and accessible. If it’s missing or undefined, the WebSocket won’t attempt to connect.
+Add a log in the constructor to verify:
+javascript
+Copy
+Edit
+console.log('[Helius WebSocket] API Key:', process.env.HELIUS_API_KEY);
+Add Debugging for WebSocket Events
+
+In the connect method, verify the WebSocket lifecycle events by adding logs:
+javascript
+Copy
+Edit
+this.ws.on('open', () => {
+  console.log('[Helius WebSocket] Connected successfully');
+});
+
+this.ws.on('message', (data) => {
+  console.log('[Helius WebSocket] Message received:', data);
+});
+
+this.ws.on('error', (error) => {
+  console.error('[Helius WebSocket] Connection error:', error);
+});
+
+this.ws.on('close', () => {
+  console.log('[Helius WebSocket] Connection closed');
+});
+Verify Token Subscription
+
+Ensure that tokens detected by PumpPortal are being passed to HeliusWebSocketManager.addToken(). Add a log there to confirm:
+javascript
+Copy
+Edit
+console.log(`[Helius WebSocket] Adding subscription for token: ${tokenAddress}`);
+Check for Browser Compatibility Issues
+
+The error Module "buffer" has been externalized for browser compatibility indicates potential issues with running this logic in a browser-based environment. The ws module is designed for Node.js, so:
+Confirm this code is running in a Node.js environment.
+If you’re running this in the browser, use a compatible WebSocket library for the frontend or delegate the WebSocket connection to a server-side component.
