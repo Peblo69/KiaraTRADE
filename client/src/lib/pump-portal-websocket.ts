@@ -14,18 +14,24 @@ interface PumpPortalStore {
   setTokenActivity: (address: string, isActive: boolean) => void;
   updateLastTradeTime: (address: string) => void;
   setConnected: (connected: boolean) => void;
-  getActiveTokens: () => string[];  // Get addresses of tokens we should actively track
+  getActiveTokens: () => string[];
 }
 
-// Store for tracking new tokens with smart data fetching
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
   isConnected: false,
 
-  addToken: (token) =>
-    set((state) => ({
-      tokens: [token, ...state.tokens].slice(0, 20), // Keep last 20 tokens
-    })),
+  addToken: (token) => {
+    set((state) => {
+      const newTokens = [token, ...state.tokens].slice(0, 20); // Keep last 20 tokens
+
+      // Initialize Helius subscription for the new token
+      const heliusStore = useHeliusStore.getState();
+      heliusStore.subscribeToToken(token.address);
+
+      return { tokens: newTokens };
+    });
+  },
 
   setTokenVisibility: (address, isVisible) =>
     set((state) => ({
@@ -56,7 +62,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
   setConnected: (connected) => set({ isConnected: connected }),
 
-  // Get tokens we should actively track (visible or recently traded)
   getActiveTokens: () => {
     const state = get();
     const now = Date.now();
@@ -90,8 +95,8 @@ async function mapPumpPortalData(data: any): Promise<TokenData> {
       address: mint || '',
       imageLink: imageLink || 'https://via.placeholder.com/150',
       isActive: false,
-      lastTradeTime: Date.now(),
       isVisible: false,
+      lastTradeTime: Date.now(),
     };
   } catch (error) {
     console.error('[PumpPortal] Error mapping data:', error);
@@ -127,7 +132,7 @@ export function initializePumpPortalWebSocket() {
         store.setConnected(true);
         reconnectAttempts = 0;
 
-        // Only subscribe to new token events
+        // Subscribe to new token events
         if (ws?.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             method: "subscribeNewToken",
@@ -144,12 +149,9 @@ export function initializePumpPortalWebSocket() {
           // Only process new token creation events
           if (data.txType === 'create' && data.mint) {
             try {
+              // Create and add new token
               const token = await mapPumpPortalData(data);
               store.addToken(token);
-
-              // Initialize token metrics in Helius store
-              const heliusStore = useHeliusStore.getState();
-              heliusStore.subscribeToToken(data.mint);
 
               console.log(`[PumpPortal] Added new token:`, {
                 symbol: token.symbol,

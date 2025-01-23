@@ -1,7 +1,7 @@
 import '@/lib/pump-portal-websocket';
 import '@/lib/helius-websocket';
 import { FC, useState, useRef, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
@@ -32,47 +32,17 @@ function getTimeDiff(timestamp: number): string {
 }
 
 const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClick }) => {
-  const metrics = useHeliusStore(state => state.getTokenMetrics(token.address));
-
-  const handleClick = () => {
-    onClick();
-    usePumpPortalStore.getState().setTokenActivity(token.address, true);
-  };
-
-  // Show loading state if metrics aren't available yet
-  if (!metrics) {
-    return (
-      <Card className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20">
-        <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-purple-500/20 animate-pulse" />
-            <div>
-              <div className="font-medium group-hover:text-purple-400 transition-colors">
-                {token.name}
-              </div>
-              <div className="text-sm text-muted-foreground">
-                {token.symbol}
-              </div>
-            </div>
-          </div>
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-6 bg-purple-500/20 rounded animate-pulse" />
-          ))}
-        </div>
-      </Card>
-    );
-  }
-
-  // Calculate price change
-  const priceChange = metrics.timeWindows['1m']
-    ? ((metrics.price - metrics.timeWindows['1m'].openPrice) / metrics.timeWindows['1m'].openPrice) * 100
-    : 0;
+  // Get token metrics from Helius store
+  const metrics = useHeliusStore(state => state.metrics[token.address]);
 
   return (
     <Card
       key={token.address}
       className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
-      onClick={handleClick}
+      onClick={() => {
+        onClick();
+        usePumpPortalStore.getState().setTokenActivity(token.address, true);
+      }}
     >
       <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
         <div className="flex items-center gap-3">
@@ -93,25 +63,17 @@ const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClic
             </div>
           </div>
         </div>
-        <div className={`text-right font-medium ${
-          priceChange > 0 ? "text-green-500" : 
-          priceChange < 0 ? "text-red-500" : ""
-        }`}>
-          {formatPrice(metrics.price)}
-          {priceChange !== 0 && (
-            <span className="text-xs ml-1">
-              ({priceChange > 0 ? '+' : ''}{priceChange.toFixed(2)}%)
-            </span>
-          )}
+        <div className="text-right">
+          {metrics ? formatPrice(metrics.price) : '$0.00'}
         </div>
         <div className="text-right">
-          {formatMarketCap(metrics.marketCap)}
+          {metrics ? formatMarketCap(metrics.marketCap) : '$0'}
         </div>
         <div className="text-right">
-          {formatMarketCap(metrics.liquidity)}
+          {metrics ? formatMarketCap(metrics.liquidity) : '$0'}
         </div>
         <div className="text-right">
-          {formatMarketCap(metrics.volume24h)}
+          {metrics ? formatMarketCap(metrics.volume24h) : '$0'}
         </div>
       </div>
     </Card>
@@ -121,7 +83,7 @@ const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClic
 const TokenView: FC<{ token: TokenData; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [timeframe, setTimeframe] = useState<'1s' | '5s' | '30s' | '1m' | '5m' | '15m' | '1h'>('1s');
-  const metrics = useHeliusStore(state => state.getTokenMetrics(token.address));
+  const metrics = useHeliusStore(state => state.metrics[token.address]);
 
   useEffect(() => {
     return () => {
