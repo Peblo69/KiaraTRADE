@@ -1,40 +1,23 @@
-import { create } from 'zustand';
 import { Connection, PublicKey } from '@solana/web3.js';
+import { create } from "zustand";
 import { usePumpPortalStore } from './pump-portal-websocket';
 import type { TokenMetrics, TokenTrade, TimeWindow } from '@/types/token';
 
-// Add debug flag
-const DEBUG = false;
+const DEBUG = true;
 
 interface HeliusStore {
   trades: Record<string, TokenTrade[]>;
   metrics: Record<string, TokenMetrics>;
   isConnected: boolean;
   subscribedTokens: Set<string>;
+  pendingSubscriptions: Set<string>;
   addTrade: (tokenAddress: string, trade: TokenTrade) => void;
   updateMetrics: (tokenAddress: string, updates: Partial<TokenMetrics>) => void;
   setConnected: (connected: boolean) => void;
   subscribeToToken: (tokenAddress: string) => void;
-  getTokenMetrics: (tokenAddress: string) => TokenMetrics | null;
-  analyzeWallet: (wallet: string) => { profitableTrades: number; totalTrades: number };
 }
 
-function createEmptyTimeWindow(startTime: number): TimeWindow {
-  return {
-    startTime,
-    endTime: startTime + 60000, // 1 minute default
-    openPrice: 0,
-    closePrice: 0,
-    highPrice: 0,
-    lowPrice: Infinity,
-    volume: 0,
-    trades: 0,
-    buys: 0,
-    sells: 0
-  };
-}
-
-// Initialize empty metrics
+// Initialize empty metrics with proper structure
 function createEmptyMetrics(): TokenMetrics {
   const now = Date.now();
   return {
@@ -52,12 +35,27 @@ function createEmptyMetrics(): TokenMetrics {
     smartMoneyWallets: new Set(),
     priceHistory: [],
     timeWindows: {
-      '1m': createEmptyTimeWindow(now),
-      '5m': createEmptyTimeWindow(now),
-      '15m': createEmptyTimeWindow(now),
-      '1h': createEmptyTimeWindow(now)
+      '1m': createTimeWindow(now, 60000),
+      '5m': createTimeWindow(now, 300000),
+      '15m': createTimeWindow(now, 900000),
+      '1h': createTimeWindow(now, 3600000)
     },
     recentTrades: []
+  };
+}
+
+function createTimeWindow(startTime: number, duration: number): TimeWindow {
+  return {
+    startTime,
+    endTime: startTime + duration,
+    openPrice: 0,
+    closePrice: 0,
+    highPrice: 0,
+    lowPrice: 0,
+    volume: 0,
+    trades: 0,
+    buys: 0,
+    sells: 0
   };
 }
 
@@ -66,118 +64,105 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
   metrics: {},
   isConnected: false,
   subscribedTokens: new Set(),
+  pendingSubscriptions: new Set(),
 
   addTrade: (tokenAddress, trade) => {
+    if (DEBUG) console.log('[Helius] Processing trade:', tokenAddress, trade);
+
     set((state) => {
-      // Update trades
-      const updatedTrades = {
-        ...state.trades,
-        [tokenAddress]: [trade, ...(state.trades[tokenAddress] || [])].slice(0, 1000),
-      };
-
-      // Get or create metrics for this token
       const metrics = state.metrics[tokenAddress] || createEmptyMetrics();
-
-      // Update price and market metrics
-      metrics.price = trade.price;
-      metrics.priceUSD = trade.priceUSD;
-      metrics.marketCap = trade.priceUSD * 1000000000; // Assuming 1B total supply
-
-      // Update holders
-      metrics.holders.add(trade.isBuy ? trade.buyer : trade.seller);
-      metrics.walletCount = metrics.holders.size;
-
-      // Update volumes
       const now = Date.now();
-      const tradeAmount = trade.volume;
 
-      if (now - trade.timestamp < 86400000) { // 24h
-        metrics.volume24h += tradeAmount;
-        metrics.trades24h++;
-        if (trade.isBuy) metrics.buys24h++;
-        else metrics.sells24h++;
-      }
+      // Update basic metrics
+      if (trade.price > 0) {
+        metrics.price = trade.price;
+        metrics.priceUSD = trade.priceUSD;
 
-      // Update time windows
-      const windows = ['1m', '5m', '15m', '1h'] as const;
-      const durations = {
-        '1m': 60000,
-        '5m': 300000,
-        '15m': 900000,
-        '1h': 3600000
-      };
-
-      windows.forEach(window => {
-        const duration = durations[window];
-        const currentWindow = metrics.timeWindows[window];
-
-        // Check if we need to create a new window
-        if (trade.timestamp >= currentWindow.endTime) {
-          metrics.timeWindows[window] = {
-            startTime: Math.floor(trade.timestamp / duration) * duration,
-            endTime: Math.floor(trade.timestamp / duration) * duration + duration,
-            openPrice: trade.price,
-            closePrice: trade.price,
-            highPrice: trade.price,
-            lowPrice: trade.price,
-            volume: tradeAmount,
-            trades: 1,
-            buys: trade.isBuy ? 1 : 0,
-            sells: trade.isBuy ? 0 : 1
-          };
-        } else {
-          currentWindow.closePrice = trade.price;
-          currentWindow.highPrice = Math.max(currentWindow.highPrice, trade.price);
-          currentWindow.lowPrice = Math.min(currentWindow.lowPrice, trade.price);
-          currentWindow.volume += tradeAmount;
-          currentWindow.trades++;
-          if (trade.isBuy) currentWindow.buys++;
-          else currentWindow.sells++;
+        // Calculate market cap if we have supply info
+        if (trade.supply && trade.supply > 0) {
+          metrics.marketCap = trade.priceUSD * trade.supply;
+          metrics.liquidity = trade.liquidity || (trade.price * trade.supply * 0.1);
         }
-      });
 
-      // Update price history
-      metrics.priceHistory.push({
-        time: Math.floor(trade.timestamp / 1000),
-        open: trade.price,
-        high: trade.price,
-        low: trade.price,
-        close: trade.price,
-        volume: tradeAmount
-      });
+        // Update 24h metrics
+        if (now - trade.timestamp < 86400000) {
+          metrics.volume24h += trade.volume;
+          metrics.trades24h++;
+          if (trade.isBuy) metrics.buys24h++;
+          else metrics.sells24h++;
+        }
 
-      // Keep only last 24 hours of price history
-      metrics.priceHistory = metrics.priceHistory
-        .filter(p => now - p.time * 1000 <= 86400000)
-        .sort((a, b) => a.time - b.time);
+        // Update time windows
+        const windows = ['1m', '5m', '15m', '1h'] as const;
+        windows.forEach(window => {
+          const data = metrics.timeWindows[window];
+          if (trade.timestamp >= data.endTime) {
+            const duration = {
+              '1m': 60000,
+              '5m': 300000,
+              '15m': 900000,
+              '1h': 3600000
+            }[window];
+
+            metrics.timeWindows[window] = createTimeWindow(trade.timestamp, duration);
+            metrics.timeWindows[window].openPrice = trade.price;
+          }
+
+          const windowData = metrics.timeWindows[window];
+          windowData.closePrice = trade.price;
+          windowData.highPrice = Math.max(windowData.highPrice || 0, trade.price);
+          windowData.lowPrice = windowData.lowPrice === 0 ? 
+            trade.price : Math.min(windowData.lowPrice, trade.price);
+          windowData.volume += trade.volume;
+          windowData.trades++;
+          if (trade.isBuy) windowData.buys++;
+          else windowData.sells++;
+        });
+
+        // Update price history
+        metrics.priceHistory.push({
+          time: Math.floor(trade.timestamp / 1000),
+          open: trade.price,
+          high: trade.price,
+          low: trade.price,
+          close: trade.price,
+          volume: trade.volume
+        });
+
+        // Keep only last 24h of price history
+        metrics.priceHistory = metrics.priceHistory
+          .filter(p => now - p.time * 1000 <= 86400000)
+          .sort((a, b) => a.time - b.time);
+
+        // Track traders
+        if (trade.wallet) {
+          metrics.holders.add(trade.wallet);
+          metrics.walletCount = metrics.holders.size;
+
+          // Track whales (trades > 1% of 24h volume)
+          if (trade.volume > metrics.volume24h * 0.01) {
+            metrics.whales.add(trade.wallet);
+          }
+        }
+      }
 
       // Update recent trades
-      metrics.recentTrades = [trade, ...metrics.recentTrades].slice(0, 100);
-
-      // Identify whales (wallets with > 1% of 24h volume)
-      if (tradeAmount > metrics.volume24h * 0.01) {
-        metrics.whales.add(trade.isBuy ? trade.buyer : trade.seller);
-      }
-
-      // Smart money detection (wallets with > 75% profitable trades)
-      const trader = trade.isBuy ? trade.buyer : trade.seller;
-      const traderStats = get().analyzeWallet(trader);
-      if (traderStats.totalTrades > 5 && (traderStats.profitableTrades / traderStats.totalTrades) > 0.75) {
-        metrics.smartMoneyWallets.add(trader);
-      }
-
-      // Update PumpPortal store to mark this token as having recent activity
-      const pumpPortalStore = usePumpPortalStore.getState();
-      pumpPortalStore.updateLastTradeTime(tokenAddress);
+      metrics.recentTrades = [trade, ...(metrics.recentTrades || [])].slice(0, 100);
 
       return {
-        trades: updatedTrades,
+        trades: {
+          ...state.trades,
+          [tokenAddress]: [trade, ...(state.trades[tokenAddress] || [])].slice(0, 1000)
+        },
         metrics: {
           ...state.metrics,
           [tokenAddress]: metrics
         }
       };
     });
+
+    // Update PumpPortal store
+    usePumpPortalStore.getState().updateLastTradeTime(tokenAddress);
   },
 
   updateMetrics: (tokenAddress, updates) => {
@@ -192,16 +177,37 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
     }));
   },
 
-  setConnected: (connected) => set({ isConnected: connected }),
+  setConnected: (connected) => {
+    if (DEBUG) console.log('[Helius] Connection status:', connected);
+    set({ isConnected: connected });
+  },
 
   subscribeToToken: (tokenAddress) => {
-    const { subscribedTokens } = get();
-    if (subscribedTokens.has(tokenAddress)) return;
+    if (DEBUG) console.log('[Helius] Subscribing to token:', tokenAddress);
 
-    if (ws?.readyState === WebSocket.OPEN) {
+    const state = get();
+    if (state.subscribedTokens.has(tokenAddress)) {
+      if (DEBUG) console.log('[Helius] Already subscribed to:', tokenAddress);
+      return;
+    }
+
+    if (state.pendingSubscriptions.has(tokenAddress)) {
+      if (DEBUG) console.log('[Helius] Subscription pending for:', tokenAddress);
+      return;
+    }
+
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.error('[Helius] WebSocket not ready, queueing subscription for:', tokenAddress);
+      state.pendingSubscriptions.add(tokenAddress);
+      return;
+    }
+
+    try {
+      // Subscribe to token account updates
+      const tokenSubId = `token-sub-${tokenAddress}`;
       ws.send(JSON.stringify({
         jsonrpc: '2.0',
-        id: `token-sub-${tokenAddress}`,
+        id: tokenSubId,
         method: 'accountSubscribe',
         params: [
           tokenAddress,
@@ -214,182 +220,167 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
         ]
       }));
 
-      subscribedTokens.add(tokenAddress);
-      set({ subscribedTokens });
-      if (DEBUG) console.log('[Helius] Subscribed to token:', tokenAddress);
+      // Also subscribe to mint account
+      const mintSubId = `mint-sub-${tokenAddress}`;
+      ws.send(JSON.stringify({
+        jsonrpc: '2.0',
+        id: mintSubId,
+        method: 'accountSubscribe',
+        params: [
+          new PublicKey(tokenAddress).toBase58(),
+          { commitment: 'confirmed', encoding: 'jsonParsed' }
+        ]
+      }));
+
+      state.pendingSubscriptions.add(tokenAddress);
+      if (DEBUG) console.log('[Helius] Subscription requests sent for:', tokenAddress);
+    } catch (error) {
+      console.error('[Helius] Failed to subscribe to token:', tokenAddress, error);
     }
-  },
-
-  getTokenMetrics: (tokenAddress) => {
-    const state = get();
-    return state.metrics[tokenAddress] || null;
-  },
-
-  analyzeWallet: (wallet) => {
-    const state = get();
-    let profitableTrades = 0;
-    let totalTrades = 0;
-
-    // Analyze all trades by this wallet across all tokens
-    Object.values(state.trades).forEach(tokenTrades => {
-      const walletTrades = tokenTrades.filter(t =>
-        t.buyer === wallet || t.seller === wallet
-      );
-
-      totalTrades += walletTrades.length;
-
-      // A trade is considered profitable if the price goes up after a buy
-      // or down after a sell within the next hour
-      walletTrades.forEach((trade, i) => {
-        if (i === walletTrades.length - 1) return;
-
-        const nextTrade = walletTrades[i + 1];
-        const isProfit = trade.isBuy
-          ? nextTrade.price > trade.price
-          : nextTrade.price < trade.price;
-
-        if (isProfit) profitableTrades++;
-      });
-    });
-
-    return { profitableTrades, totalTrades };
   }
 }));
 
 let ws: WebSocket | null = null;
 const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY;
-const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
-const connection = new Connection(HELIUS_RPC_URL);
+const HELIUS_RPC_URL = `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+const connection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
 
-async function handleAccountUpdate(data: any) {
+async function processTransaction(signature: string, tokenAddress: string) {
   try {
-    if (!data.signature) return;
+    if (DEBUG) console.log('[Helius] Processing transaction:', signature);
 
-    if (DEBUG) {
-      console.log('[Helius] Processing signature:', data.signature);
-    }
-
-    const tx = await connection.getTransaction(data.signature, {
+    const tx = await connection.getTransaction(signature, {
       maxSupportedTransactionVersion: 0
     });
 
-    if (!tx || !tx.meta) return;
-
-    const preBalances = tx.meta.preBalances;
-    const postBalances = tx.meta.postBalances;
-    const balanceChanges = postBalances.map((post, i) => post - preBalances[i]);
-
-    const accountKeys = tx.transaction.message.getAccountKeys();
-    if (!accountKeys) return;
-
-    const preTokenBalances = tx.meta.preTokenBalances || [];
-    const postTokenBalances = tx.meta.postTokenBalances || [];
-
-    // Check if this is a token transaction
-    const isTokenTx = accountKeys.some(
-      key => key.equals(new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'))
-    );
-
-    if (!isTokenTx) return;
-
-    const store = useHeliusStore.getState();
-    const pumpPortalStore = usePumpPortalStore.getState();
-
-    // Only process trades for active tokens
-    const activeTokens = pumpPortalStore.getActiveTokens();
-    if (!activeTokens.includes(data.accountId)) {
-      if (DEBUG) console.log('[Helius] Skipping inactive token:', data.accountId);
+    if (!tx?.meta) {
+      console.error('[Helius] No transaction metadata found for:', signature);
       return;
     }
 
-    const relevantTokenAccounts = [...preTokenBalances, ...postTokenBalances];
-    for (const tokenAccount of relevantTokenAccounts) {
-      if (!tokenAccount) continue;
+    const preBalances = tx.meta.preBalances;
+    const postBalances = tx.meta.postBalances;
+    const preTokenBalances = tx.meta.preTokenBalances || [];
+    const postTokenBalances = tx.meta.postTokenBalances || [];
 
-      const preAmount = preTokenBalances.find(
-        balance => balance.accountIndex === tokenAccount.accountIndex
-      )?.uiTokenAmount.uiAmount || 0;
-
-      const postAmount = postTokenBalances.find(
-        balance => balance.accountIndex === tokenAccount.accountIndex
-      )?.uiTokenAmount.uiAmount || 0;
-
-      const tokenAmount = Math.abs(postAmount - preAmount);
-      if (tokenAmount === 0) continue;
-
-      const isBuy = postAmount > preAmount;
-      const solAmount = Math.abs(balanceChanges[0]) / 1e9;
-
-      // Calculate price impact based on liquidity
-      const metrics = store.getTokenMetrics(data.accountId);
-      const priceImpact = metrics
-        ? (solAmount / metrics.liquidity) * 100
-        : 0;
-
-      const trade: TokenTrade = {
-        signature: data.signature,
-        timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
-        tokenAddress: data.accountId,
-        amount: tokenAmount,
-        price: solAmount / tokenAmount,
-        priceUSD: solAmount * 20, // Assuming SOL price ~$20 for now
-        priceImpact,
-        buyer: isBuy ? accountKeys[1].toBase58() : '',
-        seller: !isBuy ? accountKeys[0].toBase58() : '',
-        isBuy,
-        wallet: isBuy ? accountKeys[1].toBase58() : accountKeys[0].toBase58(),
-        volume: solAmount * 20 // USD volume
+    // Find relevant token balance changes
+    const tokenChanges = postTokenBalances.map(post => {
+      const pre = preTokenBalances.find(p => p.accountIndex === post.accountIndex);
+      return {
+        accountIndex: post.accountIndex,
+        preAmount: pre?.uiTokenAmount.uiAmount || 0,
+        postAmount: post.uiTokenAmount.uiAmount || 0,
+        owner: post.owner,
+        supply: post.uiTokenAmount.uiAmount || 0
       };
+    }).filter(change => Math.abs(change.postAmount - change.preAmount) > 0);
 
-      if (DEBUG) {
-        console.log('[Helius] New trade:', {
-          signature: trade.signature,
-          type: trade.isBuy ? 'buy' : 'sell',
-          amount: trade.amount,
-          price: trade.price,
-          priceImpact: trade.priceImpact
-        });
-      }
-
-      store.addTrade(data.accountId, trade);
+    if (tokenChanges.length === 0) {
+      if (DEBUG) console.log('[Helius] No token changes found in transaction:', signature);
+      return;
     }
 
+    for (const change of tokenChanges) {
+      const tokenAmount = Math.abs(change.postAmount - change.preAmount);
+      const isBuy = change.postAmount > change.preAmount;
+      const solChange = Math.abs(postBalances[change.accountIndex] - preBalances[change.accountIndex]) / 1e9;
+
+      if (solChange === 0 || tokenAmount === 0) {
+        if (DEBUG) console.log('[Helius] Invalid amounts in trade:', { solChange, tokenAmount });
+        continue;
+      }
+
+      const trade: TokenTrade = {
+        signature,
+        timestamp: (tx.blockTime || Date.now() / 1000) * 1000,
+        price: solChange / tokenAmount,
+        priceUSD: (solChange / tokenAmount) * 20, // Approximate SOL price
+        volume: solChange * 20, // USD volume
+        isBuy,
+        wallet: change.owner,
+        priceImpact: 0,
+        supply: change.supply,
+        liquidity: solChange * 2 // Rough estimate
+      };
+
+      if (DEBUG) console.log('[Helius] Created trade:', trade);
+      useHeliusStore.getState().addTrade(tokenAddress, trade);
+    }
   } catch (error) {
-    console.error('[Helius] Error processing account update:', error);
+    console.error('[Helius] Error processing transaction:', error);
   }
 }
 
-let reconnectTimeout: NodeJS.Timeout | null = null;
-let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_DELAY = 5000;
-
-export function initializeHeliusWebSocket() {
-  if (typeof window === 'undefined' || !HELIUS_API_KEY) return;
+function handleAccountUpdate(data: any) {
+  if (!data?.signature || !data?.accountId) {
+    if (DEBUG) console.log('[Helius] Invalid update data:', data);
+    return;
+  }
 
   const store = useHeliusStore.getState();
+  const pumpPortalStore = usePumpPortalStore.getState();
+  const activeTokens = pumpPortalStore.getActiveTokens();
 
+  // Only process updates for active tokens
+  if (!activeTokens.includes(data.accountId)) {
+    if (DEBUG) console.log('[Helius] Skipping inactive token:', data.accountId);
+    return;
+  }
+
+  processTransaction(data.signature, data.accountId);
+}
+
+function handleSubscriptionResponse(data: any) {
+  if (!data?.id) return;
+
+  const store = useHeliusStore.getState();
+  const [type, address] = data.id.split('-');
+
+  if (type !== 'token-sub' && type !== 'mint-sub') return;
+
+  if (data.error) {
+    console.error(`[Helius] Subscription failed for ${address}:`, data.error);
+    store.pendingSubscriptions.delete(address);
+    return;
+  }
+
+  if (data.result !== undefined) {
+    if (DEBUG) console.log(`[Helius] Subscription confirmed for ${address}`);
+    store.pendingSubscriptions.delete(address);
+    store.subscribedTokens.add(address);
+  }
+}
+
+export function initializeHeliusWebSocket() {
+  if (typeof window === 'undefined') return;
+  if (!HELIUS_API_KEY) {
+    console.error('[Helius] No API key found');
+    return;
+  }
+
+  if (DEBUG) console.log('[Helius] Initializing WebSocket...');
+
+  // Cleanup existing connection
   if (ws) {
-    try {
-      ws.close();
-    } catch (e) {
-      console.error('[Helius] Error closing WebSocket:', e);
-    }
+    if (DEBUG) console.log('[Helius] Closing existing connection');
+    ws.close();
     ws = null;
   }
 
   try {
-    console.log('[Helius] Initializing WebSocket...');
-    ws = new WebSocket(`wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
+    ws = new WebSocket(HELIUS_RPC_URL);
 
     ws.onopen = () => {
-      console.log('[Helius] WebSocket connected');
-      store.setConnected(true);
-      reconnectAttempts = 0;
+      if (DEBUG) console.log('[Helius] Connected');
+      useHeliusStore.getState().setConnected(true);
 
       // Resubscribe to existing tokens
-      const { subscribedTokens } = store;
-      subscribedTokens.forEach(tokenAddress => {
+      const store = useHeliusStore.getState();
+      const tokens = [...store.subscribedTokens, ...store.pendingSubscriptions];
+      store.subscribedTokens.clear();
+      store.pendingSubscriptions.clear();
+
+      tokens.forEach(tokenAddress => {
         store.subscribeToToken(tokenAddress);
       });
     };
@@ -397,42 +388,34 @@ export function initializeHeliusWebSocket() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        if (DEBUG) console.log('[Helius] Received:', data);
 
-        // Handle token updates
         if (data.method === 'accountNotification') {
           handleAccountUpdate(data.params.result);
+        } else {
+          handleSubscriptionResponse(data);
         }
-
       } catch (error) {
-        console.error('[Helius] Error handling WebSocket message:', error);
+        console.error('[Helius] Error handling message:', error);
       }
     };
 
     ws.onclose = () => {
-      console.log('[Helius] WebSocket disconnected');
-      store.setConnected(false);
+      console.log('[Helius] Disconnected');
+      useHeliusStore.getState().setConnected(false);
 
-      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-        reconnectAttempts++;
-        console.log(`[Helius] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-        reconnectTimeout = setTimeout(initializeHeliusWebSocket, RECONNECT_DELAY);
-      }
+      // Attempt to reconnect after 5 seconds
+      setTimeout(initializeHeliusWebSocket, 5000);
     };
 
     ws.onerror = (error) => {
       console.error('[Helius] WebSocket error:', error);
-      store.setConnected(false);
+      useHeliusStore.getState().setConnected(false);
     };
 
   } catch (error) {
-    console.error('[Helius] Failed to initialize WebSocket:', error);
-    store.setConnected(false);
-
-    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      reconnectAttempts++;
-      console.log(`[Helius] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-      reconnectTimeout = setTimeout(initializeHeliusWebSocket, RECONNECT_DELAY);
-    }
+    console.error('[Helius] Failed to initialize:', error);
+    useHeliusStore.getState().setConnected(false);
   }
 }
 

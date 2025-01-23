@@ -3,8 +3,8 @@ import { useHeliusStore } from './helius-websocket';
 import { preloadTokenImages } from './token-metadata';
 import type { TokenData } from '@/types/token';
 
-// Debug flag
-const DEBUG = false;
+// Debug flag for development
+const DEBUG = true;
 
 interface PumpPortalStore {
   tokens: TokenData[];
@@ -23,10 +23,11 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
   addToken: (token) => {
     set((state) => {
-      const newTokens = [token, ...state.tokens].slice(0, 20); // Keep last 20 tokens
+      const newTokens = [token, ...state.tokens].slice(0, 20);
 
       // Initialize Helius subscription for the new token
       const heliusStore = useHeliusStore.getState();
+      console.log('[PumpPortal] Subscribing new token to Helius:', token.address);
       heliusStore.subscribeToToken(token.address);
 
       return { tokens: newTokens };
@@ -36,27 +37,21 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   setTokenVisibility: (address, isVisible) =>
     set((state) => ({
       tokens: state.tokens.map(token =>
-        token.address === address
-          ? { ...token, isVisible }
-          : token
+        token.address === address ? { ...token, isVisible } : token
       )
     })),
 
   setTokenActivity: (address, isActive) =>
     set((state) => ({
       tokens: state.tokens.map(token =>
-        token.address === address
-          ? { ...token, isActive }
-          : token
+        token.address === address ? { ...token, isActive } : token
       )
     })),
 
   updateLastTradeTime: (address) =>
     set((state) => ({
       tokens: state.tokens.map(token =>
-        token.address === address
-          ? { ...token, lastTradeTime: Date.now() }
-          : token
+        token.address === address ? { ...token, lastTradeTime: Date.now() } : token
       )
     })),
 

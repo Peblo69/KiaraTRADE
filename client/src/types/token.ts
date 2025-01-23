@@ -1,7 +1,7 @@
 // Token interfaces used across the application
 
 // Base token info from PumpPortal
-export interface PumpPortalToken {
+export interface TokenData {
   address: string;
   name: string;
   symbol: string;
@@ -9,6 +9,7 @@ export interface PumpPortalToken {
   isActive: boolean;
   isVisible: boolean;
   lastTradeTime: number;
+  metrics?: TokenMetrics;
 }
 
 // Trade info from Helius
@@ -21,6 +22,10 @@ export interface TokenTrade {
   isBuy: boolean;
   wallet: string;
   priceImpact: number;
+  supply?: number;
+  liquidity?: number;
+  buyer?: string;
+  seller?: string;
 }
 
 // Time window metrics
@@ -37,7 +42,7 @@ export interface TimeWindow {
   sells: number;
 }
 
-// Extended token metrics from Helius
+// Token metrics from Helius
 export interface TokenMetrics {
   price: number;
   priceUSD: number;
@@ -52,7 +57,7 @@ export interface TokenMetrics {
   whales: Set<string>;
   smartMoneyWallets: Set<string>;
   priceHistory: {
-    time: number; // Unix timestamp
+    time: number;
     open: number;
     high: number;
     low: number;
@@ -66,9 +71,4 @@ export interface TokenMetrics {
     '1h': TimeWindow;
   };
   recentTrades: TokenTrade[];
-}
-
-// Combined token data for display
-export interface TokenData extends PumpPortalToken {
-  metrics?: TokenMetrics;
 }
