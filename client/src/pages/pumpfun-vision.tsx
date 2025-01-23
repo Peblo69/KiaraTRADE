@@ -1,7 +1,6 @@
-// FILE: /src/pages/pumpfun-vision.tsx
 import '@/lib/pump-portal-websocket';
 import '@/lib/helius-websocket';
-import { FC, useState, useRef, useEffect, useMemo } from "react";
+import { FC, useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,7 +10,7 @@ import { useHeliusStore } from "@/lib/helius-websocket";
 import millify from "millify";
 import { getTokenImage } from "@/lib/token-metadata";
 import { AdvancedChart } from "@/components/AdvancedChart";
-import type { TokenData, TokenMetrics } from "@/types/token";
+import type { TokenData } from "@/types/token";
 
 // Helper functions for formatting numbers
 const formatPrice = (price: number | undefined | null): string => {
@@ -35,8 +34,37 @@ function getTimeDiff(timestamp: number): string {
 const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClick }) => {
   const metrics = useHeliusStore(state => state.getTokenMetrics(token.address));
 
-  // Calculate price change from 1m window
-  const priceChange = metrics?.timeWindows?.['1m']
+  const handleClick = () => {
+    onClick();
+    usePumpPortalStore.getState().setTokenActivity(token.address, true);
+  };
+
+  // Show loading state if metrics aren't available yet
+  if (!metrics) {
+    return (
+      <Card className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20">
+        <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-purple-500/20 animate-pulse" />
+            <div>
+              <div className="font-medium group-hover:text-purple-400 transition-colors">
+                {token.name}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {token.symbol}
+              </div>
+            </div>
+          </div>
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-6 bg-purple-500/20 rounded animate-pulse" />
+          ))}
+        </div>
+      </Card>
+    );
+  }
+
+  // Calculate price change
+  const priceChange = metrics.timeWindows['1m']
     ? ((metrics.price - metrics.timeWindows['1m'].openPrice) / metrics.timeWindows['1m'].openPrice) * 100
     : 0;
 
@@ -44,10 +72,7 @@ const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClic
     <Card
       key={token.address}
       className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
-      onClick={() => {
-        onClick();
-        usePumpPortalStore.getState().setTokenActivity(token.address, true);
-      }}
+      onClick={handleClick}
     >
       <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
         <div className="flex items-center gap-3">
@@ -72,7 +97,7 @@ const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClic
           priceChange > 0 ? "text-green-500" : 
           priceChange < 0 ? "text-red-500" : ""
         }`}>
-          {formatPrice(metrics?.price)}
+          {formatPrice(metrics.price)}
           {priceChange !== 0 && (
             <span className="text-xs ml-1">
               ({priceChange > 0 ? '+' : ''}{priceChange.toFixed(2)}%)
@@ -80,13 +105,13 @@ const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClic
           )}
         </div>
         <div className="text-right">
-          {formatMarketCap(metrics?.marketCap)}
+          {formatMarketCap(metrics.marketCap)}
         </div>
         <div className="text-right">
-          {formatMarketCap(metrics?.liquidity)}
+          {formatMarketCap(metrics.liquidity)}
         </div>
         <div className="text-right">
-          {formatMarketCap(metrics?.volume24h)}
+          {formatMarketCap(metrics.volume24h)}
         </div>
       </div>
     </Card>
@@ -100,12 +125,17 @@ const TokenView: FC<{ token: TokenData; onBack: () => void }> = ({ token, onBack
 
   useEffect(() => {
     return () => {
-      // Cleanup: mark token as inactive when view is closed
       usePumpPortalStore.getState().setTokenActivity(token.address, false);
     };
   }, [token.address]);
 
-  if (!metrics) return null;
+  if (!metrics) {
+    return (
+      <div className="fixed inset-0 bg-[#0A0A0A] z-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-[#0A0A0A] z-50 overflow-hidden">

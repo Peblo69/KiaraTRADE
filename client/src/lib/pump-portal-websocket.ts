@@ -1,24 +1,15 @@
 import { create } from "zustand";
 import { useHeliusStore } from './helius-websocket';
 import { preloadTokenImages } from './token-metadata';
+import type { TokenData } from '@/types/token';
 
 // Debug flag
 const DEBUG = false;
 
-export interface PumpPortalToken {
-  symbol: string;
-  name: string;
-  address: string;
-  imageLink?: string;
-  isActive: boolean;  // Whether token is currently being actively tracked
-  lastTradeTime: number;  // Last time we saw a trade
-  isVisible: boolean;  // Whether token is currently visible in viewport
-}
-
 interface PumpPortalStore {
-  tokens: PumpPortalToken[];
+  tokens: TokenData[];
   isConnected: boolean;
-  addToken: (token: PumpPortalToken) => void;
+  addToken: (token: TokenData) => void;
   setTokenVisibility: (address: string, isVisible: boolean) => void;
   setTokenActivity: (address: string, isActive: boolean) => void;
   updateLastTradeTime: (address: string) => void;
@@ -87,7 +78,7 @@ let reconnectAttempts = 0;
 const RECONNECT_DELAY = 1000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
-async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
+async function mapPumpPortalData(data: any): Promise<TokenData> {
   try {
     if (DEBUG) console.log('[PumpPortal] Raw data received:', data);
 
@@ -100,7 +91,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       imageLink: imageLink || 'https://via.placeholder.com/150',
       isActive: false,
       lastTradeTime: Date.now(),
-      isVisible: false
+      isVisible: false,
     };
   } catch (error) {
     console.error('[PumpPortal] Error mapping data:', error);
@@ -156,9 +147,9 @@ export function initializePumpPortalWebSocket() {
               const token = await mapPumpPortalData(data);
               store.addToken(token);
 
-              // Immediately subscribe to token with Helius
-              // This subscribes but data fetching will be managed by visibility/activity
-              useHeliusStore.getState().subscribeToToken(data.mint);
+              // Initialize token metrics in Helius store
+              const heliusStore = useHeliusStore.getState();
+              heliusStore.subscribeToToken(data.mint);
 
               console.log(`[PumpPortal] Added new token:`, {
                 symbol: token.symbol,
@@ -166,10 +157,12 @@ export function initializePumpPortalWebSocket() {
               });
 
               // Preload token image if available
-              preloadTokenImages([{
-                imageLink: token.imageLink,
-                symbol: token.symbol
-              }]);
+              if (token.imageLink) {
+                preloadTokenImages([{
+                  imageLink: token.imageLink,
+                  symbol: token.symbol
+                }]);
+              }
 
             } catch (err) {
               console.error('[PumpPortal] Failed to process token:', err);
