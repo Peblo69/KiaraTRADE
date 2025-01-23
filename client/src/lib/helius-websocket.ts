@@ -122,7 +122,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
           const windowData = metrics.timeWindows[window];
           windowData.closePrice = trade.price;
           windowData.highPrice = Math.max(windowData.highPrice || 0, trade.price);
-          windowData.lowPrice = windowData.lowPrice === 0 ? 
+          windowData.lowPrice = windowData.lowPrice === 0 ?
             trade.price : Math.min(windowData.lowPrice, trade.price);
           windowData.volume += trade.volume;
           windowData.trades++;
@@ -288,6 +288,7 @@ async function processTransaction(signature: string, tokenAddress: string) {
       return;
     }
 
+    // Extract pre and post balances
     const preBalances = tx.meta.preBalances;
     const postBalances = tx.meta.postBalances;
     const preTokenBalances = tx.meta.preTokenBalances || [];
@@ -298,39 +299,61 @@ async function processTransaction(signature: string, tokenAddress: string) {
       const pre = preTokenBalances.find(p => p.accountIndex === post.accountIndex);
       return {
         accountIndex: post.accountIndex,
+        mint: post.mint,
         preAmount: pre?.uiTokenAmount.uiAmount || 0,
         postAmount: post.uiTokenAmount.uiAmount || 0,
         owner: post.owner,
         supply: post.uiTokenAmount.uiAmount || 0
       };
-    }).filter(change => Math.abs(change.postAmount - change.preAmount) > 0);
+    }).filter(change =>
+      change.mint === tokenAddress &&
+      Math.abs(change.postAmount - change.preAmount) > 0
+    );
 
     if (tokenChanges.length === 0) {
-      if (DEBUG) console.log('[Helius] No token changes found in transaction:', signature);
+      if (DEBUG) console.log('[Helius] No relevant token changes in tx:', signature);
       return;
     }
 
     for (const change of tokenChanges) {
       const tokenAmount = Math.abs(change.postAmount - change.preAmount);
       const isBuy = change.postAmount > change.preAmount;
-      const solChange = Math.abs(postBalances[change.accountIndex] - preBalances[change.accountIndex]) / 1e9;
+
+      // Find the associated SOL balance change
+      let maxSolChange = 0;
+      tx.meta.innerInstructions?.forEach(inner => {
+        inner.instructions.forEach(ix => {
+          if (ix.program === 'system' && ix.parsed?.type === 'transfer') {
+            const solChange = ix.parsed.info.lamports / 1e9;
+            maxSolChange = Math.max(maxSolChange, solChange);
+          }
+        });
+      });
+
+      const solChange = maxSolChange || Math.abs(postBalances[change.accountIndex] - preBalances[change.accountIndex]) / 1e9;
 
       if (solChange === 0 || tokenAmount === 0) {
-        if (DEBUG) console.log('[Helius] Invalid amounts in trade:', { solChange, tokenAmount });
+        if (DEBUG) console.log('[Helius] Invalid amounts:', { solChange, tokenAmount });
         continue;
       }
+
+      // Get SOL price in USD from your preferred price feed
+      // For now using approximate $20 per SOL
+      const SOL_PRICE_USD = 20;
 
       const trade: TokenTrade = {
         signature,
         timestamp: (tx.blockTime || Date.now() / 1000) * 1000,
         price: solChange / tokenAmount,
-        priceUSD: (solChange / tokenAmount) * 20, // Approximate SOL price
-        volume: solChange * 20, // USD volume
+        priceUSD: (solChange / tokenAmount) * SOL_PRICE_USD,
+        volume: solChange * SOL_PRICE_USD,
         isBuy,
         wallet: change.owner,
-        priceImpact: 0,
+        priceImpact: 0, // Calculate based on liquidity pool size if available
         supply: change.supply,
-        liquidity: solChange * 2 // Rough estimate
+        liquidity: solChange * 2, // Estimate based on pool size
+        buyer: isBuy ? change.owner : undefined,
+        seller: !isBuy ? change.owner : undefined
       };
 
       if (DEBUG) console.log('[Helius] Created trade:', trade);
@@ -343,7 +366,19 @@ async function processTransaction(signature: string, tokenAddress: string) {
 
 function handleAccountUpdate(data: any) {
   if (!data?.signature || !data?.accountId) {
-    if (DEBUG) console.log('[Helius] Invalid update data:', data);
+    // Check if we have a valid account notification format
+    if (data?.context?.slot && data?.value) {
+      // This is a mint account or token account update
+      // Extract relevant data from value
+      const value = data.value;
+      if (value.data?.program === 'spl-token' && value.data.parsed?.type === 'mint') {
+        // Process mint info
+        const mintInfo = value.data.parsed.info;
+        if (DEBUG) console.log('[Helius] Received mint info:', mintInfo);
+        return;
+      }
+    }
+    if (DEBUG) console.log('[Helius] Skipping invalid update data:', data);
     return;
   }
 

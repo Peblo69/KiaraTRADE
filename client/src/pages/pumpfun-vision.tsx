@@ -64,7 +64,7 @@ const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClic
           </div>
         </div>
         <div className="text-right">
-          {metrics ? formatPrice(metrics.price) : '$0.00'}
+          {metrics ? formatPrice(metrics.priceUSD) : '$0.00'}
         </div>
         <div className="text-right">
           {metrics ? formatMarketCap(metrics.marketCap) : '$0'}
@@ -84,6 +84,13 @@ const TokenView: FC<{ token: TokenData; onBack: () => void }> = ({ token, onBack
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [timeframe, setTimeframe] = useState<'1s' | '5s' | '30s' | '1m' | '5m' | '15m' | '1h'>('1s');
   const metrics = useHeliusStore(state => state.metrics[token.address]);
+
+  // Auto-scroll to bottom when new trades come in
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    }
+  }, [metrics?.recentTrades]);
 
   useEffect(() => {
     return () => {
@@ -128,7 +135,7 @@ const TokenView: FC<{ token: TokenData; onBack: () => void }> = ({ token, onBack
                     <span className="text-sm text-muted-foreground">{token.name}</span>
                   </div>
                   <div className="text-sm">
-                    {formatPrice(metrics.price)}
+                    {formatPrice(metrics.priceUSD)}
                   </div>
                 </div>
               </div>
@@ -171,8 +178,25 @@ const TokenView: FC<{ token: TokenData; onBack: () => void }> = ({ token, onBack
               <div className="grid grid-cols-4 gap-4">
                 {Object.entries(metrics.timeWindows).map(([window, data]) => (
                   <Card key={window} className="p-4 bg-[#111111] border-purple-500/20">
-                    <div className="text-sm text-muted-foreground">{window} Volume</div>
-                    <div className="text-lg font-bold mt-1">${millify(data.volume)}</div>
+                    <div className="text-sm text-muted-foreground">{window} Stats</div>
+                    <div className="mt-2 space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-xs text-muted-foreground">Vol</span>
+                        <span className="text-xs">${millify(data.volume)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-muted-foreground">Trades</span>
+                        <span className="text-xs">{data.trades}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-muted-foreground">High</span>
+                        <span className="text-xs">${data.highPrice.toFixed(8)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-muted-foreground">Low</span>
+                        <span className="text-xs">${data.lowPrice.toFixed(8)}</span>
+                      </div>
+                    </div>
                   </Card>
                 ))}
               </div>
