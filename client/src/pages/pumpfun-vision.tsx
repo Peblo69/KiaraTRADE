@@ -1,14 +1,11 @@
 import '@/lib/pump-portal-websocket';
-import '@/lib/helius-websocket';
-import { FC, useState, useRef, useEffect } from "react";
+import { FC, useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import millify from "millify";
 import { getTokenImage } from "@/lib/token-metadata";
-import { AdvancedChart } from "@/components/AdvancedChart";
 import type { TokenData } from "@/types/token";
 
 // Helper functions for formatting numbers
@@ -21,14 +18,6 @@ const formatMarketCap = (marketCap: number | undefined | null): string => {
   if (typeof marketCap !== 'number' || isNaN(marketCap)) return '$0';
   return `$${millify(marketCap)}`;
 };
-
-function getTimeDiff(timestamp: number): string {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
-}
 
 const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClick }) => {
   return (
@@ -74,9 +63,6 @@ const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClic
 };
 
 const TokenView: FC<{ token: TokenData; onBack: () => void }> = ({ token, onBack }) => {
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const [timeframe, setTimeframe] = useState<'1s' | '5s' | '30s' | '1m' | '5m' | '15m' | '1h'>('1s');
-
   return (
     <div className="fixed inset-0 bg-[#0A0A0A] z-50 overflow-hidden">
       <div className="h-full flex flex-col">

@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { useHeliusStore } from './helius-websocket';
 import { preloadTokenImages } from './token-metadata';
 import type { TokenData } from '@/types/token';
 
@@ -24,11 +23,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   addToken: (token) => {
     set((state) => {
       const newTokens = [token, ...state.tokens].slice(0, 20); // Keep last 20 tokens
-
-      // Initialize Helius subscription for the new token
-      const heliusStore = useHeliusStore.getState();
-      heliusStore.subscribeToToken(token.address);
-
       return { tokens: newTokens };
     });
   },
