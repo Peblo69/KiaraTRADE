@@ -38,3 +38,5 @@
 {"level":"info","message":"[Routes] WebSocket managers initialized","timestamp":"2025-01-23T20:38:52.120Z"}
 {"level":"info","message":"[Helius WebSocket] Connected successfully","timestamp":"2025-01-23T20:38:52.549Z"}
 {"level":"info","message":"[Helius WebSocket] Resubscribing to all tokens...","timestamp":"2025-01-23T20:38:52.549Z"}
+{"level":"info","message":"[Routes] Initializing WebSocket managers...","timestamp":"2025-01-23T20:41:50.791Z"}
+{"level":"info","message":"[Routes] WebSocket managers initialized","timestamp":"2025-01-23T20:41:50.808Z"}

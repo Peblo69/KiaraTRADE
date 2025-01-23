@@ -1,6 +1,5 @@
 import WebSocket from 'ws';
 import { wsManager } from './websocket';
-import logger from './logger';
 
 interface TokenMetrics {
   price: number;
@@ -25,18 +24,16 @@ class HeliusWebSocketManager {
 
   private validateApiKey() {
     if (!process.env.HELIUS_API_KEY) {
-      const error = new Error('[Helius WebSocket] HELIUS_API_KEY environment variable is not set');
-      logger.error(error.message);
-      throw error;
+      console.error('[Helius] HELIUS_API_KEY environment variable is not set');
+      throw new Error('HELIUS_API_KEY not set');
     }
 
     if (typeof process.env.HELIUS_API_KEY !== 'string' || process.env.HELIUS_API_KEY.length < 10) {
-      const error = new Error('[Helius WebSocket] HELIUS_API_KEY appears to be invalid');
-      logger.error(error.message);
-      throw error;
+      console.error('[Helius] HELIUS_API_KEY appears to be invalid');
+      throw new Error('Invalid HELIUS_API_KEY');
     }
 
-    logger.info('[Helius WebSocket] API Key validation successful');
+    console.log('[Helius] API Key validation successful');
   }
 
   private processTokenActivity(transfer: any) {
@@ -46,7 +43,7 @@ class HeliusWebSocketManager {
       const sender = transfer.source;
       const receiver = transfer.destination;
 
-      logger.debug(`[Helius WebSocket] Processing transfer: ${amount} tokens from ${sender} to ${receiver}`);
+      console.log(`[Helius] Processing transfer: ${amount} tokens from ${sender} to ${receiver}`);
 
       // Get or initialize token metrics
       let metrics = this.tokenMetrics.get(tokenAddress) || {
@@ -59,12 +56,12 @@ class HeliusWebSocketManager {
       // Update metrics based on transfer type
       if (this.isLiquidityPoolAddress(receiver)) {
         // Buy transaction
-        logger.info(`[Helius WebSocket] Buy transaction detected for ${tokenAddress}`);
+        console.log(`[Helius] Buy transaction detected for ${tokenAddress}`);
         metrics.volume24h += amount;
         this.updateTokenPrice(tokenAddress, metrics, transfer);
       } else if (this.isLiquidityPoolAddress(sender)) {
         // Sell transaction
-        logger.info(`[Helius WebSocket] Sell transaction detected for ${tokenAddress}`);
+        console.log(`[Helius] Sell transaction detected for ${tokenAddress}`);
         metrics.volume24h += amount;
         this.updateTokenPrice(tokenAddress, metrics, transfer);
       }
@@ -75,7 +72,7 @@ class HeliusWebSocketManager {
       // Broadcast updated metrics
       this.broadcastMetrics(tokenAddress, metrics);
     } catch (error) {
-      logger.error('[Helius WebSocket] Error processing token activity:', error);
+      console.error('[Helius] Error processing token activity:', error);
     }
   }
 
@@ -105,7 +102,7 @@ class HeliusWebSocketManager {
       }
       metrics.lastUpdate = now;
     } catch (error) {
-      logger.error('[Helius WebSocket] Error updating token price:', error);
+      console.error('[Helius] Error updating token price:', error);
     }
   }
 
@@ -124,11 +121,11 @@ class HeliusWebSocketManager {
 
   private handleLogNotification(params: any) {
     try {
-      logger.debug('[Helius WebSocket] Log notification received:', params);
+      console.log('[Helius] Log notification received:', params);
 
       const { result } = params;
       if (!result) {
-        logger.warn('[Helius WebSocket] Empty result in notification');
+        console.warn('[Helius] Empty result in notification');
         return;
       }
 
@@ -138,35 +135,35 @@ class HeliusWebSocketManager {
       );
 
       if (transfer) {
-        logger.info('[Helius WebSocket] Token transfer detected:', transfer);
+        console.log('[Helius] Token transfer detected:', transfer);
         this.processTokenActivity(transfer);
       }
 
     } catch (error) {
-      logger.error('[Helius WebSocket] Error handling notification:', error);
+      console.error('[Helius] Error handling notification:', error);
     }
   }
 
   connect() {
     if (!process.env.HELIUS_API_KEY) {
-      logger.error('[Helius WebSocket] Cannot connect: HELIUS_API_KEY is not set');
+      console.error('[Helius] Cannot connect: HELIUS_API_KEY is not set');
       return;
     }
 
     if (this.ws?.readyState === WebSocket.OPEN) {
-      logger.info('[Helius WebSocket] Already connected');
+      console.log('[Helius] Already connected');
       return;
     }
 
     try {
-      logger.info('[Helius WebSocket] Attempting to connect...');
+      console.log('[Helius] Attempting to connect...');
       const wsUrl = `wss://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
-      logger.info(`[Helius WebSocket] Connecting to: ${wsUrl}`);
+      console.log(`[Helius] Connecting to: ${wsUrl}`);
 
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        logger.info('[Helius WebSocket] Connected successfully');
+        console.log('[Helius] Connected successfully');
         this.reconnectAttempts = 0;
         this.resubscribeAll();
       };
@@ -174,22 +171,22 @@ class HeliusWebSocketManager {
       this.ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data.toString());
-          logger.debug('[Helius WebSocket] Message received:', message);
+          console.log('[Helius] Message received:', message);
 
           if (message.method === 'logsNotification') {
             this.handleLogNotification(message.params);
           }
         } catch (error) {
-          logger.error('[Helius WebSocket] Error processing message:', error);
+          console.error('[Helius] Error processing message:', error);
         }
       };
 
-      this.ws.onclose = (code: number) => {
-        logger.warn(`[Helius WebSocket] Connection closed with code: ${code}`);
+      this.ws.onclose = (event) => {
+        console.warn(`[Helius] Connection closed with code ${event.code}`);
 
         // Special handling for rejection codes
-        if (code === 1008 || code === 1011) {
-          logger.error('[Helius WebSocket] Server rejected connection, extending delay before retry');
+        if (event.code === 1008 || event.code === 1011) {
+          console.error('[Helius] Server rejected connection, extending delay before retry');
           this.reconnectAttempts = this.MAX_RECONNECT_ATTEMPTS;
           return;
         }
@@ -198,19 +195,19 @@ class HeliusWebSocketManager {
       };
 
       this.ws.onerror = (error) => {
-        logger.error('[Helius WebSocket] Connection error:', error);
+        console.error('[Helius] Connection error:', error);
         this.reconnect();
       };
 
     } catch (error) {
-      logger.error('[Helius WebSocket] Connection failed:', error);
+      console.error('[Helius] Connection failed:', error);
       this.reconnect();
     }
   }
 
   private async subscribeToToken(tokenAddress: string) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      logger.warn('[Helius WebSocket] Cannot subscribe, connection not ready');
+      console.warn('[Helius] Cannot subscribe, connection not ready');
       return;
     }
 
@@ -229,19 +226,19 @@ class HeliusWebSocketManager {
         ]
       };
 
-      logger.info(`[Helius WebSocket] Sending subscription for token: ${tokenAddress}`);
+      console.log(`[Helius] Sending subscription for token: ${tokenAddress}`);
       this.ws.send(JSON.stringify(subscriptionMessage));
-      logger.info(`[Helius WebSocket] Subscription sent for token: ${tokenAddress}`);
+      console.log(`[Helius] Subscription sent for token: ${tokenAddress}`);
 
     } catch (error) {
-      logger.error(`[Helius WebSocket] Subscription error for ${tokenAddress}:`, error);
+      console.error(`[Helius] Subscription error for ${tokenAddress}:`, error);
     }
   }
 
   private resubscribeAll() {
-    logger.info('[Helius WebSocket] Resubscribing to all tokens...');
+    console.log('[Helius] Resubscribing to all tokens...');
     this.subscriptions.forEach((_, address) => {
-      logger.info(`[Helius WebSocket] Resubscribing to token: ${address}`);
+      console.log(`[Helius] Resubscribing to token: ${address}`);
       this.subscribeToToken(address);
     });
   }
@@ -253,13 +250,13 @@ class HeliusWebSocketManager {
     }
 
     if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
-      logger.error('[Helius WebSocket] Max reconnection attempts reached');
+      console.error('[Helius] Max reconnection attempts reached');
       return;
     }
 
     this.reconnectAttempts++;
     const delay = this.RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts - 1);
-    logger.info(`[Helius WebSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
+    console.log(`[Helius] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
 
     this.reconnectTimeout = setTimeout(() => {
       this.connect();
@@ -269,7 +266,7 @@ class HeliusWebSocketManager {
   // Public method to add new token subscription
   addToken(tokenAddress: string) {
     if (!this.subscriptions.has(tokenAddress)) {
-      logger.info(`[Helius WebSocket] Adding new token subscription: ${tokenAddress}`);
+      console.log(`[Helius] Adding new token subscription: ${tokenAddress}`);
       this.subscriptions.set(tokenAddress, Date.now());
       this.subscribeToToken(tokenAddress);
     }
@@ -278,17 +275,17 @@ class HeliusWebSocketManager {
   // Initialize the connection
   initialize() {
     if (this.initialized) {
-      logger.info('[Helius WebSocket] Already initialized');
+      console.log('[Helius] Already initialized');
       return;
     }
 
     try {
-      logger.info('[Helius WebSocket] Initializing...');
+      console.log('[Helius] Initializing...');
       this.validateApiKey();
       this.connect();
       this.initialized = true;
     } catch (error) {
-      logger.error('[Helius WebSocket] Failed to initialize:', error);
+      console.error('[Helius] Failed to initialize:', error);
       throw error; // Re-throw to prevent silent failure
     }
   }
