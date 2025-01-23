@@ -12,10 +12,14 @@ interface TokenMetrics {
 class TokenMetricsService {
   private metrics: Map<string, TokenMetrics> = new Map();
   private readonly METRICS_CLEANUP_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+  private readonly BROADCAST_INTERVAL = 5000; // Broadcast every 5 seconds
 
   constructor() {
     // Clean up old metrics data periodically
     setInterval(() => this.cleanupOldMetrics(), this.METRICS_CLEANUP_INTERVAL);
+
+    // Set up periodic broadcasting
+    setInterval(() => this.broadcastAllMetrics(), this.BROADCAST_INTERVAL);
   }
 
   private cleanupOldMetrics() {
@@ -31,7 +35,7 @@ class TokenMetricsService {
   processTransaction(data: any) {
     try {
       const { tokenAddress, type, amount, baseTokenAmount, quoteTokenAmount } = this.extractTransactionData(data);
-      
+
       if (!tokenAddress) {
         console.warn('[TokenMetrics] Missing token address in transaction data');
         return;
@@ -62,9 +66,9 @@ class TokenMetricsService {
       metrics.lastUpdate = Date.now();
       this.metrics.set(tokenAddress, metrics);
 
-      // Broadcast updated metrics
+      // Broadcast updated metrics immediately for this token
       this.broadcastMetrics(tokenAddress, metrics);
-      
+
       console.log(`[TokenMetrics] Updated metrics for ${tokenAddress}:`, {
         price: metrics.price,
         marketCap: metrics.marketCap,
@@ -91,12 +95,12 @@ class TokenMetricsService {
 
   private determineTransactionType(data: any): 'buy' | 'sell' | 'unknown' {
     const { source, destination } = data;
-    
+
     // Check if destination is a known liquidity pool
     if (this.isLiquidityPool(destination)) {
       return 'buy';
     }
-    
+
     // Check if source is a known liquidity pool
     if (this.isLiquidityPool(source)) {
       return 'sell';
@@ -131,7 +135,7 @@ class TokenMetricsService {
 
   private broadcastMetrics(tokenAddress: string, metrics: TokenMetrics) {
     wsManager.broadcast({
-      type: 'token_metrics',
+      type: 'token_metrics_update',
       data: {
         tokenAddress,
         price: metrics.price,
@@ -144,12 +148,32 @@ class TokenMetricsService {
     });
   }
 
-  // Get metrics for a specific token
+  private broadcastAllMetrics() {
+    // Create a batch update of all active tokens
+    const updates = Array.from(this.metrics.entries()).map(([address, metrics]) => ({
+      tokenAddress: address,
+      price: metrics.price,
+      marketCap: metrics.marketCap,
+      volume24h: metrics.volume24h,
+      buyCount24h: metrics.buyCount24h,
+      sellCount24h: metrics.sellCount24h,
+      timestamp: Date.now()
+    }));
+
+    if (updates.length > 0) {
+      wsManager.broadcast({
+        type: 'token_metrics_batch_update',
+        data: updates
+      });
+      console.log(`[TokenMetrics] Broadcasting batch update for ${updates.length} tokens`);
+    }
+  }
+
+  // Public methods to access metrics
   getTokenMetrics(tokenAddress: string): TokenMetrics | null {
     return this.metrics.get(tokenAddress) || null;
   }
 
-  // Get metrics for all tracked tokens
   getAllMetrics(): Record<string, TokenMetrics> {
     return Object.fromEntries(this.metrics.entries());
   }
