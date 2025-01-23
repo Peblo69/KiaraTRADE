@@ -11,6 +11,109 @@ class UnifiedWebSocket {
   private isReconnecting = false;
   private isManualDisconnect = false;
 
+  private async connectHelius() {
+    try {
+      if (this.heliusWs?.readyState === WebSocket.OPEN) {
+        console.log('[Helius] Already connected');
+        return;
+      }
+
+      console.log('[Helius] Attempting to connect...');
+      const wsUrl = 'wss://mainnet.helius-rpc.com/?api-key=004f9b13-f526-4952-9998-52f5c7bec6ee';
+      console.log('[Helius] Connecting to:', wsUrl);
+
+      this.heliusWs = new WebSocket(wsUrl);
+
+      this.heliusWs.onopen = () => {
+        console.log('[Helius] Connected successfully');
+        console.log('[Helius] WebSocket State:', this.heliusWs?.readyState);
+        this.resubscribeTokens();
+      };
+
+      this.heliusWs.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('[Helius] Raw message received:', data);
+
+          if (data.method === 'logsNotification') {
+            console.log('[Helius] Logs notification received:', data.params);
+            this.handleHeliusNotification(data.params);
+          }
+        } catch (error) {
+          console.error('[Helius] Error processing message:', error);
+        }
+      };
+
+      this.heliusWs.onclose = (event) => {
+        console.log('[Helius] Connection closed:', event.code, event.reason);
+        setTimeout(() => this.connectHelius(), 5000);
+      };
+
+      this.heliusWs.onerror = (error) => {
+        console.error('[Helius] Connection error:', error);
+      };
+
+    } catch (error) {
+      console.error('[Helius] Failed to establish connection:', error);
+    }
+  }
+
+  private handleHeliusNotification(params: any) {
+    try {
+      if (!params || !params.result) {
+        console.log('[Helius] Empty notification received');
+        return;
+      }
+
+      console.log('[Helius] Processing notification:', params);
+
+      // Process the notification here
+      const result = params.result;
+      if (result.value && result.value.logs) {
+        console.log('[Helius] Transaction logs:', result.value.logs);
+      }
+    } catch (error) {
+      console.error('[Helius] Error handling notification:', error);
+    }
+  }
+
+  private resubscribeTokens() {
+    const store = useUnifiedTokenStore.getState();
+    store.tokens.forEach(token => {
+      this.subscribeToHelius(token.address);
+    });
+  }
+
+  private subscribeToHelius(tokenAddress: string) {
+    if (!this.heliusWs || this.heliusWs.readyState !== WebSocket.OPEN) {
+      console.warn('[Helius] Cannot subscribe, connection not ready');
+      return;
+    }
+
+    try {
+      const subscriptionMessage = {
+        jsonrpc: '2.0',
+        id: Date.now(),
+        method: 'logsSubscribe',
+        params: [
+          {
+            mentions: [tokenAddress]
+          },
+          {
+            commitment: 'confirmed'
+          }
+        ]
+      };
+
+      console.log('[Helius] Subscribing to token:', tokenAddress);
+      console.log('[Helius] Subscription message:', subscriptionMessage);
+
+      this.heliusWs.send(JSON.stringify(subscriptionMessage));
+    } catch (error) {
+      console.error('[Helius] Subscription error:', error);
+    }
+  }
+
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) {
       console.log('[PumpPortal] Already connected');
@@ -27,7 +130,6 @@ class UnifiedWebSocket {
       this.isManualDisconnect = false;
       console.log('[PumpPortal] Attempting to connect...');
 
-      // Connect to PumpPortal WebSocket
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}`;
       this.ws = new WebSocket(wsUrl);
@@ -40,7 +142,7 @@ class UnifiedWebSocket {
         this.startHeartbeat();
         useUnifiedTokenStore.getState().setConnected(true);
 
-        // After PumpPortal connection is established, connect to Helius
+        // Connect to Helius after PumpPortal connection is established
         this.connectHelius();
       };
 
@@ -95,45 +197,6 @@ class UnifiedWebSocket {
     }
   }
 
-  private connectHelius() {
-    try {
-      console.log('[Helius] Attempting to connect...');
-      this.heliusWs = new WebSocket('wss://mainnet.helius-rpc.com/?api-key=004f9b13-f526-4952-9998-52f5c7bec6ee');
-
-      this.heliusWs.onopen = () => {
-        console.log('[Helius] Connected successfully');
-      };
-
-      this.heliusWs.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('[Helius] Message received:', data);
-
-          if (data.method === 'logsNotification') {
-            this.handleHeliusNotification(data.params);
-          }
-        } catch (error) {
-          console.error('[Helius] Error processing message:', error);
-        }
-      };
-
-      this.heliusWs.onclose = (event) => {
-        console.log('[Helius] Connection closed:', event.code);
-      };
-
-      this.heliusWs.onerror = (error) => {
-        console.error('[Helius] Connection error:', error);
-      };
-    } catch (error) {
-      console.error('[Helius] Failed to establish connection:', error);
-    }
-  }
-
-  private handleHeliusNotification(params: any) {
-    console.log('[Helius] Notification received:', params);
-    // Process Helius notification data here
-  }
-
   private handleTokenUpdate(token: any) {
     if (!token?.address) {
       console.warn('[PumpPortal] Received invalid token data');
@@ -150,8 +213,8 @@ class UnifiedWebSocket {
     };
 
     const existingToken = store.tokens.find(t => t.address === token.address);
-    if (!existingToken || 
-        existingToken.price !== token.price || 
+    if (!existingToken ||
+        existingToken.price !== token.price ||
         existingToken.marketCapSol !== token.marketCapSol ||
         existingToken.volume24h !== token.volume24h) {
 
@@ -163,28 +226,6 @@ class UnifiedWebSocket {
     }
   }
 
-  private subscribeToHelius(tokenAddress: string) {
-    if (this.heliusWs?.readyState === WebSocket.OPEN) {
-      const subscriptionMessage = {
-        jsonrpc: '2.0',
-        id: Date.now(),
-        method: 'logsSubscribe',
-        params: [
-          {
-            mentions: [tokenAddress]
-          },
-          {
-            commitment: 'confirmed'
-          }
-        ]
-      };
-
-      console.log('[Helius] Subscribing to token:', tokenAddress);
-      this.heliusWs.send(JSON.stringify(subscriptionMessage));
-    } else {
-      console.warn('[Helius] Cannot subscribe, connection not ready');
-    }
-  }
 
   private startHeartbeat() {
     if (this.heartbeatInterval) {
