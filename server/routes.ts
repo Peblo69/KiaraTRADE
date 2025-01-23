@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { wsManager } from './services/websocket';
+import { heliusWsManager } from './services/helius-websocket';
 import { generateAIResponse } from './services/ai';
 import axios from 'axios';
 import { getTokenImage, addPriorityToken } from './image-worker';
@@ -43,8 +44,9 @@ const cache = {
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
-  // Initialize WebSocket manager
+  // Initialize both WebSocket managers
   wsManager.initialize(httpServer);
+  heliusWsManager.initialize();
 
   // Add crypto news endpoint
   app.get('/api/crypto-news', async (req, res) => {

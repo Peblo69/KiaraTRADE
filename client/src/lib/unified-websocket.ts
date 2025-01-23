@@ -99,14 +99,39 @@ class UnifiedWebSocket {
     }
 
     const store = useUnifiedTokenStore.getState();
-    const existingToken = store.tokens.find(t => t.address === token.address);
+
+    // Enhanced token processing
+    const processedToken = {
+      ...token,
+      lastUpdate: Date.now(),
+      source: token.source || 'pumpportal', // Track data source
+      isActive: true,
+      // Add additional fields if needed
+    };
 
     // Only update if data actually changed
+    const existingToken = store.tokens.find(t => t.address === token.address);
     if (!existingToken || 
         existingToken.price !== token.price || 
         existingToken.marketCapSol !== token.marketCapSol ||
         existingToken.volume24h !== token.volume24h) {
-      store.addToken(token);
+
+      // Send subscription request to server for Helius monitoring
+      if (!existingToken) {
+        this.subscribeToHelius(token.address);
+      }
+
+      store.addToken(processedToken);
+    }
+  }
+
+  private subscribeToHelius(tokenAddress: string) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'subscribe_helius',
+        tokenAddress: tokenAddress
+      }));
+      console.log(`[Unified WebSocket] Requested Helius subscription for ${tokenAddress}`);
     }
   }
 
