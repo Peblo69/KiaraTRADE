@@ -1,4 +1,4 @@
-// Token interfaces used across the application
+// client/src/types/token.ts
 
 // Base token info from PumpPortal
 export interface TokenData {

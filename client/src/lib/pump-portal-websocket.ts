@@ -1,15 +1,12 @@
+// client/src/lib/pump-portal-websocket.ts
+
 import { create } from "zustand";
 import { useHeliusStore } from './helius-websocket';
 import { preloadTokenImages } from './token-metadata';
 import type { TokenData } from '@/types/token';
 
+// Debug flag for development
 const DEBUG = true;
-
-// WebSocket configuration
-const PING_INTERVAL = 15000; // 15 seconds
-const PING_TIMEOUT = 5000;  // 5 seconds
-const RECONNECT_BASE_DELAY = 1000; // Start with 1 second
-const MAX_RECONNECT_DELAY = 30000; // 30 seconds
 
 interface PumpPortalStore {
   tokens: TokenData[];
@@ -32,7 +29,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
       // Initialize Helius subscription for the new token
       const heliusStore = useHeliusStore.getState();
-      if (DEBUG) console.log('[PumpPortal] Subscribing new token to Helius:', token.address);
+      console.log('[PumpPortal] Subscribing new token to Helius:', token.address);
       heliusStore.subscribeToToken(token.address);
 
       return { tokens: newTokens };
@@ -60,10 +57,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       )
     })),
 
-  setConnected: (connected) => {
-    if (DEBUG) console.log('[PumpPortal] Connection status:', connected);
-    set({ isConnected: connected });
-  },
+  setConnected: (connected) => set({ isConnected: connected }),
 
   getActiveTokens: () => {
     const state = get();
@@ -81,28 +75,14 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 }));
 
 let ws: WebSocket | null = null;
+let reconnectTimeout: NodeJS.Timeout | null = null;
+let reconnectAttempts = 0;
+const RECONNECT_DELAY = 1000;
+const MAX_RECONNECT_ATTEMPTS = Infinity;
+const PING_INTERVAL = 30000;
+const PING_TIMEOUT = 5000;
 let pingInterval: NodeJS.Timeout | null = null;
 let pingTimeout: NodeJS.Timeout | null = null;
-let reconnectAttempts = 0;
-
-function heartbeat() {
-  if (DEBUG) console.log('[PumpPortal] Heartbeat received');
-  if (pingTimeout) clearTimeout(pingTimeout);
-  pingTimeout = setTimeout(() => {
-    console.log('[PumpPortal] Connection dead (ping timeout) - reconnecting...');
-    ws?.close();
-  }, PING_TIMEOUT);
-}
-
-function startHeartbeat() {
-  if (pingInterval) clearInterval(pingInterval);
-  pingInterval = setInterval(() => {
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'ping' }));
-      if (DEBUG) console.log('[PumpPortal] Ping sent');
-    }
-  }, PING_INTERVAL);
-}
 
 async function mapPumpPortalData(data: any): Promise<TokenData> {
   try {
@@ -125,119 +105,135 @@ async function mapPumpPortalData(data: any): Promise<TokenData> {
   }
 }
 
-function cleanup() {
-  if (pingInterval) clearInterval(pingInterval);
-  if (pingTimeout) clearTimeout(pingTimeout);
-  if (ws) {
-    try {
-      ws.close();
-    } catch (e) {
-      console.error('[PumpPortal] Error closing WebSocket:', e);
-    }
-    ws = null;
-  }
-}
-
 export function initializePumpPortalWebSocket() {
   if (typeof window === 'undefined') return;
 
   const store = usePumpPortalStore.getState();
 
-  cleanup();
-  try {
-    if (DEBUG) console.log('[PumpPortal] Initializing WebSocket...');
-    ws = new WebSocket('wss://pumpportal.fun/api/data');
-
-    ws.onopen = () => {
-      if (DEBUG) console.log('[PumpPortal] Connected');
-      store.setConnected(true);
-      reconnectAttempts = 0;
-
-      // Start heartbeat
-      heartbeat();
-      startHeartbeat();
-
-      // Subscribe to new token events
-      if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          method: "subscribeNewToken",
-          keys: []
-        }));
-      }
-    };
-
-    ws.onmessage = async (event) => {
+  function cleanup() {
+    if (reconnectTimeout) clearTimeout(reconnectTimeout);
+    if (pingInterval) clearInterval(pingInterval);
+    if (pingTimeout) clearTimeout(pingTimeout);
+    if (ws) {
       try {
-        const data = JSON.parse(event.data);
-        if (DEBUG) console.log('[PumpPortal] Received:', data);
-
-        if (data.type === 'pong') {
-          heartbeat();
-          return;
-        }
-
-        // Only process new token creation events
-        if (data.txType === 'create' && data.mint) {
-          try {
-            // Create and add new token
-            const token = await mapPumpPortalData(data);
-            store.addToken(token);
-
-            if (DEBUG) console.log(`[PumpPortal] Added new token:`, {
-              symbol: token.symbol,
-              address: token.address
-            });
-
-            // Preload token image if available
-            if (token.imageLink) {
-              preloadTokenImages([{
-                imageLink: token.imageLink,
-                symbol: token.symbol
-              }]);
-            }
-
-          } catch (err) {
-            console.error('[PumpPortal] Failed to process token:', err);
-          }
-        }
-      } catch (error) {
-        console.error('[PumpPortal] Failed to parse message:', error);
+        ws.close();
+      } catch (e) {
+        console.error('[PumpPortal] Error closing WebSocket:', e);
       }
-    };
-
-    ws.onclose = () => {
-      console.log('[PumpPortal] Disconnected');
-      cleanup();
-      store.setConnected(false);
-
-      // Exponential backoff for reconnection
-      const delay = Math.min(RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY);
-      reconnectAttempts++;
-
-      console.log(`[PumpPortal] Attempting reconnect in ${delay/1000} seconds (attempt ${reconnectAttempts})`);
-      setTimeout(initializePumpPortalWebSocket, delay);
-    };
-
-    ws.onerror = (error) => {
-      console.error('[PumpPortal] WebSocket error:', error);
-      store.setConnected(false);
-    };
-
-  } catch (error) {
-    console.error('[PumpPortal] Failed to initialize:', error);
-    store.setConnected(false);
-
-    // Exponential backoff for reconnection
-    const delay = Math.min(RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY);
-    reconnectAttempts++;
-
-    console.log(`[PumpPortal] Attempting reconnect in ${delay/1000} seconds (attempt ${reconnectAttempts})`);
-    setTimeout(initializePumpPortalWebSocket, delay);
+      ws = null;
+    }
   }
 
-  // Return cleanup function
+  function heartbeat() {
+    if (pingTimeout) clearTimeout(pingTimeout);
+    pingTimeout = setTimeout(() => {
+      console.log('[PumpPortal] Connection dead (ping timeout) - reconnecting...');
+      ws?.close();
+    }, PING_TIMEOUT);
+  }
+
+  function startHeartbeat() {
+    if (pingInterval) clearInterval(pingInterval);
+    pingInterval = setInterval(() => {
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, PING_INTERVAL);
+  }
+
+  function connect() {
+    cleanup();
+    try {
+      console.log('[PumpPortal] Initializing WebSocket...');
+      ws = new WebSocket('wss://pumpportal.fun/api/data');
+
+      ws.onopen = () => {
+        console.log('[PumpPortal] WebSocket connected');
+        store.setConnected(true);
+        reconnectAttempts = 0;
+
+        // Start heartbeat
+        startHeartbeat();
+        heartbeat();
+
+        // Subscribe to new token events
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            method: "subscribeNewToken",
+            keys: []
+          }));
+        }
+      };
+
+      ws.onmessage = async (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (DEBUG) console.log('[PumpPortal] Raw event data:', data);
+
+          // Reset heartbeat on any message
+          heartbeat();
+
+          // Only process new token creation events
+          if (data.txType === 'create' && data.mint) {
+            try {
+              // Create and add new token
+              const token = await mapPumpPortalData(data);
+              store.addToken(token);
+
+              console.log(`[PumpPortal] Added new token:`, {
+                symbol: token.symbol,
+                address: token.address
+              });
+
+              // Preload token image if available
+              if (token.imageLink) {
+                preloadTokenImages([{
+                  imageLink: token.imageLink,
+                  symbol: token.symbol
+                }]);
+              }
+
+            } catch (err) {
+              console.error('[PumpPortal] Failed to process token:', err);
+            }
+          }
+        } catch (error) {
+          console.error('[PumpPortal] Failed to parse message:', error);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('[PumpPortal] WebSocket disconnected');
+        store.setConnected(false);
+        cleanup();
+
+        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          reconnectAttempts++;
+          console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+          reconnectTimeout = setTimeout(connect, RECONNECT_DELAY);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('[PumpPortal] WebSocket error:', error);
+        store.setConnected(false);
+      };
+
+    } catch (error) {
+      console.error('[PumpPortal] Failed to initialize WebSocket:', error);
+      store.setConnected(false);
+
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+        reconnectTimeout = setTimeout(connect, RECONNECT_DELAY);
+      }
+    }
+  }
+
+  // Start initial connection
+  connect();
+
+  // Cleanup on unmount
   return cleanup;
 }
-
-// Initialize connection
-initializePumpPortalWebSocket();
