@@ -135,6 +135,10 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
         metrics.smartMoneyWallets.add(trader);
       }
 
+      // Update PumpPortal store to mark this token as having recent activity
+      const pumpPortalStore = usePumpPortalStore.getState();
+      pumpPortalStore.updateLastTradeTime(tokenAddress);
+
       return {
         trades: updatedTrades,
         metrics: {
@@ -270,7 +274,13 @@ async function handleAccountUpdate(data: any) {
 
     const store = useHeliusStore.getState();
     const pumpPortalStore = usePumpPortalStore.getState();
-    const solPrice = pumpPortalStore.solPrice;
+
+    // Only process trades for active tokens
+    const activeTokens = pumpPortalStore.getActiveTokens();
+    if (!activeTokens.includes(data.accountId)) {
+      if (DEBUG) console.log('[Helius] Skipping inactive token:', data.accountId);
+      return;
+    }
 
     const relevantTokenAccounts = [...preTokenBalances, ...postTokenBalances];
     for (const tokenAccount of relevantTokenAccounts) {
@@ -289,9 +299,8 @@ async function handleAccountUpdate(data: any) {
 
       const isBuy = postAmount > preAmount;
       const solAmount = Math.abs(balanceChanges[0]) / 1e9;
-      const priceUsd = solAmount * (solPrice || 0);
 
-      // Calculate price impact
+      // Calculate price impact based on liquidity
       const metrics = store.getTokenMetrics(data.accountId);
       const priceImpact = metrics 
         ? (solAmount / metrics.liquidityUSD) * 100 
@@ -303,7 +312,7 @@ async function handleAccountUpdate(data: any) {
         tokenAddress: data.accountId,
         amount: tokenAmount,
         price: solAmount / tokenAmount,
-        priceUsd,
+        priceUsd: solAmount * 20, // Assuming SOL price ~$20 for now
         priceImpact,
         buyer: isBuy ? accountKeys.get(1)?.toBase58() || '' : '',
         seller: !isBuy ? accountKeys.get(0)?.toBase58() || '' : '',

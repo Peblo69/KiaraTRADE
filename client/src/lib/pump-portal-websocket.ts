@@ -10,24 +10,75 @@ export interface PumpPortalToken {
   name: string;
   address: string;
   imageLink?: string;
+  isActive: boolean;  // Whether token is currently being actively tracked
+  lastTradeTime: number;  // Last time we saw a trade
+  isVisible: boolean;  // Whether token is currently visible in viewport
 }
 
 interface PumpPortalStore {
   tokens: PumpPortalToken[];
   isConnected: boolean;
   addToken: (token: PumpPortalToken) => void;
+  setTokenVisibility: (address: string, isVisible: boolean) => void;
+  setTokenActivity: (address: string, isActive: boolean) => void;
+  updateLastTradeTime: (address: string) => void;
   setConnected: (connected: boolean) => void;
+  getActiveTokens: () => string[];  // Get addresses of tokens we should actively track
 }
 
-// Store for just tracking new tokens
-export const usePumpPortalStore = create<PumpPortalStore>((set) => ({
+// Store for tracking new tokens with smart data fetching
+export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
   isConnected: false,
+
   addToken: (token) =>
     set((state) => ({
-      tokens: [token, ...state.tokens].slice(0, 100), // Keep last 100 tokens
+      tokens: [token, ...state.tokens].slice(0, 20), // Keep last 20 tokens
     })),
+
+  setTokenVisibility: (address, isVisible) =>
+    set((state) => ({
+      tokens: state.tokens.map(token =>
+        token.address === address
+          ? { ...token, isVisible }
+          : token
+      )
+    })),
+
+  setTokenActivity: (address, isActive) =>
+    set((state) => ({
+      tokens: state.tokens.map(token =>
+        token.address === address
+          ? { ...token, isActive }
+          : token
+      )
+    })),
+
+  updateLastTradeTime: (address) =>
+    set((state) => ({
+      tokens: state.tokens.map(token =>
+        token.address === address
+          ? { ...token, lastTradeTime: Date.now() }
+          : token
+      )
+    })),
+
   setConnected: (connected) => set({ isConnected: connected }),
+
+  // Get tokens we should actively track (visible or recently traded)
+  getActiveTokens: () => {
+    const state = get();
+    const now = Date.now();
+    const RECENT_TRADE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+
+    return state.tokens
+      .filter(token => 
+        token.isVisible || // Token is visible in viewport
+        token.isActive || // Token details are open
+        (now - token.lastTradeTime) < RECENT_TRADE_THRESHOLD // Recent trading activity
+      )
+      .map(token => token.address);
+  }
 }));
 
 let ws: WebSocket | null = null;
@@ -47,6 +98,9 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       name: name || `Token ${mint?.slice(0, 8)}`,
       address: mint || '',
       imageLink: imageLink || 'https://via.placeholder.com/150',
+      isActive: false,
+      lastTradeTime: Date.now(),
+      isVisible: false
     };
   } catch (error) {
     console.error('[PumpPortal] Error mapping data:', error);
@@ -103,7 +157,9 @@ export function initializePumpPortalWebSocket() {
               store.addToken(token);
 
               // Immediately subscribe to token with Helius
+              // This subscribes but data fetching will be managed by visibility/activity
               useHeliusStore.getState().subscribeToToken(data.mint);
+
               console.log(`[PumpPortal] Added new token:`, {
                 symbol: token.symbol,
                 address: token.address
