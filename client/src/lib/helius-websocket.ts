@@ -9,6 +9,12 @@ const DEBUG = true;
 const PING_INTERVAL = 15000; // 15 seconds
 const PING_TIMEOUT = 5000;  // 5 seconds
 const RECONNECT_BASE_DELAY = 1000; // Start with 1 second
+const MAX_RECONNECT_DELAY = 30000; // 30 seconds
+
+// Helius connection configuration
+const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY;
+const HELIUS_RPC_URL = `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+const connection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
 
 interface HeliusStore {
   trades: Record<string, TokenTrade[]>;
@@ -250,10 +256,6 @@ let pingInterval: NodeJS.Timeout | null = null;
 let pingTimeout: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
 
-const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY;
-const HELIUS_RPC_URL = `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
-const connection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
-
 function heartbeat() {
   if (DEBUG) console.log('[Helius] Heartbeat received');
   if (pingTimeout) clearTimeout(pingTimeout);
@@ -418,7 +420,7 @@ export function initializeHeliusWebSocket() {
 
       // Resubscribe to existing tokens
       const store = useHeliusStore.getState();
-      const tokens = [...store.subscribedTokens, ...store.pendingSubscriptions];
+      const tokens = Array.from(new Set([...store.subscribedTokens, ...store.pendingSubscriptions]));
       store.subscribedTokens.clear();
       store.pendingSubscriptions.clear();
 
@@ -450,7 +452,7 @@ export function initializeHeliusWebSocket() {
       useHeliusStore.getState().setConnected(false);
 
       // Exponential backoff for reconnection
-      const delay = Math.min(RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts), 30000);
+      const delay = Math.min(RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY);
       reconnectAttempts++;
 
       console.log(`[Helius] Attempting reconnect in ${delay/1000} seconds (attempt ${reconnectAttempts})`);
@@ -471,5 +473,5 @@ export function initializeHeliusWebSocket() {
   return cleanup;
 }
 
-// Initialize WebSocket connection
+// Initialize connection with infinite retries
 initializeHeliusWebSocket();
