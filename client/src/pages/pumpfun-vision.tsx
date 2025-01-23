@@ -1,8 +1,6 @@
-// client/src/pages/pumpfun-vision.tsx
-
-import React, { FC, useState, useRef, useEffect } from "react";
 import '@/lib/pump-portal-websocket';
 import '@/lib/helius-websocket';
+import { FC, useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,10 +9,8 @@ import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { useHeliusStore } from "@/lib/helius-websocket";
 import millify from "millify";
 import { getTokenImage } from "@/lib/token-metadata";
-import AdvancedChart from "@/components/AdvancedChart"; // Changed to default import
+import { AdvancedChart } from "@/components/AdvancedChart";
 import type { TokenData } from "@/types/token";
-import { initializePumpPortalWebSocket } from '@/lib/pump-portal-websocket';
-import { initializeHeliusWebSocket } from '@/lib/helius-websocket';
 
 // Helper functions for formatting numbers
 const formatPrice = (price: number | undefined | null): string => {
@@ -239,16 +235,6 @@ const PumpFunVision: FC = () => {
   const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
   const tokens = usePumpPortalStore((state) => state.tokens);
   const isConnected = usePumpPortalStore((state) => state.isConnected);
-
-  useEffect(() => {
-    const cleanupPumpPortal = initializePumpPortalWebSocket();
-    const cleanupHelius = initializeHeliusWebSocket();
-
-    return () => {
-      cleanupPumpPortal();
-      cleanupHelius();
-    };
-  }, []);
 
   return (
     <>

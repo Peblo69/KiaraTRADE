@@ -1,12 +1,10 @@
-// client/src/lib/pump-portal-websocket.ts
-
 import { create } from "zustand";
 import { useHeliusStore } from './helius-websocket';
 import { preloadTokenImages } from './token-metadata';
 import type { TokenData } from '@/types/token';
 
-// Debug flag for development
-const DEBUG = true;
+// Debug flag
+const DEBUG = false;
 
 interface PumpPortalStore {
   tokens: TokenData[];
@@ -25,11 +23,10 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
   addToken: (token) => {
     set((state) => {
-      const newTokens = [token, ...state.tokens].slice(0, 20);
+      const newTokens = [token, ...state.tokens].slice(0, 20); // Keep last 20 tokens
 
       // Initialize Helius subscription for the new token
       const heliusStore = useHeliusStore.getState();
-      console.log('[PumpPortal] Subscribing new token to Helius:', token.address);
       heliusStore.subscribeToToken(token.address);
 
       return { tokens: newTokens };
@@ -39,21 +36,27 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   setTokenVisibility: (address, isVisible) =>
     set((state) => ({
       tokens: state.tokens.map(token =>
-        token.address === address ? { ...token, isVisible } : token
+        token.address === address
+          ? { ...token, isVisible }
+          : token
       )
     })),
 
   setTokenActivity: (address, isActive) =>
     set((state) => ({
       tokens: state.tokens.map(token =>
-        token.address === address ? { ...token, isActive } : token
+        token.address === address
+          ? { ...token, isActive }
+          : token
       )
     })),
 
   updateLastTradeTime: (address) =>
     set((state) => ({
       tokens: state.tokens.map(token =>
-        token.address === address ? { ...token, lastTradeTime: Date.now() } : token
+        token.address === address
+          ? { ...token, lastTradeTime: Date.now() }
+          : token
       )
     })),
 
@@ -78,11 +81,7 @@ let ws: WebSocket | null = null;
 let reconnectTimeout: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
 const RECONNECT_DELAY = 1000;
-const MAX_RECONNECT_ATTEMPTS = Infinity;
-const PING_INTERVAL = 30000;
-const PING_TIMEOUT = 5000;
-let pingInterval: NodeJS.Timeout | null = null;
-let pingTimeout: NodeJS.Timeout | null = null;
+const MAX_RECONNECT_ATTEMPTS = 5;
 
 async function mapPumpPortalData(data: any): Promise<TokenData> {
   try {
@@ -112,8 +111,6 @@ export function initializePumpPortalWebSocket() {
 
   function cleanup() {
     if (reconnectTimeout) clearTimeout(reconnectTimeout);
-    if (pingInterval) clearInterval(pingInterval);
-    if (pingTimeout) clearTimeout(pingTimeout);
     if (ws) {
       try {
         ws.close();
@@ -122,23 +119,6 @@ export function initializePumpPortalWebSocket() {
       }
       ws = null;
     }
-  }
-
-  function heartbeat() {
-    if (pingTimeout) clearTimeout(pingTimeout);
-    pingTimeout = setTimeout(() => {
-      console.log('[PumpPortal] Connection dead (ping timeout) - reconnecting...');
-      ws?.close();
-    }, PING_TIMEOUT);
-  }
-
-  function startHeartbeat() {
-    if (pingInterval) clearInterval(pingInterval);
-    pingInterval = setInterval(() => {
-      if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'ping' }));
-      }
-    }, PING_INTERVAL);
   }
 
   function connect() {
@@ -151,10 +131,6 @@ export function initializePumpPortalWebSocket() {
         console.log('[PumpPortal] WebSocket connected');
         store.setConnected(true);
         reconnectAttempts = 0;
-
-        // Start heartbeat
-        startHeartbeat();
-        heartbeat();
 
         // Subscribe to new token events
         if (ws?.readyState === WebSocket.OPEN) {
@@ -169,9 +145,6 @@ export function initializePumpPortalWebSocket() {
         try {
           const data = JSON.parse(event.data);
           if (DEBUG) console.log('[PumpPortal] Raw event data:', data);
-
-          // Reset heartbeat on any message
-          heartbeat();
 
           // Only process new token creation events
           if (data.txType === 'create' && data.mint) {
@@ -237,3 +210,6 @@ export function initializePumpPortalWebSocket() {
   // Cleanup on unmount
   return cleanup;
 }
+
+// Initialize connection
+initializePumpPortalWebSocket();
