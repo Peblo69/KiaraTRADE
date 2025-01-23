@@ -5,6 +5,11 @@ import type { TokenMetrics, TokenTrade, TimeWindow } from '@/types/token';
 
 const DEBUG = true;
 
+// WebSocket configuration
+const PING_INTERVAL = 15000; // 15 seconds
+const PING_TIMEOUT = 5000;  // 5 seconds
+const RECONNECT_BASE_DELAY = 1000; // Start with 1 second
+
 interface HeliusStore {
   trades: Record<string, TokenTrade[]>;
   metrics: Record<string, TokenMetrics>;
@@ -241,9 +246,32 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
 }));
 
 let ws: WebSocket | null = null;
+let pingInterval: NodeJS.Timeout | null = null;
+let pingTimeout: NodeJS.Timeout | null = null;
+let reconnectAttempts = 0;
+
 const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY;
 const HELIUS_RPC_URL = `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 const connection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
+
+function heartbeat() {
+  if (DEBUG) console.log('[Helius] Heartbeat received');
+  if (pingTimeout) clearTimeout(pingTimeout);
+  pingTimeout = setTimeout(() => {
+    console.log('[Helius] Connection dead (ping timeout) - reconnecting...');
+    ws?.close();
+  }, PING_TIMEOUT);
+}
+
+function startHeartbeat() {
+  if (pingInterval) clearInterval(pingInterval);
+  pingInterval = setInterval(() => {
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'ping' }));
+      if (DEBUG) console.log('[Helius] Ping sent');
+    }
+  }, PING_INTERVAL);
+}
 
 async function processTransaction(signature: string, tokenAddress: string) {
   try {
@@ -351,6 +379,19 @@ function handleSubscriptionResponse(data: any) {
   }
 }
 
+function cleanup() {
+  if (pingInterval) clearInterval(pingInterval);
+  if (pingTimeout) clearTimeout(pingTimeout);
+  if (ws) {
+    try {
+      ws.close();
+    } catch (e) {
+      console.error('[Helius] Error closing WebSocket:', e);
+    }
+    ws = null;
+  }
+}
+
 export function initializeHeliusWebSocket() {
   if (typeof window === 'undefined') return;
   if (!HELIUS_API_KEY) {
@@ -361,11 +402,7 @@ export function initializeHeliusWebSocket() {
   if (DEBUG) console.log('[Helius] Initializing WebSocket...');
 
   // Cleanup existing connection
-  if (ws) {
-    if (DEBUG) console.log('[Helius] Closing existing connection');
-    ws.close();
-    ws = null;
-  }
+  cleanup();
 
   try {
     ws = new WebSocket(HELIUS_RPC_URL);
@@ -373,6 +410,11 @@ export function initializeHeliusWebSocket() {
     ws.onopen = () => {
       if (DEBUG) console.log('[Helius] Connected');
       useHeliusStore.getState().setConnected(true);
+      reconnectAttempts = 0;
+
+      // Start heartbeat
+      heartbeat();
+      startHeartbeat();
 
       // Resubscribe to existing tokens
       const store = useHeliusStore.getState();
@@ -392,6 +434,8 @@ export function initializeHeliusWebSocket() {
 
         if (data.method === 'accountNotification') {
           handleAccountUpdate(data.params.result);
+        } else if (data.method === 'pong') {
+          heartbeat();
         } else {
           handleSubscriptionResponse(data);
         }
@@ -402,10 +446,15 @@ export function initializeHeliusWebSocket() {
 
     ws.onclose = () => {
       console.log('[Helius] Disconnected');
+      cleanup();
       useHeliusStore.getState().setConnected(false);
 
-      // Attempt to reconnect after 5 seconds
-      setTimeout(initializeHeliusWebSocket, 5000);
+      // Exponential backoff for reconnection
+      const delay = Math.min(RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts), 30000);
+      reconnectAttempts++;
+
+      console.log(`[Helius] Attempting reconnect in ${delay/1000} seconds (attempt ${reconnectAttempts})`);
+      setTimeout(initializeHeliusWebSocket, delay);
     };
 
     ws.onerror = (error) => {
@@ -417,6 +466,9 @@ export function initializeHeliusWebSocket() {
     console.error('[Helius] Failed to initialize:', error);
     useHeliusStore.getState().setConnected(false);
   }
+
+  // Return cleanup function
+  return cleanup;
 }
 
 // Initialize WebSocket connection
