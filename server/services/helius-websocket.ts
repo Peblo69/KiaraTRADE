@@ -25,7 +25,7 @@ class HeliusWebSocketManager {
     try {
       console.log('[Helius WebSocket] Connecting...');
       // Updated WebSocket URL to use the correct Helius WebSocket endpoint
-      this.ws = new WebSocket(`wss://rpc.helius.xyz/?api-key=${process.env.HELIUS_API_KEY}`);
+      this.ws = new WebSocket(`wss://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`);
 
       this.ws.on('open', () => {
         console.log('[Helius WebSocket] Connected');
