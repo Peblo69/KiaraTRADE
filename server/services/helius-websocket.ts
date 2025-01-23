@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import { wsManager } from './websocket';
+import { tokenMetricsService } from './token-metrics';
 
 interface TokenMetrics {
   price: number;
@@ -11,7 +12,6 @@ interface TokenMetrics {
 class HeliusWebSocketManager {
   private ws: WebSocket | null = null;
   private subscriptions: Map<string, number> = new Map(); // token address -> subscription id
-  private tokenMetrics: Map<string, TokenMetrics> = new Map(); // token address -> metrics
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private reconnectAttempts = 0;
   private readonly MAX_RECONNECT_ATTEMPTS = 5;
@@ -36,89 +36,6 @@ class HeliusWebSocketManager {
     console.log('[Helius] API Key validation successful');
   }
 
-  private processTokenActivity(transfer: any) {
-    try {
-      const tokenAddress = transfer.mint;
-      const amount = transfer.amount;
-      const sender = transfer.source;
-      const receiver = transfer.destination;
-
-      console.log(`[Helius] Processing transfer: ${amount} tokens from ${sender} to ${receiver}`);
-
-      // Get or initialize token metrics
-      let metrics = this.tokenMetrics.get(tokenAddress) || {
-        price: 0,
-        marketCap: 0,
-        volume24h: 0,
-        lastUpdate: Date.now()
-      };
-
-      // Update metrics based on transfer type
-      if (this.isLiquidityPoolAddress(receiver)) {
-        // Buy transaction
-        console.log(`[Helius] Buy transaction detected for ${tokenAddress}`);
-        metrics.volume24h += amount;
-        this.updateTokenPrice(tokenAddress, metrics, transfer);
-      } else if (this.isLiquidityPoolAddress(sender)) {
-        // Sell transaction
-        console.log(`[Helius] Sell transaction detected for ${tokenAddress}`);
-        metrics.volume24h += amount;
-        this.updateTokenPrice(tokenAddress, metrics, transfer);
-      }
-
-      // Update metrics
-      this.tokenMetrics.set(tokenAddress, metrics);
-
-      // Broadcast updated metrics
-      this.broadcastMetrics(tokenAddress, metrics);
-    } catch (error) {
-      console.error('[Helius] Error processing token activity:', error);
-    }
-  }
-
-  private isLiquidityPoolAddress(address: string): boolean {
-    // Add logic to identify liquidity pool addresses
-    // This is a placeholder - you'll need to implement proper LP detection
-    return address.toLowerCase().includes('pool') || address.toLowerCase().includes('amm');
-  }
-
-  private updateTokenPrice(tokenAddress: string, metrics: TokenMetrics, transfer: any) {
-    try {
-      // Calculate price based on liquidity pool ratio
-      // This is a simplified example - you'll need to implement proper price calculation
-      const baseTokenAmount = transfer.baseTokenAmount || 0;
-      const quoteTokenAmount = transfer.quoteTokenAmount || 0;
-
-      if (quoteTokenAmount > 0) {
-        metrics.price = baseTokenAmount / quoteTokenAmount;
-        // Assuming a fixed supply of 1 billion tokens for market cap calculation
-        metrics.marketCap = metrics.price * 1_000_000_000;
-      }
-
-      // Cleanup old volume data (older than 24h)
-      const now = Date.now();
-      if (now - metrics.lastUpdate > 24 * 60 * 60 * 1000) {
-        metrics.volume24h = 0;
-      }
-      metrics.lastUpdate = now;
-    } catch (error) {
-      console.error('[Helius] Error updating token price:', error);
-    }
-  }
-
-  private broadcastMetrics(tokenAddress: string, metrics: TokenMetrics) {
-    wsManager.broadcast({
-      type: 'token_metrics',
-      data: {
-        tokenAddress,
-        price: metrics.price,
-        marketCap: metrics.marketCap,
-        volume24h: metrics.volume24h,
-        timestamp: Date.now()
-      }
-    });
-  }
-
   private handleLogNotification(params: any) {
     try {
       console.log('[Helius] Log notification received:', params);
@@ -136,7 +53,8 @@ class HeliusWebSocketManager {
 
       if (transfer) {
         console.log('[Helius] Token transfer detected:', transfer);
-        this.processTokenActivity(transfer);
+        // Process the transaction with our metrics service
+        tokenMetricsService.processTransaction(transfer);
       }
 
     } catch (error) {
@@ -256,14 +174,13 @@ class HeliusWebSocketManager {
 
     this.reconnectAttempts++;
     const delay = this.RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts - 1);
-    console.log(`[Helius] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
+    console.log(`[Helius] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
 
     this.reconnectTimeout = setTimeout(() => {
       this.connect();
     }, delay);
   }
 
-  // Public method to add new token subscription
   addToken(tokenAddress: string) {
     if (!this.subscriptions.has(tokenAddress)) {
       console.log(`[Helius] Adding new token subscription: ${tokenAddress}`);
@@ -272,7 +189,6 @@ class HeliusWebSocketManager {
     }
   }
 
-  // Initialize the connection
   initialize() {
     if (this.initialized) {
       console.log('[Helius] Already initialized');
@@ -286,7 +202,7 @@ class HeliusWebSocketManager {
       this.initialized = true;
     } catch (error) {
       console.error('[Helius] Failed to initialize:', error);
-      throw error; // Re-throw to prevent silent failure
+      throw error;
     }
   }
 }
