@@ -1,0 +1,111 @@
+Step 2: Extract and Process Token Metrics
+Now that the Helius WebSocket is connected and receiving logs, the next step involves processing the logs to extract useful token metrics. Here’s the breakdown:
+
+Objective
+Decode the logs received from the Helius WebSocket to identify:
+Buy/Sell Activity: Track token transfers (incoming/outgoing).
+Liquidity Updates: Detect changes in liquidity pools.
+Calculate key metrics:
+Price Per Token: Based on liquidity pool ratios (e.g., USDC/token).
+Market Cap: Using a fixed supply (e.g., 1 billion tokens).
+Volume: Total transaction volume over a time window (e.g., 24 hours).
+Broadcast this data to your front-end or monitoring system.
+Implementation Plan
+1. Parse Incoming Logs
+Update handleLogNotification in HeliusWebSocketManager to decode logs and extract relevant data:
+javascript
+Copy
+Edit
+private handleLogNotification(params: any) {
+  try {
+    const { result } = params;
+    if (!result) return;
+
+    const logData = result.value; // Adjust based on Helius response structure
+
+    // Example: Extracting a token transfer
+    const transfer = logData.instructions?.find((instr) =>
+      instr.program === 'spl-token' && instr.data.includes('Transfer')
+    );
+
+    if (transfer) {
+      console.log('[Helius WebSocket] Token transfer detected:', transfer);
+      this.processTokenActivity(transfer);
+    }
+  } catch (error) {
+    console.error('[Helius WebSocket] Error handling notification:', error);
+  }
+}
+2. Track Metrics
+Create a processTokenActivity method to track:
+
+Buy/Sell Transactions:
+Check the direction of the transfer (in/out).
+Liquidity Updates:
+Identify instructions involving liquidity pool accounts.
+javascript
+Copy
+Edit
+private processTokenActivity(transfer: any) {
+  const tokenAddress = transfer.mint; // Token mint address
+  const amount = transfer.amount; // Amount transferred
+  const sender = transfer.source; // Source wallet
+  const receiver = transfer.destination; // Destination wallet
+
+  console.log(`[Helius WebSocket] Transfer: ${amount} tokens from ${sender} to ${receiver}`);
+
+  // Add logic to track buys/sells, liquidity, etc.
+  // Example: Increment buy/sell counters for the token
+  if (this.isBuyTransaction(receiver)) {
+    console.log(`[Helius WebSocket] Buy transaction detected for ${tokenAddress}`);
+  } else if (this.isSellTransaction(sender)) {
+    console.log(`[Helius WebSocket] Sell transaction detected for ${tokenAddress}`);
+  }
+}
+
+private isBuyTransaction(destination: string): boolean {
+  // Example logic to check if it's a buy
+  return destination.includes('liquidity_pool'); // Adjust based on actual structure
+}
+
+private isSellTransaction(source: string): boolean {
+  // Example logic to check if it's a sell
+  return source.includes('user_wallet'); // Adjust based on actual structure
+}
+3. Calculate Metrics
+Derive key metrics for each token:
+Price:
+javascript
+Copy
+Edit
+const price = liquidityUSDC / liquidityTokens; // USDC and token balances from liquidity pool
+Market Cap:
+javascript
+Copy
+Edit
+const marketCap = price * 1_000_000_000; // Fixed supply of 1 billion tokens
+Volume:
+Sum up all transaction amounts for a time window (e.g., 24 hours).
+4. Broadcast Metrics
+Use wsManager.broadcast to send metrics to connected clients or front-end systems:
+javascript
+Copy
+Edit
+wsManager.broadcast({
+  type: 'token_metrics',
+  data: {
+    token: tokenAddress,
+    price,
+    marketCap,
+    volume,
+    timestamp: Date.now(),
+  },
+});
+Monitoring and Debugging
+Helius WebSocket Console:
+
+Continue using the separate console for Helius WebSocket logs.
+Focus on logs related to token activity and metrics.
+Metric Dashboard:
+
+Consider creating a small dashboard (or logging system) to visualize metrics like price, market cap, and volume.
