@@ -1,209 +1,168 @@
-import { create } from "zustand";
-import { preloadTokenImages } from './token-metadata';
-import type { TokenData } from '@/types/token';
+// Updated Helius WebSocket Integration
+import { wsManager } from './websocket';
 
-// Debug flag
-const DEBUG = false;
-
-interface PumpPortalStore {
-  tokens: TokenData[];
-  isConnected: boolean;
-  addToken: (token: TokenData) => void;
-  setTokenVisibility: (address: string, isVisible: boolean) => void;
-  setTokenActivity: (address: string, isActive: boolean) => void;
-  updateLastTradeTime: (address: string) => void;
-  setConnected: (connected: boolean) => void;
-  getActiveTokens: () => string[];
+interface TokenMetrics {
+  price: number;          // Current token price
+  marketCap: number;      // Market cap calculation
+  volume24h: number;      // 24-hour trading volume
+  buyCount24h: number;    // Number of buy transactions
+  sellCount24h: number;   // Number of sell transactions
+  lastUpdate: number;     // Timestamp of last update
 }
 
-export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
-  tokens: [],
-  isConnected: false,
+class HeliusWebSocketManager {
+  private ws: WebSocket | null = null;
+  private reconnectAttempts = 0;
+  private readonly MAX_RECONNECT_ATTEMPTS = 5;
+  private readonly RECONNECT_DELAY = 5000;
+  private tokenMetrics: Map<string, TokenMetrics> = new Map();
 
-  addToken: (token) => {
-    set((state) => {
-      const newTokens = [token, ...state.tokens].slice(0, 20); // Keep last 20 tokens
-      return { tokens: newTokens };
-    });
-  },
-
-  setTokenVisibility: (address, isVisible) =>
-    set((state) => ({
-      tokens: state.tokens.map(token =>
-        token.address === address
-          ? { ...token, isVisible }
-          : token
-      )
-    })),
-
-  setTokenActivity: (address, isActive) =>
-    set((state) => ({
-      tokens: state.tokens.map(token =>
-        token.address === address
-          ? { ...token, isActive }
-          : token
-      )
-    })),
-
-  updateLastTradeTime: (address) =>
-    set((state) => ({
-      tokens: state.tokens.map(token =>
-        token.address === address
-          ? { ...token, lastTradeTime: Date.now() }
-          : token
-      )
-    })),
-
-  setConnected: (connected) => set({ isConnected: connected }),
-
-  getActiveTokens: () => {
-    const state = get();
-    const now = Date.now();
-    const RECENT_TRADE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
-
-    return state.tokens
-      .filter(token => 
-        token.isVisible || // Token is visible in viewport
-        token.isActive || // Token details are open
-        (now - token.lastTradeTime) < RECENT_TRADE_THRESHOLD // Recent trading activity
-      )
-      .map(token => token.address);
+  constructor() {
+    this.connect();
   }
-}));
 
-let ws: WebSocket | null = null;
-let reconnectTimeout: NodeJS.Timeout | null = null;
-let reconnectAttempts = 0;
-const RECONNECT_DELAY = 1000;
-const MAX_RECONNECT_ATTEMPTS = 5;
-
-async function mapPumpPortalData(data: any): Promise<TokenData> {
-  try {
-    if (DEBUG) console.log('[PumpPortal] Raw data received:', data);
-
-    const { mint, name, symbol, imageLink } = data;
-
-    return {
-      symbol: symbol || mint?.slice(0, 6) || 'Unknown',
-      name: name || `Token ${mint?.slice(0, 8)}`,
-      address: mint || '',
-      imageLink: imageLink || 'https://via.placeholder.com/150',
-      isActive: false,
-      isVisible: false,
-      lastTradeTime: Date.now(),
-    };
-  } catch (error) {
-    console.error('[PumpPortal] Error mapping data:', error);
-    throw error;
-  }
-}
-
-export function initializePumpPortalWebSocket() {
-  if (typeof window === 'undefined') return;
-
-  const store = usePumpPortalStore.getState();
-
-  function cleanup() {
-    if (reconnectTimeout) clearTimeout(reconnectTimeout);
-    if (ws) {
-      try {
-        ws.close();
-      } catch (e) {
-        console.error('[PumpPortal] Error closing WebSocket:', e);
-      }
-      ws = null;
+  private connect() {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      console.log('[Helius] WebSocket already connected');
+      return;
     }
-  }
 
-  function connect() {
-    cleanup();
     try {
-      console.log('[PumpPortal] Initializing WebSocket...');
-      ws = new WebSocket('wss://pumpportal.fun/api/data');
+      console.log('[Helius] Connecting to WebSocket...');
+      this.ws = new WebSocket('wss://mainnet.helius-rpc.com/?api-key=004f9b13-f526-4952-9998-52f5c7bec6ee');
 
-      ws.onopen = () => {
-        console.log('[PumpPortal] WebSocket connected');
-        store.setConnected(true);
-        reconnectAttempts = 0;
-
-        // Subscribe to new token events
-        if (ws?.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            method: "subscribeNewToken",
-            keys: []
-          }));
-        }
+      this.ws.onopen = () => {
+        console.log('[Helius] Connected successfully');
+        this.reconnectAttempts = 0;
+        this.subscribeToAllTokens();
       };
 
-      ws.onmessage = async (event) => {
+      this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (DEBUG) console.log('[PumpPortal] Raw event data:', data);
-
-          // Only process new token creation events
-          if (data.txType === 'create' && data.mint) {
-            try {
-              // Create and add new token
-              const token = await mapPumpPortalData(data);
-              store.addToken(token);
-
-              console.log(`[PumpPortal] Added new token:`, {
-                symbol: token.symbol,
-                address: token.address
-              });
-
-              // Preload token image if available
-              if (token.imageLink) {
-                preloadTokenImages([{
-                  imageLink: token.imageLink,
-                  symbol: token.symbol
-                }]);
-              }
-
-            } catch (err) {
-              console.error('[PumpPortal] Failed to process token:', err);
-            }
+          if (data.method === 'logsNotification') {
+            console.log('[Helius] Logs notification received:', data.params);
+            this.processNotification(data.params);
           }
         } catch (error) {
-          console.error('[PumpPortal] Failed to parse message:', error);
+          console.error('[Helius] Error processing message:', error);
         }
       };
 
-      ws.onclose = () => {
-        console.log('[PumpPortal] WebSocket disconnected');
-        store.setConnected(false);
-        cleanup();
-
-        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-          reconnectAttempts++;
-          console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-          reconnectTimeout = setTimeout(connect, RECONNECT_DELAY);
-        }
+      this.ws.onclose = () => {
+        console.log('[Helius] WebSocket connection closed');
+        this.reconnect();
       };
 
-      ws.onerror = (error) => {
-        console.error('[PumpPortal] WebSocket error:', error);
-        store.setConnected(false);
+      this.ws.onerror = (error) => {
+        console.error('[Helius] WebSocket error:', error);
+        this.reconnect();
       };
 
     } catch (error) {
-      console.error('[PumpPortal] Failed to initialize WebSocket:', error);
-      store.setConnected(false);
-
-      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-        reconnectAttempts++;
-        console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-        reconnectTimeout = setTimeout(connect, RECONNECT_DELAY);
-      }
+      console.error('[Helius] Connection failed:', error);
+      this.reconnect();
     }
   }
 
-  // Start initial connection
-  connect();
+  private reconnect() {
+    if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
+      console.error('[Helius] Max reconnect attempts reached');
+      return;
+    }
 
-  // Cleanup on unmount
-  return cleanup;
+    this.reconnectAttempts++;
+    console.log(`[Helius] Reconnecting in ${this.RECONNECT_DELAY}ms (Attempt ${this.reconnectAttempts})`);
+    setTimeout(() => this.connect(), this.RECONNECT_DELAY);
+  }
+
+  private subscribeToAllTokens() {
+    const tokens = Array.from(this.tokenMetrics.keys());
+    tokens.forEach((token) => this.subscribeToToken(token));
+  }
+
+  private subscribeToToken(tokenAddress: string) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.warn('[Helius] WebSocket not ready for subscription');
+      return;
+    }
+
+    try {
+      const subscriptionMessage = {
+        jsonrpc: '2.0',
+        id: Date.now(),
+        method: 'logsSubscribe',
+        params: [
+          {
+            mentions: [tokenAddress]
+          },
+          {
+            commitment: 'confirmed'
+          }
+        ]
+      };
+
+      this.ws.send(JSON.stringify(subscriptionMessage));
+      console.log(`[Helius] Subscribed to token: ${tokenAddress}`);
+
+    } catch (error) {
+      console.error(`[Helius] Subscription error for ${tokenAddress}:`, error);
+    }
+  }
+
+  private processNotification(params: any) {
+    const { result } = params;
+    if (!result) return;
+
+    // Process token-specific activity
+    const tokenAddress = result.value?.mint;
+    const transactionType = this.determineTransactionType(result);
+    const amount = parseFloat(result.value?.amount || 0);
+
+    if (!tokenAddress) return;
+
+    let metrics = this.tokenMetrics.get(tokenAddress) || this.initializeTokenMetrics(tokenAddress);
+
+    // Update metrics
+    if (transactionType === 'buy') metrics.buyCount24h++;
+    if (transactionType === 'sell') metrics.sellCount24h++;
+    metrics.volume24h += amount;
+    metrics.lastUpdate = Date.now();
+
+    // Broadcast updates
+    this.broadcastMetrics(tokenAddress, metrics);
+  }
+
+  private determineTransactionType(data: any): 'buy' | 'sell' | 'unknown' {
+    const { source, destination } = data.value || {};
+    if (source?.includes('pool')) return 'sell';
+    if (destination?.includes('pool')) return 'buy';
+    return 'unknown';
+  }
+
+  private initializeTokenMetrics(tokenAddress: string): TokenMetrics {
+    const initialMetrics: TokenMetrics = {
+      price: 0,
+      marketCap: 0,
+      volume24h: 0,
+      buyCount24h: 0,
+      sellCount24h: 0,
+      lastUpdate: Date.now()
+    };
+    this.tokenMetrics.set(tokenAddress, initialMetrics);
+    return initialMetrics;
+  }
+
+  private broadcastMetrics(tokenAddress: string, metrics: TokenMetrics) {
+    wsManager.broadcast({
+      type: 'token_metrics_update',
+      data: {
+        tokenAddress,
+        ...metrics
+      }
+    });
+    console.log(`[Helius] Metrics broadcasted for ${tokenAddress}`);
+  }
 }
 
-// Initialize connection
-initializePumpPortalWebSocket();
+export const heliusWebSocketManager = new HeliusWebSocketManager();

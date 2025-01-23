@@ -1,5 +1,5 @@
 import '@/lib/pump-portal-websocket';
-import { FC, useState, useRef } from "react";
+import { FC, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft } from "lucide-react";
@@ -46,16 +46,16 @@ const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClic
           </div>
         </div>
         <div className="text-right">
-          {formatPrice(0)}
+          {formatPrice(token.price)}
         </div>
         <div className="text-right">
-          {formatMarketCap(0)}
+          {formatMarketCap(token.marketCap)}
         </div>
         <div className="text-right">
-          {formatMarketCap(0)}
+          {formatMarketCap(token.liquidity)}
         </div>
         <div className="text-right">
-          {formatMarketCap(0)}
+          {formatMarketCap(token.volume24h)}
         </div>
       </div>
     </Card>
@@ -92,7 +92,7 @@ const TokenView: FC<{ token: TokenData; onBack: () => void }> = ({ token, onBack
                     <span className="text-sm text-muted-foreground">{token.name}</span>
                   </div>
                   <div className="text-sm">
-                    {formatPrice(0)}
+                    {formatPrice(token.price)}
                   </div>
                 </div>
               </div>
@@ -101,19 +101,19 @@ const TokenView: FC<{ token: TokenData; onBack: () => void }> = ({ token, onBack
             <div className="grid grid-cols-4 gap-8 text-right">
               <div>
                 <div className="text-sm text-muted-foreground">Market Cap</div>
-                <div className="font-medium">{formatMarketCap(0)}</div>
+                <div className="font-medium">{formatMarketCap(token.marketCap)}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Liquidity</div>
-                <div className="font-medium">{formatMarketCap(0)}</div>
+                <div className="font-medium">{formatMarketCap(token.liquidity)}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Volume 24h</div>
-                <div className="font-medium">{formatMarketCap(0)}</div>
+                <div className="font-medium">{formatMarketCap(token.volume24h)}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Holders</div>
-                <div className="font-medium">0</div>
+                <div className="font-medium">{token.holders || 0}</div>
               </div>
             </div>
           </div>

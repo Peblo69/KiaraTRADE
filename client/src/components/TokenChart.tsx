@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
+import { useTokenStore } from "@/lib/websocket";
 import {
   Area,
   XAxis,
@@ -16,7 +16,7 @@ interface TokenChartProps {
 }
 
 export function TokenChart({ tokenAddress }: TokenChartProps) {
-  const token = usePumpPortalStore(state => 
+  const token = useTokenStore(state => 
     state.tokens.find(t => t.address === tokenAddress)
   );
 
@@ -24,12 +24,12 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
     if (!token) return [];
 
     // Convert trade history to chart data points
-    return token.recentTrades.map(trade => ({
+    return token.recentTrades?.map(trade => ({
       time: new Date(trade.timestamp).toLocaleTimeString(),
       price: trade.price,
       volume: trade.volume,
       type: trade.isBuy ? 'buy' : 'sell'
-    })).reverse();
+    })).reverse() || [];
   }, [token?.recentTrades]);
 
   if (!token) return null;
@@ -42,13 +42,15 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
             {token.symbol} ({token.name})
           </h3>
           <p className="text-sm text-muted-foreground">
-            Current Price: ${token.price.toFixed(8)}
+            Current Price: ${token.price?.toFixed(8) || '0.00'}
           </p>
         </div>
         <div className="text-right space-y-1">
-          <p className="text-sm font-medium">Market Cap: ${token.marketCap.toFixed(2)}</p>
+          <p className="text-sm font-medium">
+            Market Cap: ${token.marketCap?.toFixed(2) || '0.00'}
+          </p>
           <p className="text-sm text-muted-foreground">
-            Liquidity: ${token.liquidity.toFixed(2)}
+            Volume: ${token.volume24h?.toFixed(2) || '0.00'}
           </p>
         </div>
       </CardHeader>
@@ -85,7 +87,7 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
                             Price
                           </span>
                           <span className="font-bold text-xs">
-                            ${data.price.toFixed(8)}
+                            ${data.price?.toFixed(8) || '0.00'}
                           </span>
                         </div>
                         <div className="flex flex-col">
@@ -93,7 +95,7 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
                             Volume
                           </span>
                           <span className="font-bold text-xs">
-                            ${data.volume.toFixed(2)}
+                            ${data.volume?.toFixed(2) || '0.00'}
                           </span>
                         </div>
                       </div>
@@ -114,17 +116,13 @@ export function TokenChart({ tokenAddress }: TokenChartProps) {
         <div className="mt-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span>24h Volume</span>
-            <span className="font-medium">${token.volume24h.toFixed(2)}</span>
+            <span className="font-medium">${token.volume24h?.toFixed(2) || '0.00'}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span>24h Trades</span>
             <span className="font-medium">
-              {token.trades24h} ({token.buys24h} buys, {token.sells24h} sells)
+              {token.trades24h || 0} ({token.buys24h || 0} buys, {token.sells24h || 0} sells)
             </span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span>Unique Wallets</span>
-            <span className="font-medium">{token.walletCount}</span>
           </div>
         </div>
       </CardContent>
