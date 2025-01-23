@@ -1,42 +1,10 @@
 import { create } from 'zustand';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { usePumpPortalStore } from './pump-portal-websocket';
+import type { TokenMetrics, TokenTrade, TimeWindow } from '@/types/token';
 
 // Add debug flag
 const DEBUG = false;
-
-interface TokenTrade {
-  signature: string;
-  timestamp: number;
-  tokenAddress: string;
-  amount: number;
-  price: number;
-  priceUsd: number;
-  priceImpact: number;
-  buyer: string;
-  seller: string;
-  type: 'buy' | 'sell';
-  isSmartMoney: boolean;
-}
-
-interface TokenMetrics {
-  holders: Set<string>;
-  whales: Set<string>;  // Wallets with significant holdings
-  smartMoneyWallets: Set<string>;  // Wallets with profitable trade history
-  volume1m: number;
-  volume5m: number;
-  volume15m: number;
-  volume1h: number;
-  volume24h: number;
-  liquidityUSD: number;
-  priceHistory: {
-    timestamp: number;
-    price: number;
-    volume: number;
-  }[];
-  topBuyers: { wallet: string; volume: number }[];
-  topSellers: { wallet: string; volume: number }[];
-}
 
 interface HeliusStore {
   trades: Record<string, TokenTrade[]>;
@@ -51,21 +19,45 @@ interface HeliusStore {
   analyzeWallet: (wallet: string) => { profitableTrades: number; totalTrades: number };
 }
 
+function createEmptyTimeWindow(startTime: number): TimeWindow {
+  return {
+    startTime,
+    endTime: startTime + 60000, // 1 minute default
+    openPrice: 0,
+    closePrice: 0,
+    highPrice: 0,
+    lowPrice: Infinity,
+    volume: 0,
+    trades: 0,
+    buys: 0,
+    sells: 0
+  };
+}
+
 // Initialize empty metrics
 function createEmptyMetrics(): TokenMetrics {
+  const now = Date.now();
   return {
+    price: 0,
+    priceUSD: 0,
+    marketCap: 0,
+    liquidity: 0,
+    volume24h: 0,
+    trades24h: 0,
+    buys24h: 0,
+    sells24h: 0,
+    walletCount: 0,
     holders: new Set(),
     whales: new Set(),
     smartMoneyWallets: new Set(),
-    volume1m: 0,
-    volume5m: 0,
-    volume15m: 0,
-    volume1h: 0,
-    volume24h: 0,
-    liquidityUSD: 0,
     priceHistory: [],
-    topBuyers: [],
-    topSellers: []
+    timeWindows: {
+      '1m': createEmptyTimeWindow(now),
+      '5m': createEmptyTimeWindow(now),
+      '15m': createEmptyTimeWindow(now),
+      '1h': createEmptyTimeWindow(now)
+    },
+    recentTrades: []
   };
 }
 
@@ -86,50 +78,89 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
       // Get or create metrics for this token
       const metrics = state.metrics[tokenAddress] || createEmptyMetrics();
 
+      // Update price and market metrics
+      metrics.price = trade.price;
+      metrics.priceUSD = trade.priceUSD;
+      metrics.marketCap = trade.priceUSD * 1000000000; // Assuming 1B total supply
+
       // Update holders
-      metrics.holders.add(trade.type === 'buy' ? trade.buyer : trade.seller);
+      metrics.holders.add(trade.isBuy ? trade.buyer : trade.seller);
+      metrics.walletCount = metrics.holders.size;
 
       // Update volumes
       const now = Date.now();
-      const tradeAmount = trade.amount * trade.priceUsd;
+      const tradeAmount = trade.volume;
 
-      if (now - trade.timestamp < 60000) metrics.volume1m += tradeAmount;
-      if (now - trade.timestamp < 300000) metrics.volume5m += tradeAmount;
-      if (now - trade.timestamp < 900000) metrics.volume15m += tradeAmount;
-      if (now - trade.timestamp < 3600000) metrics.volume1h += tradeAmount;
-      if (now - trade.timestamp < 86400000) metrics.volume24h += tradeAmount;
+      if (now - trade.timestamp < 86400000) { // 24h
+        metrics.volume24h += tradeAmount;
+        metrics.trades24h++;
+        if (trade.isBuy) metrics.buys24h++;
+        else metrics.sells24h++;
+      }
+
+      // Update time windows
+      const windows = ['1m', '5m', '15m', '1h'] as const;
+      const durations = {
+        '1m': 60000,
+        '5m': 300000,
+        '15m': 900000,
+        '1h': 3600000
+      };
+
+      windows.forEach(window => {
+        const duration = durations[window];
+        const currentWindow = metrics.timeWindows[window];
+
+        // Check if we need to create a new window
+        if (trade.timestamp >= currentWindow.endTime) {
+          metrics.timeWindows[window] = {
+            startTime: Math.floor(trade.timestamp / duration) * duration,
+            endTime: Math.floor(trade.timestamp / duration) * duration + duration,
+            openPrice: trade.price,
+            closePrice: trade.price,
+            highPrice: trade.price,
+            lowPrice: trade.price,
+            volume: tradeAmount,
+            trades: 1,
+            buys: trade.isBuy ? 1 : 0,
+            sells: trade.isBuy ? 0 : 1
+          };
+        } else {
+          currentWindow.closePrice = trade.price;
+          currentWindow.highPrice = Math.max(currentWindow.highPrice, trade.price);
+          currentWindow.lowPrice = Math.min(currentWindow.lowPrice, trade.price);
+          currentWindow.volume += tradeAmount;
+          currentWindow.trades++;
+          if (trade.isBuy) currentWindow.buys++;
+          else currentWindow.sells++;
+        }
+      });
 
       // Update price history
       metrics.priceHistory.push({
-        timestamp: trade.timestamp,
-        price: trade.price,
+        time: Math.floor(trade.timestamp / 1000),
+        open: trade.price,
+        high: trade.price,
+        low: trade.price,
+        close: trade.price,
         volume: tradeAmount
       });
 
       // Keep only last 24 hours of price history
       metrics.priceHistory = metrics.priceHistory
-        .filter(p => now - p.timestamp <= 86400000)
-        .sort((a, b) => a.timestamp - b.timestamp);
+        .filter(p => now - p.time * 1000 <= 86400000)
+        .sort((a, b) => a.time - b.time);
 
-      // Update top traders
-      const traderInfo = { wallet: trade.type === 'buy' ? trade.buyer : trade.seller, volume: tradeAmount };
-      if (trade.type === 'buy') {
-        metrics.topBuyers = [...metrics.topBuyers, traderInfo]
-          .sort((a, b) => b.volume - a.volume)
-          .slice(0, 20);
-      } else {
-        metrics.topSellers = [...metrics.topSellers, traderInfo]
-          .sort((a, b) => b.volume - a.volume)
-          .slice(0, 20);
-      }
+      // Update recent trades
+      metrics.recentTrades = [trade, ...metrics.recentTrades].slice(0, 100);
 
       // Identify whales (wallets with > 1% of 24h volume)
       if (tradeAmount > metrics.volume24h * 0.01) {
-        metrics.whales.add(trade.type === 'buy' ? trade.buyer : trade.seller);
+        metrics.whales.add(trade.isBuy ? trade.buyer : trade.seller);
       }
 
       // Smart money detection (wallets with > 75% profitable trades)
-      const trader = trade.type === 'buy' ? trade.buyer : trade.seller;
+      const trader = trade.isBuy ? trade.buyer : trade.seller;
       const traderStats = get().analyzeWallet(trader);
       if (traderStats.totalTrades > 5 && (traderStats.profitableTrades / traderStats.totalTrades) > 0.75) {
         metrics.smartMoneyWallets.add(trader);
@@ -168,18 +199,17 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
     if (subscribedTokens.has(tokenAddress)) return;
 
     if (ws?.readyState === WebSocket.OPEN) {
-      // Subscribe to token account changes with new API format
       ws.send(JSON.stringify({
         jsonrpc: '2.0',
-        id: 'token-sub-' + tokenAddress,
+        id: `token-sub-${tokenAddress}`,
         method: 'accountSubscribe',
         params: [
           tokenAddress,
           {
             encoding: 'jsonParsed',
+            commitment: 'confirmed',
             transactionDetails: 'full',
-            showEvents: true,
-            maxSupportedTransactionVersion: 0
+            showEvents: true
           }
         ]
       }));
@@ -202,7 +232,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
 
     // Analyze all trades by this wallet across all tokens
     Object.values(state.trades).forEach(tokenTrades => {
-      const walletTrades = tokenTrades.filter(t => 
+      const walletTrades = tokenTrades.filter(t =>
         t.buyer === wallet || t.seller === wallet
       );
 
@@ -214,7 +244,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
         if (i === walletTrades.length - 1) return;
 
         const nextTrade = walletTrades[i + 1];
-        const isProfit = trade.type === 'buy' 
+        const isProfit = trade.isBuy
           ? nextTrade.price > trade.price
           : nextTrade.price < trade.price;
 
@@ -239,26 +269,16 @@ async function handleAccountUpdate(data: any) {
       console.log('[Helius] Processing signature:', data.signature);
     }
 
-    // Use new getSignatureStatuses API
-    const statuses = await connection.getSignatureStatuses([data.signature]);
-    if (!statuses.value[0]) return;
-
-    // Use new getTransaction API
     const tx = await connection.getTransaction(data.signature, {
       maxSupportedTransactionVersion: 0
     });
 
     if (!tx || !tx.meta) return;
 
-    if (DEBUG) {
-      console.log('[Helius] Found valid transaction:', data.signature);
-    }
-
     const preBalances = tx.meta.preBalances;
     const postBalances = tx.meta.postBalances;
     const balanceChanges = postBalances.map((post, i) => post - preBalances[i]);
 
-    // Use getAccountKeys() instead of accountKeys property
     const accountKeys = tx.transaction.message.getAccountKeys();
     if (!accountKeys) return;
 
@@ -302,8 +322,8 @@ async function handleAccountUpdate(data: any) {
 
       // Calculate price impact based on liquidity
       const metrics = store.getTokenMetrics(data.accountId);
-      const priceImpact = metrics 
-        ? (solAmount / metrics.liquidityUSD) * 100 
+      const priceImpact = metrics
+        ? (solAmount / metrics.liquidity) * 100
         : 0;
 
       const trade: TokenTrade = {
@@ -312,18 +332,19 @@ async function handleAccountUpdate(data: any) {
         tokenAddress: data.accountId,
         amount: tokenAmount,
         price: solAmount / tokenAmount,
-        priceUsd: solAmount * 20, // Assuming SOL price ~$20 for now
+        priceUSD: solAmount * 20, // Assuming SOL price ~$20 for now
         priceImpact,
-        buyer: isBuy ? accountKeys.get(1)?.toBase58() || '' : '',
-        seller: !isBuy ? accountKeys.get(0)?.toBase58() || '' : '',
-        type: isBuy ? 'buy' : 'sell',
-        isSmartMoney: false // Will be updated by addTrade
+        buyer: isBuy ? accountKeys[1].toBase58() : '',
+        seller: !isBuy ? accountKeys[0].toBase58() : '',
+        isBuy,
+        wallet: isBuy ? accountKeys[1].toBase58() : accountKeys[0].toBase58(),
+        volume: solAmount * 20 // USD volume
       };
 
       if (DEBUG) {
         console.log('[Helius] New trade:', {
           signature: trade.signature,
-          type: trade.type,
+          type: trade.isBuy ? 'buy' : 'sell',
           amount: trade.amount,
           price: trade.price,
           priceImpact: trade.priceImpact
@@ -335,20 +356,6 @@ async function handleAccountUpdate(data: any) {
 
   } catch (error) {
     console.error('[Helius] Error processing account update:', error);
-  }
-}
-
-function handleWebSocketMessage(event: MessageEvent) {
-  try {
-    const data = JSON.parse(event.data);
-
-    // Handle token updates
-    if (data.method === 'accountNotification') {
-      handleAccountUpdate(data.params.result);
-    }
-
-  } catch (error) {
-    console.error('[Helius] Error handling WebSocket message:', error);
   }
 }
 
@@ -387,7 +394,19 @@ export function initializeHeliusWebSocket() {
       });
     };
 
-    ws.onmessage = handleWebSocketMessage;
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        // Handle token updates
+        if (data.method === 'accountNotification') {
+          handleAccountUpdate(data.params.result);
+        }
+
+      } catch (error) {
+        console.error('[Helius] Error handling WebSocket message:', error);
+      }
+    };
 
     ws.onclose = () => {
       console.log('[Helius] WebSocket disconnected');
