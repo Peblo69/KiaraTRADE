@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { useHeliusStore } from "@/lib/helius-websocket";
 import millify from "millify";
 import { getTokenImage } from "@/lib/token-metadata";
 import { AdvancedChart } from "@/components/AdvancedChart";
@@ -32,17 +31,11 @@ function getTimeDiff(timestamp: number): string {
 }
 
 const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClick }) => {
-  // Get token metrics from Helius store
-  const metrics = useHeliusStore(state => state.metrics[token.address]);
-
   return (
     <Card
       key={token.address}
       className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
-      onClick={() => {
-        onClick();
-        usePumpPortalStore.getState().setTokenActivity(token.address, true);
-      }}
+      onClick={onClick}
     >
       <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
         <div className="flex items-center gap-3">
@@ -64,16 +57,16 @@ const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClic
           </div>
         </div>
         <div className="text-right">
-          {metrics ? formatPrice(metrics.price) : '$0.00'}
+          {formatPrice(0)}
         </div>
         <div className="text-right">
-          {metrics ? formatMarketCap(metrics.marketCap) : '$0'}
+          {formatMarketCap(0)}
         </div>
         <div className="text-right">
-          {metrics ? formatMarketCap(metrics.liquidity) : '$0'}
+          {formatMarketCap(0)}
         </div>
         <div className="text-right">
-          {metrics ? formatMarketCap(metrics.volume24h) : '$0'}
+          {formatMarketCap(0)}
         </div>
       </div>
     </Card>
@@ -83,21 +76,6 @@ const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClic
 const TokenView: FC<{ token: TokenData; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [timeframe, setTimeframe] = useState<'1s' | '5s' | '30s' | '1m' | '5m' | '15m' | '1h'>('1s');
-  const metrics = useHeliusStore(state => state.metrics[token.address]);
-
-  useEffect(() => {
-    return () => {
-      usePumpPortalStore.getState().setTokenActivity(token.address, false);
-    };
-  }, [token.address]);
-
-  if (!metrics) {
-    return (
-      <div className="fixed inset-0 bg-[#0A0A0A] z-50 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0 bg-[#0A0A0A] z-50 overflow-hidden">
@@ -128,7 +106,7 @@ const TokenView: FC<{ token: TokenData; onBack: () => void }> = ({ token, onBack
                     <span className="text-sm text-muted-foreground">{token.name}</span>
                   </div>
                   <div className="text-sm">
-                    {formatPrice(metrics.price)}
+                    {formatPrice(0)}
                   </div>
                 </div>
               </div>
@@ -137,19 +115,19 @@ const TokenView: FC<{ token: TokenData; onBack: () => void }> = ({ token, onBack
             <div className="grid grid-cols-4 gap-8 text-right">
               <div>
                 <div className="text-sm text-muted-foreground">Market Cap</div>
-                <div className="font-medium">{formatMarketCap(metrics.marketCap)}</div>
+                <div className="font-medium">{formatMarketCap(0)}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Liquidity</div>
-                <div className="font-medium">{formatMarketCap(metrics.liquidity)}</div>
+                <div className="font-medium">{formatMarketCap(0)}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Volume 24h</div>
-                <div className="font-medium">{formatMarketCap(metrics.volume24h)}</div>
+                <div className="font-medium">{formatMarketCap(0)}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Holders</div>
-                <div className="font-medium">{metrics.walletCount}</div>
+                <div className="font-medium">0</div>
               </div>
             </div>
           </div>
@@ -159,70 +137,19 @@ const TokenView: FC<{ token: TokenData; onBack: () => void }> = ({ token, onBack
           <div className="h-full grid grid-cols-[1fr,300px] gap-4 p-4">
             <div className="space-y-4">
               <Card className="bg-[#111111] border-purple-500/20">
-                <AdvancedChart
-                  data={metrics.priceHistory}
-                  timeframe={timeframe}
-                  onTimeframeChange={(tf) => setTimeframe(tf as any)}
-                  symbol={token.symbol}
-                  className="bg-transparent border-0"
-                />
+                <div className="h-[400px] flex items-center justify-center text-muted-foreground">
+                  Chart coming soon...
+                </div>
               </Card>
-
-              <div className="grid grid-cols-4 gap-4">
-                {Object.entries(metrics.timeWindows).map(([window, data]) => (
-                  <Card key={window} className="p-4 bg-[#111111] border-purple-500/20">
-                    <div className="text-sm text-muted-foreground">{window} Volume</div>
-                    <div className="text-lg font-bold mt-1">${millify(data.volume)}</div>
-                  </Card>
-                ))}
-              </div>
             </div>
 
             <Card className="bg-[#111111] border-purple-500/20">
               <div className="p-4 border-b border-border/40">
                 <h3 className="font-semibold">Live Trades</h3>
                 <div className="text-xs text-muted-foreground">
-                  {metrics.recentTrades.length} trades recorded
+                  Trades will appear here...
                 </div>
               </div>
-              <ScrollArea className="h-[calc(100vh-180px)]" ref={scrollAreaRef}>
-                <div className="p-2 space-y-2">
-                  {metrics.recentTrades.map((trade, idx) => (
-                    <Card
-                      key={`${trade.timestamp}-${idx}`}
-                      className={`p-3 flex items-center justify-between ${
-                        trade.isBuy
-                          ? "bg-green-500/5 border-green-500/20"
-                          : "bg-red-500/5 border-red-500/20"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        {trade.isBuy ? (
-                          <TrendingUp className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <TrendingDown className="h-4 w-4 text-red-500" />
-                        )}
-                        <div>
-                          <div className="text-sm font-medium">
-                            {trade.isBuy ? "Buy" : "Sell"}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {trade.wallet.slice(0, 4)}...{trade.wallet.slice(-4)}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium">
-                          ${trade.volume.toFixed(2)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {getTimeDiff(trade.timestamp)}
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </ScrollArea>
             </Card>
           </div>
         </div>
@@ -282,9 +209,7 @@ const PumpFunVision: FC = () => {
       {selectedToken && (
         <TokenView
           token={selectedToken}
-          onBack={() => {
-            setSelectedToken(null);
-          }}
+          onBack={() => setSelectedToken(null)}
         />
       )}
     </>

@@ -1,7 +1,7 @@
 // Token interfaces used across the application
 
 // Base token info from PumpPortal
-export interface PumpPortalToken {
+export interface TokenData {
   address: string;
   name: string;
   symbol: string;
@@ -69,6 +69,3 @@ export interface TokenMetrics {
 }
 
 // Combined token data for display
-export interface TokenData extends PumpPortalToken {
-  metrics?: TokenMetrics;
-}
