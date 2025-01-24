@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { ArrowLeft } from "lucide-react";
 import { createChart } from 'lightweight-charts';
+import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -24,7 +25,7 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
     // Process trades into consistent time-ordered data points
     const trades = token.recentTrades
       .map(trade => ({
-        timestamp: Math.floor(trade.timestamp / 1000) * 1000, // Round to nearest second
+        timestamp: Math.floor(trade.timestamp / 1000) * 1000,
         price: trade.price,
       }))
       .sort((a, b) => a.timestamp - b.timestamp);
@@ -67,7 +68,7 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
         horzLines: { color: '#1a1a1a' },
       },
       width: chartContainerRef.current.clientWidth,
-      height: 500,
+      height: chartContainerRef.current.clientHeight,
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
@@ -93,12 +94,33 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
 
     chart.timeScale().setVisibleRange(timeRange);
 
+    // Handle resize
+    const resizeObserver = new ResizeObserver(entries => {
+      if (entries[0]) {
+        chart.applyOptions({
+          width: entries[0].contentRect.width,
+          height: entries[0].contentRect.height,
+        });
+      }
+    });
+
+    resizeObserver.observe(chartContainerRef.current);
+
     return () => {
       chart.remove();
+      resizeObserver.disconnect();
     };
   }, [token?.recentTrades]);
 
   if (!token) return null;
+
+  const formatAddress = (address: string) => {
+    return `${address.slice(0, 4)}...${address.slice(-4)}`;
+  };
+
+  const formatTimestamp = (timestamp: number) => {
+    return new Date(timestamp).toLocaleTimeString();
+  };
 
   return (
     <div className="flex-1 h-screen bg-black text-white">
@@ -147,9 +169,39 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
         </div>
 
         <div className="grid grid-cols-[1fr,300px] gap-4">
-          <div className="h-[500px] bg-[#111] rounded-lg p-4">
-            <div ref={chartContainerRef} className="h-full w-full" />
-          </div>
+          <ResizablePanelGroup direction="vertical" className="h-[600px]">
+            <ResizablePanel defaultSize={70}>
+              <div className="h-full bg-[#111] rounded-lg p-4">
+                <div ref={chartContainerRef} className="h-full w-full" />
+              </div>
+            </ResizablePanel>
+            <ResizablePanel defaultSize={30}>
+              <div className="h-full bg-[#111] rounded-lg p-4 overflow-hidden">
+                <h3 className="text-sm font-semibold mb-2">Recent Trades</h3>
+                <div className="space-y-2 overflow-y-auto h-[calc(100%-2rem)]">
+                  {token.recentTrades?.map((trade, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
+                        trade.isBuy ? 'text-green-500' : 'text-red-500'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{formatTimestamp(trade.timestamp)}</span>
+                        <span>{formatAddress(trade.wallet)}</span>
+                      </div>
+                      <div className="text-right">
+                        <div>${trade.price.toFixed(8)}</div>
+                        <div className="text-xs text-gray-500">
+                          ${(trade.price * trade.amount).toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
 
           <div className="space-y-4">
             <Card className="bg-[#111] border-none p-4">
