@@ -1,10 +1,20 @@
+
 import { create } from 'zustand';
 import { Connection, PublicKey } from '@solana/web3.js';
-import { usePumpPortalStore } from './pump-portal-websocket';
+import { useUnifiedTokenStore } from './unified-token-store';
+import axios from 'axios';
 
-// Add debug flag
+// Constants
+const HELIUS_API_KEY = '004f9b13-f526-4952-9998-52f5c7bec6ee';
+const HELIUS_WS_URL = `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+const RECONNECT_DELAY = 3000;
+const MAX_RECONNECT_ATTEMPTS = 10;
+const HEARTBEAT_INTERVAL = 15000;
+const CONNECTION_TIMEOUT = 10000;
+const SUBSCRIPTION_BATCH_SIZE = 50;
 const DEBUG = false;
 
+// TypeScript Interfaces
 interface TokenTrade {
   signature: string;
   timestamp: number;
@@ -21,15 +31,21 @@ interface HeliusStore {
   trades: Record<string, TokenTrade[]>;
   isConnected: boolean;
   subscribedTokens: Set<string>;
+  pendingSubscriptions: Set<string>;
+  connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error';
   addTrade: (tokenAddress: string, trade: TokenTrade) => void;
   setConnected: (connected: boolean) => void;
+  setConnectionStatus: (status: 'connecting' | 'connected' | 'disconnected' | 'error') => void;
   subscribeToToken: (tokenAddress: string) => void;
+  clearPendingSubscriptions: () => void;
 }
 
 export const useHeliusStore = create<HeliusStore>((set, get) => ({
   trades: {},
   isConnected: false,
   subscribedTokens: new Set(),
+  pendingSubscriptions: new Set(),
+  connectionStatus: 'disconnected',
   addTrade: (tokenAddress, trade) => {
     set((state) => ({
       trades: {
@@ -38,93 +54,233 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
       },
     }));
 
-    // Update PumpPortal store with trade data
-    const pumpPortalStore = usePumpPortalStore.getState();
-    const solPrice = pumpPortalStore.solPrice;
+    const unifiedStore = useUnifiedTokenStore.getState();
+    const solPrice = unifiedStore.tokens.find(t => t.address === tokenAddress)?.price || 0;
+
     if (!solPrice) {
-      console.warn('[Helius] No SOL price available for trade calculation');
+      DEBUG && console.warn('[Helius] No SOL price available for trade calculation');
       return;
     }
 
-    // Calculate trade volume in USD
     const tradeVolumeUsd = trade.amount * solPrice;
 
-    pumpPortalStore.addTradeToHistory(tokenAddress, {
-      txType: trade.type,
+    unifiedStore.addTransaction(tokenAddress, {
+      signature: trade.signature,
+      buyer: trade.buyer,
       solAmount: trade.amount,
-      traderPublicKey: trade.type === 'buy' ? trade.buyer : trade.seller,
-      priceImpact: tradeVolumeUsd / 1000000,
-      timestamp: trade.timestamp
+      tokenAmount: trade.price,
+      timestamp: trade.timestamp,
+      type: trade.type,
     });
   },
   setConnected: (connected) => set({ isConnected: connected }),
+  setConnectionStatus: (status) => set({ connectionStatus: status }),
   subscribeToToken: (tokenAddress) => {
-    const { subscribedTokens } = get();
-    if (subscribedTokens.has(tokenAddress)) return;
-
+    const state = get();
+    if (state.subscribedTokens.has(tokenAddress)) return;
+    
+    state.pendingSubscriptions.add(tokenAddress);
+    set({ pendingSubscriptions: new Set(state.pendingSubscriptions) });
+    
     if (ws?.readyState === WebSocket.OPEN) {
-      // Subscribe to token account changes
-      ws.send(JSON.stringify({
-        jsonrpc: '2.0',
-        id: 'token-sub-' + tokenAddress,
-        method: 'accountSubscribe',
-        params: [
-          tokenAddress,
-          {
-            commitment: 'confirmed',
-            encoding: 'jsonParsed',
-            transactionDetails: 'full',
-            showEvents: true,
-            maxSupportedTransactionVersion: 0
-          }
-        ]
-      }));
-
-      subscribedTokens.add(tokenAddress);
-      set({ subscribedTokens });
-      if (DEBUG) console.log('[Helius] Subscribed to token:', tokenAddress);
+      processPendingSubscriptions();
     }
-  }
+  },
+  clearPendingSubscriptions: () => set({ pendingSubscriptions: new Set() })
 }));
 
 let ws: WebSocket | null = null;
-const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY;
-const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
-const connection = new Connection(HELIUS_RPC_URL);
+let reconnectTimeout: NodeJS.Timeout | null = null;
+let reconnectAttempts = 0;
+let heartbeatInterval: NodeJS.Timeout | null = null;
+let connectionTimeout: NodeJS.Timeout | null = null;
+
+const processPendingSubscriptions = () => {
+  const store = useHeliusStore.getState();
+  const pendingArray = Array.from(store.pendingSubscriptions);
+  
+  for (let i = 0; i < pendingArray.length; i += SUBSCRIPTION_BATCH_SIZE) {
+    const batch = pendingArray.slice(i, i + SUBSCRIPTION_BATCH_SIZE);
+    
+    batch.forEach(tokenAddress => {
+      if (ws?.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({
+            jsonrpc: '2.0',
+            id: `token-sub-${tokenAddress}`,
+            method: 'accountSubscribe',
+            params: [
+              tokenAddress,
+              {
+                commitment: 'confirmed',
+                encoding: 'jsonParsed',
+                transactionDetails: 'full',
+                showEvents: true,
+                maxSupportedTransactionVersion: 0
+              }
+            ]
+          }));
+
+          store.subscribedTokens.add(tokenAddress);
+          store.pendingSubscriptions.delete(tokenAddress);
+          DEBUG && console.log('[Helius] Subscribed to token:', tokenAddress);
+        } catch (error) {
+          console.error('[Helius] Failed to subscribe to token:', tokenAddress, error);
+        }
+      }
+    });
+  }
+  
+  useHeliusStore.setState({
+    subscribedTokens: new Set(store.subscribedTokens),
+    pendingSubscriptions: new Set(store.pendingSubscriptions)
+  });
+};
+
+const cleanup = () => {
+  if (ws) {
+    try {
+      ws.close();
+    } catch (e) {
+      console.error('[Helius] Error closing WebSocket:', e);
+    }
+    ws = null;
+  }
+
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
+
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
+
+  if (connectionTimeout) {
+    clearTimeout(connectionTimeout);
+    connectionTimeout = null;
+  }
+};
+
+const startHeartbeat = () => {
+  if (heartbeatInterval) return;
+
+  heartbeatInterval = setInterval(() => {
+    if (ws?.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'ping' }));
+      } catch (error) {
+        console.error('[Helius] Failed to send heartbeat:', error);
+        ws.close();
+      }
+    }
+  }, HEARTBEAT_INTERVAL);
+};
+
+export function initializeHeliusWebSocket() {
+  if (typeof window === 'undefined' || !HELIUS_API_KEY) return;
+
+  cleanup();
+  const store = useHeliusStore.getState();
+  store.setConnectionStatus('connecting');
+
+  try {
+    DEBUG && console.log('[Helius] Initializing WebSocket...');
+    ws = new WebSocket(HELIUS_WS_URL);
+
+    connectionTimeout = setTimeout(() => {
+      if (ws?.readyState !== WebSocket.OPEN) {
+        console.error('[Helius] Connection timeout');
+        ws?.close();
+      }
+    }, CONNECTION_TIMEOUT);
+
+    ws.onopen = () => {
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+        connectionTimeout = null;
+      }
+
+      DEBUG && console.log('[Helius] WebSocket connected');
+      store.setConnected(true);
+      store.setConnectionStatus('connected');
+      reconnectAttempts = 0;
+      startHeartbeat();
+      processPendingSubscriptions();
+    };
+
+    ws.onmessage = handleWebSocketMessage;
+
+    ws.onclose = (event) => {
+      DEBUG && console.log('[Helius] WebSocket disconnected', event.code, event.reason);
+      store.setConnected(false);
+      store.setConnectionStatus('disconnected');
+      cleanup();
+
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        const delay = Math.min(RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts - 1), 30000);
+        DEBUG && console.log(`[Helius] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
+        reconnectTimeout = setTimeout(initializeHeliusWebSocket, delay);
+      } else {
+        store.setConnectionStatus('error');
+        console.error('[Helius] Max reconnect attempts reached');
+        useUnifiedTokenStore.getState().setError('Unable to maintain Helius WebSocket connection');
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('[Helius] WebSocket error:', error);
+      store.setConnectionStatus('error');
+    };
+
+  } catch (error) {
+    console.error('[Helius] Failed to initialize WebSocket:', error);
+    store.setConnectionStatus('error');
+    cleanup();
+
+    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      reconnectAttempts++;
+      const delay = Math.min(RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts - 1), 30000);
+      reconnectTimeout = setTimeout(initializeHeliusWebSocket, delay);
+    }
+  }
+}
+
+async function handleWebSocketMessage(event: MessageEvent) {
+  try {
+    const data = JSON.parse(event.data);
+    
+    if (data.method === 'accountNotification') {
+      await handleAccountUpdate(data.params.result);
+    }
+  } catch (error) {
+    console.error('[Helius] Error handling WebSocket message:', error);
+  }
+}
 
 async function handleAccountUpdate(data: any) {
+  if (!data?.signature) return;
+
   try {
-    if (!data.signature) return;
+    const connection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`, {
+      commitment: 'confirmed',
+    });
 
-    if (DEBUG) {
-      console.log('[Helius] Processing signature:', data.signature);
-    }
-
-    const statuses = await connection.getSignatureStatuses([data.signature]);
-    if (!statuses.value[0]) return;
+    const [status] = await connection.getSignatureStatuses([data.signature]);
+    if (!status?.confirmationStatus) return;
 
     const tx = await connection.getTransaction(data.signature, {
       maxSupportedTransactionVersion: 0
     });
 
-    if (!tx || !tx.meta) return;
+    if (!tx?.meta) return;
 
-    console.log('[Helius] Found valid transaction:', {
-      signature: data.signature,
-      preBalances,
-      postBalances,
-      accountKeys: accountKeys.map(key => key.toString())
-    });
-
-    const preBalances = tx.meta.preBalances;
-    const postBalances = tx.meta.postBalances;
-    const balanceChanges = postBalances.map((post, i) => post - preBalances[i]);
-
-    const accountKeys = tx.transaction.message.accountKeys;
-    if (!accountKeys) return;
-
-    const preTokenBalances = tx.meta.preTokenBalances || [];
-    const postTokenBalances = tx.meta.postTokenBalances || [];
+    const { meta, transaction } = tx;
+    const accountKeys = transaction.message.accountKeys;
+    const preTokenBalances = meta.preTokenBalances || [];
+    const postTokenBalances = meta.postTokenBalances || [];
 
     const isTokenTx = accountKeys.some(
       key => key.equals(new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'))
@@ -148,12 +304,13 @@ async function handleAccountUpdate(data: any) {
       if (tokenAmount === 0) continue;
 
       const isBuy = postAmount > preAmount;
+      const solAmount = Math.abs(meta.preBalances[0] - meta.postBalances[0]) / 1e9;
 
       const trade: TokenTrade = {
         signature: data.signature,
         timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
         tokenAddress: data.accountId,
-        amount: Math.abs(balanceChanges[0]) / 1e9,
+        amount: solAmount,
         price: tokenAmount,
         priceUsd: 0,
         buyer: isBuy ? accountKeys[1]?.toString() || '' : '',
@@ -161,7 +318,7 @@ async function handleAccountUpdate(data: any) {
         type: isBuy ? 'buy' : 'sell'
       };
 
-      console.log('[Helius] New trade:', {
+      DEBUG && console.log('[Helius] New trade:', {
         signature: trade.signature,
         type: trade.type,
         amount: trade.amount,
@@ -170,111 +327,15 @@ async function handleAccountUpdate(data: any) {
 
       useHeliusStore.getState().addTrade(data.accountId, trade);
     }
-
   } catch (error) {
     console.error('[Helius] Error processing account update:', error);
   }
 }
 
-function handleWebSocketMessage(event: MessageEvent) {
-  try {
-    const data = JSON.parse(event.data);
-
-    // Handle token updates
-    if (data.method === 'accountNotification') {
-      handleAccountUpdate(data.params.result);
-    }
-
-  } catch (error) {
-    console.error('[Helius] Error handling WebSocket message:', error);
-  }
-}
-
-let reconnectTimeout: NodeJS.Timeout | null = null;
-let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_DELAY = 5000;
-
-export function initializeHeliusWebSocket() {
-  if (typeof window === 'undefined' || !HELIUS_API_KEY) return;
-
-  const store = useHeliusStore.getState();
-
-  if (ws) {
-    try {
-      ws.close();
-    } catch (e) {
-      console.error('[Helius] Error closing WebSocket:', e);
-    }
-    ws = null;
-  }
-
-  try {
-    console.log('[Helius] Initializing WebSocket...');
-    ws = new WebSocket(`wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
-
-    // Add connection timeout
-    const connectionTimeout = setTimeout(() => {
-      console.error('[Helius] Connection timeout');
-      ws?.close();
-    }, 10000);
-
-    ws.onopen = () => {
-      clearTimeout(connectionTimeout);
-      console.log('[Helius] WebSocket connected');
-      store.setConnected(true);
-      reconnectAttempts = 0;
-
-      // Send ping every 30 seconds to keep connection alive
-      const pingInterval = setInterval(() => {
-        if (ws?.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'ping' }));
-        } else {
-          clearInterval(pingInterval);
-        }
-      }, 30000);
-
-      // Resubscribe to existing tokens
-      const { subscribedTokens } = store;
-      subscribedTokens.forEach(tokenAddress => {
-        store.subscribeToToken(tokenAddress);
-      });
-    };
-
-    ws.onmessage = handleWebSocketMessage;
-
-    ws.onclose = () => {
-      console.log('[Helius] WebSocket disconnected');
-      store.setConnected(false);
-
-      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-        reconnectAttempts++;
-        console.log(`[Helius] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-        reconnectTimeout = setTimeout(initializeHeliusWebSocket, RECONNECT_DELAY);
-      }
-    };
-
-    ws.onerror = (error) => {
-      const errorDetails = {
-        readyState: ws?.readyState,
-        timestamp: new Date().toISOString(),
-        reconnectAttempts
-      };
-      console.error('[Helius] WebSocket error:', error, errorDetails);
-      store.setConnected(false);
-    };
-
-  } catch (error) {
-    console.error('[Helius] Failed to initialize WebSocket:', error);
-    store.setConnected(false);
-
-    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      reconnectAttempts++;
-      console.log(`[Helius] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-      reconnectTimeout = setTimeout(initializeHeliusWebSocket, RECONNECT_DELAY);
-    }
-  }
-}
-
 // Initialize WebSocket connection
 initializeHeliusWebSocket();
+
+// Cleanup on window unload
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', cleanup);
+}
