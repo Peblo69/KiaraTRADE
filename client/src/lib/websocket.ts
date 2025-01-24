@@ -7,20 +7,10 @@ export interface Token {
   price: number;
   marketCap: number;
   volume24h: number;
+  holders: number;
+  createdAt: Date;
   address: string;
   imageUrl?: string;
-  lastUpdate?: number;
-  isActive?: boolean;
-  source?: string;
-  recentTrades?: {
-    timestamp: number;
-    price: number;
-    volume: number;
-    isBuy: boolean;
-  }[];
-  trades24h?: number;
-  buys24h?: number;
-  sells24h?: number;
 }
 
 interface TokenStore {
@@ -29,38 +19,7 @@ interface TokenStore {
   addToken: (token: Token) => void;
   updateToken: (address: string, updates: Partial<Token>) => void;
   setConnected: (connected: boolean) => void;
-  setError?: (error: string) => void;
 }
-
-// Add WebSocket Manager class for frontend
-class WebSocketManager {
-  private clients: Set<WebSocket> = new Set();
-
-  broadcast(data: any) {
-    const message = JSON.stringify(data);
-    this.clients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        try {
-          client.send(message);
-        } catch (error) {
-          console.error('[Frontend WebSocket] Error broadcasting to client:', error);
-          this.clients.delete(client);
-        }
-      }
-    });
-  }
-
-  addClient(ws: WebSocket) {
-    this.clients.add(ws);
-  }
-
-  removeClient(ws: WebSocket) {
-    this.clients.delete(ws);
-  }
-}
-
-// Export the wsManager instance
-export const wsManager = new WebSocketManager();
 
 export const useTokenStore = create<TokenStore>((set) => ({
   tokens: [],
@@ -76,16 +35,16 @@ export const useTokenStore = create<TokenStore>((set) => ({
       ),
     })),
   setConnected: (connected) => set({ isConnected: connected }),
-  setError: (error: string) => console.error('[WebSocket Store]', error),
 }));
 
 let ws: WebSocket | null = null;
 let reconnectTimeout: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 2;
-const BASE_RECONNECT_INTERVAL = 300000;
-const MAX_RECONNECT_INTERVAL = 900000;
+const MAX_RECONNECT_ATTEMPTS = 2; // Reduced max attempts to be more conservative
+const BASE_RECONNECT_INTERVAL = 300000; // Start with 5 minutes
+const MAX_RECONNECT_INTERVAL = 900000; // Max 15 minutes
 
+// Connection tracking
 let lastConnectionTime = 0;
 let hasSubscribedNewToken = false;
 let hasSubscribedTokenTrade = false;
@@ -100,6 +59,7 @@ function getReconnectDelay(): number {
 function initializeWebSocket() {
   if (typeof window === 'undefined') return;
 
+  // Rate limiting: Only attempt reconnection if enough time has passed
   const now = Date.now();
   const timeSinceLastConnection = now - lastConnectionTime;
   if (timeSinceLastConnection < BASE_RECONNECT_INTERVAL) {
@@ -111,11 +71,13 @@ function initializeWebSocket() {
 
   const store = useTokenStore.getState();
 
+  // Clear any existing connection attempts
   if (reconnectTimeout) {
     clearTimeout(reconnectTimeout);
     reconnectTimeout = null;
   }
 
+  // Close existing connection if any
   if (ws) {
     try {
       ws.close();
@@ -128,7 +90,6 @@ function initializeWebSocket() {
   try {
     console.log('[PumpPortal] Initializing WebSocket connection...');
     ws = new WebSocket('wss://pumpportal.fun/api/data');
-    wsManager.addClient(ws);
     lastConnectionTime = Date.now();
 
     ws.onopen = () => {
@@ -138,6 +99,7 @@ function initializeWebSocket() {
       hasSubscribedNewToken = false;
       hasSubscribedTokenTrade = false;
 
+      // Add significant delay before subscribing to avoid overwhelming the server
       setTimeout(() => {
         if (ws?.readyState === WebSocket.OPEN && !hasSubscribedNewToken) {
           try {
@@ -147,22 +109,23 @@ function initializeWebSocket() {
             hasSubscribedNewToken = true;
             console.log('[PumpPortal] Subscribed to new token events');
 
+            // Wait longer before sending second subscription
             setTimeout(() => {
               if (ws?.readyState === WebSocket.OPEN && !hasSubscribedTokenTrade) {
                 ws.send(JSON.stringify({
                   method: "subscribeTokenTrade",
-                  keys: []
+                  keys: [] // Empty array to subscribe to all token trades
                 }));
                 hasSubscribedTokenTrade = true;
                 console.log('[PumpPortal] Subscribed to token trade events');
               }
-            }, 10000);
+            }, 10000); // 10 second delay between subscriptions
 
           } catch (error) {
             console.error('[PumpPortal] Error sending subscriptions:', error);
           }
         }
-      }, 5000);
+      }, 5000); // Wait 5 seconds after connection before first subscription
     };
 
     ws.onmessage = (event) => {
@@ -177,11 +140,10 @@ function initializeWebSocket() {
             price: Number(data.token.price || 0),
             marketCap: Number(data.token.price || 0) * 1_000_000_000,
             volume24h: 0,
+            holders: 0,
+            createdAt: new Date(),
             address: data.token.address,
             imageUrl: data.token.image || undefined,
-            lastUpdate: Date.now(),
-            isActive: true,
-            source: 'pumpportal',
           };
           store.addToken(token);
           console.log('[PumpPortal] Added new token:', token.name);
@@ -191,7 +153,6 @@ function initializeWebSocket() {
             price: Number(data.trade.price || 0),
             marketCap: Number(data.trade.price || 0) * 1_000_000_000,
             volume24h: Number(data.trade.volume24h || 0),
-            lastUpdate: Date.now()
           });
           console.log('[PumpPortal] Updated token:', data.trade.tokenAddress);
         }
@@ -201,17 +162,17 @@ function initializeWebSocket() {
     };
 
     ws.onclose = (event) => {
-      wsManager.removeClient(ws!);
       const closeReason = event.reason || 'No reason provided';
       console.log(`[PumpPortal] WebSocket disconnected (${event.code}): ${closeReason}`);
       store.setConnected(false);
       hasSubscribedNewToken = false;
       hasSubscribedTokenTrade = false;
 
+      // Special handling for rejection codes
       if (event.code === 1008 || event.code === 1011) {
         console.error('[PumpPortal] Server rejected connection, extending delay before retry');
-        reconnectAttempts = MAX_RECONNECT_ATTEMPTS;
-        return;
+        reconnectAttempts = MAX_RECONNECT_ATTEMPTS; // Force maximum delay
+        return; // Don't attempt to reconnect immediately
       }
 
       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
@@ -241,15 +202,25 @@ function initializeWebSocket() {
   }
 }
 
+// Initialize connection when in browser
 if (typeof window !== 'undefined') {
-  setTimeout(initializeWebSocket, 30000);
+  // Add significant initial delay before first connection attempt
+  setTimeout(initializeWebSocket, 30000); // Wait 30 seconds before first attempt
 }
 
+// Function to fetch initial token data
 export async function fetchRealTimeTokens(): Promise<Token[]> {
   try {
+    // For now, return empty array since the REST API might also be rate limited
     return [];
   } catch (error) {
     console.error('[PumpPortal] Error fetching tokens:', error);
     return [];
   }
 }
+
+// Pre-fetch tokens and add to store (disabled for now to avoid rate limits)
+// queryClient.prefetchQuery({
+//   queryKey: ['/api/tokens/recent'],
+//   queryFn: fetchRealTimeTokens,
+// });

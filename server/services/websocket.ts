@@ -1,6 +1,5 @@
 import { Server as HttpServer } from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
-import { heliusWsManager } from './helius-websocket';
 
 // Extend WebSocket type to include isAlive property
 declare module 'ws' {
@@ -55,27 +54,8 @@ export class WebSocketManager {
       ws.on('message', (data) => {
         try {
           const message = JSON.parse(data.toString());
-
-          // Handle different message types
-          switch (message.type) {
-            case 'ping':
-              this.sendToClient(ws, { type: 'pong' });
-              break;
-
-            case 'subscribe_helius':
-              if (message.tokenAddress) {
-                console.log(`[WebSocket Manager] Adding Helius subscription for ${message.tokenAddress}`);
-                heliusWsManager.addToken(message.tokenAddress);
-                this.sendToClient(ws, { 
-                  type: 'subscription_status',
-                  tokenAddress: message.tokenAddress,
-                  status: 'subscribed'
-                });
-              }
-              break;
-
-            default:
-              console.log('[WebSocket Manager] Unknown message type:', message.type);
+          if (message.type === 'ping') {
+            this.sendToClient(ws, { type: 'pong' });
           }
         } catch (error) {
           console.error('[WebSocket Manager] Error processing message:', error);

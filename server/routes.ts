@@ -4,11 +4,9 @@ import { eq } from "drizzle-orm";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { wsManager } from './services/websocket';
-import { heliusWsManager } from './services/helius-websocket';
 import { generateAIResponse } from './services/ai';
 import axios from 'axios';
 import { getTokenImage, addPriorityToken } from './image-worker';
-import logger from './services/logger';
 
 const CACHE_DURATION = 30000; // 30 seconds cache
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
@@ -45,11 +43,8 @@ const cache = {
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
-  // Initialize both WebSocket managers with logging
-  logger.info('[Routes] Initializing WebSocket managers...');
+  // Initialize WebSocket manager
   wsManager.initialize(httpServer);
-  heliusWsManager.initialize();
-  logger.info('[Routes] WebSocket managers initialized');
 
   // Add crypto news endpoint
   app.get('/api/crypto-news', async (req, res) => {
