@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 interface UnifiedTokenState {
   isConnected: boolean;
@@ -10,6 +11,6 @@ interface UnifiedTokenState {
 export const useUnifiedTokenStore = create<UnifiedTokenState>((set) => ({
   isConnected: false,
   connectionError: null,
-  setConnected: (status) => set({ isConnected: status }),
+  setConnected: (status) => set({ isConnected: status, connectionError: null }),
   setError: (error) => set({ connectionError: error }),
 }));
