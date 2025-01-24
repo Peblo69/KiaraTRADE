@@ -1,16 +1,16 @@
+
 import { useUnifiedTokenStore } from './unified-token-store';
 import { Connection, PublicKey } from '@solana/web3.js';
-import { preloadTokenImages } from './token-metadata';
-import { mapPumpPortalData } from './pump-portal-websocket';
+import axios from 'axios';
 
 // Constants
-const HELIUS_API_KEY = process.env.HELIUS_API_KEY || '004f9b13-f526-4952-9998-52f5c7bec6ee';
+const HELIUS_API_KEY = '004f9b13-f526-4952-9998-52f5c7bec6ee';
 const HELIUS_WS_URL = `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
-const PUMPPORTAL_WS_URL = 'wss://pumpportal.fun/api/data';
+const PUMPPPORTAL_WS_URL = 'wss://pumpportal.fun/api/data';
+const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 10;
-const BASE_RECONNECT_DELAY = 5000;
-const HEARTBEAT_INTERVAL = 30000;
-const HEARTBEAT_TIMEOUT = 10000;
+const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+const HEARTBEAT_TIMEOUT = 10000; // 10 seconds
 
 interface TokenTrade {
   signature: string;
@@ -29,8 +29,10 @@ class UnifiedWebSocket {
   private pumpPortalWs: WebSocket | null = null;
   private heliusReconnectAttempts = 0;
   private pumpPortalReconnectAttempts = 0;
-  private heartbeatInterval: NodeJS.Timeout | null = null;
-  private heartbeatTimeout: NodeJS.Timeout | null = null;
+  private heliusHeartbeatInterval: NodeJS.Timeout | null = null;
+  private heliusHeartbeatTimeout: NodeJS.Timeout | null = null;
+  private pumpPortalHeartbeatInterval: NodeJS.Timeout | null = null;
+  private pumpPortalHeartbeatTimeout: NodeJS.Timeout | null = null;
   private isManualDisconnect = false;
 
   connect() {
@@ -51,7 +53,7 @@ class UnifiedWebSocket {
       this.heliusWs.onopen = () => {
         console.log('[Unified WebSocket] Helius connected');
         this.heliusReconnectAttempts = 0;
-        this.startHeartbeat();
+        this.startHeliusHeartbeat();
         useUnifiedTokenStore.getState().setConnected(true);
       };
 
@@ -76,11 +78,12 @@ class UnifiedWebSocket {
 
     try {
       console.log('[Unified WebSocket] Connecting to PumpPortal...');
-      this.pumpPortalWs = new WebSocket(PUMPPORTAL_WS_URL);
+      this.pumpPortalWs = new WebSocket(PUMPPPORTAL_WS_URL);
 
       this.pumpPortalWs.onopen = () => {
         console.log('[Unified WebSocket] PumpPortal connected');
         this.pumpPortalReconnectAttempts = 0;
+        this.startPumpPortalHeartbeat();
         this.subscribeToPumpPortal();
       };
 
@@ -97,72 +100,16 @@ class UnifiedWebSocket {
     }
   }
 
-  private requestAllTokenUpdates() {
-    const store = useUnifiedTokenStore.getState();
-    const tokens = store.tokens;
-    const activeToken = store.activeToken;
-    
-    if (this.pumpPortalWs?.readyState === WebSocket.OPEN) {
-      // Update active token every second
-      if (activeToken) {
-        this.pumpPortalWs.send(JSON.stringify({
-          method: "batchTokenUpdate",
-          keys: [activeToken]
-        }));
-      }
-      
-      // Update other tokens less frequently
-      if (Date.now() % 5000 === 0 && tokens.length > 0) {
-        const otherTokens = tokens
-          .filter(t => t.address !== activeToken)
-          .map(t => t.address);
-          
-        if (otherTokens.length > 0) {
-          this.pumpPortalWs.send(JSON.stringify({
-            method: "batchTokenUpdate",
-            keys: otherTokens
-          }));
-        }
-      }
-    }
-  }
-
-  private subscribeToPumpPortal() {
-    if (this.pumpPortalWs?.readyState !== WebSocket.OPEN) return;
-
-    // Set up periodic updates
-    if (!this.updateInterval) {
-      this.updateInterval = setInterval(() => {
-        this.requestAllTokenUpdates();
-      }, 3000); // Check for updates every 3 seconds
-    }
-
-    this.pumpPortalWs.send(JSON.stringify({
-      method: "subscribeNewToken",
-      keys: []
-    }));
-
-    const store = useUnifiedTokenStore.getState();
-    const existingTokens = store.tokens.map(t => t.address);
-
-    if (existingTokens.length > 0) {
-      this.pumpPortalWs.send(JSON.stringify({
-        method: "subscribeTokenTrade",
-        keys: existingTokens
-      }));
-    }
-  }
-
-  private async handleHeliusMessage(event: MessageEvent) {
+  private handleHeliusMessage(event: MessageEvent) {
     try {
       const data = JSON.parse(event.data);
 
       if (data.method === 'accountNotification') {
-        await this.handleAccountUpdate(data.params.result);
+        this.handleAccountUpdate(data.params.result);
       }
 
       if (data.method === 'pong') {
-        this.resetHeartbeatTimeout();
+        this.resetHeliusHeartbeatTimeout();
       }
     } catch (error) {
       console.error('[Unified WebSocket] Helius message error:', error);
@@ -173,157 +120,44 @@ class UnifiedWebSocket {
     try {
       const data = JSON.parse(event.data);
       const store = useUnifiedTokenStore.getState();
-      const ws = this.pumpPortalWs;
 
-      // Enhanced subscription and error handling
       if (data.message?.includes('Successfully subscribed')) {
-        console.log('[Unified WebSocket] Successfully subscribed, requesting updates');
         this.requestAllTokenUpdates();
         return;
       }
 
       if (data.errors) {
         console.error('[Unified WebSocket] PumpPortal error:', data.errors);
-        this.handlePumpPortalClose();
         return;
-      }
-
-      // Periodic resubscription to ensure we don't miss updates
-      if (!this.resubscribeInterval) {
-        this.resubscribeInterval = setInterval(() => {
-          if (ws?.readyState === WebSocket.OPEN) {
-            this.subscribeToPumpPortal();
-          }
-        }, 30000); // Resubscribe every 30 seconds
-      }
-
-      // Request immediate update for all tokens every 5 seconds
-      if (!this.updateInterval) {
-        this.updateInterval = setInterval(() => {
-          const tokens = store.tokens;
-          if (ws?.readyState === WebSocket.OPEN && tokens.length > 0) {
-            ws.send(JSON.stringify({
-              method: "batchTokenUpdate",
-              keys: tokens.map(t => t.address)
-            }));
-          }
-        }, 5000);
       }
 
       if (data.txType === 'create' && data.mint) {
         try {
-          const token = await mapPumpPortalData(data);
+          const token = await this.mapPumpPortalData(data);
           if (!token) return;
 
-          // Debounce token addition
-          setTimeout(() => {
-            store.addToken(token);
+          store.addToken(token);
+          if (token.imageUrl) {
+            this.preloadTokenImages([{
+              imageLink: token.imageUrl,
+              symbol: token.symbol
+            }]);
+          }
 
-            if (token.imageLink) {
-              preloadTokenImages([{
-                imageLink: token.imageLink,
-                symbol: token.symbol
-              }]);
-            }
-
-            if (ws?.readyState === WebSocket.OPEN) {
-              // Bundle subscriptions into one message
-              ws.send(JSON.stringify({
-                method: "batchSubscribe",
-                subscriptions: [
-                  { type: "trade", address: token.address },
-                  { type: "account", address: token.address }
-                ]
-              }));
-            }
-          }, 100);
+          if (this.pumpPortalWs?.readyState === WebSocket.OPEN) {
+            this.pumpPortalWs.send(JSON.stringify({
+              method: "subscribeTokenTrade",
+              keys: [token.address]
+            }));
+          }
         } catch (err) {
           console.error('[PumpPortal] Failed to process token:', err);
         }
       } else if (['buy', 'sell'].includes(data.txType) && data.mint) {
-        // Add timestamp if not present
-        const trade = {
-          ...data,
-          timestamp: data.timestamp || Date.now()
-        };
-
-        store.addTradeToHistory(data.mint, trade);
-
-        // Request a full update for this token
-        ws?.send(JSON.stringify({
-          method: "requestTokenUpdate",
-          keys: [data.mint]
-        }));
+        store.addTradeToHistory(data.mint, data);
       }
-
-      // Implement periodic token updates
-      setInterval(() => {
-        const tokens = store.getState().tokens;
-        tokens.forEach(token => {
-          if (ws?.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-              method: "requestTokenUpdate",
-              keys: [token.address]
-            }));
-          }
-        });
-      }, 15000); // Poll every 15 seconds
     } catch (error) {
       console.error('[Unified WebSocket] PumpPortal message error:', error);
-    }
-  }
-
-  private handleHeliusClose() {
-    this.cleanupHeartbeat();
-    useUnifiedTokenStore.getState().setConnected(false);
-
-    if (!this.isManualDisconnect && this.heliusReconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      const delay = Math.min(BASE_RECONNECT_DELAY * Math.pow(1.5, this.heliusReconnectAttempts), 30000);
-      this.heliusReconnectAttempts++;
-      console.log(`[Unified WebSocket] Helius reconnecting ${this.heliusReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
-      setTimeout(() => this.connectHelius(), delay);
-    }
-  }
-
-  private handlePumpPortalClose() {
-    if (!this.isManualDisconnect && this.pumpPortalReconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      const delay = Math.min(BASE_RECONNECT_DELAY * Math.pow(1.5, this.pumpPortalReconnectAttempts), 30000);
-      this.pumpPortalReconnectAttempts++;
-      console.log(`[Unified WebSocket] PumpPortal reconnecting ${this.pumpPortalReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
-      setTimeout(() => this.connectPumpPortal(), delay);
-    }
-  }
-
-  private startHeartbeat() {
-    if (this.heartbeatInterval) return;
-
-    this.heartbeatInterval = setInterval(() => {
-      if (this.heliusWs?.readyState === WebSocket.OPEN) {
-        this.heliusWs.send(JSON.stringify({ method: 'ping' }));
-        this.resetHeartbeatTimeout();
-      }
-    }, HEARTBEAT_INTERVAL);
-  }
-
-  private resetHeartbeatTimeout() {
-    if (this.heartbeatTimeout) {
-      clearTimeout(this.heartbeatTimeout);
-    }
-
-    this.heartbeatTimeout = setTimeout(() => {
-      console.warn('[Unified WebSocket] Heartbeat timeout, reconnecting...');
-      this.heliusWs?.close();
-    }, HEARTBEAT_TIMEOUT);
-  }
-
-  private cleanupHeartbeat() {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
-    }
-    if (this.heartbeatTimeout) {
-      clearTimeout(this.heartbeatTimeout);
-      this.heartbeatTimeout = null;
     }
   }
 
@@ -369,44 +203,204 @@ class UnifiedWebSocket {
         const isBuy = postAmount > preAmount;
         const solAmount = Math.abs(tx.meta.preBalances[0] - tx.meta.postBalances[0]) / 1e9;
 
-        // Create trades for both sides of the transaction
-        if (isBuy) {
-          const buyTrade: TokenTrade = {
-            signature: data.signature,
-            timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
-            tokenAddress: data.accountId,
-            amount: solAmount,
-            price: amount,
-            priceUsd: 0,
-            buyer: accountKeys[1]?.toString() || '',
-            seller: accountKeys[0]?.toString() || '',
-            type: 'buy'
-          };
-          useUnifiedTokenStore.getState().addTransaction(data.accountId, buyTrade);
-        } else {
-          const sellTrade: TokenTrade = {
-            signature: data.signature,
-            timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
-            tokenAddress: data.accountId,
-            amount: solAmount,
-            price: amount,
-            priceUsd: 0,
-            buyer: accountKeys[1]?.toString() || '',
-            seller: accountKeys[0]?.toString() || '',
-            type: 'sell'
-          };
-          useUnifiedTokenStore.getState().addTransaction(data.accountId, sellTrade);
-        }
+        const trade: TokenTrade = {
+          signature: data.signature,
+          timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
+          tokenAddress: data.accountId,
+          amount: solAmount,
+          price: amount,
+          priceUsd: 0,
+          buyer: isBuy ? accountKeys[1]?.toString() || '' : '',
+          seller: !isBuy ? accountKeys[0]?.toString() || '' : '',
+          type: isBuy ? 'buy' : 'sell'
+        };
+
+        useUnifiedTokenStore.getState().addTransaction(data.accountId, trade);
       }
     } catch (error) {
       console.error('[Unified WebSocket] Account update error:', error);
     }
   }
 
+  private handleHeliusClose() {
+    this.cleanupHeliusHeartbeat();
+    useUnifiedTokenStore.getState().setConnected(false);
+
+    if (!this.isManualDisconnect && this.heliusReconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      const delay = Math.min(RECONNECT_DELAY * Math.pow(1.5, this.heliusReconnectAttempts), 30000);
+      this.heliusReconnectAttempts++;
+      console.log(`[Unified WebSocket] Helius reconnecting ${this.heliusReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
+      setTimeout(() => this.connectHelius(), delay);
+    }
+  }
+
+  private handlePumpPortalClose() {
+    if (!this.isManualDisconnect && this.pumpPortalReconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      const delay = Math.min(RECONNECT_DELAY * Math.pow(1.5, this.pumpPortalReconnectAttempts), 30000);
+      this.pumpPortalReconnectAttempts++;
+      console.log(`[Unified WebSocket] PumpPortal reconnecting ${this.pumpPortalReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
+      setTimeout(() => this.connectPumpPortal(), delay);
+    }
+  }
+
+  private startHeliusHeartbeat() {
+    if (this.heliusHeartbeatInterval) return;
+
+    this.heliusHeartbeatInterval = setInterval(() => {
+      if (this.heliusWs?.readyState === WebSocket.OPEN) {
+        this.heliusWs.send(JSON.stringify({ method: 'ping' }));
+        this.resetHeliusHeartbeatTimeout();
+      }
+    }, HEARTBEAT_INTERVAL);
+  }
+
+  private startPumpPortalHeartbeat() {
+    if (this.pumpPortalHeartbeatInterval) return;
+
+    this.pumpPortalHeartbeatInterval = setInterval(() => {
+      if (this.pumpPortalWs?.readyState === WebSocket.OPEN) {
+        this.pumpPortalWs.send(JSON.stringify({ method: 'ping' }));
+        this.resetPumpPortalHeartbeatTimeout();
+      }
+    }, HEARTBEAT_INTERVAL);
+  }
+
+  private resetHeliusHeartbeatTimeout() {
+    if (this.heliusHeartbeatTimeout) {
+      clearTimeout(this.heliusHeartbeatTimeout);
+    }
+
+    this.heliusHeartbeatTimeout = setTimeout(() => {
+      console.warn('[Unified WebSocket] Heartbeat timeout, reconnecting...');
+      this.heliusWs?.close();
+    }, HEARTBEAT_TIMEOUT);
+  }
+
+  private resetPumpPortalHeartbeatTimeout() {
+    if (this.pumpPortalHeartbeatTimeout) {
+      clearTimeout(this.pumpPortalHeartbeatTimeout);
+    }
+
+    this.pumpPortalHeartbeatTimeout = setTimeout(() => {
+      console.warn('[Unified WebSocket] PumpPortal heartbeat timeout, reconnecting...');
+      this.pumpPortalWs?.close();
+    }, HEARTBEAT_TIMEOUT);
+  }
+
+  private cleanupHeliusHeartbeat() {
+    if (this.heliusHeartbeatInterval) {
+      clearInterval(this.heliusHeartbeatInterval);
+      this.heliusHeartbeatInterval = null;
+    }
+    if (this.heliusHeartbeatTimeout) {
+      clearTimeout(this.heliusHeartbeatTimeout);
+      this.heliusHeartbeatTimeout = null;
+    }
+  }
+
+  private cleanupPumpPortalHeartbeat() {
+    if (this.pumpPortalHeartbeatInterval) {
+      clearInterval(this.pumpPortalHeartbeatInterval);
+      this.pumpPortalHeartbeatInterval = null;
+    }
+    if (this.pumpPortalHeartbeatTimeout) {
+      clearTimeout(this.pumpPortalHeartbeatTimeout);
+      this.pumpPortalHeartbeatTimeout = null;
+    }
+  }
+
+  private subscribeToPumpPortal() {
+    if (this.pumpPortalWs?.readyState !== WebSocket.OPEN) return;
+
+    this.pumpPortalWs.send(JSON.stringify({
+      method: "subscribeNewToken",
+      keys: []
+    }));
+
+    const store = useUnifiedTokenStore.getState();
+    const existingTokens = store.tokens.map(t => t.address);
+
+    if (existingTokens.length > 0) {
+      this.pumpPortalWs.send(JSON.stringify({
+        method: "subscribeTokenTrade",
+        keys: existingTokens
+      }));
+    }
+  }
+
+  private requestAllTokenUpdates() {
+    const store = useUnifiedTokenStore.getState();
+    const tokens = store.tokens;
+    const activeToken = store.activeToken;
+    
+    if (this.pumpPortalWs?.readyState === WebSocket.OPEN) {
+      if (activeToken) {
+        this.pumpPortalWs.send(JSON.stringify({
+          method: "batchTokenUpdate",
+          keys: [activeToken]
+        }));
+      }
+      
+      if (tokens.length > 0) {
+        const otherTokens = tokens
+          .filter(t => t.address !== activeToken)
+          .map(t => t.address);
+          
+        if (otherTokens.length > 0) {
+          this.pumpPortalWs.send(JSON.stringify({
+            method: "batchTokenUpdate",
+            keys: otherTokens
+          }));
+        }
+      }
+    }
+  }
+
+  private preloadTokenImages(tokens: { imageLink: string, symbol: string }[]) {
+    tokens.forEach(token => {
+      const img = new Image();
+      img.src = token.imageLink;
+      img.onerror = () => {
+        console.warn(`[Token Metadata] Failed to load image for token: ${token.symbol}`);
+      };
+    });
+  }
+
+  private async mapPumpPortalData(data: any) {
+    try {
+      const {
+        mint,
+        vSolInBondingCurve,
+        marketCapSol,
+        name,
+        symbol,
+        imageLink,
+      } = data;
+
+      return {
+        name: name || `Token ${mint?.slice(0, 8)}`,
+        symbol: symbol || mint?.slice(0, 6),
+        address: mint,
+        marketCap: marketCapSol || 0,
+        liquidityAdded: Boolean(vSolInBondingCurve),
+        holders: 0,
+        volume24h: 0,
+        price: 0,
+        imageUrl: imageLink || 'https://via.placeholder.com/150',
+        source: 'unified'
+      };
+    } catch (error) {
+      console.error('[PumpPortal] Error mapping data:', error);
+      return null;
+    }
+  }
+
   disconnect() {
     console.log('[Unified WebSocket] Disconnecting...');
     this.isManualDisconnect = true;
-    this.cleanupHeartbeat();
+
+    this.cleanupHeliusHeartbeat();
+    this.cleanupPumpPortalHeartbeat();
 
     if (this.heliusWs) {
       this.heliusWs.close();
@@ -423,3 +417,4 @@ class UnifiedWebSocket {
 }
 
 export const unifiedWebSocket = new UnifiedWebSocket();
+unifiedWebSocket.connect();
