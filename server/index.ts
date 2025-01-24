@@ -39,10 +39,18 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // ALWAYS serve on port 5000
+    // Start server on port 5000
     const PORT = 5000;
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server running on port ${PORT}`);
+    }).on('error', (error: any) => {
+      if (error.code === 'EADDRINUSE') {
+        log(`Port ${PORT} is already in use. Please ensure no other servers are running.`);
+        process.exit(1);
+      } else {
+        log(`Failed to start server: ${error.message}`);
+        process.exit(1);
+      }
     });
 
     // Handle graceful shutdown
