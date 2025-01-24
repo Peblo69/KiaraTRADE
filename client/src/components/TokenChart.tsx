@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { ArrowLeft } from "lucide-react";
-import { createChart, ColorType } from 'lightweight-charts';
+import { createChart } from 'lightweight-charts';
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -21,17 +21,40 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
   useEffect(() => {
     if (!chartContainerRef.current || !token?.recentTrades) return;
 
-    const sortedTrades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
+    // Process trades into consistent time-ordered data points
+    const trades = token.recentTrades
+      .map(trade => ({
+        timestamp: Math.floor(trade.timestamp / 1000) * 1000, // Round to nearest second
+        price: trade.price,
+      }))
+      .sort((a, b) => a.timestamp - b.timestamp);
 
-    const candleData = sortedTrades.map(trade => ({
-      time: Math.floor(trade.timestamp / 1000), // Convert to seconds and ensure integer
-      open: trade.price,
-      high: trade.price * 1.001,
-      low: trade.price * 0.999,
-      close: trade.price,
-    }));
+    // Create candles from trades
+    const candleMap = new Map();
+    const CANDLE_INTERVAL = 60 * 1000; // 1 minute candles
 
-    // Validate data before creating chart
+    trades.forEach(trade => {
+      const candleTime = Math.floor(trade.timestamp / CANDLE_INTERVAL) * CANDLE_INTERVAL;
+
+      if (!candleMap.has(candleTime)) {
+        candleMap.set(candleTime, {
+          time: candleTime / 1000,
+          open: trade.price,
+          high: trade.price,
+          low: trade.price,
+          close: trade.price
+        });
+      } else {
+        const candle = candleMap.get(candleTime);
+        candle.high = Math.max(candle.high, trade.price);
+        candle.low = Math.min(candle.low, trade.price);
+        candle.close = trade.price;
+      }
+    });
+
+    const candleData = Array.from(candleMap.values())
+      .sort((a, b) => a.time - b.time);
+
     if (candleData.length === 0) return;
 
     const chart = createChart(chartContainerRef.current, {
@@ -62,17 +85,14 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
 
     candlestickSeries.setData(candleData);
 
-    // Set visible range with some padding
-    const firstTime = candleData[0].time;
-    const lastTime = candleData[candleData.length - 1].time;
+    // Set visible range with padding
     const timeRange = {
-      from: firstTime - 300, // 5 minutes padding
-      to: lastTime + 300,
+      from: candleData[0].time - 300,
+      to: candleData[candleData.length - 1].time + 300
     };
 
     chart.timeScale().setVisibleRange(timeRange);
 
-    // Cleanup
     return () => {
       chart.remove();
     };
