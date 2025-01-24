@@ -10,6 +10,7 @@ import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import millify from "millify";
 import { getTokenImage } from "@/lib/token-metadata";
 import { AdvancedChart } from "@/components/AdvancedChart";
+import { formatPrice, formatMarketCap } from "@/lib/utils";
 
 interface PumpPortalToken {
   address: string;
@@ -31,6 +32,7 @@ interface PumpPortalToken {
     '1h': TimeWindow;
   };
   recentTrades: Trade[];
+  imageLink?: string; // Added imageLink for direct image display
 }
 
 interface TimeWindow {
@@ -47,16 +49,8 @@ interface Trade {
   wallet: string;
 }
 
-// Helper functions for formatting numbers
-const formatPrice = (price: number | undefined | null): string => {
-  if (typeof price !== 'number' || isNaN(price)) return '$0.00';
-  return `$${price.toFixed(8)}`;
-};
+// Helper functions for formatting numbers (moved to utils.ts)
 
-const formatMarketCap = (marketCap: number | undefined | null): string => {
-  if (typeof marketCap !== 'number' || isNaN(marketCap)) return '$0';
-  return `$${millify(marketCap)}`;
-};
 
 function getTimeDiff(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -66,17 +60,13 @@ function getTimeDiff(timestamp: number): string {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, onClick }) => {
+const TokenRow: FC<{ token: PumpPortalToken }> = ({ token }) => {
   return (
-    <Card
-      key={token.address}
-      className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
-      onClick={onClick}
-    >
+    <Card className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20">
       <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
         <div className="flex items-center gap-3">
           <img
-            src={getTokenImage(token)}
+            src={token.imageLink || getTokenImage(token) || 'https://via.placeholder.com/150'}
             alt={`${token.symbol} logo`}
             className="w-10 h-10 rounded-full object-cover bg-purple-500/20"
             onError={(e) => {
@@ -92,10 +82,7 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
             </div>
           </div>
         </div>
-        <div className={`text-right font-medium ${
-          token.price > (token.timeWindows['1m']?.openPrice || 0) ? "text-green-500" : 
-          token.price < (token.timeWindows['1m']?.openPrice || 0) ? "text-red-500" : ""
-        }`}>
+        <div className="text-right font-medium">
           {formatPrice(token.price)}
         </div>
         <div className="text-right">
@@ -252,7 +239,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                   </div>
                   <div className={`text-sm ${
                     currentToken.price > token.price ? 'text-green-500' :
-                    currentToken.price < token.price ? 'text-red-500' : ''
+                      currentToken.price < token.price ? 'text-red-500' : ''
                   }`}>
                     {formatPrice(currentToken.price)}
                   </div>
@@ -363,60 +350,46 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
 };
 
 const PumpFunVision: FC = () => {
-  const [selectedToken, setSelectedToken] = useState<PumpPortalToken | null>(null);
   const tokens = usePumpPortalStore((state) => state.tokens);
   const isConnected = usePumpPortalStore((state) => state.isConnected);
 
   return (
-    <>
-      <div className="min-h-screen bg-background">
-        <div className="max-w-[1400px] mx-auto p-4">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold">PumpFun Vision</h1>
-              <p className="text-sm text-muted-foreground">
-                Track newly created tokens and their performance
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 px-4 py-2 text-sm text-muted-foreground">
-              <div>Token</div>
-              <div className="text-right">Price</div>
-              <div className="text-right">Market Cap</div>
-              <div className="text-right">Liquidity</div>
-              <div className="text-right">Volume</div>
-            </div>
-
-            {!isConnected ? (
-              <div className="flex items-center justify-center h-40">
-                <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
-              </div>
-            ) : tokens.length > 0 ? (
-              tokens.map((token) => (
-                <TokenRow
-                  key={token.address}
-                  token={token}
-                  onClick={() => setSelectedToken(token)}
-                />
-              ))
-            ) : (
-              <div className="flex items-center justify-center h-40">
-                <p className="text-muted-foreground">Waiting for new tokens...</p>
-              </div>
-            )}
+    <div className="min-h-screen bg-background">
+      <div className="max-w-[1400px] mx-auto p-4">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold">PumpFun Vision</h1>
+            <p className="text-sm text-muted-foreground">
+              Track newly created tokens and their performance
+            </p>
           </div>
         </div>
-      </div>
 
-      {selectedToken && (
-        <TokenView
-          token={selectedToken}
-          onBack={() => setSelectedToken(null)}
-        />
-      )}
-    </>
+        <div className="space-y-2">
+          <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 px-4 py-2 text-sm text-muted-foreground">
+            <div>Token</div>
+            <div className="text-right">Price</div>
+            <div className="text-right">Market Cap</div>
+            <div className="text-right">Liquidity</div>
+            <div className="text-right">Volume</div>
+          </div>
+
+          {!isConnected ? (
+            <div className="flex items-center justify-center h-40">
+              <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+            </div>
+          ) : tokens.length > 0 ? (
+            tokens.map((token) => (
+              <TokenRow key={token.address} token={token} />
+            ))
+          ) : (
+            <div className="flex items-center justify-center h-40">
+              <p className="text-muted-foreground">Waiting for new tokens...</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 
