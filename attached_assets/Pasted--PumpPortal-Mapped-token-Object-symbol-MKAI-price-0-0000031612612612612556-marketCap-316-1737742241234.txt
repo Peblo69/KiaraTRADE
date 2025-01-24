@@ -1,0 +1,58 @@
+[PumpPortal] Mapped token: 
+Object {symbol: "MKAI", price: 0.0000031612612612612556, marketCap: 3161.2612612612556, liquidity: 3189.9999999999973}
+[Token Metadata] Preloading images for 1 tokens
+[Token Metadata] Resolved image URL for MKAI : https://via.placeholder.com/150
+[Token Metadata] Failed to load image for token: MKAI 
+Event {isTrusted: true}
+
+[PumpPortal] Raw data received: 
+Object {signature: "38cMBKu2A2bu8UdxZJrqbvbY1bxUbKFoBWwd1WpP9vVqngnUE8puM3FcKpHG4mzZgAR8NCMPrw1Lkx1krychF3te", mint: "Bn8RUhRsjN9nssn1cKULTmJd143HmK5EGg1Zukbpump", traderPublicKey: "7ce7aiW9Jc83YH6HnBsxAL4dgRvD78WdYNNDo4YpmGoi", txType: "create", initialBuy: 352865771.81208, …}
+[PumpPortal] Mapped token: 
+Object {symbol: "PAYPAL", price: 0.000006207176141658893, marketCap: 6207.176141658892, liquidity: 4469.999999999996}
+[Token Metadata] Preloading images for 1 tokens
+[Token Metadata] Resolved image URL for PAYPAL : https://via.placeholder.com/150
+[Token Metadata] Failed to load image for token: PAYPAL 
+Event {isTrusted: true}
+
+[PumpPortal] Raw data received: 
+Object {signature: "XiSHpZDsUyAXzgEmce3TwS1gNiCpcZqZXVy94Zoj1Nr9DyytTx24iuFKiWyCaqBzfupW8VJ2sj5iPc2hnk3Puv5", mint: "9BAaw6Dwm22JnqTKEVQpWK83PfWXFDbdzysVoGkZpump", traderPublicKey: "BSPyaPBuRu4YJwKqRZsZ2QRQMBkrfjUL8gj8PcEBstpg", txType: "create", initialBuy: 2853723.404255, …}
+[PumpPortal] Mapped token: 
+Object {symbol: "LEnerg", price: 0.0000028108306927617255, marketCap: 2810.8306927617255, liquidity: 3007.999999999999}
+[Token Metadata] Preloading images for 1 tokens
+[Token Metadata] Resolved image URL for LEnerg : https://via.placeholder.com/150
+[Token Metadata] Failed to load image for token: LEnerg 
+Event {isTrusted: true}
+
+[PumpPortal] Raw data received: 
+Object {signature: "2iTzEbJeQS8ESTYCWaN59oWsajtt4qh6wGZdZxPV88pSwBL5Jiki8YqgT1kTeLtKWz7Fm3BTdoFX4EF8PmmSgNDu", mint: "5WYC8CDJgFXGopAecjPrYUcYesp4biNTDUJBYVhpump", traderPublicKey: "4EFNUjjTz18NutR3YLvp9NHWTT8s54G3t71SHoztTYDk", txType: "create", initialBuy: 1061325.409773, …}
+[PumpPortal] Mapped token: 
+Object {symbol: "NASA", price: 0.0000028014385227288805, marketCap: 2801.4385227288803, liquidity: 3002.9702969999994}
+[Token Metadata] Preloading images for 1 tokens
+[Token Metadata] Resolved image URL for NASA : https://via.placeholder.com/150
+[Token Metadata] Failed to load image for token: NASA 
+Event {isTrusted: true}
+
+[Helius] Initializing WebSocket...
+[Helius] WebSocket disconnected
+[Helius] Attempting reconnect 1/5
+[Helius] Initializing WebSocket...
+[Helius] Connection timeout
+[Helius] WebSocket error: 
+Event {isTrusted: true}
+ 
+Object {readyState: 2, timestamp: "2025-01-24T18:10:20.498Z", reconnectAttempts: 1}
+readyState: 2
+reconnectAttempts: 1
+timestamp: "2025-01-24T18:10:20.498Z"
+[[Prototype]]: Object
+
+[Helius] WebSocket disconnected
+[Helius] Attempting reconnect 2/5
+[Helius] WebSocket error: 
+Event {isTrusted: true}
+ 
+Object {readyState: 3, timestamp: "2025-01-24T18:10:20.499Z", reconnectAttempts: 2}
+readyState: 3
+reconnectAttempts: 2
+timestamp: "2025-01-24T18:10:20.499Z"
+[[Prototype]]: Object
