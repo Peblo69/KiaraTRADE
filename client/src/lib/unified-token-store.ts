@@ -69,16 +69,20 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
   connectionError: null,
 
   addToken: (token) => set(state => {
-    // Check if token already exists and if it's actually different
-    const existingTokenIndex = state.tokens.findIndex(t => t.address === token.address);
+    // Validate token data
+    if (!token?.address) return state;
 
-    if (existingTokenIndex >= 0) {
-      const existingToken = state.tokens[existingTokenIndex];
+    // Use Map for O(1) lookup
+    const tokenMap = new Map(state.tokens.map(t => [t.address, t]));
+    const existingToken = tokenMap.get(token.address);
+
+    if (existingToken) {
       const hasChanged = existingToken.price !== token.price ||
                         existingToken.marketCapSol !== token.marketCapSol ||
-                        existingToken.volume24h !== token.volume24h;
+                        existingToken.volume24h !== token.volume24h ||
+                        Date.now() - (existingToken.lastUpdated || 0) > 5000;
 
-      if (!hasChanged) return state; // No changes needed, prevent unnecessary updates
+      if (!hasChanged) return state;
 
       // Update existing token
       const updatedTokens = [...state.tokens];

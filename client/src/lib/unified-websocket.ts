@@ -147,25 +147,30 @@ class UnifiedWebSocket {
       if (data.txType === 'create' && data.mint) {
         try {
           const token = await mapPumpPortalData(data);
-          store.addToken(token);
+          if (!token) return;
 
-          if (token.imageLink) {
-            preloadTokenImages([{
-              imageLink: token.imageLink,
-              symbol: token.symbol
-            }]);
-          }
+          // Debounce token addition
+          setTimeout(() => {
+            store.addToken(token);
 
-          // Subscribe to both trade and account updates
-          ws?.send(JSON.stringify({
-            method: "subscribeTokenTrade",
-            keys: [token.address]
-          }));
+            if (token.imageLink) {
+              preloadTokenImages([{
+                imageLink: token.imageLink,
+                symbol: token.symbol
+              }]);
+            }
 
-          ws?.send(JSON.stringify({
-            method: "subscribeAccountUpdates",
-            keys: [token.address]
-          }));
+            if (ws?.readyState === WebSocket.OPEN) {
+              // Bundle subscriptions into one message
+              ws.send(JSON.stringify({
+                method: "batchSubscribe",
+                subscriptions: [
+                  { type: "trade", address: token.address },
+                  { type: "account", address: token.address }
+                ]
+              }));
+            }
+          }, 100);
         } catch (err) {
           console.error('[PumpPortal] Failed to process token:', err);
         }
