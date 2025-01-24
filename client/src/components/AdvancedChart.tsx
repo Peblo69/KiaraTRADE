@@ -1,84 +1,47 @@
-// client/src/components/AdvancedChart.tsx
-
 import React from 'react';
-import { createChart, IChartApi, ISeriesApi, BarData } from 'lightweight-charts';
+import { createChart, IChartApi } from 'lightweight-charts';
 
-interface AdvancedChartProps {
-  data: BarData[];
-  timeframe: string;
-  onTimeframeChange: (tf: string) => void;
-  symbol: string;
-  className?: string;
+interface Props {
+  data: Array<{
+    time: string;
+    value: number;
+  }>;
+  height?: number;
+  width?: number;
 }
 
-export const AdvancedChart: React.FC<AdvancedChartProps> = ({ data, timeframe, onTimeframeChange, symbol, className }) => {
+export default function AdvancedChart({ data, height = 300, width = 600 }: Props) {
   const chartContainerRef = React.useRef<HTMLDivElement>(null);
-  const chartRef = React.useRef<IChartApi | null>(null);
-  const candleSeriesRef = React.useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const [chart, setChart] = React.useState<IChartApi | null>(null);
 
   React.useEffect(() => {
     if (chartContainerRef.current) {
-      chartRef.current = createChart(chartContainerRef.current, {
-        width: chartContainerRef.current.clientWidth,
-        height: 300,
+      const chartInstance = createChart(chartContainerRef.current, {
+        height,
+        width,
         layout: {
-          backgroundColor: '#0A0A0A',
-          textColor: '#FFFFFF',
+          background: { color: 'transparent' },
+          textColor: '#DDD',
         },
         grid: {
-          vertLines: {
-            color: '#333',
-          },
-          horzLines: {
-            color: '#333',
-          },
-        },
-        priceScale: {
-          borderColor: '#555',
-        },
-        timeScale: {
-          borderColor: '#555',
-          timeVisible: true,
-          secondsVisible: false,
+          vertLines: { color: '#2B2B43' },
+          horzLines: { color: '#2B2B43' },
         },
       });
 
-      candleSeriesRef.current = chartRef.current.addCandlestickSeries({
-        upColor: '#4CAF50',
-        downColor: '#F44336',
-        borderDownColor: '#F44336',
-        borderUpColor: '#4CAF50',
-        wickDownColor: '#F44336',
-        wickUpColor: '#4CAF50',
+      const lineSeries = chartInstance.addLineSeries({
+        color: '#A855F7',
+        lineWidth: 2,
       });
 
-      candleSeriesRef.current.setData(data);
-
-      // Handle resize
-      const handleResize = () => {
-        if (chartRef.current && chartContainerRef.current) {
-          chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
-          chartRef.current.resize(chartContainerRef.current.clientWidth, 300);
-        }
-      };
-
-      window.addEventListener('resize', handleResize);
+      lineSeries.setData(data);
+      setChart(chartInstance);
 
       return () => {
-        window.removeEventListener('resize', handleResize);
-        chartRef.current?.remove();
+        chartInstance.remove();
       };
     }
-  }, []);
+  }, [data, height, width]);
 
-  React.useEffect(() => {
-    candleSeriesRef.current?.setData(data);
-  }, [data]);
-
-  return (
-    <div className={`relative ${className}`}>
-      <div ref={chartContainerRef} className="w-full h-full" />
-      {/* Add timeframe selectors if needed */}
-    </div>
-  );
-};
+  return <div ref={chartContainerRef} />;
+}
