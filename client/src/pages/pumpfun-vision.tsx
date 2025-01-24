@@ -3,6 +3,7 @@ import '@/lib/pump-portal-websocket';
 import '@/lib/helius-websocket';
 import { FC, useState, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useUnifiedTokenStore } from "@/lib/unified-token-store";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
