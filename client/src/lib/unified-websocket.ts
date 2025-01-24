@@ -150,10 +150,10 @@ class UnifiedWebSocket {
               keys: [token.address]
             }));
           }
-          // Request initial token data
+          // Subscribe to token trades for new token
           if (this.pumpPortalWs?.readyState === WebSocket.OPEN) {
             this.pumpPortalWs.send(JSON.stringify({
-              method: "batchTokenUpdate",
+              method: "subscribeTokenTrade",
               keys: [token.address]
             }));
           }
@@ -395,7 +395,7 @@ class UnifiedWebSocket {
     if (this.pumpPortalWs?.readyState === WebSocket.OPEN) {
       if (activeToken) {
         this.pumpPortalWs.send(JSON.stringify({
-          method: "batchTokenUpdate",
+          method: "subscribeTokenTrade",
           keys: [activeToken]
         }));
       }
@@ -406,10 +406,19 @@ class UnifiedWebSocket {
           .map(t => t.address);
           
         if (otherTokens.length > 0) {
-          this.pumpPortalWs.send(JSON.stringify({
-            method: "batchTokenUpdate",
-            keys: otherTokens
-          }));
+          // Subscribe in batches to prevent overwhelming server
+          const batchSize = 10;
+          for (let i = 0; i < otherTokens.length; i += batchSize) {
+            const batch = otherTokens.slice(i, i + batchSize);
+            setTimeout(() => {
+              if (this.pumpPortalWs?.readyState === WebSocket.OPEN) {
+                this.pumpPortalWs.send(JSON.stringify({
+                  method: "subscribeTokenTrade",
+                  keys: batch
+                }));
+              }
+            }, i * 100);
+          }
         }
       }
     }
