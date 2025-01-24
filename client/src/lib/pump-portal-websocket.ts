@@ -393,7 +393,12 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       sells24h: 0,
       walletCount: 1,
       timestamp: now,
-      timeWindows: {}, //createEmptyTimeWindows(now),
+      timeWindows: {
+        '1m': createEmptyTimeWindow(now),
+        '5m': createEmptyTimeWindow(now),
+        '15m': createEmptyTimeWindow(now),
+        '1h': createEmptyTimeWindow(now)
+      },
       priceHistory: {},
       recentTrades: [{
         timestamp: now,

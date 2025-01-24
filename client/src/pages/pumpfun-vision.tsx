@@ -290,10 +290,10 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
 
               <div className="grid grid-cols-4 gap-4">
                 {[
-                  { label: "1m Volume", value: `$${millify(currentToken.timeWindows['1m'].volume)}` },
-                  { label: "5m Volume", value: `$${millify(currentToken.timeWindows['5m'].volume)}` },
-                  { label: "15m Volume", value: `$${millify(currentToken.timeWindows['15m'].volume)}` },
-                  { label: "1h Volume", value: `$${millify(currentToken.timeWindows['1h'].volume)}` },
+                  { label: "1m Volume", value: `$${millify(currentToken.timeWindows?.['1m']?.volume || 0)}` },
+                  { label: "5m Volume", value: `$${millify(currentToken.timeWindows?.['5m']?.volume || 0)}` },
+                  { label: "15m Volume", value: `$${millify(currentToken.timeWindows?.['15m']?.volume || 0)}` },
+                  { label: "1h Volume", value: `$${millify(currentToken.timeWindows?.['1h']?.volume || 0)}` },
                 ].map((stat, idx) => (
                   <Card key={idx} className="p-4 bg-[#111111] border-purple-500/20">
                     <div className="text-sm text-muted-foreground">{stat.label}</div>
