@@ -8,6 +8,7 @@ import PumpFunVision from "@/pages/pumpfun-vision";
 function Router() {
   return (
     <Switch>
+      <Route path="/" component={PumpFunVision} />
       <Route path="/pump-vision" component={PumpFunVision} />
       <Route component={NotFound} />
     </Switch>
