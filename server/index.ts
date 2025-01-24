@@ -39,39 +39,11 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // Try specific ports in order
-    const ports = [3000, 3001, 5000, 5001, 8000];
-    let serverStarted = false;
-
-    for (const port of ports) {
-      try {
-        await new Promise((resolve, reject) => {
-          server.listen(port, "0.0.0.0")
-            .once('listening', () => {
-              log(`Server running on port ${port}`);
-              serverStarted = true;
-              resolve(port);
-            })
-            .once('error', (err) => {
-              if (err.code === 'EADDRINUSE') {
-                log(`Port ${port} is in use, trying next port...`);
-                resolve(null);
-              } else {
-                reject(err);
-              }
-            });
-        });
-
-        if (serverStarted) break;
-      } catch (error) {
-        log(`Error on port ${port}: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-
-    if (!serverStarted) {
-      log('Failed to start server on any port');
-      process.exit(1);
-    }
+    // ALWAYS serve on port 5000
+    const PORT = 5000;
+    server.listen(PORT, "0.0.0.0", () => {
+      log(`Server running on port ${PORT}`);
+    });
 
     // Handle graceful shutdown
     process.on('SIGTERM', () => {
