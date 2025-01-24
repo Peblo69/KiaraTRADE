@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 import { preloadTokenImages } from './token-metadata';
 import axios from 'axios';
 
@@ -39,9 +39,7 @@ export interface PumpPortalToken {
   sells24h: number;
   walletCount: number;
   timestamp: number;
-  timeWindows: {
-    [key: string]: TimeWindowStats;
-  };
+  timeWindows: Record<string, TimeWindowStats>;
   recentTrades: TokenTrade[];
   status: TokenStatus;
   imageLink?: string;
@@ -175,8 +173,8 @@ export function mapPumpPortalData(data: any): PumpPortalToken {
     timestamp: now,
     timeWindows: {
       '1m': {
-        startTime: now,
-        endTime: now + 1000,
+        startTime: now - 60000,
+        endTime: now,
         openPrice: priceUsd,
         closePrice: priceUsd,
         highPrice: priceUsd,
@@ -214,14 +212,6 @@ const API_ENDPOINTS = [
   {
     url: 'https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT',
     extract: (data: any) => Number(data?.price)
-  },
-  {
-    url: 'https://api.binance.com/api/v3/ticker/24hr?symbol=SOLUSDT',
-    extract: (data: any) => Number(data?.lastPrice)
-  },
-  {
-    url: 'https://price.jup.ag/v4/price?ids=SOL',
-    extract: (data: any) => data?.data?.SOL?.price
   }
 ];
 
@@ -239,7 +229,7 @@ const fetchSolanaPrice = async (retries = 3): Promise<number> => {
       try {
         const response = await axiosInstance.get(endpoint.url);
         const price = endpoint.extract(response.data);
-        
+
         if (typeof price === 'number' && price > 0) {
           return price;
         }
@@ -247,10 +237,10 @@ const fetchSolanaPrice = async (retries = 3): Promise<number> => {
       } catch (error: any) {
         const isLastAttempt = i === retries - 1;
         const isLastEndpoint = endpoint === API_ENDPOINTS[API_ENDPOINTS.length - 1];
-        
+
         console.error(`[PumpPortal] Error fetching SOL price from ${endpoint.url} (attempt ${i + 1}/${retries}):`, 
           error.response?.status || error.message);
-        
+
         if (!isLastAttempt || !isLastEndpoint) {
           const delay = Math.min(1000 * Math.pow(2, i), 10000);
           await new Promise(resolve => setTimeout(resolve, delay));
@@ -259,7 +249,7 @@ const fetchSolanaPrice = async (retries = 3): Promise<number> => {
       }
     }
   }
-  
+
   console.warn('[PumpPortal] Using fallback SOL price after all attempts failed');
   return 100; 
 };
@@ -344,7 +334,7 @@ export function initializePumpPortalWebSocket() {
 
         if (data.txType === 'create' && data.mint) {
           try {
-            const token = await mapPumpPortalData(data);
+            const token = mapPumpPortalData(data);
             store.addToken(token);
 
             if (token.imageLink) {
