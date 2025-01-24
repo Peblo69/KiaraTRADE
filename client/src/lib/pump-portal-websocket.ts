@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { preloadTokenImages } from './token-metadata';
 import axios from 'axios';
+import { useUnifiedTokenStore } from './unified-token-store';
+import WebSocket from 'isomorphic-ws';
 
 // Constants
 const TOTAL_SUPPLY = 1_000_000_000;
@@ -277,14 +279,13 @@ export function initializePumpPortalWebSocket() {
       ws = null;
     }
 
-    if (solPriceInterval) {
-      clearInterval(solPriceInterval);
-      solPriceInterval = null;
-    }
-
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);
       reconnectTimeout = null;
+    }
+    if (solPriceInterval) {
+      clearInterval(solPriceInterval);
+      solPriceInterval = null;
     }
   };
 
@@ -321,7 +322,6 @@ export function initializePumpPortalWebSocket() {
           method: "subscribeNewToken",
           keys: []
         }));
-
         const existingTokenAddresses = store.tokens.map(t => t.address);
         if (existingTokenAddresses.length > 0) {
           ws.send(JSON.stringify({
@@ -335,6 +335,7 @@ export function initializePumpPortalWebSocket() {
     ws.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
+        const store = usePumpPortalStore.getState();
 
         if (data.message?.includes('Successfully subscribed')) return;
         if (data.errors) {
@@ -458,7 +459,6 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
         '15m': createEmptyTimeWindow(now),
         '1h': createEmptyTimeWindow(now)
       },
-      priceHistory: {},
       recentTrades: [{
         timestamp: now,
         price: priceUsd,
