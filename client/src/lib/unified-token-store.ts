@@ -26,6 +26,8 @@ interface Trade {
   price: number;
   priceUSD: number;
   signature: string;
+  type: 'buy' | 'sell';
+  buyer: string;
 }
 
 interface TokenData {
@@ -44,9 +46,10 @@ interface TokenData {
   solAmount?: number;
   priceChange24h?: number;
   metadata?: TokenMetadata;
-  source?: 'unified';
+  source?: 'unified' | 'helius' | 'pumpportal';
   lastUpdated?: number;
   trades: Trade[];
+  previousPrice?: number;
 }
 
 interface UnifiedTokenState {
@@ -63,6 +66,30 @@ interface UnifiedTokenState {
   getTransactions: (address: string) => Transaction[];
 }
 
+const persistOptions = {
+  name: 'unified-token-store',
+  version: 1,
+  getStorage: () => ({
+    getItem: (name: string) => {
+      try {
+        const value = localStorage.getItem(name);
+        return value ? JSON.parse(value) : null;
+      } catch (error) {
+        console.error('[Store] Error reading from localStorage:', error);
+        return null;
+      }
+    },
+    setItem: (name: string, value: any) => {
+      try {
+        localStorage.setItem(name, JSON.stringify(value));
+      } catch (error) {
+        console.error('[Store] Error writing to localStorage:', error);
+      }
+    },
+    removeItem: (name: string) => localStorage.removeItem(name),
+  }),
+};
+
 export const useUnifiedTokenStore = create<UnifiedTokenState>()(
   persist(
     (set, get) => ({
@@ -72,15 +99,19 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
       connectionError: null,
 
       addToken: (token) => set((state) => {
-        if (!token?.address) return state;
+        if (!token?.address) {
+          console.warn('[Store] Invalid token data:', token);
+          return state;
+        }
 
         const existingTokenIndex = state.tokens.findIndex(t => t.address === token.address);
 
         if (existingTokenIndex >= 0) {
           const existingToken = state.tokens[existingTokenIndex];
-          const hasChanged = existingToken.price !== token.price ||
-                           existingToken.marketCapSol !== token.marketCapSol ||
-                           existingToken.volume24h !== token.volume24h;
+          const hasChanged = 
+            existingToken.price !== token.price ||
+            existingToken.marketCapSol !== token.marketCapSol ||
+            existingToken.volume24h !== token.volume24h;
 
           if (!hasChanged) return state;
 
@@ -88,26 +119,30 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
           updatedTokens[existingTokenIndex] = {
             ...existingToken,
             ...token,
+            previousPrice: existingToken.price,
             lastUpdated: Date.now(),
             trades: token.trades?.length ? 
-              [...new Set([...token.trades, ...existingToken.trades]
+              [...new Set([...token.trades, ...(existingToken.trades || [])]
                 .map(trade => JSON.stringify(trade)))]
                 .map(str => JSON.parse(str))
                 .sort((a, b) => b.timestamp - a.timestamp)
                 .slice(0, 1000) : 
-              existingToken.trades
+              existingToken.trades || []
           };
+
           return { tokens: updatedTokens };
         }
 
-        console.log('[Unified Store] Adding new token:', token.address);
+        console.log('[Store] Adding new token:', token.address);
         return {
           tokens: [
             ...state.tokens,
             {
               ...token,
               trades: token.trades || [],
-              lastUpdated: Date.now()
+              lastUpdated: Date.now(),
+              liquidityAdded: token.liquidityAdded ?? false,
+              marketCapSol: token.marketCapSol ?? 0,
             }
           ].sort((a, b) => b.marketCapSol - a.marketCapSol).slice(0, 100)
         };
@@ -128,6 +163,7 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
         updatedTokens[tokenIndex] = {
           ...currentToken,
           ...updates,
+          previousPrice: updates.price !== undefined ? currentToken.price : currentToken.previousPrice,
           lastUpdated: Date.now()
         };
 
@@ -140,17 +176,47 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
           return state;
         }
 
-        return {
-          transactions: {
-            ...state.transactions,
-            [tokenAddress]: [transaction, ...existingTransactions].slice(0, 1000)
-          }
+        const updatedTransactions = {
+          ...state.transactions,
+          [tokenAddress]: [transaction, ...existingTransactions].slice(0, 1000)
         };
+
+        // Update token metrics based on the new transaction
+        const tokenIndex = state.tokens.findIndex(t => t.address === tokenAddress);
+        if (tokenIndex >= 0) {
+          const token = state.tokens[tokenIndex];
+          const updatedTokens = [...state.tokens];
+
+          // Calculate 24h volume
+          const now = Date.now();
+          const oneDayAgo = now - 24 * 60 * 60 * 1000;
+          const recentTransactions = updatedTransactions[tokenAddress].filter(
+            tx => tx.timestamp > oneDayAgo
+          );
+
+          const volume24h = recentTransactions.reduce(
+            (sum, tx) => sum + tx.solAmount,
+            0
+          );
+
+          updatedTokens[tokenIndex] = {
+            ...token,
+            volume24h,
+            lastUpdated: now,
+          };
+
+          return {
+            transactions: updatedTransactions,
+            tokens: updatedTokens,
+          };
+        }
+
+        return { transactions: updatedTransactions };
       }),
 
       setConnected: (status) => set((state) => {
         if (state.isConnected === status) return state;
-        console.log('[Unified Store] Connection status changed:', status);
+        console.log('[Store] Connection status changed:', status);
         return { isConnected: status, connectionError: null };
       }),
 
@@ -158,10 +224,6 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
       getToken: (address) => get().tokens.find(token => token.address === address),
       getTransactions: (address) => get().transactions[address] || [],
     }),
-    {
-      name: 'unified-token-store',
-      storage: localStorage,
-      version: 1,
-    }
+    persistOptions
   )
 );

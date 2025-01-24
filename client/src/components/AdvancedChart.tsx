@@ -1,4 +1,4 @@
-import { FC, useEffect, useRef, useState, useCallback } from 'react';
+import { FC, useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, IChartApi, Time, CrosshairMode } from 'lightweight-charts';
 import { Card } from '@/components/ui/card';
 import {
@@ -32,7 +32,7 @@ interface ChartProps {
 }
 
 export const AdvancedChart: FC<ChartProps> = ({
-  data = [], // Initialize with empty array as default
+  data = [],
   onTimeframeChange,
   timeframe = '1s',
   symbol,
@@ -138,9 +138,15 @@ export const AdvancedChart: FC<ChartProps> = ({
         type: 'volume',
       },
       priceScaleId: '',
-      scaleMargins: {
-        top: 0.8,
-        bottom: 0,
+    });
+
+    // Set the histogram series options separately to avoid TypeScript errors
+    volumeSeries.applyOptions({
+      priceScale: {
+        scaleMargins: {
+          top: 0.8,
+          bottom: 0,
+        },
       },
     });
 
@@ -170,6 +176,10 @@ export const AdvancedChart: FC<ChartProps> = ({
           to: totalBars + 5,
         });
 
+        setIsLoading(false);
+        setNoDataForTimeframe(false);
+
+        // Add tooltips
         chart.subscribeCrosshairMove(param => {
           const tooltip = tooltipRef.current;
           if (!tooltip) return;
@@ -198,8 +208,6 @@ export const AdvancedChart: FC<ChartProps> = ({
           }
         });
 
-        setIsLoading(false);
-        setNoDataForTimeframe(false);
       } catch (error) {
         console.error('Error setting chart data:', error);
         setNoDataForTimeframe(true);
@@ -220,62 +228,31 @@ export const AdvancedChart: FC<ChartProps> = ({
     };
   }, [timeframe, data]);
 
+  // Handle real-time trade markers
   useEffect(() => {
-    if (!candlestickSeriesRef.current || !volumeSeriesRef.current || !Array.isArray(data) || data.length === 0) {
-      setNoDataForTimeframe(true);
-      return;
-    }
+    if (!candlestickSeriesRef.current || !Array.isArray(recentTrades)) return;
 
     try {
-      const lastDataPoint = data[data.length - 1];
-      const currentTime = typeof lastDataPoint.time === 'number'
-        ? lastDataPoint.time
-        : new Date(lastDataPoint.time as string).getTime() / 1000;
+      const markers = recentTrades.map(trade => ({
+        time: Math.floor(trade.timestamp / 1000),
+        position: trade.isBuy ? 'belowBar' : 'aboveBar',
+        color: trade.isBuy ? '#16a34a' : '#dc2626',
+        shape: trade.isBuy ? 'arrowUp' : 'arrowDown',
+        text: trade.isBuy ? 'B' : 'S',
+        size: 1
+      }));
 
-      candlestickSeriesRef.current.update({
-        ...lastDataPoint,
-        time: currentTime,
-      });
-
-      volumeSeriesRef.current.update({
-        time: currentTime,
-        value: lastDataPoint.volume,
-        color: lastDataPoint.close >= lastDataPoint.open
-          ? 'rgba(22, 163, 74, 0.3)'
-          : 'rgba(220, 38, 38, 0.3)',
-      });
-
-      if (Array.isArray(recentTrades) && recentTrades.length > 0) {
-        const markers = recentTrades.map(trade => ({
-          time: Math.floor(trade.timestamp / 1000),
-          position: trade.isBuy ? 'belowBar' : 'aboveBar',
-          color: trade.isBuy ? '#16a34a' : '#dc2626',
-          shape: trade.isBuy ? 'arrowUp' : 'arrowDown',
-          text: trade.isBuy ? 'B' : 'S',
-          size: 1
-        }));
-        candlestickSeriesRef.current.setMarkers(markers);
-      }
-
-      setIsLoading(false);
-      setNoDataForTimeframe(false);
+      candlestickSeriesRef.current.setMarkers(markers);
     } catch (error) {
-      console.error('Error updating chart:', error);
-      setNoDataForTimeframe(true);
+      console.error('Error updating trade markers:', error);
     }
-  }, [data, recentTrades]);
-
-  const handleTimeframeChange = useCallback((newTimeframe: string) => {
-    setNoDataForTimeframe(false);
-    setIsLoading(true);
-    onTimeframeChange?.(newTimeframe);
-  }, [onTimeframeChange]);
+  }, [recentTrades]);
 
   return (
     <Card className={className}>
       <div className="flex justify-between items-center p-2">
         <h3 className="text-lg font-semibold">{symbol} Price Chart</h3>
-        <Select value={timeframe} onValueChange={handleTimeframeChange}>
+        <Select value={timeframe} onValueChange={onTimeframeChange}>
           <SelectTrigger className="w-[120px]">
             <SelectValue placeholder="Select timeframe" />
           </SelectTrigger>
@@ -314,21 +291,6 @@ export const AdvancedChart: FC<ChartProps> = ({
             </div>
           </div>
         )}
-        <div className="absolute top-4 right-4 flex gap-2">
-          {['1s', '5s', '30s', '1m', '5m', '15m', '1h'].map((tf) => (
-            <button
-              key={tf}
-              onClick={() => handleTimeframeChange(tf)}
-              className={`px-2 py-1 text-xs rounded ${
-                timeframe === tf
-                  ? 'bg-purple-500 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }`}
-            >
-              {tf}
-            </button>
-          ))}
-        </div>
       </div>
     </Card>
   );

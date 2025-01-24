@@ -44,7 +44,7 @@ const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) =
     <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
       <div className="flex items-center gap-3">
         <img
-          src={getTokenImage(token)}
+          src={token.imageUrl || 'https://via.placeholder.com/150'}
           alt={`${token.symbol} logo`}
           className="w-10 h-10 rounded-full object-cover bg-purple-500/20"
           onError={(e) => {
@@ -70,10 +70,10 @@ const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) =
         {formatMarketCap(token.marketCap)}
       </div>
       <div className="text-right">
-        {formatMarketCap(token.liquidity)}
+        {formatMarketCap(token.marketCapSol)}
       </div>
       <div className="text-right">
-        {formatMarketCap(token.volume)}
+        {formatMarketCap(token.volume24h)}
       </div>
     </div>
   </Card>
@@ -81,13 +81,12 @@ const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) =
 
 const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const [allTrades, setAllTrades] = useState<Trade[]>([]);
-  const [timeframe, setTimeframe] = useState<'1s' | '5s' | '30s' | '1m' | '5m' | '15m' | '1h'>('1m');
-
+  const [timeframe, setTimeframe] = useState<string>('1m');
   const updatedToken = useUnifiedTokenStore(state => state.getToken(token.address));
+  const currentToken = updatedToken || token;
 
   const candleData = useMemo(() => {
-    if (!allTrades.length) return [];
+    if (!currentToken.trades?.length) return [];
 
     const timeframeMs = {
       '1s': 1000,
@@ -101,9 +100,9 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
 
     const candles: any[] = [];
     let currentCandle: any = null;
-    let lastPrice = allTrades[0]?.price || 0;
+    let lastPrice = currentToken.trades[0]?.price || 0;
 
-    const sortedTrades = [...allTrades].sort((a, b) => a.timestamp - b.timestamp);
+    const sortedTrades = [...currentToken.trades].sort((a, b) => a.timestamp - b.timestamp);
 
     sortedTrades.forEach(trade => {
       const candleTimestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
@@ -115,7 +114,7 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
 
         currentCandle = {
           timestamp: candleTimestamp,
-          time: Math.floor(candleTimestamp / 1000),
+          time: candleTimestamp / 1000,
           open: lastPrice,
           high: trade.price,
           low: trade.price,
@@ -137,34 +136,22 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
     }
 
     return candles;
-  }, [allTrades, timeframe]);
+  }, [currentToken.trades, timeframe]);
 
-  useEffect(() => {
-    if (updatedToken?.trades) {
-      setAllTrades(prev => {
-        const tradeMap = new Map(
-          prev.map(trade => [trade.signature, trade])
-        );
-
-        updatedToken.trades.forEach(trade => {
-          if (!tradeMap.has(trade.signature)) {
-            tradeMap.set(trade.signature, trade);
-          }
-        });
-
-        return Array.from(tradeMap.values())
-          .sort((a, b) => b.timestamp - a.timestamp);
-      });
-    }
-  }, [updatedToken?.trades]);
+  const recentTrades = useMemo(() => {
+    if (!currentToken.trades?.length) return [];
+    return currentToken.trades.map(trade => ({
+      timestamp: trade.timestamp,
+      price: trade.price,
+      isBuy: trade.type === 'buy'
+    }));
+  }, [currentToken.trades]);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
     }
-  }, [allTrades.length]);
-
-  const currentToken = updatedToken || token;
+  }, [currentToken.trades?.length]);
 
   return (
     <div className="fixed inset-0 bg-[#0A0A0A] z-50 overflow-hidden">
@@ -182,7 +169,7 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
               </Button>
               <div className="flex items-center gap-3">
                 <img
-                  src={getTokenImage(currentToken)}
+                  src={currentToken.imageUrl || 'https://via.placeholder.com/150'}
                   alt={`${currentToken.symbol} logo`}
                   className="w-8 h-8 rounded-full object-cover bg-purple-500/20"
                   onError={(e) => {
@@ -210,8 +197,8 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
                 <div className="font-medium">{formatMarketCap(currentToken.marketCap)}</div>
               </div>
               <div>
-                <div className="text-sm text-muted-foreground">Liquidity</div>
-                <div className="font-medium">{formatMarketCap(currentToken.liquidity)}</div>
+                <div className="text-sm text-muted-foreground">Market Cap (SOL)</div>
+                <div className="font-medium">{formatMarketCap(currentToken.marketCapSol)}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Volume 24h</div>
@@ -232,15 +219,16 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
                 <AdvancedChart
                   data={candleData}
                   timeframe={timeframe}
-                  onTimeframeChange={(tf) => setTimeframe(tf as any)}
+                  onTimeframeChange={setTimeframe}
                   symbol={currentToken.symbol}
                   className="bg-transparent border-0"
+                  recentTrades={recentTrades}
                 />
               </Card>
 
               <div className="grid grid-cols-4 gap-4">
                 {[
-                  { label: "1m Volume", value: formatMarketCap(currentToken.volume) },
+                  { label: "1m Volume", value: formatMarketCap(currentToken.volume24h / 1440) },
                   { label: "5m Volume", value: formatMarketCap(currentToken.volume24h / 288) },
                   { label: "15m Volume", value: formatMarketCap(currentToken.volume24h / 96) },
                   { label: "1h Volume", value: formatMarketCap(currentToken.volume24h / 24) }
@@ -257,12 +245,12 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
               <div className="p-4 border-b border-border/40">
                 <h3 className="font-semibold">Live Trades</h3>
                 <div className="text-xs text-muted-foreground">
-                  {allTrades.length} trades recorded
+                  {currentToken.trades?.length || 0} trades recorded
                 </div>
               </div>
               <ScrollArea className="h-[calc(100vh-180px)]" ref={scrollAreaRef}>
                 <div className="p-2 space-y-2">
-                  {allTrades.map((trade, idx) => (
+                  {(currentToken.trades || []).map((trade: Trade, idx: number) => (
                     <Card
                       key={`${trade.timestamp}-${idx}`}
                       className={`p-3 flex items-center justify-between ${
@@ -329,8 +317,8 @@ const PumpFunVision: FC = () => {
               <div>Token</div>
               <div className="text-right">Price</div>
               <div className="text-right">Market Cap</div>
-              <div className="text-right">Liquidity</div>
-              <div className="text-right">Volume</div>
+              <div className="text-right">Market Cap (SOL)</div>
+              <div className="text-right">Volume 24h</div>
             </div>
 
             {!isConnected ? (
