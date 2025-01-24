@@ -1,3 +1,5 @@
+// client/src/lib/helius-websocket.ts
+
 import { create } from 'zustand';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { useUnifiedTokenStore } from './unified-token-store';
@@ -196,7 +198,7 @@ export function initializeHeliusWebSocket() {
 
   const store = useHeliusStore.getState();
 
-  // Cleanup existing connection if any
+  // Cleanup existing connection
   if (ws) {
     try {
       ws.close();
@@ -225,11 +227,7 @@ export function initializeHeliusWebSocket() {
       });
     };
 
-    ws.onmessage = (event: WebSocket.MessageEvent) => {
-      handleWebSocketMessage(event).catch(error => {
-        console.error('[Helius] Error in message handler:', error);
-      });
-    };
+    ws.onmessage = handleWebSocketMessage;
 
     ws.onclose = () => {
       console.log('[Helius] WebSocket disconnected');

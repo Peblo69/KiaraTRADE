@@ -26,8 +26,6 @@ interface Trade {
   price: number;
   priceUSD: number;
   signature: string;
-  type: 'buy' | 'sell';
-  buyer: string;
 }
 
 interface TokenData {
@@ -46,10 +44,9 @@ interface TokenData {
   solAmount?: number;
   priceChange24h?: number;
   metadata?: TokenMetadata;
-  source?: 'unified' | 'helius' | 'pumpportal';
+  source?: 'unified';
   lastUpdated?: number;
-  trades: Trade[];
-  previousPrice?: number;
+  trades?: Trade[];
 }
 
 interface UnifiedTokenState {
@@ -66,30 +63,6 @@ interface UnifiedTokenState {
   getTransactions: (address: string) => Transaction[];
 }
 
-const persistOptions = {
-  name: 'unified-token-store',
-  version: 1,
-  getStorage: () => ({
-    getItem: (name: string) => {
-      try {
-        const value = localStorage.getItem(name);
-        return value ? JSON.parse(value) : null;
-      } catch (error) {
-        console.error('[Store] Error reading from localStorage:', error);
-        return null;
-      }
-    },
-    setItem: (name: string, value: any) => {
-      try {
-        localStorage.setItem(name, JSON.stringify(value));
-      } catch (error) {
-        console.error('[Store] Error writing to localStorage:', error);
-      }
-    },
-    removeItem: (name: string) => localStorage.removeItem(name),
-  }),
-};
-
 export const useUnifiedTokenStore = create<UnifiedTokenState>()(
   persist(
     (set, get) => ({
@@ -98,125 +71,81 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
       isConnected: false,
       connectionError: null,
 
-      addToken: (token) => set((state) => {
-        if (!token?.address) {
-          console.warn('[Store] Invalid token data:', token);
-          return state;
-        }
-
+      addToken: (token) => set(state => {
+        // Check if token already exists and if it's actually different
         const existingTokenIndex = state.tokens.findIndex(t => t.address === token.address);
 
         if (existingTokenIndex >= 0) {
           const existingToken = state.tokens[existingTokenIndex];
-          const hasChanged = 
-            existingToken.price !== token.price ||
-            existingToken.marketCapSol !== token.marketCapSol ||
-            existingToken.volume24h !== token.volume24h;
+          const hasChanged = existingToken.price !== token.price ||
+                           existingToken.marketCapSol !== token.marketCapSol ||
+                           existingToken.volume24h !== token.volume24h;
 
-          if (!hasChanged) return state;
+          if (!hasChanged) return state; // No changes needed, prevent unnecessary updates
 
+          // Update existing token
           const updatedTokens = [...state.tokens];
           updatedTokens[existingTokenIndex] = {
             ...existingToken,
             ...token,
-            previousPrice: existingToken.price,
-            lastUpdated: Date.now(),
-            trades: token.trades?.length ? 
-              [...new Set([...token.trades, ...(existingToken.trades || [])]
-                .map(trade => JSON.stringify(trade)))]
-                .map(str => JSON.parse(str))
-                .sort((a, b) => b.timestamp - a.timestamp)
-                .slice(0, 1000) : 
-              existingToken.trades || []
+            lastUpdated: Date.now()
           };
-
           return { tokens: updatedTokens };
         }
 
-        console.log('[Store] Adding new token:', token.address);
+        // Add new token
+        console.log('[Unified Store] Adding new token:', token.address);
         return {
           tokens: [
             ...state.tokens,
             {
               ...token,
-              trades: token.trades || [],
               lastUpdated: Date.now(),
-              liquidityAdded: token.liquidityAdded ?? false,
-              marketCapSol: token.marketCapSol ?? 0,
             }
           ].sort((a, b) => b.marketCapSol - a.marketCapSol).slice(0, 100)
         };
       }),
 
-      updateToken: (address, updates) => set((state) => {
+      updateToken: (address, updates) => set(state => {
         const tokenIndex = state.tokens.findIndex(token => token.address === address);
         if (tokenIndex === -1) return state;
 
         const currentToken = state.tokens[tokenIndex];
+
+        // Only update if there are actual changes
         const hasChanged = Object.keys(updates).some(key => 
           updates[key as keyof TokenData] !== currentToken[key as keyof TokenData]
         );
 
-        if (!hasChanged) return state;
+        if (!hasChanged) return state; // Prevent unnecessary updates
 
         const updatedTokens = [...state.tokens];
         updatedTokens[tokenIndex] = {
           ...currentToken,
           ...updates,
-          previousPrice: updates.price !== undefined ? currentToken.price : currentToken.previousPrice,
-          lastUpdated: Date.now()
+          lastUpdated: Date.now(),
         };
 
         return { tokens: updatedTokens };
       }),
 
-      addTransaction: (tokenAddress, transaction) => set((state) => {
+      addTransaction: (tokenAddress, transaction) => set(state => {
         const existingTransactions = state.transactions[tokenAddress] || [];
+        // Skip if transaction already exists
         if (existingTransactions.some(tx => tx.signature === transaction.signature)) {
           return state;
         }
-
-        const updatedTransactions = {
-          ...state.transactions,
-          [tokenAddress]: [transaction, ...existingTransactions].slice(0, 1000)
+        return {
+          transactions: {
+            ...state.transactions,
+            [tokenAddress]: [transaction, ...existingTransactions].slice(0, 10)
+          }
         };
-
-        // Update token metrics based on the new transaction
-        const tokenIndex = state.tokens.findIndex(t => t.address === tokenAddress);
-        if (tokenIndex >= 0) {
-          const token = state.tokens[tokenIndex];
-          const updatedTokens = [...state.tokens];
-
-          // Calculate 24h volume
-          const now = Date.now();
-          const oneDayAgo = now - 24 * 60 * 60 * 1000;
-          const recentTransactions = updatedTransactions[tokenAddress].filter(
-            tx => tx.timestamp > oneDayAgo
-          );
-
-          const volume24h = recentTransactions.reduce(
-            (sum, tx) => sum + tx.solAmount,
-            0
-          );
-
-          updatedTokens[tokenIndex] = {
-            ...token,
-            volume24h,
-            lastUpdated: now,
-          };
-
-          return {
-            transactions: updatedTransactions,
-            tokens: updatedTokens,
-          };
-        }
-
-        return { transactions: updatedTransactions };
       }),
 
-      setConnected: (status) => set((state) => {
-        if (state.isConnected === status) return state;
-        console.log('[Store] Connection status changed:', status);
+      setConnected: (status) => set(state => {
+        if (state.isConnected === status) return state; // Prevent unnecessary updates
+        console.log('[Unified Store] Connection status changed:', status);
         return { isConnected: status, connectionError: null };
       }),
 
@@ -224,6 +153,9 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
       getToken: (address) => get().tokens.find(token => token.address === address),
       getTransactions: (address) => get().transactions[address] || [],
     }),
-    persistOptions
+    {
+      name: 'unified-token-store',
+      getStorage: () => localStorage,
+    }
   )
 );

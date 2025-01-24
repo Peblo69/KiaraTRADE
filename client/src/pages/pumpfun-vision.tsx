@@ -1,4 +1,6 @@
-import '@/lib/unified-websocket';
+// client/src/pages/pumpfun-vision.tsx
+
+import '@/lib/helius-websocket';
 import { FC, useState, useRef, useEffect, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,15 +11,7 @@ import millify from "millify";
 import { getTokenImage } from "@/lib/token-metadata";
 import { AdvancedChart } from "@/components/AdvancedChart";
 
-interface Trade {
-  signature: string;
-  timestamp: number;
-  price: number;
-  priceUSD: number;
-  type: 'buy' | 'sell';
-  buyer: string;
-}
-
+// Helper functions for formatting numbers
 const formatPrice = (price: number | undefined | null): string => {
   if (typeof price !== 'number' || isNaN(price)) return '$0.00';
   return `$${price.toFixed(8)}`;
@@ -26,7 +20,7 @@ const formatPrice = (price: number | undefined | null): string => {
 const formatMarketCap = (marketCap: number | undefined | null): string => {
   if (typeof marketCap !== 'number' || isNaN(marketCap)) return '$0';
   return `$${millify(marketCap)}`;
-};
+}
 
 function getTimeDiff(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -36,57 +30,63 @@ function getTimeDiff(timestamp: number): string {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) => (
-  <Card
-    className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
-    onClick={onClick}
-  >
-    <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
-      <div className="flex items-center gap-3">
-        <img
-          src={token.imageUrl || 'https://via.placeholder.com/150'}
-          alt={`${token.symbol} logo`}
-          className="w-10 h-10 rounded-full object-cover bg-purple-500/20"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150';
-          }}
-        />
-        <div>
-          <div className="font-medium group-hover:text-purple-400 transition-colors">
-            {token.name}
-          </div>
-          <div className="text-sm text-muted-foreground">
-            {token.symbol}
+const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) => {
+  return (
+    <Card
+      key={token.address}
+      className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
+      onClick={onClick}
+    >
+      <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
+        <div className="flex items-center gap-3">
+          <img
+            src={getTokenImage(token)}
+            alt={`${token.symbol} logo`}
+            className="w-10 h-10 rounded-full object-cover bg-purple-500/20"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150';
+            }}
+          />
+          <div>
+            <div className="font-medium group-hover:text-purple-400 transition-colors">
+              {token.name}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {token.symbol}
+            </div>
           </div>
         </div>
+        <div className={`text-right font-medium ${
+          token.price > (token.timeWindows?.['1m']?.openPrice || 0) ? "text-green-500" : 
+          token.price < (token.timeWindows?.['1m']?.openPrice || 0) ? "text-red-500" : ""
+        }`}>
+          {formatPrice(token.price)}
+        </div>
+        <div className="text-right">
+          {formatMarketCap(token.marketCap)}
+        </div>
+        <div className="text-right">
+          {formatMarketCap(token.liquidity)}
+        </div>
+        <div className="text-right">
+          {formatMarketCap(token.volume)}
+        </div>
       </div>
-      <div className={`text-right font-medium ${
-        token.price > (token.previousPrice || 0) ? "text-green-500" : 
-        token.price < (token.previousPrice || 0) ? "text-red-500" : ""
-      }`}>
-        {formatPrice(token.price)}
-      </div>
-      <div className="text-right">
-        {formatMarketCap(token.marketCap)}
-      </div>
-      <div className="text-right">
-        {formatMarketCap(token.marketCapSol)}
-      </div>
-      <div className="text-right">
-        {formatMarketCap(token.volume24h)}
-      </div>
-    </div>
-  </Card>
-);
+    </Card>
+  );
+};
 
 const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const [timeframe, setTimeframe] = useState<string>('1m');
-  const updatedToken = useUnifiedTokenStore(state => state.getToken(token.address));
-  const currentToken = updatedToken || token;
+  const [allTrades, setAllTrades] = useState<any[]>([]);
+  const [timeframe, setTimeframe] = useState<'1s' | '5s' | '30s' | '1m' | '5m' | '15m' | '1h'>('1m');
+
+  const updatedToken = useUnifiedTokenStore(
+    (state) => state.getToken(token.address)
+  );
 
   const candleData = useMemo(() => {
-    if (!currentToken.trades?.length) return [];
+    if (!allTrades.length) return [];
 
     const timeframeMs = {
       '1s': 1000,
@@ -100,12 +100,19 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
 
     const candles: any[] = [];
     let currentCandle: any = null;
-    let lastPrice = currentToken.trades[0]?.price || 0;
+    let lastPrice = allTrades[0]?.price || 0; // Handle potential undefined
 
-    const sortedTrades = [...currentToken.trades].sort((a, b) => a.timestamp - b.timestamp);
+    const calculatePriceImpact = (trade: any, basePrice: number) => {
+      const impactPercentage = Math.min(trade.volume / 100, 0.01); // Max 1% impact per trade
+      return basePrice * (trade.isBuy ? (1 + impactPercentage) : (1 - impactPercentage));
+    };
 
-    sortedTrades.forEach(trade => {
+    // Sort trades chronologically
+    const sortedTrades = [...allTrades].sort((a, b) => a.timestamp - b.timestamp);
+
+    sortedTrades.forEach((trade) => {
       const candleTimestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
+      const tradePrice = calculatePriceImpact(trade, lastPrice);
 
       if (!currentCandle || currentCandle.timestamp !== candleTimestamp) {
         if (currentCandle) {
@@ -114,21 +121,28 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
 
         currentCandle = {
           timestamp: candleTimestamp,
-          time: candleTimestamp / 1000,
+          time: Math.floor(candleTimestamp / 1000),
           open: lastPrice,
-          high: trade.price,
-          low: trade.price,
-          close: trade.price,
-          volume: trade.priceUSD,
+          high: tradePrice,
+          low: tradePrice,
+          close: tradePrice,
+          volume: trade.volume,
+          buyVolume: trade.isBuy ? trade.volume : 0,
+          sellVolume: !trade.isBuy ? trade.volume : 0
         };
       } else {
-        currentCandle.high = Math.max(currentCandle.high, trade.price);
-        currentCandle.low = Math.min(currentCandle.low, trade.price);
-        currentCandle.close = trade.price;
-        currentCandle.volume += trade.priceUSD;
+        currentCandle.high = Math.max(currentCandle.high, tradePrice);
+        currentCandle.low = Math.min(currentCandle.low, tradePrice);
+        currentCandle.close = tradePrice;
+        currentCandle.volume += trade.volume;
+        if (trade.isBuy) {
+          currentCandle.buyVolume += trade.volume;
+        } else {
+          currentCandle.sellVolume += trade.volume;
+        }
       }
 
-      lastPrice = trade.price;
+      lastPrice = tradePrice;
     });
 
     if (currentCandle) {
@@ -136,22 +150,35 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
     }
 
     return candles;
-  }, [currentToken.trades, timeframe]);
+  }, [allTrades, timeframe]);
 
-  const recentTrades = useMemo(() => {
-    if (!currentToken.trades?.length) return [];
-    return currentToken.trades.map(trade => ({
-      timestamp: trade.timestamp,
-      price: trade.price,
-      isBuy: trade.type === 'buy'
-    }));
-  }, [currentToken.trades]);
+  useEffect(() => {
+    if (updatedToken?.trades) {
+      setAllTrades(prev => {
+        const tradeMap = new Map(
+          prev.map(trade => [`${trade.timestamp}-${trade.signature}`, trade])
+        );
+
+        updatedToken.trades.forEach(trade => {
+          const key = `${trade.timestamp}-${trade.signature}`;
+          if (!tradeMap.has(key)) {
+            tradeMap.set(key, trade);
+          }
+        });
+
+        return Array.from(tradeMap.values())
+          .sort((a, b) => b.timestamp - a.timestamp);
+      });
+    }
+  }, [updatedToken?.trades]);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
     }
-  }, [currentToken.trades?.length]);
+  }, [allTrades.length]);
+
+  const currentToken = updatedToken || token;
 
   return (
     <div className="fixed inset-0 bg-[#0A0A0A] z-50 overflow-hidden">
@@ -169,7 +196,7 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
               </Button>
               <div className="flex items-center gap-3">
                 <img
-                  src={currentToken.imageUrl || 'https://via.placeholder.com/150'}
+                  src={getTokenImage(currentToken)}
                   alt={`${currentToken.symbol} logo`}
                   className="w-8 h-8 rounded-full object-cover bg-purple-500/20"
                   onError={(e) => {
@@ -197,8 +224,8 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
                 <div className="font-medium">{formatMarketCap(currentToken.marketCap)}</div>
               </div>
               <div>
-                <div className="text-sm text-muted-foreground">Market Cap (SOL)</div>
-                <div className="font-medium">{formatMarketCap(currentToken.marketCapSol)}</div>
+                <div className="text-sm text-muted-foreground">Liquidity</div>
+                <div className="font-medium">{formatMarketCap(currentToken.liquidity)}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Volume 24h</div>
@@ -219,19 +246,18 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
                 <AdvancedChart
                   data={candleData}
                   timeframe={timeframe}
-                  onTimeframeChange={setTimeframe}
+                  onTimeframeChange={(tf) => setTimeframe(tf as any)}
                   symbol={currentToken.symbol}
                   className="bg-transparent border-0"
-                  recentTrades={recentTrades}
                 />
               </Card>
 
               <div className="grid grid-cols-4 gap-4">
                 {[
-                  { label: "1m Volume", value: formatMarketCap(currentToken.volume24h / 1440) },
-                  { label: "5m Volume", value: formatMarketCap(currentToken.volume24h / 288) },
-                  { label: "15m Volume", value: formatMarketCap(currentToken.volume24h / 96) },
-                  { label: "1h Volume", value: formatMarketCap(currentToken.volume24h / 24) }
+                  { label: "1m Volume", value: `$${millify(currentToken.timeWindows?.['1m']?.volume || 0)}` },
+                  { label: "5m Volume", value: `$${millify(currentToken.timeWindows?.['5m']?.volume || 0)}` },
+                  { label: "15m Volume", value: `$${millify(currentToken.timeWindows?.['15m']?.volume || 0)}` },
+                  { label: "1h Volume", value: `$${millify(currentToken.timeWindows?.['1h']?.volume || 0)}` },
                 ].map((stat, idx) => (
                   <Card key={idx} className="p-4 bg-[#111111] border-purple-500/20">
                     <div className="text-sm text-muted-foreground">{stat.label}</div>
@@ -245,29 +271,29 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
               <div className="p-4 border-b border-border/40">
                 <h3 className="font-semibold">Live Trades</h3>
                 <div className="text-xs text-muted-foreground">
-                  {currentToken.trades?.length || 0} trades recorded
+                  {allTrades.length} trades recorded
                 </div>
               </div>
               <ScrollArea className="h-[calc(100vh-180px)]" ref={scrollAreaRef}>
                 <div className="p-2 space-y-2">
-                  {(currentToken.trades || []).map((trade: Trade, idx: number) => (
+                  {allTrades.map((trade, idx) => (
                     <Card
                       key={`${trade.timestamp}-${idx}`}
                       className={`p-3 flex items-center justify-between ${
-                        trade.type === 'buy'
+                        trade.isBuy
                           ? "bg-green-500/5 border-green-500/20"
                           : "bg-red-500/5 border-red-500/20"
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        {trade.type === 'buy' ? (
+                        {trade.isBuy ? (
                           <TrendingUp className="h-4 w-4 text-green-500" />
                         ) : (
                           <TrendingDown className="h-4 w-4 text-red-500" />
                         )}
                         <div>
                           <div className="text-sm font-medium">
-                            {trade.type === 'buy' ? "Buy" : "Sell"}
+                            {trade.isBuy ? "Buy" : "Sell"}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {trade.buyer.slice(0, 4)}...{trade.buyer.slice(-4)}
@@ -276,7 +302,7 @@ const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) =>
                       </div>
                       <div className="text-right">
                         <div className="text-sm font-medium">
-                          ${trade.priceUSD.toFixed(2)}
+                          ${trade.priceUsd.toFixed(2)}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {getTimeDiff(trade.timestamp)}
@@ -317,8 +343,8 @@ const PumpFunVision: FC = () => {
               <div>Token</div>
               <div className="text-right">Price</div>
               <div className="text-right">Market Cap</div>
-              <div className="text-right">Market Cap (SOL)</div>
-              <div className="text-right">Volume 24h</div>
+              <div className="text-right">Liquidity</div>
+              <div className="text-right">Volume</div>
             </div>
 
             {!isConnected ? (
