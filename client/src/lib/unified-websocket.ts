@@ -1,4 +1,3 @@
-
 import { useUnifiedTokenStore } from './unified-token-store';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { preloadTokenImages } from './token-metadata';
@@ -77,7 +76,15 @@ class UnifiedWebSocket {
       this.pumpPortalWs.onclose = this.handlePumpPortalClose.bind(this);
       this.pumpPortalWs.onerror = (error) => {
         console.error('[Unified WebSocket] PumpPortal error:', error);
-        this.pumpPortalWs?.close();
+        if (this.pumpPortalWs?.readyState === WebSocket.OPEN) {
+          this.pumpPortalWs?.close();
+        }
+        // Reset connection after error
+        setTimeout(() => {
+          if (!this.isManualDisconnect) {
+            this.connectPumpPortal();
+          }
+        }, 1000);
       };
     } catch (error) {
       console.error('[Unified WebSocket] PumpPortal connection failed:', error);
@@ -150,11 +157,23 @@ class UnifiedWebSocket {
   }
 
   private handlePumpPortalClose() {
-    if (!this.isManualDisconnect && this.pumpPortalReconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      const delay = Math.min(RECONNECT_DELAY * Math.pow(1.5, this.pumpPortalReconnectAttempts), 30000);
+    if (this.isManualDisconnect) return;
+
+    const backoffDelay = Math.min(RECONNECT_DELAY * Math.pow(1.5, this.pumpPortalReconnectAttempts), 30000);
+
+    if (this.pumpPortalReconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      console.log(`[PumpPortal] Attempting reconnect ${this.pumpPortalReconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS} in ${backoffDelay}ms`);
       this.pumpPortalReconnectAttempts++;
-      console.log(`[Unified WebSocket] PumpPortal reconnecting ${this.pumpPortalReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
-      setTimeout(() => this.connectPumpPortal(), delay);
+
+      setTimeout(() => {
+        if (!this.isManualDisconnect) {
+          this.connectPumpPortal();
+        }
+      }, backoffDelay);
+    } else {
+      console.error('[PumpPortal] Max reconnection attempts reached');
+      this.pumpPortalReconnectAttempts = 0;
+      setTimeout(() => this.connectPumpPortal(), 60000); // Try again after 1 minute
     }
   }
 
