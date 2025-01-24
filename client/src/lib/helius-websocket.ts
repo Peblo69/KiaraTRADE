@@ -139,16 +139,21 @@ async function processTransaction(signature: string, tokenAddress: string) {
 
     const isBuy = postAmount > preAmount;
     const store = useHeliusStore.getState();
+    const amount = Math.abs(postAmount - preAmount);
+    
+    // Get wallet addresses
+    const wallets = tx.transaction.message.accountKeys.map(key => key.toString());
+    const [buyer, seller] = isBuy ? [wallets[0], wallets[1]] : [wallets[1], wallets[0]];
 
     store.addTrade(tokenAddress, {
       signature,
       timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
       tokenAddress,
-      amount: Math.abs(postAmount - preAmount),
-      price: 0,
+      amount,
+      price: amount > 0 ? preAmount / amount : 0,
       priceUsd: 0,
-      buyer: isBuy ? tx.transaction.message.accountKeys[0].toString() : '',
-      seller: !isBuy ? tx.transaction.message.accountKeys[0].toString() : '',
+      buyer,
+      seller,
       type: isBuy ? 'buy' : 'sell'
     });
   } catch (error) {

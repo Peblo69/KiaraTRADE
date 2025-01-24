@@ -6,7 +6,8 @@ import axios from 'axios';
 const TOTAL_SUPPLY = 1_000_000_000;
 const SOL_PRICE_UPDATE_INTERVAL = 10000;
 const MAX_TRADES_PER_TOKEN = 100;
-const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`; // Dynamic protocol selection
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+const KEEP_ALIVE_INTERVAL = 30000; // 30 seconds // Dynamic protocol selection
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
@@ -306,6 +307,22 @@ export function initializePumpPortalWebSocket() {
       console.log('[PumpPortal] WebSocket connected');
       store.setConnected(true);
       reconnectAttempts = 0;
+      
+      // Set up keep-alive ping
+      const pingInterval = setInterval(() => {
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, KEEP_ALIVE_INTERVAL);
+
+      ws.onclose = () => {
+        clearInterval(pingInterval);
+        store.setConnected(false);
+        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          reconnectAttempts++;
+          setTimeout(initializePumpPortalWebSocket, RECONNECT_DELAY);
+        }
+      };
     };
 
     ws.onmessage = async (event) => {
