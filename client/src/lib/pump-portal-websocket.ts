@@ -164,19 +164,36 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       )
     }));
 
-    // Store trade in database
-    axios.post('/api/trades', {
-      token_address: address,
-      timestamp: new Date(now),
-      price_usd: newPrice,
-      volume_usd: tradeVolume,
-      amount_sol: Number(trade.solAmount),
-      is_buy: isBuy,
-      wallet_address: trade.traderPublicKey,
-      tx_signature: trade.signature,
-    }).catch(error => {
-      console.error('[PumpPortal] Failed to store trade:', error);
-    });
+    // Store trade in database with retries
+    const storeTrade = async (retries = 3) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          await axios.post('/api/trades', {
+            token_address: address,
+            timestamp: new Date(now),
+            price_usd: newPrice,
+            volume_usd: tradeVolume,
+            amount_sol: Number(trade.solAmount),
+            is_buy: isBuy,
+            wallet_address: trade.traderPublicKey,
+            tx_signature: trade.signature,
+          }, {
+            timeout: 5000,
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          });
+          return;
+        } catch (error: any) {
+          console.error(`[PumpPortal] Failed to store trade (attempt ${i + 1}/${retries}):`, 
+            error.response?.status || error.message);
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+          }
+        }
+      }
+    };
+    storeTrade().catch(() => console.error('[PumpPortal] Failed to store trade after all retries'));
   },
   setConnected: (connected) => set({ isConnected: connected }),
   setSolPrice: (price) => {
@@ -193,23 +210,58 @@ let reconnectTimeout: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
 let solPriceInterval: NodeJS.Timeout | null = null;
 
+const API_ENDPOINTS = [
+  {
+    url: 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
+    extract: (data: any) => data?.solana?.usd
+  },
+  {
+    url: 'https://price.jup.ag/v4/price?ids=SOL',
+    extract: (data: any) => data?.data?.SOL?.price
+  },
+  {
+    url: '/api/solana/price', // Fallback to our own endpoint
+    extract: (data: any) => data?.price
+  }
+];
+
 const fetchSolanaPrice = async (retries = 3): Promise<number> => {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const response = await axios.get(
-        'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
-        { timeout: 5000 }
-      );
-      const price = response.data?.solana?.usd;
-      if (!price || price <= 0) throw new Error('Invalid price response');
-      return price;
-    } catch (error) {
-      console.error(`[PumpPortal] Error fetching SOL price (attempt ${i + 1}/${retries}):`, error);
-      if (i === retries - 1) return 100; // Fallback price after all retries
-      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+  const axiosInstance = axios.create({
+    timeout: 5000,
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    }
+  });
+
+  for (const endpoint of API_ENDPOINTS) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await axiosInstance.get(endpoint.url);
+        const price = endpoint.extract(response.data);
+        
+        if (typeof price === 'number' && price > 0) {
+          return price;
+        }
+        throw new Error('Invalid price response');
+      } catch (error: any) {
+        const isLastAttempt = i === retries - 1;
+        const isLastEndpoint = endpoint === API_ENDPOINTS[API_ENDPOINTS.length - 1];
+        
+        console.error(`[PumpPortal] Error fetching SOL price from ${endpoint.url} (attempt ${i + 1}/${retries}):`, 
+          error.response?.status || error.message);
+
+        if (!isLastAttempt || !isLastEndpoint) {
+          const delay = Math.min(1000 * Math.pow(2, i), 10000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+      }
     }
   }
-  return 100; // Fallback price if all retries fail
+  
+  console.warn('[PumpPortal] Using fallback SOL price after all attempts failed');
+  return 100; // Final fallback price
 };
 
 export function initializePumpPortalWebSocket() {
