@@ -154,7 +154,21 @@ class UnifiedWebSocket {
           console.error('[PumpPortal] Failed to process token:', err);
         }
       } else if (['buy', 'sell'].includes(data.txType) && data.mint) {
-        store.addTradeToHistory(data.mint, data);
+        if (typeof store.addTransaction === 'function') {
+          store.addTransaction(data.mint, {
+            signature: data.signature,
+            timestamp: Date.now(),
+            tokenAddress: data.mint,
+            amount: data.solAmount || 0,
+            price: data.price || 0,
+            priceUsd: data.priceUSD || 0,
+            buyer: data.traderPublicKey || '',
+            seller: '',
+            type: data.txType
+          });
+        } else {
+          console.warn('[PumpPortal] Trade handling not implemented in store');
+        }
       }
     } catch (error) {
       console.error('[Unified WebSocket] PumpPortal message error:', error);
@@ -330,7 +344,7 @@ class UnifiedWebSocket {
       // Always subscribe to new tokens
       this.pumpPortalWs.send(JSON.stringify({
         method: "subscribeNewToken",
-        keys: []
+        keys: ["*"]
       }));
 
       const store = useUnifiedTokenStore.getState();
