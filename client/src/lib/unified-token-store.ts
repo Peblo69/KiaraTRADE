@@ -60,7 +60,6 @@ interface UnifiedTokenState {
   setError: (error: string | null) => void;
   getToken: (address: string) => TokenData | undefined;
   getTransactions: (address: string) => Transaction[];
-  activeToken: string | null;
   setActiveToken: (address: string) => void;
 }
 
@@ -69,7 +68,6 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
   transactions: {},
   isConnected: false,
   connectionError: null,
-  activeToken: null,
 
   addToken: (token) => set(state => {
     // Validate token data
@@ -184,6 +182,5 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
   setError: (error) => set({ connectionError: error }),
   getToken: (address) => get().tokens.find(token => token.address === address),
   getTransactions: (address) => get().transactions[address] || [],
-  activeToken: null,
   setActiveToken: (address) => set({ activeToken: address })
 }));
