@@ -9,15 +9,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+interface ChartData {
+  time: Time;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
 interface ChartProps {
-  data: {
-    time: Time;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-  }[];
+  data?: ChartData[];
   onTimeframeChange?: (timeframe: string) => void;
   timeframe?: string;
   symbol: string;
@@ -30,7 +32,7 @@ interface ChartProps {
 }
 
 export const AdvancedChart: FC<ChartProps> = ({
-  data,
+  data = [], // Initialize with empty array as default
   onTimeframeChange,
   timeframe = '1s',
   symbol,
@@ -72,8 +74,8 @@ export const AdvancedChart: FC<ChartProps> = ({
         barSpacing: 6,
         minBarSpacing: 4,
         rightOffset: 12,
-        fixLeftEdge: false, // Allow empty space on the left
-        fixRightEdge: false, // Allow scrolling past the right edge
+        fixLeftEdge: false,
+        fixRightEdge: false,
         lockVisibleTimeRangeOnResize: true,
       },
       rightPriceScale: {
@@ -115,10 +117,9 @@ export const AdvancedChart: FC<ChartProps> = ({
       },
     });
 
-    // Configure candlestick appearance with softer colors
     const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#16a34a', // Softer green
-      downColor: '#dc2626', // Softer red
+      upColor: '#16a34a',
+      downColor: '#dc2626',
       borderVisible: true,
       borderUpColor: '#16a34a',
       borderDownColor: '#dc2626',
@@ -131,7 +132,6 @@ export const AdvancedChart: FC<ChartProps> = ({
       },
     });
 
-    // Configure volume appearance
     const volumeSeries = chart.addHistogramSeries({
       color: 'rgba(76, 175, 80, 0.5)',
       priceFormat: {
@@ -144,7 +144,8 @@ export const AdvancedChart: FC<ChartProps> = ({
       },
     });
 
-    if (data.length) {
+    // Only process data if it exists and has items
+    if (Array.isArray(data) && data.length > 0) {
       try {
         const sortedData = [...data].sort((a, b) => {
           const timeA = typeof a.time === 'number' ? a.time : new Date(a.time as string).getTime();
@@ -154,15 +155,13 @@ export const AdvancedChart: FC<ChartProps> = ({
 
         candlestickSeries.setData(sortedData);
 
-        // Color volume based on price action with softer colors
         const volumeData = sortedData.map(d => ({
           time: d.time,
           value: d.volume,
-          color: d.close >= d.open ? 'rgba(22, 163, 74, 0.3)' : 'rgba(220, 38, 38, 0.3)', // Softer colors
+          color: d.close >= d.open ? 'rgba(22, 163, 74, 0.3)' : 'rgba(220, 38, 38, 0.3)',
         }));
         volumeSeries.setData(volumeData);
 
-        // Set initial view to show last 20 candles by default
         const totalBars = sortedData.length;
         const visibleBars = Math.min(20, totalBars);
 
@@ -171,7 +170,6 @@ export const AdvancedChart: FC<ChartProps> = ({
           to: totalBars + 5,
         });
 
-        // Subscribe to crosshair move
         chart.subscribeCrosshairMove(param => {
           const tooltip = tooltipRef.current;
           if (!tooltip) return;
@@ -220,11 +218,10 @@ export const AdvancedChart: FC<ChartProps> = ({
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [timeframe]);
+  }, [timeframe, data]);
 
-  // Update last candle in real-time
   useEffect(() => {
-    if (!candlestickSeriesRef.current || !volumeSeriesRef.current || !data.length) {
+    if (!candlestickSeriesRef.current || !volumeSeriesRef.current || !Array.isArray(data) || data.length === 0) {
       setNoDataForTimeframe(true);
       return;
     }
@@ -244,16 +241,15 @@ export const AdvancedChart: FC<ChartProps> = ({
         time: currentTime,
         value: lastDataPoint.volume,
         color: lastDataPoint.close >= lastDataPoint.open
-          ? 'rgba(22, 163, 74, 0.3)' // Softer green
-          : 'rgba(220, 38, 38, 0.3)', // Softer red
+          ? 'rgba(22, 163, 74, 0.3)'
+          : 'rgba(220, 38, 38, 0.3)',
       });
 
-      // Add trade markers
-      if (recentTrades && recentTrades.length > 0) {
+      if (Array.isArray(recentTrades) && recentTrades.length > 0) {
         const markers = recentTrades.map(trade => ({
           time: Math.floor(trade.timestamp / 1000),
           position: trade.isBuy ? 'belowBar' : 'aboveBar',
-          color: trade.isBuy ? '#16a34a' : '#dc2626', // Softer colors
+          color: trade.isBuy ? '#16a34a' : '#dc2626',
           shape: trade.isBuy ? 'arrowUp' : 'arrowDown',
           text: trade.isBuy ? 'B' : 'S',
           size: 1
