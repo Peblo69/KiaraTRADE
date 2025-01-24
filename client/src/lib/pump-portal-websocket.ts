@@ -212,16 +212,16 @@ let solPriceInterval: NodeJS.Timeout | null = null;
 
 const API_ENDPOINTS = [
   {
-    url: 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
-    extract: (data: any) => data?.solana?.usd
+    url: 'https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT',
+    extract: (data: any) => Number(data?.price)
+  },
+  {
+    url: 'https://api.binance.com/api/v3/ticker/24hr?symbol=SOLUSDT',
+    extract: (data: any) => Number(data?.lastPrice)
   },
   {
     url: 'https://price.jup.ag/v4/price?ids=SOL',
     extract: (data: any) => data?.data?.SOL?.price
-  },
-  {
-    url: '/api/solana/price', // Fallback to our own endpoint
-    extract: (data: any) => data?.price
   }
 ];
 
