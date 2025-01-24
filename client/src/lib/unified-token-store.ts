@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 interface Transaction {
   signature: string;
@@ -21,10 +22,10 @@ interface TokenMetadata {
 }
 
 interface Trade {
+  signature: string;
   timestamp: number;
   price: number;
   priceUSD: number;
-  signature: string;
 }
 
 interface TokenData {
@@ -45,7 +46,7 @@ interface TokenData {
   metadata?: TokenMetadata;
   source?: 'unified';
   lastUpdated?: number;
-  trades?: Trade[];
+  trades: Trade[];
 }
 
 interface UnifiedTokenState {
@@ -60,130 +61,107 @@ interface UnifiedTokenState {
   setError: (error: string | null) => void;
   getToken: (address: string) => TokenData | undefined;
   getTransactions: (address: string) => Transaction[];
-  activeToken: string | null;
-  setActiveToken: (address: string | null) => void;
 }
 
-export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
-  tokens: [],
-  transactions: {},
-  isConnected: false,
-  connectionError: null,
-  activeToken: null,
+export const useUnifiedTokenStore = create<UnifiedTokenState>()(
+  persist(
+    (set, get) => ({
+      tokens: [],
+      transactions: {},
+      isConnected: false,
+      connectionError: null,
 
-  addToken: (token) => set(state => {
-    // Validate token data
-    if (!token?.address) return state;
+      addToken: (token) => set((state) => {
+        if (!token?.address) return state;
 
-    // Force update timestamp
-    token.lastUpdated = Date.now();
+        const existingTokenIndex = state.tokens.findIndex(t => t.address === token.address);
 
-    // Use Map for O(1) lookup with forced updates
-    const tokenMap = new Map(state.tokens.map(t => [t.address, {
-      ...t,
-      needsUpdate: Date.now() - (t.lastUpdated || 0) > 2000
-    }]));
+        if (existingTokenIndex >= 0) {
+          const existingToken = state.tokens[existingTokenIndex];
+          const hasChanged = existingToken.price !== token.price ||
+                           existingToken.marketCapSol !== token.marketCapSol ||
+                           existingToken.volume24h !== token.volume24h;
 
-    const existingToken = tokenMap.get(token.address);
+          if (!hasChanged) return state;
 
-    // Always update if token needs update or has new data
-    const shouldUpdate = existingToken?.needsUpdate || 
-                        !existingToken ||
-                        token.price !== existingToken.price ||
-                        token.volume !== existingToken.volume;
-
-    if (!shouldUpdate) return state;
-
-    if (existingToken) {
-      const hasChanged = existingToken.price !== token.price ||
-                        existingToken.marketCapSol !== token.marketCapSol ||
-                        existingToken.volume24h !== token.volume24h ||
-                        Date.now() - (existingToken.lastUpdated || 0) > 5000;
-
-      if (!hasChanged) return state;
-
-      // Update existing token
-      const updatedTokens = [...state.tokens];
-      updatedTokens[state.tokens.findIndex(t => t.address === token.address)] = {
-        ...existingToken,
-        ...token,
-        lastUpdated: Date.now()
-      };
-      return { tokens: updatedTokens };
-    }
-
-    // Add new token
-    console.log('[Unified Store] Adding new token:', token.address);
-    return {
-      tokens: [
-        ...state.tokens,
-        {
-          ...token,
-          lastUpdated: Date.now(),
+          const updatedTokens = [...state.tokens];
+          updatedTokens[existingTokenIndex] = {
+            ...existingToken,
+            ...token,
+            lastUpdated: Date.now(),
+            trades: token.trades?.length ? 
+              [...new Map([...token.trades, ...existingToken.trades]
+                .map(trade => [trade.signature, trade]))
+                .values()]
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .slice(0, 1000) : 
+              existingToken.trades
+          };
+          return { tokens: updatedTokens };
         }
-      ].sort((a, b) => b.marketCapSol - a.marketCapSol).slice(0, 100)
-    };
-  }),
 
-  updateToken: (address, updates) => set(state => {
-    const tokenIndex = state.tokens.findIndex(token => token.address === address);
-    if (tokenIndex === -1) return state;
+        console.log('[Unified Store] Adding new token:', token.address);
+        return {
+          tokens: [
+            ...state.tokens,
+            {
+              ...token,
+              trades: token.trades || [],
+              lastUpdated: Date.now()
+            }
+          ].sort((a, b) => b.marketCapSol - a.marketCapSol).slice(0, 100)
+        };
+      }),
 
-    const currentToken = state.tokens[tokenIndex];
+      updateToken: (address, updates) => set((state) => {
+        const tokenIndex = state.tokens.findIndex(token => token.address === address);
+        if (tokenIndex === -1) return state;
 
-    // Only update if there are actual changes
-    const hasChanged = Object.keys(updates).some(key => 
-      updates[key as keyof TokenData] !== currentToken[key as keyof TokenData]
-    );
+        const currentToken = state.tokens[tokenIndex];
+        const hasChanged = Object.keys(updates).some(key => 
+          updates[key as keyof TokenData] !== currentToken[key as keyof TokenData]
+        );
 
-    if (!hasChanged) return state; // Prevent unnecessary updates
+        if (!hasChanged) return state;
 
-    const updatedTokens = [...state.tokens];
-    updatedTokens[tokenIndex] = {
-      ...currentToken,
-      ...updates,
-      lastUpdated: Date.now(),
-    };
+        const updatedTokens = [...state.tokens];
+        updatedTokens[tokenIndex] = {
+          ...currentToken,
+          ...updates,
+          lastUpdated: Date.now()
+        };
 
-    return { tokens: updatedTokens };
-  }),
+        return { tokens: updatedTokens };
+      }),
 
-  addTransaction: (tokenAddress, transaction) => set(state => {
-    const existingTransactions = state.transactions[tokenAddress] || [];
+      addTransaction: (tokenAddress, transaction) => set((state) => {
+        const existingTransactions = state.transactions[tokenAddress] || [];
+        if (existingTransactions.some(tx => tx.signature === transaction.signature)) {
+          return state;
+        }
 
-    // Enhanced duplicate check
-    const isDuplicate = existingTransactions.some(tx => 
-      tx.signature === transaction.signature ||
-      (Math.abs(tx.timestamp - transaction.timestamp) < 1000 && 
-       tx.amount === transaction.amount && 
-       tx.type === transaction.type)
-    );
+        return {
+          transactions: {
+            ...state.transactions,
+            [tokenAddress]: [transaction, ...existingTransactions].slice(0, 1000)
+          }
+        };
+      }),
 
-    if (isDuplicate) return state;
+      setConnected: (status) => set((state) => {
+        if (state.isConnected === status) return state;
+        console.log('[Unified Store] Connection status changed:', status);
+        return { isConnected: status, connectionError: null };
+      }),
 
-    // Keep more history and sort by timestamp
-    const maxTrades = 500;
-    const updatedTrades = [transaction, ...existingTransactions]
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, maxTrades);
-
-    return {
-      transactions: {
-        ...state.transactions,
-        [tokenAddress]: updatedTrades
-      }
-    };
-  }),
-
-  setConnected: (status) => set(state => {
-    if (state.isConnected === status) return state; // Prevent unnecessary updates
-    console.log('[Unified Store] Connection status changed:', status);
-    return { isConnected: status, connectionError: null };
-  }),
-
-  setError: (error) => set({ connectionError: error }),
-  getToken: (address) => get().tokens.find(token => token.address === address),
-  getTransactions: (address) => get().transactions[address] || [],
-  activeToken: null,
-  setActiveToken: (address: string | null) => set({ activeToken: address }),
-}));
+      setError: (error) => set({ connectionError: error }),
+      getToken: (address) => get().tokens.find(token => token.address === address),
+      getTransactions: (address) => get().transactions[address] || [],
+    }),
+    {
+      name: 'unified-token-store',
+      getStorage: () => localStorage,
+      version: 1,
+    }
+  )
+);
