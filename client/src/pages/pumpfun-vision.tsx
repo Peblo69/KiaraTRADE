@@ -115,6 +115,12 @@ const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, 
 const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
+  const setActiveToken = useUnifiedTokenStore(state => state.setActiveToken);
+
+  useEffect(() => {
+    setActiveToken(token.address);
+    return () => setActiveToken(null);
+  }, [token.address]);
   const [timeframe, setTimeframe] = useState<'1s' | '5s' | '30s' | '1m' | '5m' | '15m' | '1h'>('1s');
 
   const updatedToken = usePumpPortalStore(

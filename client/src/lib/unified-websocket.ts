@@ -100,12 +100,30 @@ class UnifiedWebSocket {
   private requestAllTokenUpdates() {
     const store = useUnifiedTokenStore.getState();
     const tokens = store.tokens;
+    const activeToken = store.activeToken;
     
-    if (this.pumpPortalWs?.readyState === WebSocket.OPEN && tokens.length > 0) {
-      this.pumpPortalWs.send(JSON.stringify({
-        method: "batchTokenUpdate",
-        keys: tokens.map(t => t.address)
-      }));
+    if (this.pumpPortalWs?.readyState === WebSocket.OPEN) {
+      // Update active token every second
+      if (activeToken) {
+        this.pumpPortalWs.send(JSON.stringify({
+          method: "batchTokenUpdate",
+          keys: [activeToken]
+        }));
+      }
+      
+      // Update other tokens less frequently
+      if (Date.now() % 5000 === 0 && tokens.length > 0) {
+        const otherTokens = tokens
+          .filter(t => t.address !== activeToken)
+          .map(t => t.address);
+          
+        if (otherTokens.length > 0) {
+          this.pumpPortalWs.send(JSON.stringify({
+            method: "batchTokenUpdate",
+            keys: otherTokens
+          }));
+        }
+      }
     }
   }
 
