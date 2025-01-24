@@ -2,9 +2,6 @@ import { create } from "zustand";
 import { useHeliusStore } from './helius-websocket';
 import { preloadTokenImages } from './token-metadata';
 import axios from 'axios';
-import { eq } from 'drizzle-orm';
-import { db } from "../../../db";
-import { tokens, token_trades } from "../../../db/schema";
 
 // -----------------------------------
 // TYPES
@@ -252,10 +249,10 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       // Keep all trades in memory without limit for real-time data
       const recentTrades = [newTrade, ...(token.recentTrades || [])];
 
-      // Store trade in database
+      // Store trade in database through API
       try {
-        await db.insert(token_trades).values({
-          token_id: (await db.select({ id: tokens.id }).from(tokens).where(eq(tokens.address, address)))[0].id,
+        await axios.post('/api/trades', {
+          token_address: address,
           timestamp: new Date(now),
           price_usd: newPrice,
           volume_usd: tradeVolume,
@@ -265,7 +262,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           tx_signature: trade.signature,
         });
       } catch (error) {
-        console.error('[PumpPortal] Failed to store trade in database:', error);
+        console.error('[PumpPortal] Failed to store trade:', error);
       }
 
       // Calculate 24h stats using full trade history
