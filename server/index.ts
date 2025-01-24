@@ -39,19 +39,32 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // Start server on port 5000
-    const PORT = 5000;
-    server.listen(PORT, "0.0.0.0", () => {
-      log(`Server running on port ${PORT}`);
-    }).on('error', (error: any) => {
-      if (error.code === 'EADDRINUSE') {
-        log(`Port ${PORT} is already in use. Please ensure no other servers are running.`);
-        process.exit(1);
-      } else {
-        log(`Failed to start server: ${error.message}`);
-        process.exit(1);
+    // Try multiple ports starting with 5000
+    const tryPort = async (port: number): Promise<number> => {
+      try {
+        await new Promise((resolve, reject) => {
+          server.listen(port, "0.0.0.0")
+            .once('listening', () => {
+              log(`Server running on port ${port}`);
+              resolve(port);
+            })
+            .once('error', (err: any) => {
+              if (err.code === 'EADDRINUSE') {
+                server.close();
+                resolve(tryPort(port + 1));
+              } else {
+                reject(err);
+              }
+            });
+        });
+        return port;
+      } catch (error) {
+        log(`Failed to start server: ${error instanceof Error ? error.message : String(error)}`);
+        throw error;
       }
-    });
+    };
+
+    await tryPort(5000);
 
     // Handle graceful shutdown
     process.on('SIGTERM', () => {
