@@ -1,3 +1,4 @@
+
 import { useUnifiedTokenStore } from './unified-token-store';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { preloadTokenImages } from './token-metadata';
@@ -87,41 +88,19 @@ class UnifiedWebSocket {
   private subscribeToPumpPortal() {
     if (this.pumpPortalWs?.readyState !== WebSocket.OPEN) return;
 
-    try {
+    this.pumpPortalWs.send(JSON.stringify({
+      method: "subscribeNewToken",
+      keys: []
+    }));
+
+    const store = useUnifiedTokenStore.getState();
+    const existingTokens = store.tokens.map(t => t.address);
+
+    if (existingTokens.length > 0) {
       this.pumpPortalWs.send(JSON.stringify({
-        method: "subscribeNewToken",
-        keys: []
+        method: "subscribeTokenTrade",
+        keys: existingTokens
       }));
-
-      const store = useUnifiedTokenStore.getState();
-      const existingTokens = store.tokens.map(t => t.address);
-      const activeToken = store.activeToken;
-
-      if (activeToken && existingTokens.includes(activeToken)) {
-        this.pumpPortalWs.send(JSON.stringify({
-          method: "subscribeTokenTrade",
-          keys: [activeToken]
-        }));
-      }
-
-      const batchSize = 50;
-      const otherTokens = existingTokens.filter(t => t !== activeToken);
-
-      for (let i = 0; i < otherTokens.length; i += batchSize) {
-        const batch = otherTokens.slice(i, i + batchSize);
-        if (batch.length > 0) {
-          setTimeout(() => {
-            if (this.pumpPortalWs?.readyState === WebSocket.OPEN) {
-              this.pumpPortalWs.send(JSON.stringify({
-                method: "subscribeTokenTrade",
-                keys: batch
-              }));
-            }
-          }, i * 100);
-        }
-      }
-    } catch (error) {
-      console.error('[Unified WebSocket] Error subscribing to PumpPortal:', error);
     }
   }
 
