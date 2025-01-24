@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,13 +21,18 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
   useEffect(() => {
     if (!chartContainerRef.current || !token?.recentTrades) return;
 
-    const candleData = token.recentTrades.map(trade => ({
-      time: trade.timestamp / 1000,
+    const sortedTrades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
+
+    const candleData = sortedTrades.map(trade => ({
+      time: Math.floor(trade.timestamp / 1000), // Convert to seconds and ensure integer
       open: trade.price,
-      high: trade.price * 1.001, // Simulated for demo
-      low: trade.price * 0.999,  // Simulated for demo
+      high: trade.price * 1.001,
+      low: trade.price * 0.999,
       close: trade.price,
     }));
+
+    // Validate data before creating chart
+    if (candleData.length === 0) return;
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
@@ -40,6 +45,11 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
       },
       width: chartContainerRef.current.clientWidth,
       height: 500,
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+        borderColor: '#333333',
+      },
     });
 
     const candlestickSeries = chart.addCandlestickSeries({
@@ -52,10 +62,12 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
 
     candlestickSeries.setData(candleData);
 
-    // Set visible range to prevent extreme zooming
+    // Set visible range with some padding
+    const firstTime = candleData[0].time;
+    const lastTime = candleData[candleData.length - 1].time;
     const timeRange = {
-      from: candleData[0]?.time || (Date.now() / 1000) - 3600,
-      to: candleData[candleData.length - 1]?.time || Date.now() / 1000,
+      from: firstTime - 300, // 5 minutes padding
+      to: lastTime + 300,
     };
 
     chart.timeScale().setVisibleRange(timeRange);
