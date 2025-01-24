@@ -291,6 +291,34 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
               </div>
             </Card>
           </div>
+
+          {/* Real-time trades panel */}
+          <div className="mt-4 bg-[#111] rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-3">Real-time Trades</h3>
+            <div className="grid grid-cols-4 text-sm text-gray-400 mb-2">
+              <div>Time</div>
+              <div>Type</div>
+              <div>Price</div>
+              <div>Amount</div>
+            </div>
+            <div className="space-y-2 max-h-[200px] overflow-y-auto">
+              {token.recentTrades?.map((trade, idx) => (
+                <div 
+                  key={trade.signature || idx}
+                  className={`grid grid-cols-4 text-sm p-2 rounded ${
+                    trade.isBuy ? 'bg-green-500/10' : 'bg-red-500/10'
+                  }`}
+                >
+                  <div>{new Date(trade.timestamp).toLocaleTimeString()}</div>
+                  <div className={trade.isBuy ? 'text-green-400' : 'text-red-400'}>
+                    {trade.isBuy ? 'Buy' : 'Sell'}
+                  </div>
+                  <div>{formatPrice(trade.price)}</div>
+                  <div>{trade.volume?.toFixed(4)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
