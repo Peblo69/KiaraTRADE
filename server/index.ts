@@ -9,7 +9,6 @@ app.use(express.urlencoded({ extended: false }));
 
 // Initialize server and handle startup errors
 async function startServer() {
-  console.log('[express] Starting server initialization...');
   try {
     // Start the image worker before setting up routes
     try {
@@ -40,8 +39,8 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // Start server on port 3000
-    const PORT = 3000;
+    // Start server on port 5000
+    const PORT = 5000;
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server running on port ${PORT}`);
     }).on('error', (error: any) => {
