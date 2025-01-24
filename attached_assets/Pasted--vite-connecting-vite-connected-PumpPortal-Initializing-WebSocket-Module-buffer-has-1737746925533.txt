@@ -1,0 +1,25 @@
+[vite] connecting...
+[vite] connected.
+[PumpPortal] Initializing WebSocket...
+Module "buffer" has been externalized for browser compatibility. Cannot access "buffer.Buffer" in client code. See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[Wallet] Initializing connection to: https://solana-mainnet.g.alchemy.com/v2/demo
+[Wallet] Initializing connection to: https://api.mainnet-beta.solana.com
+[Wallet] Initializing connection to: https://solana-api.projectserum.com
+[Wallet] Initializing connection to: https://rpc.ankr.com/solana
+[Helius] WebSocket error: error
+at t.value (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+[Helius] Scheduling reconnect attempt 1/10 in 3000ms
+[Helius] WebSocket error: error
+at t.value (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+[Helius] Scheduling reconnect attempt 3/10 in 6750ms
+[Helius] WebSocket error: error
+at t.value (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/dev
