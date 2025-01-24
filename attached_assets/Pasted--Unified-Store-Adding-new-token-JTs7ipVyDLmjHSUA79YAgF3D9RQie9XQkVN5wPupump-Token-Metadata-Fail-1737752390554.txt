@@ -1,0 +1,41 @@
+[Unified Store] Adding new token: JTs7ipVyDLmjHSUA79YAgF3D9RQie9XQkVN5wPupump
+[Token Metadata] Failed to load image for token: STRUMP
+[Unified WebSocket] PumpPortal error: Invalid message. 'method' must be 'subscribeNewToken', 'subscribeTokenTrade', 'subscribeAccountTrade', or 'subscribeRaydiumLiquidity'.
+[Unified Store] Adding new token: 9EVKvMJxcietvZ39rgnqZfWp8mqaTdtq6F32SwzMpump
+[Token Metadata] Failed to load image for token: ihzan
+[Unified Store] Adding new token: FrNAxbKFiiD4FK8RWrrTnWiuYZhZ6MmEJY6caNnFpump
+[Token Metadata] Failed to load image for token: EliteFNF
+[Unified WebSocket] PumpPortal error: Invalid message. 'method' must be 'subscribeNewToken', 'subscribeTokenTrade', 'subscribeAccountTrade', or 'subscribeRaydiumLiquidity'.
+[Unified Store] Adding new token: oX8AikjLeMPFBEYQNrwXkV7Yg8T2p7Xqv5Uz9sipump
+[Token Metadata] Failed to load image for token: KOL
+[Unified WebSocket] PumpPortal error: Invalid message. 'method' must be 'subscribeNewToken', 'subscribeTokenTrade', 'subscribeAccountTrade', or 'subscribeRaydiumLiquidity'.
+[Unified Store] Adding new token: Akn7adASKrxT9Y6K9fzgeVtwL4KQJjDwWZps9B6jpump
+[Token Metadata] Failed to load image for token: MEMRIC
+[Unified WebSocket] PumpPortal error: Invalid message. 'method' must be 'subscribeNewToken', 'subscribeTokenTrade', 'subscribeAccountTrade', or 'subscribeRaydiumLiquidity'.
+[Unified Store] Adding new token: 7KY97bFgM11NDGgGjD9CmgwMSYpYMtzKsgpqnqPTpump
+[Unified WebSocket] PumpPortal error: Invalid message. 'method' must be 'subscribeNewToken', 'subscribeTokenTrade', 'subscribeAccountTrade', or 'subscribeRaydiumLiquidity'.
+[Token Metadata] Failed to load image for token: GUILD
+[Unified WebSocket] PumpPortal error: Invalid message. 'method' must be 'subscribeNewToken', 'subscribeTokenTrade', 'subscribeAccountTrade', or 'subscribeRaydiumLiquidity'.
+[Unified Store] Adding new token: cQwAQ3Hd8gz7oBx9VhEvMJKv7DW7G4CxqXt3hippump
+[Unified WebSocket] PumpPortal error: Invalid message. 'method' must be 'subscribeNewToken', 'subscribeTokenTrade', 'subscribeAccountTrade', or 'subscribeRaydiumLiquidity'.
+[Token Metadata] Failed to load image for token: NEXIUS
+[Unified WebSocket] PumpPortal error: Invalid message. 'method' must be 'subscribeNewToken', 'subscribeTokenTrade', 'subscribeAccountTrade', or 'subscribeRaydiumLiquidity'.
+at t.value (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+[Unified Store] Adding new token: 6cthKQiW4Ne9Ju4F8QnQ4W5JJvMyy2ZbjB1ZpKLQpump
+[Token Metadata] Failed to load image for token: CEBRAP
+[Unified WebSocket] PumpPortal error: Invalid message. 'method' must be 'subscribeNewToken', 'subscribeTokenTrade', 'subscribeAccountTrade', or 'subscribeRaydiumLiquidity'.
+[Unified Store] Adding new token: 3S5CMgWMRbXtayszoxYJPFM1jqjBcSA7EHNL9ZmZpump
+[Token Metadata] Failed to load image for token: MIMЕ
+[Unified WebSocket] PumpPortal error: Invalid message. 'method' must be 'subscribeNewToken', 'subscribeTokenTrade', 'subscribeAccountTrade', or 'subscribeRaydiumLiquidity'.
+[Unified Store] Adding new token: JBZQMnazQykq5guqNEKLQjsGbm1JrN8S9MZovKyvpump
+[Token Metadata] Failed to load image for token: GENW
+[Unified Store] Adding new token: NWxhZ7xQLHWwHH8stbdTZQqHkNuvG1BV2toHYTqpump
+[Token Metadata] Failed to load image for token: lightsaber
+[Unified WebSocket] PumpPortal error: Invalid message. 'method' must be 'subscribeNewToken', 'subscribeTokenTrade', 'subscribeAccountTrade', or 'subscribeRaydiumLiquidity'.
+at t.value (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/__replco/static/devtools/eruda/
