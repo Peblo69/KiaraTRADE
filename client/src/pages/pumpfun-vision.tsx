@@ -1,6 +1,5 @@
 // FILE: /src/pages/pumpfun-vision.tsx
-import '@/lib/pump-portal-websocket';
-import '@/lib/helius-websocket';
+import '@/lib/unified-websocket';
 import { FC, useState, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useUnifiedTokenStore } from "@/lib/unified-token-store";
