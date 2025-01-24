@@ -1,0 +1,356 @@
+// client/src/lib/unified-websocket.ts
+
+import { useUnifiedTokenStore } from './unified-token-store';
+import { useHeliusStore } from './helius-websocket';
+import { usePumpPortalStore } from './pump-portal-websocket'; // If still needed
+
+class UnifiedWebSocket {
+  private heliusWs: WebSocket | null = null;
+  private pumpPortalWs: WebSocket | null = null;
+  private heliusReconnectAttempts = 0;
+  private pumpPortalReconnectAttempts = 0;
+  private maxReconnectAttempts = 10;
+  private reconnectDelay = 5000;
+  private heliusHeartbeatInterval: NodeJS.Timeout | null = null;
+  private heliusHeartbeatTimeout: NodeJS.Timeout | null = null;
+  private isManualDisconnect = false;
+
+  connect() {
+    this.connectHelius();
+    this.connectPumpPortal();
+  }
+
+  private connectHelius() {
+    const HELIUS_API_KEY = '004f9b13-f526-4952-9998-52f5c7bec6ee';
+    const HELIUS_WS_URL = `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+    const store = useHeliusStore.getState();
+
+    if (this.heliusWs) {
+      this.heliusWs.close();
+      this.heliusWs = null;
+    }
+
+    try {
+      console.log('[Unified WebSocket] Connecting to Helius...');
+      this.heliusWs = new WebSocket(HELIUS_WS_URL);
+
+      this.heliusWs.onopen = () => {
+        console.log('[Unified WebSocket] Helius WebSocket connected');
+        store.setConnected(true);
+        this.heliusReconnectAttempts = 0;
+        this.startHeliusHeartbeat();
+
+        // Resubscribe to tokens
+        const { subscribedTokens } = store;
+        subscribedTokens.forEach(tokenAddress => {
+          store.subscribeToToken(tokenAddress);
+        });
+      };
+
+      this.heliusWs.onmessage = (event) => {
+        this.handleHeliusMessage(event);
+      };
+
+      this.heliusWs.onclose = (event) => {
+        console.log('[Unified WebSocket] Helius WebSocket disconnected:', event.reason);
+        store.setConnected(false);
+        this.cleanupHeliusHeartbeat();
+
+        if (!this.isManualDisconnect && this.heliusReconnectAttempts < this.maxReconnectAttempts) {
+          this.heliusReconnectAttempts++;
+          console.log(`[Unified WebSocket] Attempting Helius reconnect ${this.heliusReconnectAttempts}/${this.maxReconnectAttempts}`);
+          setTimeout(() => this.connectHelius(), this.reconnectDelay);
+        } else if (this.heliusReconnectAttempts >= this.maxReconnectAttempts) {
+          console.error('[Unified WebSocket] Max Helius reconnection attempts reached');
+          useUnifiedTokenStore.getState().setError('Unable to reconnect to Helius WebSocket');
+        }
+      };
+
+      this.heliusWs.onerror = (error) => {
+        console.error('[Unified WebSocket] Helius WebSocket error:', error);
+        this.heliusWs?.close();
+      };
+
+    } catch (error) {
+      console.error('[Unified WebSocket] Failed to initialize Helius WebSocket:', error);
+      store.setConnected(false);
+
+      if (this.heliusReconnectAttempts < this.maxReconnectAttempts) {
+        this.heliusReconnectAttempts++;
+        console.log(`[Unified WebSocket] Attempting Helius reconnect ${this.heliusReconnectAttempts}/${this.maxReconnectAttempts}`);
+        setTimeout(() => this.connectHelius(), this.reconnectDelay);
+      }
+    }
+  }
+
+  private connectPumpPortal() {
+    // Only if PumpPortal is still needed. If moving entirely to Helius, consider removing this.
+    const PUMPPPORTAL_WS_URL = 'wss://pumpportal.fun/api/data';
+    const store = usePumpPortalStore.getState();
+
+    if (this.pumpPortalWs) {
+      this.pumpPortalWs.close();
+      this.pumpPortalWs = null;
+    }
+
+    try {
+      console.log('[Unified WebSocket] Connecting to PumpPortal...');
+      this.pumpPortalWs = new WebSocket(PUMPPPORTAL_WS_URL);
+
+      this.pumpPortalWs.onopen = () => {
+        console.log('[Unified WebSocket] PumpPortal WebSocket connected');
+        store.setConnected(true);
+        this.pumpPortalReconnectAttempts = 0;
+
+        if (this.pumpPortalWs?.readyState === WebSocket.OPEN) {
+          this.pumpPortalWs.send(JSON.stringify({
+            method: "subscribeNewToken",
+            keys: []
+          }));
+
+          const existingTokenAddresses = store.tokens.map(t => t.address);
+          if (existingTokenAddresses.length > 0) {
+            this.pumpPortalWs.send(JSON.stringify({
+              method: "subscribeTokenTrade",
+              keys: existingTokenAddresses
+            }));
+          }
+        }
+      };
+
+      this.pumpPortalWs.onmessage = (event) => {
+        this.handlePumpPortalMessage(event);
+      };
+
+      this.pumpPortalWs.onclose = (event) => {
+        console.log('[Unified WebSocket] PumpPortal WebSocket disconnected:', event.reason);
+        store.setConnected(false);
+
+        if (!this.isManualDisconnect && this.pumpPortalReconnectAttempts < this.maxReconnectAttempts) {
+          this.pumpPortalReconnectAttempts++;
+          console.log(`[Unified WebSocket] Attempting PumpPortal reconnect ${this.pumpPortalReconnectAttempts}/${this.maxReconnectAttempts}`);
+          setTimeout(() => this.connectPumpPortal(), this.reconnectDelay);
+        } else if (this.pumpPortalReconnectAttempts >= this.maxReconnectAttempts) {
+          console.error('[Unified WebSocket] Max PumpPortal reconnection attempts reached');
+          useUnifiedTokenStore.getState().setError('Unable to reconnect to PumpPortal WebSocket');
+        }
+      };
+
+      this.pumpPortalWs.onerror = (error) => {
+        console.error('[Unified WebSocket] PumpPortal WebSocket error:', error);
+        this.pumpPortalWs?.close();
+      };
+
+    } catch (error) {
+      console.error('[Unified WebSocket] Failed to initialize PumpPortal WebSocket:', error);
+      store.setConnected(false);
+
+      if (this.pumpPortalReconnectAttempts < this.maxReconnectAttempts) {
+        this.pumpPortalReconnectAttempts++;
+        console.log(`[Unified WebSocket] Attempting PumpPortal reconnect ${this.pumpPortalReconnectAttempts}/${this.maxReconnectAttempts}`);
+        setTimeout(() => this.connectPumpPortal(), this.reconnectDelay);
+      }
+    }
+  }
+
+  private handleHeliusMessage(event: MessageEvent) {
+    try {
+      const data = JSON.parse(event.data);
+
+      // Handle account notifications
+      if (data.method === 'accountNotification') {
+        handleAccountUpdate(data.params.result);
+      }
+
+      // Handle pong responses to keep the connection alive
+      if (data.method === 'pong') {
+        resetHeliusHeartbeatTimeout();
+      }
+
+    } catch (error) {
+      console.error('[Unified WebSocket] Error handling Helius message:', error);
+    }
+  }
+
+  private handlePumpPortalMessage(event: MessageEvent) {
+    try {
+      const data = JSON.parse(event.data);
+
+      if (data.message?.includes('Successfully subscribed')) return;
+      if (data.errors) {
+        console.error('[Unified WebSocket] PumpPortal Error received:', data.errors);
+        return;
+      }
+
+      if (data.txType === 'create' && data.mint) {
+        try {
+          const token = mapPumpPortalData(data);
+          usePumpPortalStore.getState().addToken(token);
+
+          if (token.imageLink) {
+            preloadTokenImages([{
+              imageLink: token.imageLink,
+              symbol: token.symbol
+            }]);
+          }
+
+          this.pumpPortalWs?.send(JSON.stringify({
+            method: "subscribeTokenTrade",
+            keys: [token.address]
+          }));
+        } catch (err) {
+          console.error('[Unified WebSocket] Failed to process PumpPortal token:', err);
+        }
+      } else if (['buy', 'sell'].includes(data.txType) && data.mint) {
+        usePumpPortalStore.getState().addTradeToHistory(data.mint, data);
+      }
+    } catch (error) {
+      console.error('[Unified WebSocket] Error handling PumpPortal message:', error);
+    }
+  }
+
+  private startHeliusHeartbeat() {
+    if (this.heliusHeartbeatInterval) return;
+
+    this.heliusHeartbeatInterval = setInterval(() => {
+      if (this.heliusWs?.readyState === WebSocket.OPEN) {
+        this.heliusWs.send(JSON.stringify({ method: 'ping' }));
+        this.resetHeliusHeartbeatTimeout();
+      }
+    }, HEARTBEAT_INTERVAL);
+  }
+
+  private resetHeliusHeartbeatTimeout() {
+    if (this.heliusHeartbeatTimeout) {
+      clearTimeout(this.heliusHeartbeatTimeout);
+    }
+
+    this.heliusHeartbeatTimeout = setTimeout(() => {
+      console.warn('[Unified WebSocket] Helius heartbeat timeout. Terminating connection.');
+      this.heliusWs?.close();
+    }, HEARTBEAT_TIMEOUT);
+  }
+
+  private cleanupHeliusHeartbeat() {
+    if (this.heliusHeartbeatInterval) {
+      clearInterval(this.heliusHeartbeatInterval);
+      this.heliusHeartbeatInterval = null;
+    }
+
+    if (this.heliusHeartbeatTimeout) {
+      clearTimeout(this.heliusHeartbeatTimeout);
+      this.heliusHeartbeatTimeout = null;
+    }
+  }
+
+  disconnect() {
+    console.log('[Unified WebSocket] Disconnecting all WebSockets');
+    this.isManualDisconnect = true;
+    this.cleanupHeliusHeartbeat();
+
+    if (this.heliusWs) {
+      this.heliusWs.close();
+      this.heliusWs = null;
+    }
+
+    if (this.pumpPortalWs) {
+      this.pumpPortalWs.close();
+      this.pumpPortalWs = null;
+    }
+
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout);
+      reconnectTimeout = null;
+    }
+  }
+}
+
+// Handle Account Updates from Helius
+async function handleAccountUpdate(data: any) {
+  try {
+    if (!data.signature) return;
+
+    console.log('[Unified WebSocket] Processing signature:', data.signature);
+
+    const connection = new Connection(`https://api.helius.xyz/v0/`, {
+      commitment: 'confirmed',
+    });
+
+    const statuses = await connection.getSignatureStatuses([data.signature]);
+    if (!statuses.value[0]) return;
+
+    const tx = await connection.getTransaction(data.signature, {
+      maxSupportedTransactionVersion: 0
+    });
+
+    if (!tx || !tx.meta) return;
+
+    console.log('[Unified WebSocket] Found valid transaction:', {
+      signature: data.signature,
+      preBalances,
+      postBalances,
+      accountKeys: accountKeys.map(key => key.toString())
+    });
+
+    const preBalances = tx.meta.preBalances;
+    const postBalances = tx.meta.postBalances;
+    const balanceChanges = postBalances.map((post, i) => post - preBalances[i]);
+
+    const accountKeys = tx.transaction.message.accountKeys;
+    if (!accountKeys) return;
+
+    const preTokenBalances = tx.meta.preTokenBalances || [];
+    const postTokenBalances = tx.meta.postTokenBalances || [];
+
+    const isTokenTx = accountKeys.some(
+      key => key.equals(new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'))
+    );
+
+    if (!isTokenTx) return;
+
+    const relevantTokenAccounts = [...preTokenBalances, ...postTokenBalances];
+    for (const tokenAccount of relevantTokenAccounts) {
+      if (!tokenAccount) continue;
+
+      const preAmount = preTokenBalances.find(
+        balance => balance.accountIndex === tokenAccount.accountIndex
+      )?.uiTokenAmount.uiAmount || 0;
+
+      const postAmount = postTokenBalances.find(
+        balance => balance.accountIndex === tokenAccount.accountIndex
+      )?.uiTokenAmount.uiAmount || 0;
+
+      const tokenAmount = Math.abs(postAmount - preAmount);
+      if (tokenAmount === 0) continue;
+
+      const isBuy = postAmount > preAmount;
+
+      const trade: TokenTrade = {
+        signature: data.signature,
+        timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
+        tokenAddress: data.accountId,
+        amount: Math.abs(balanceChanges[0]) / 1e9, // Adjust based on token decimals
+        price: tokenAmount,
+        priceUsd: 0, // To be calculated if price data is available
+        buyer: isBuy ? accountKeys[1]?.toString() || '' : '',
+        seller: !isBuy ? accountKeys[0]?.toString() || '' : '',
+        type: isBuy ? 'buy' : 'sell'
+      };
+
+      console.log('[Unified WebSocket] New trade:', {
+        signature: trade.signature,
+        type: trade.type,
+        amount: trade.amount,
+        price: trade.price
+      });
+
+      useHeliusStore.getState().addTrade(data.accountId, trade);
+    }
+
+  } catch (error) {
+    console.error('[Unified WebSocket] Error processing account update:', error);
+  }
+}
+
+// Initialize Unified WebSocket
+export const unifiedWebSocket = new UnifiedWebSocket();
