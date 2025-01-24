@@ -235,11 +235,25 @@ class UnifiedWebSocket {
   }
 
   private handlePumpPortalClose() {
+    this.cleanupPumpPortalHeartbeat();
+
     if (!this.isManualDisconnect && this.pumpPortalReconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
       const delay = Math.min(RECONNECT_DELAY * Math.pow(1.5, this.pumpPortalReconnectAttempts), 30000);
       this.pumpPortalReconnectAttempts++;
-      console.log(`[Unified WebSocket] PumpPortal reconnecting ${this.pumpPortalReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
-      setTimeout(() => this.connectPumpPortal(), delay);
+      
+      console.log(
+        `[Unified WebSocket] PumpPortal reconnecting ${this.pumpPortalReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`,
+        `(${useUnifiedTokenStore.getState().tokens.length} tokens to resubscribe)`
+      );
+
+      // Schedule reconnection
+      setTimeout(() => {
+        this.connectPumpPortal();
+        // After connection is established, subscriptions will be restored via onopen handler
+      }, delay);
+    } else if (this.pumpPortalReconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.error('[Unified WebSocket] Max reconnection attempts reached for PumpPortal');
+      // Could trigger a UI notification here if needed
     }
   }
 
@@ -312,19 +326,44 @@ class UnifiedWebSocket {
   private subscribeToPumpPortal() {
     if (this.pumpPortalWs?.readyState !== WebSocket.OPEN) return;
 
-    this.pumpPortalWs.send(JSON.stringify({
-      method: "subscribeNewToken",
-      keys: []
-    }));
-
-    const store = useUnifiedTokenStore.getState();
-    const existingTokens = store.tokens.map(t => t.address);
-
-    if (existingTokens.length > 0) {
+    try {
+      // Always subscribe to new tokens
       this.pumpPortalWs.send(JSON.stringify({
-        method: "subscribeTokenTrade",
-        keys: existingTokens
+        method: "subscribeNewToken",
+        keys: []
       }));
+
+      const store = useUnifiedTokenStore.getState();
+      const existingTokens = store.tokens.map(t => t.address);
+      const activeToken = store.activeToken;
+
+      // Subscribe to active token first if exists
+      if (activeToken && existingTokens.includes(activeToken)) {
+        this.pumpPortalWs.send(JSON.stringify({
+          method: "subscribeTokenTrade",
+          keys: [activeToken]
+        }));
+      }
+
+      // Subscribe to other tokens in batches
+      const batchSize = 50;
+      const otherTokens = existingTokens.filter(t => t !== activeToken);
+      
+      for (let i = 0; i < otherTokens.length; i += batchSize) {
+        const batch = otherTokens.slice(i, i + batchSize);
+        if (batch.length > 0) {
+          setTimeout(() => {
+            if (this.pumpPortalWs?.readyState === WebSocket.OPEN) {
+              this.pumpPortalWs.send(JSON.stringify({
+                method: "subscribeTokenTrade",
+                keys: batch
+              }));
+            }
+          }, i * 100); // Delay each batch by 100ms to prevent overwhelming the server
+        }
+      }
+    } catch (error) {
+      console.error('[Unified WebSocket] Error subscribing to PumpPortal:', error);
     }
   }
 
