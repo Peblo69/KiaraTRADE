@@ -40,8 +40,8 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // Start server on port 5000
-    const PORT = 5000;
+    // Start server on port 3000
+    const PORT = 3000;
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server running on port ${PORT}`);
     }).on('error', (error: any) => {
