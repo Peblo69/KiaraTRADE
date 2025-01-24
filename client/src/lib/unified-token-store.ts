@@ -80,15 +80,15 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
       ...t,
       needsUpdate: Date.now() - (t.lastUpdated || 0) > 2000
     }]));
-    
+
     const existingToken = tokenMap.get(token.address);
-    
+
     // Always update if token needs update or has new data
     const shouldUpdate = existingToken?.needsUpdate || 
                         !existingToken ||
                         token.price !== existingToken.price ||
                         token.volume !== existingToken.volume;
-                        
+
     if (!shouldUpdate) return state;
 
     if (existingToken) {
@@ -147,7 +147,7 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
 
   addTransaction: (tokenAddress, transaction) => set(state => {
     const existingTransactions = state.transactions[tokenAddress] || [];
-    
+
     // Enhanced duplicate check
     const isDuplicate = existingTransactions.some(tx => 
       tx.signature === transaction.signature ||

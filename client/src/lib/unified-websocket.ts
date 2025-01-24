@@ -97,8 +97,27 @@ class UnifiedWebSocket {
     }
   }
 
+  private requestAllTokenUpdates() {
+    const store = useUnifiedTokenStore.getState();
+    const tokens = store.tokens;
+    
+    if (this.pumpPortalWs?.readyState === WebSocket.OPEN && tokens.length > 0) {
+      this.pumpPortalWs.send(JSON.stringify({
+        method: "batchTokenUpdate",
+        keys: tokens.map(t => t.address)
+      }));
+    }
+  }
+
   private subscribeToPumpPortal() {
     if (this.pumpPortalWs?.readyState !== WebSocket.OPEN) return;
+
+    // Set up periodic updates
+    if (!this.updateInterval) {
+      this.updateInterval = setInterval(() => {
+        this.requestAllTokenUpdates();
+      }, 3000); // Check for updates every 3 seconds
+    }
 
     this.pumpPortalWs.send(JSON.stringify({
       method: "subscribeNewToken",
@@ -138,11 +157,26 @@ class UnifiedWebSocket {
       const store = useUnifiedTokenStore.getState();
       const ws = this.pumpPortalWs;
 
-      // Ignore subscription confirmations and errors
-      if (data.message?.includes('Successfully subscribed')) return;
+      // Enhanced subscription and error handling
+      if (data.message?.includes('Successfully subscribed')) {
+        console.log('[Unified WebSocket] Successfully subscribed, requesting updates');
+        this.requestAllTokenUpdates();
+        return;
+      }
+
       if (data.errors) {
         console.error('[Unified WebSocket] PumpPortal error:', data.errors);
+        this.handlePumpPortalClose();
         return;
+      }
+
+      // Periodic resubscription to ensure we don't miss updates
+      if (!this.resubscribeInterval) {
+        this.resubscribeInterval = setInterval(() => {
+          if (ws?.readyState === WebSocket.OPEN) {
+            this.subscribeToPumpPortal();
+          }
+        }, 30000); // Resubscribe every 30 seconds
       }
 
       // Request immediate update for all tokens every 5 seconds
