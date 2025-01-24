@@ -8,7 +8,7 @@ import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import millify from "millify";
 import { getTokenImage } from "@/lib/token-metadata";
 import { formatPrice, formatMarketCap } from "@/lib/utils";
-import Modal from "@/components/ui/modal"; // Assuming a Modal component exists
+import Modal from "@/components/ui/modal";
 
 
 const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) => {
