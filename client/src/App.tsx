@@ -55,7 +55,7 @@ const App: React.FC = () => {
   const setConnected = useUnifiedTokenStore(state => state.setConnected);
 
   React.useEffect(() => {
-    initializeHeliusWebSocket();
+    // WebSocket connections are automatically initialized when importing unified-websocket
     return () => {
       setConnected(false);
     };

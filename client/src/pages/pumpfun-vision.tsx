@@ -1,13 +1,11 @@
 // FILE: /src/pages/pumpfun-vision.tsx
-import '@/lib/pump-portal-websocket';
-import '@/lib/helius-websocket';
+import '@/lib/unified-websocket';
 import { FC, useState, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useUnifiedTokenStore } from "@/lib/unified-token-store";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
-import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import millify from "millify";
 import { getTokenImage } from "@/lib/token-metadata";
 import { AdvancedChart } from "@/components/AdvancedChart";
