@@ -3,8 +3,8 @@ import { useHeliusStore } from './helius-websocket';
 import { preloadTokenImages } from './token-metadata';
 import axios from 'axios';
 import { eq } from 'drizzle-orm';
-import { db } from "@db";
-import { tokens, token_trades } from "@db/schema";
+import { db } from "../../../db";
+import { tokens, token_trades } from "../../../db/schema";
 
 // -----------------------------------
 // TYPES
