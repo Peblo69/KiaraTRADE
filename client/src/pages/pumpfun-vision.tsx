@@ -7,7 +7,6 @@ import { Loader2 } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { getTokenImage } from "@/lib/token-metadata";
 import { formatPrice, formatMarketCap } from "@/lib/utils";
-import Modal from "@/components/ui/modal";
 import TokenChart from "@/components/TokenChart";
 
 const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) => {
@@ -53,10 +52,18 @@ const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) =
 };
 
 const PumpFunVision: FC = () => {
-  const [selectedToken, setSelectedToken] = useState<any>(null);
-  const [showChart, setShowChart] = useState(false);
+  const [selectedToken, setSelectedToken] = useState<string | null>(null);
   const tokens = usePumpPortalStore((state) => state.tokens);
   const isConnected = usePumpPortalStore((state) => state.isConnected);
+
+  if (selectedToken) {
+    return (
+      <TokenChart 
+        tokenAddress={selectedToken} 
+        onBack={() => setSelectedToken(null)} 
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -88,10 +95,7 @@ const PumpFunVision: FC = () => {
               <TokenRow
                 key={token.address}
                 token={token}
-                onClick={() => {
-                  setSelectedToken(token);
-                  setShowChart(true);
-                }}
+                onClick={() => setSelectedToken(token.address)}
               />
             ))
           ) : (
@@ -99,48 +103,6 @@ const PumpFunVision: FC = () => {
               <p className="text-muted-foreground">Waiting for new tokens...</p>
             </div>
           )}
-          <Modal open={showChart} onClose={() => setShowChart(false)}>
-            <div className="max-w-4xl w-full mx-auto p-4 space-y-4">
-              {selectedToken && (
-                <>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={selectedToken.imageLink || 'https://via.placeholder.com/150'}
-                        alt={`${selectedToken.symbol} logo`}
-                        className="w-12 h-12 rounded-full object-cover bg-purple-500/20"
-                      />
-                      <div>
-                        <h2 className="text-2xl font-bold">{selectedToken.name}</h2>
-                        <p className="text-muted-foreground">{selectedToken.symbol}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold">{formatPrice(selectedToken.price)}</div>
-                      <div className="text-sm text-muted-foreground">Current Price</div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4 mb-6">
-                    <Card className="p-4">
-                      <div className="text-sm text-muted-foreground">Market Cap</div>
-                      <div className="text-lg font-bold">{formatMarketCap(selectedToken.marketCap)}</div>
-                    </Card>
-                    <Card className="p-4">
-                      <div className="text-sm text-muted-foreground">Liquidity</div>
-                      <div className="text-lg font-bold">{formatMarketCap(selectedToken.liquidity)}</div>
-                    </Card>
-                    <Card className="p-4">
-                      <div className="text-sm text-muted-foreground">24h Volume</div>
-                      <div className="text-lg font-bold">{formatMarketCap(selectedToken.volume)}</div>
-                    </Card>
-                  </div>
-
-                  <TokenChart tokenAddress={selectedToken.address} />
-                </>
-              )}
-            </div>
-          </Modal>
         </div>
       </div>
     </div>
