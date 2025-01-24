@@ -195,13 +195,14 @@ let solPriceInterval: NodeJS.Timeout | null = null;
 
 const fetchSolanaPrice = async (): Promise<number> => {
   try {
-    const response = await axios.get('/api/solana/price');
-    const price = response.data?.price;
+    // Fallback to CoinGecko if internal API fails
+    const response = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+    const price = response.data?.solana?.usd;
     if (!price || price <= 0) throw new Error('Invalid price response');
     return price;
   } catch (error) {
     console.error('[PumpPortal] Error fetching SOL price:', error);
-    return usePumpPortalStore.getState().solPrice;
+    return 100; // Fallback price to prevent $0 display
   }
 };
 

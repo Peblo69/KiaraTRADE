@@ -109,9 +109,12 @@ async function handleAccountUpdate(data: any) {
 
     if (!tx || !tx.meta) return;
 
-    if (DEBUG) {
-      console.log('[Helius] Found valid transaction:', data.signature);
-    }
+    console.log('[Helius] Found valid transaction:', {
+      signature: data.signature,
+      preBalances,
+      postBalances,
+      accountKeys: accountKeys.map(key => key.toString())
+    });
 
     const preBalances = tx.meta.preBalances;
     const postBalances = tx.meta.postBalances;
