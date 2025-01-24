@@ -25,6 +25,7 @@ interface TokenCardProps {
     price: number;
     trades?: Trade[];
   };
+  onClick?: (token: TokenCardProps['token']) => void;
 }
 
 const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
