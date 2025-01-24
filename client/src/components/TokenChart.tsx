@@ -13,6 +13,13 @@ interface TokenChartProps {
   onBack: () => void;
 }
 
+interface TokenTrade {
+  signature: string;
+  timestamp: number;
+  price: number;
+  priceUSD: number;
+}
+
 export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const token = usePumpPortalStore(state => 
@@ -21,6 +28,8 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
 
   useEffect(() => {
     if (!chartContainerRef.current || !token?.recentTrades) return;
+
+    console.log('Trade data:', token.recentTrades);
 
     // Process trades into consistent time-ordered data points
     const trades = token.recentTrades
@@ -115,6 +124,7 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
   if (!token) return null;
 
   const formatAddress = (address: string) => {
+    if (!address) return '';
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
 
@@ -179,21 +189,19 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
               <div className="h-full bg-[#111] rounded-lg p-4 overflow-hidden">
                 <h3 className="text-sm font-semibold mb-2">Recent Trades</h3>
                 <div className="space-y-2 overflow-y-auto h-[calc(100%-2rem)]">
-                  {token.recentTrades?.map((trade, idx) => (
+                  {token.recentTrades?.map((trade: TokenTrade, idx) => (
                     <div
-                      key={idx}
-                      className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
-                        trade.isBuy ? 'text-green-500' : 'text-red-500'
-                      }`}
+                      key={trade.signature || idx}
+                      className="flex items-center justify-between p-2 rounded bg-black/20 text-sm"
                     >
                       <div className="flex items-center gap-2">
                         <span>{formatTimestamp(trade.timestamp)}</span>
-                        <span>{formatAddress(trade.wallet)}</span>
+                        <span>{trade.signature ? formatAddress(trade.signature) : 'Unknown'}</span>
                       </div>
                       <div className="text-right">
                         <div>${trade.price.toFixed(8)}</div>
                         <div className="text-xs text-gray-500">
-                          ${(trade.price * trade.amount).toFixed(2)}
+                          ${trade.priceUSD.toFixed(2)}
                         </div>
                       </div>
                     </div>
