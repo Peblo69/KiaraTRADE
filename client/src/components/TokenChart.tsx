@@ -17,7 +17,6 @@ interface TokenTrade {
   signature: string;
   timestamp: number;
   price: number;
-  priceUSD: number;
 }
 
 export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
@@ -35,8 +34,9 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
     const trades = token.recentTrades
       .map(trade => ({
         timestamp: Math.floor(trade.timestamp / 1000) * 1000,
-        price: trade.price,
+        price: Number(trade.price) || 0,
       }))
+      .filter(trade => !isNaN(trade.price) && trade.price > 0)
       .sort((a, b) => a.timestamp - b.timestamp);
 
     // Create candles from trades
@@ -132,6 +132,12 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
     return new Date(timestamp).toLocaleTimeString();
   };
 
+  const formatPrice = (price: number | string | undefined) => {
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+    if (!numPrice || isNaN(numPrice)) return '$0.00';
+    return `$${numPrice.toFixed(8)}`;
+  };
+
   return (
     <div className="flex-1 h-screen bg-black text-white">
       <div className="absolute top-4 left-4 z-10">
@@ -152,28 +158,27 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
               src={token.imageLink || '/placeholder.png'} 
               className="w-8 h-8 rounded-full"
               alt={token.symbol}
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/placeholder.png';
+              }}
             />
             <div>
               <h2 className="text-2xl font-bold">{token.symbol}</h2>
-              <div className="text-sm text-gray-400">${token.price.toFixed(8)} ETH</div>
+              <div className="text-sm text-gray-400">{formatPrice(token.price)}</div>
             </div>
           </div>
           <div className="flex gap-3">
             <div className="text-right">
               <div className="text-sm text-gray-400">Market Cap</div>
-              <div className="font-bold">${token.marketCap.toFixed(2)}</div>
+              <div className="font-bold">${token.marketCap?.toFixed(2) || '0.00'}</div>
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Liquidity</div>
-              <div className="font-bold">${token.liquidity.toFixed(2)}</div>
+              <div className="font-bold">${token.liquidity?.toFixed(2) || '0.00'}</div>
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Volume (24h)</div>
-              <div className="font-bold">${token.volume.toFixed(2)}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-gray-400">Holders</div>
-              <div className="font-bold">{token.walletCount || 0}</div>
+              <div className="font-bold">${token.volume?.toFixed(2) || '0.00'}</div>
             </div>
           </div>
         </div>
@@ -189,7 +194,7 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
               <div className="h-full bg-[#111] rounded-lg p-4 overflow-hidden">
                 <h3 className="text-sm font-semibold mb-2">Recent Trades</h3>
                 <div className="space-y-2 overflow-y-auto h-[calc(100%-2rem)]">
-                  {token.recentTrades?.map((trade: TokenTrade, idx) => (
+                  {token.recentTrades?.map((trade, idx) => (
                     <div
                       key={trade.signature || idx}
                       className="flex items-center justify-between p-2 rounded bg-black/20 text-sm"
@@ -199,10 +204,7 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
                         <span>{trade.signature ? formatAddress(trade.signature) : 'Unknown'}</span>
                       </div>
                       <div className="text-right">
-                        <div>${trade.price.toFixed(8)}</div>
-                        <div className="text-xs text-gray-500">
-                          ${trade.priceUSD.toFixed(2)}
-                        </div>
+                        <div>{formatPrice(trade.price)}</div>
                       </div>
                     </div>
                   ))}
