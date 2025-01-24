@@ -6,7 +6,7 @@ import axios from 'axios';
 const TOTAL_SUPPLY = 1_000_000_000;
 const SOL_PRICE_UPDATE_INTERVAL = 10000;
 const MAX_TRADES_PER_TOKEN = 100;
-const WS_URL = `ws://${window.location.host}/ws`; // Connect to our backend WebSocket
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`; // Dynamic protocol selection
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
