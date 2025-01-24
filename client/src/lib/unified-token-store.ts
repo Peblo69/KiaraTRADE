@@ -132,10 +132,11 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
     if (existingTransactions.some(tx => tx.signature === transaction.signature)) {
       return state;
     }
+    const maxTrades = 100; // Increased trade history limit
     return {
       transactions: {
         ...state.transactions,
-        [tokenAddress]: [transaction, ...existingTransactions].slice(0, 10)
+        [tokenAddress]: [transaction, ...existingTransactions].slice(0, maxTrades)
       }
     };
   }),

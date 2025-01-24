@@ -257,19 +257,34 @@ class UnifiedWebSocket {
         const isBuy = postAmount > preAmount;
         const solAmount = Math.abs(tx.meta.preBalances[0] - tx.meta.postBalances[0]) / 1e9;
 
-        const trade: TokenTrade = {
-          signature: data.signature,
-          timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
-          tokenAddress: data.accountId,
-          amount: solAmount,
-          price: amount,
-          priceUsd: 0,
-          buyer: isBuy ? accountKeys[1]?.toString() || '' : '',
-          seller: !isBuy ? accountKeys[0]?.toString() || '' : '',
-          type: isBuy ? 'buy' : 'sell'
-        };
-
-        useUnifiedTokenStore.getState().addTransaction(data.accountId, trade);
+        // Create trades for both sides of the transaction
+        if (isBuy) {
+          const buyTrade: TokenTrade = {
+            signature: data.signature,
+            timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
+            tokenAddress: data.accountId,
+            amount: solAmount,
+            price: amount,
+            priceUsd: 0,
+            buyer: accountKeys[1]?.toString() || '',
+            seller: accountKeys[0]?.toString() || '',
+            type: 'buy'
+          };
+          useUnifiedTokenStore.getState().addTransaction(data.accountId, buyTrade);
+        } else {
+          const sellTrade: TokenTrade = {
+            signature: data.signature,
+            timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
+            tokenAddress: data.accountId,
+            amount: solAmount,
+            price: amount,
+            priceUsd: 0,
+            buyer: accountKeys[1]?.toString() || '',
+            seller: accountKeys[0]?.toString() || '',
+            type: 'sell'
+          };
+          useUnifiedTokenStore.getState().addTransaction(data.accountId, sellTrade);
+        }
       }
     } catch (error) {
       console.error('[Unified WebSocket] Account update error:', error);
