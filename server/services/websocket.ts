@@ -19,7 +19,6 @@ export class WebSocketManager {
       return;
     }
 
-    // Create WebSocket server with proper upgrade handling
     this.wss = new WebSocketServer({ 
       noServer: true,
       perMessageDeflate: false
@@ -36,14 +35,16 @@ export class WebSocketManager {
       if (!this.wss) return;
 
       this.wss.handleUpgrade(request, socket, head, (ws) => {
+        if (this.clients.has(ws)) {
+          console.log('[WebSocket] Connection already exists');
+          return; // Prevent multiple connections
+        }
         this.wss!.emit('connection', ws, request);
       });
     });
 
     this.wss.on('connection', (ws: WebSocket) => {
       console.log('[WebSocket Manager] New client connected');
-
-      // Initialize connection state
       ws.isAlive = true;
       this.clients.add(ws);
 
@@ -72,14 +73,12 @@ export class WebSocketManager {
         this.clients.delete(ws);
       });
 
-      // Send initial connection success message
       this.sendToClient(ws, {
         type: 'connection_status',
         status: 'connected'
       });
     });
 
-    // Setup heartbeat interval for connection monitoring
     this.heartbeatInterval = setInterval(() => {
       Array.from(this.clients).forEach(client => {
         if (client.isAlive === false) {
@@ -87,7 +86,6 @@ export class WebSocketManager {
           client.terminate();
           return;
         }
-
         client.isAlive = false;
         client.ping();
       });

@@ -1,6 +1,7 @@
-import { Server as WebSocketServer, WebSocket } from 'ws';
+import { WebSocket } from 'ws';
 import axios from 'axios';
 import { log } from './vite';
+import { wsManager } from './services/websocket';
 
 const PUMP_PORTAL_WS_URL = 'wss://pumpportal.fun/api/data';
 const TOTAL_SUPPLY = 1_000_000_000;
@@ -10,7 +11,7 @@ const RECONNECT_DELAY = 5000;
 let ws: WebSocket | null = null;
 let reconnectAttempts = 0;
 
-export const initializePumpPortalWebSocket = (wss: WebSocketServer) => {
+export const initializePumpPortalWebSocket = () => {
   const connect = () => {
     ws = new WebSocket(PUMP_PORTAL_WS_URL);
 
@@ -43,14 +44,10 @@ export const initializePumpPortalWebSocket = (wss: WebSocketServer) => {
         if (data.txType === 'create' && data.mint) {
           log('[PumpPortal] New token created:', data.mint);
 
-          // Broadcast to all connected clients
-          wss.clients.forEach((client) => {
-            if (client.readyState === WebSocket.OPEN) {
-              client.send(JSON.stringify({ 
-                type: 'newToken',
-                data: data
-              }));
-            }
+          // Broadcast to all connected clients through our WebSocket manager
+          wsManager.broadcast({ 
+            type: 'newToken',
+            data: data
           });
 
           // Subscribe to trades for the new token
@@ -62,14 +59,10 @@ export const initializePumpPortalWebSocket = (wss: WebSocketServer) => {
 
         // Handle trade events
         else if (['buy', 'sell'].includes(data.txType) && data.mint) {
-          // Broadcast trade data to all connected clients
-          wss.clients.forEach((client) => {
-            if (client.readyState === WebSocket.OPEN) {
-              client.send(JSON.stringify({ 
-                type: 'trade',
-                data: data
-              }));
-            }
+          // Broadcast trade data to all connected clients through our WebSocket manager
+          wsManager.broadcast({ 
+            type: 'trade',
+            data: data
           });
         }
       } catch (error) {

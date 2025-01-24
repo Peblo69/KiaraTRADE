@@ -3,7 +3,6 @@ import { coinImages, coinMappings } from "@db/schema";
 import { eq } from "drizzle-orm";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer } from 'ws';
 import { wsManager } from './services/websocket';
 import { initializePumpPortalWebSocket } from './pumpportal';
 import { generateAIResponse } from './services/ai';
@@ -45,14 +44,11 @@ const cache = {
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
-  // Initialize WebSocket server
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-
-  // Initialize WebSocket manager
+  // Initialize WebSocket manager - this will handle all WebSocket connections
   wsManager.initialize(httpServer);
 
   // Initialize PumpPortal WebSocket
-  initializePumpPortalWebSocket(wss);
+  initializePumpPortalWebSocket();
 
   // Add crypto news endpoint
   app.get('/api/crypto-news', async (req, res) => {
