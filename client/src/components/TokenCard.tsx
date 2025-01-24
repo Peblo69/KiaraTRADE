@@ -27,9 +27,12 @@ interface TokenCardProps {
   };
 }
 
-const TokenCard: FC<TokenCardProps> = ({ token }) => {
+const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
   return (
-    <Card className="overflow-hidden bg-gradient-to-br from-black/60 via-purple-900/20 to-black/60 backdrop-blur-lg border-purple-500/30 shadow-lg shadow-purple-500/10 transition-all duration-300 hover:shadow-purple-500/20">
+    <Card 
+      className="overflow-hidden bg-gradient-to-br from-black/60 via-purple-900/20 to-black/60 backdrop-blur-lg border-purple-500/30 shadow-lg shadow-purple-500/10 transition-all duration-300 hover:shadow-purple-500/20 cursor-pointer"
+      onClick={() => onClick?.(token)}
+    >
       <div className="p-4 border-b border-purple-500/30">
         <div className="flex justify-between items-center mb-2">
           <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">

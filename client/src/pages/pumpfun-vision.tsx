@@ -8,6 +8,7 @@ import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import millify from "millify";
 import { getTokenImage } from "@/lib/token-metadata";
 import { formatPrice, formatMarketCap } from "@/lib/utils";
+import Modal from "@/components/ui/modal"; // Assuming a Modal component exists
 
 
 const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) => {
@@ -54,6 +55,7 @@ const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) =
 
 const PumpFunVision: FC = () => {
   const [selectedToken, setSelectedToken] = useState<any>(null);
+  const [showChart, setShowChart] = useState(false);
   const tokens = usePumpPortalStore((state) => state.tokens);
   const isConnected = usePumpPortalStore((state) => state.isConnected);
 
@@ -87,7 +89,10 @@ const PumpFunVision: FC = () => {
               <TokenRow
                 key={token.address}
                 token={token}
-                onClick={() => setSelectedToken(token)}
+                onClick={() => {
+                  setSelectedToken(token);
+                  setShowChart(true);
+                }}
               />
             ))
           ) : (
@@ -95,6 +100,15 @@ const PumpFunVision: FC = () => {
               <p className="text-muted-foreground">Waiting for new tokens...</p>
             </div>
           )}
+          <Modal open={showChart} onClose={() => setShowChart(false)}>
+            {/* Replace with your actual chart component */}
+            {selectedToken && (
+              <div>
+                <h1>{selectedToken.name} Chart</h1>
+                {/* Add your chart here using selectedToken data */}
+              </div>
+            )}
+          </Modal>
         </div>
       </div>
     </div>
