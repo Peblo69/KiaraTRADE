@@ -314,6 +314,22 @@ export const AdvancedChart: FC<ChartProps> = ({
             </div>
           </div>
         )}
+        <div className="absolute top-4 right-4 flex gap-2">
+          {['1s', '5s', '30s', '1m', '5m', '15m', '1h'].map((tf) => (
+            <button
+              key={tf}
+              onClick={() => handleTimeframeChange(tf)}
+              className={`px-2 py-1 text-xs rounded ${
+                timeframe === tf
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {tf}
+            </button>
+          ))}
+        </div>
+
       </div>
     </Card>
   );

@@ -1,3 +1,7 @@
+import React from 'react';
+import PumpFunVision from './pages/pumpfun-vision';
+import { initializeHeliusWebSocket } from './lib/helius-websocket';
+import { useUnifiedTokenStore } from './lib/unified-token-store';
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -9,7 +13,6 @@ import KiaraStageI from "@/pages/kiara-stage-i";
 import About from "@/pages/about";
 import Landing from "@/pages/landing";
 import CryptoNews from "@/pages/crypto-news";
-import PumpFunVision from "@/pages/pumpfun-vision";
 import { WalletContextProvider } from "@/lib/wallet";
 import MarketDataBar from "@/components/MarketDataBar";
 import Navbar from "@/components/Navbar";
@@ -48,7 +51,16 @@ function Router() {
   );
 }
 
-function App() {
+const App: React.FC = () => {
+  const setConnected = useUnifiedTokenStore(state => state.setConnected);
+
+  React.useEffect(() => {
+    initializeHeliusWebSocket();
+    return () => {
+      setConnected(false);
+    };
+  }, []);
+
   return (
     <WalletContextProvider>
       <QueryClientProvider client={queryClient}>
@@ -57,6 +69,6 @@ function App() {
       </QueryClientProvider>
     </WalletContextProvider>
   );
-}
+};
 
 export default App;
