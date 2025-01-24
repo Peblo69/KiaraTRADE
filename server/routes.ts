@@ -3,10 +3,12 @@ import { coinImages, coinMappings } from "@db/schema";
 import { eq } from "drizzle-orm";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer } from 'ws';
 import { wsManager } from './services/websocket';
+import { initializePumpPortalWebSocket } from './pumpportal';
 import { generateAIResponse } from './services/ai';
 import axios from 'axios';
-import { getTokenImage, addPriorityToken } from './image-worker';
+import { getTokenImage } from './image-worker';
 
 const CACHE_DURATION = 30000; // 30 seconds cache
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
@@ -43,8 +45,14 @@ const cache = {
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
+  // Initialize WebSocket server
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+
   // Initialize WebSocket manager
   wsManager.initialize(httpServer);
+
+  // Initialize PumpPortal WebSocket
+  initializePumpPortalWebSocket(wss);
 
   // Add crypto news endpoint
   app.get('/api/crypto-news', async (req, res) => {

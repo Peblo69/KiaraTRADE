@@ -1,0 +1,114 @@
+// backend/src/pumpPortal.ts
+
+import { Server as WebSocketServer } from 'ws';
+import axios from 'axios';
+import dotenv from 'dotenv';
+import { mapPumpPortalData, PumpPortalToken } from './utils';
+import { preloadTokenImages } from './utils';
+
+dotenv.config();
+
+const PUMPPPORTAL_WS_URL = process.env.PUMPPPORTAL_WS_URL || 'wss://pumpportal.fun/api/data';
+const TOTAL_SUPPLY = 1_000_000_000;
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY = 5000;
+
+let ws: WebSocket | null = null;
+let reconnectAttempts = 0;
+
+export const initializePumpPortalWebSocket = (wss: WebSocketServer) => {
+  const connect = () => {
+    ws = new WebSocket(PUMPPPORTAL_WS_URL);
+
+    ws.onopen = () => {
+      console.log('[PumpPortal] WebSocket connected');
+      reconnectAttempts = 0;
+
+      // Subscribe to new tokens
+      ws?.send(JSON.stringify({
+        method: "subscribeNewToken",
+        keys: []
+      }));
+
+      // Optionally, subscribe to existing tokens if needed
+      // Example:
+      // ws?.send(JSON.stringify({
+      //   method: "subscribeTokenTrade",
+      //   keys: existingTokenAddresses
+      // }));
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.message?.includes('Successfully subscribed')) {
+          console.log('[PumpPortal] Subscription confirmed:', data.message);
+          return;
+        }
+
+        if (data.errors) {
+          console.error('[PumpPortal] Error received:', data.errors);
+          return;
+        }
+
+        // Handle token creation events
+        if (data.txType === 'create' && data.mint) {
+          const token = mapPumpPortalData(data, TOTAL_SUPPLY);
+          console.log('[PumpPortal] New Token:', token);
+
+          // Preload token images
+          if (token.imageLink) {
+            preloadTokenImages([{ imageLink: token.imageLink, symbol: token.symbol }]);
+          }
+
+          // Broadcast the new token to all connected clients
+          wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({ type: 'newToken', data: token }));
+            }
+          });
+
+          // Subscribe to trades for the new token
+          ws?.send(JSON.stringify({
+            method: "subscribeTokenTrade",
+            keys: [token.address]
+          }));
+        }
+
+        // Handle trade events
+        else if (['buy', 'sell'].includes(data.txType) && data.mint) {
+          const trade = mapTradeData(data);
+          console.log('[PumpPortal] New Trade:', trade);
+
+          // Broadcast the trade to all connected clients
+          wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({ type: 'newTrade', data: { address: data.mint, trade } }));
+            }
+          });
+        }
+      } catch (error) {
+        console.error('[PumpPortal] Failed to parse message:', error, event.data);
+      }
+    };
+
+    ws.onclose = (event) => {
+      console.log('[PumpPortal] WebSocket disconnected:', event.reason);
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${RECONNECT_DELAY}ms`);
+        setTimeout(connect, RECONNECT_DELAY * reconnectAttempts); // Exponential backoff
+      } else {
+        console.error('[PumpPortal] Max reconnection attempts reached');
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('[PumpPortal] WebSocket error:', error);
+      ws?.close();
+    };
+  };
+
+  connect();
+};
