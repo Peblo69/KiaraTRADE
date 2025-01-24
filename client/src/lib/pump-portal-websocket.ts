@@ -6,6 +6,7 @@ import axios from 'axios';
 const TOTAL_SUPPLY = 1_000_000_000;
 const SOL_PRICE_UPDATE_INTERVAL = 10000;
 const MAX_TRADES_PER_TOKEN = 100;
+const PUMP_PORTAL_WS_URL = 'wss://pumpportal.fun/api/data';  // Updated WebSocket URL
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
@@ -238,7 +239,7 @@ const fetchSolanaPrice = async (retries = 3): Promise<number> => {
         const isLastAttempt = i === retries - 1;
         const isLastEndpoint = endpoint === API_ENDPOINTS[API_ENDPOINTS.length - 1];
 
-        console.error(`[PumpPortal] Error fetching SOL price from ${endpoint.url} (attempt ${i + 1}/${retries}):`, 
+        console.error(`[PumpPortal] Error fetching SOL price from ${endpoint.url} (attempt ${i + 1}/${retries}):`,
           error.response?.status || error.message);
 
         if (!isLastAttempt || !isLastEndpoint) {
@@ -251,7 +252,7 @@ const fetchSolanaPrice = async (retries = 3): Promise<number> => {
   }
 
   console.warn('[PumpPortal] Using fallback SOL price after all attempts failed');
-  return 100; 
+  return 100;
 };
 
 export function initializePumpPortalWebSocket() {
@@ -299,19 +300,22 @@ export function initializePumpPortalWebSocket() {
 
   try {
     console.log('[PumpPortal] Initializing WebSocket...');
-    ws = new WebSocket('wss://pumpportal.fun/api/data');
+    ws = new WebSocket(PUMP_PORTAL_WS_URL);
 
     ws.onopen = () => {
       console.log('[PumpPortal] WebSocket connected');
       store.setConnected(true);
       reconnectAttempts = 0;
 
+      // Subscribe to data streams after successful connection
       if (ws?.readyState === WebSocket.OPEN) {
+        // Subscribe to new token creation events
         ws.send(JSON.stringify({
           method: "subscribeNewToken",
           keys: []
         }));
 
+        // Subscribe to existing tokens if any
         const existingTokenAddresses = store.tokens.map(t => t.address);
         if (existingTokenAddresses.length > 0) {
           ws.send(JSON.stringify({
@@ -326,12 +330,17 @@ export function initializePumpPortalWebSocket() {
       try {
         const data = JSON.parse(event.data);
 
-        if (data.message?.includes('Successfully subscribed')) return;
+        if (data.message?.includes('Successfully subscribed')) {
+          console.log('[PumpPortal] Subscription confirmed:', data.message);
+          return;
+        }
+
         if (data.errors) {
           console.error('[PumpPortal] Error received:', data.errors);
           return;
         }
 
+        // Handle token creation events
         if (data.txType === 'create' && data.mint) {
           try {
             const token = mapPumpPortalData(data);
@@ -344,6 +353,7 @@ export function initializePumpPortalWebSocket() {
               }]);
             }
 
+            // Subscribe to trades for the new token
             ws?.send(JSON.stringify({
               method: "subscribeTokenTrade",
               keys: [token.address]
@@ -351,23 +361,26 @@ export function initializePumpPortalWebSocket() {
           } catch (err) {
             console.error('[PumpPortal] Failed to process token:', err);
           }
-        } else if (['buy', 'sell'].includes(data.txType) && data.mint) {
+        } 
+        // Handle trade events
+        else if (['buy', 'sell'].includes(data.txType) && data.mint) {
           store.addTradeToHistory(data.mint, data);
         }
       } catch (error) {
-        console.error('[PumpPortal] Failed to parse message:', error);
+        console.error('[PumpPortal] Failed to parse message:', error, event.data);
       }
     };
 
-    ws.onclose = () => {
-      console.log('[PumpPortal] WebSocket disconnected');
+    ws.onclose = (event) => {
+      console.log('[PumpPortal] WebSocket disconnected', event);
       store.setConnected(false);
       cleanup();
 
       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         reconnectAttempts++;
         console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-        reconnectTimeout = setTimeout(initializePumpPortalWebSocket, RECONNECT_DELAY);
+        reconnectTimeout = setTimeout(initializePumpPortalWebSocket, 
+          RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts));
       }
     };
 
@@ -385,7 +398,8 @@ export function initializePumpPortalWebSocket() {
 
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
       reconnectAttempts++;
-      reconnectTimeout = setTimeout(initializePumpPortalWebSocket, RECONNECT_DELAY);
+      reconnectTimeout = setTimeout(initializePumpPortalWebSocket, 
+        RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts));
     }
   }
 }
