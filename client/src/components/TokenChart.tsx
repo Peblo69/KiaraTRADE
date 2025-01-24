@@ -1,19 +1,11 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { ArrowLeft } from "lucide-react";
-import {
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  AreaChart,
-} from 'recharts';
+import { createChart, ColorType } from 'lightweight-charts';
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -21,18 +13,57 @@ interface TokenChartProps {
 }
 
 export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
   const token = usePumpPortalStore(state => 
     state.tokens.find(t => t.address === tokenAddress)
   );
 
-  const chartData = useMemo(() => {
-    if (!token) return [];
-    return token.recentTrades.map(trade => ({
-      time: new Date(trade.timestamp).toLocaleTimeString(),
-      price: trade.price,
-      volume: trade.volume,
-      type: trade.isBuy ? 'buy' : 'sell'
-    })).reverse();
+  useEffect(() => {
+    if (!chartContainerRef.current || !token?.recentTrades) return;
+
+    const candleData = token.recentTrades.map(trade => ({
+      time: trade.timestamp / 1000,
+      open: trade.price,
+      high: trade.price * 1.001, // Simulated for demo
+      low: trade.price * 0.999,  // Simulated for demo
+      close: trade.price,
+    }));
+
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { color: '#000000' },
+        textColor: '#666666',
+      },
+      grid: {
+        vertLines: { color: '#1a1a1a' },
+        horzLines: { color: '#1a1a1a' },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: 500,
+    });
+
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: '#22c55e',
+      downColor: '#ef4444',
+      borderVisible: false,
+      wickUpColor: '#22c55e',
+      wickDownColor: '#ef4444',
+    });
+
+    candlestickSeries.setData(candleData);
+
+    // Set visible range to prevent extreme zooming
+    const timeRange = {
+      from: candleData[0]?.time || (Date.now() / 1000) - 3600,
+      to: candleData[candleData.length - 1]?.time || Date.now() / 1000,
+    };
+
+    chart.timeScale().setVisibleRange(timeRange);
+
+    // Cleanup
+    return () => {
+      chart.remove();
+    };
   }, [token?.recentTrades]);
 
   if (!token) return null;
@@ -85,32 +116,7 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
 
         <div className="grid grid-cols-[1fr,300px] gap-4">
           <div className="h-[500px] bg-[#111] rounded-lg p-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis dataKey="time" stroke="#666" />
-                <YAxis stroke="#666" tickFormatter={(value) => `$${value.toFixed(8)}`} />
-                <Tooltip
-                  contentStyle={{
-                    background: '#000',
-                    border: '1px solid #333',
-                    borderRadius: '4px'
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="price"
-                  stroke="#22c55e"
-                  fill="url(#priceGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <div ref={chartContainerRef} className="h-full w-full" />
           </div>
 
           <div className="space-y-4">
