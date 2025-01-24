@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { useUnifiedTokenStore } from './unified-token-store';
+import WebSocket from 'isomorphic-ws';
 
 // Constants
 const HELIUS_API_KEY = '004f9b13-f526-4952-9998-52f5c7bec6ee';
+const MAX_RETRIES = 5;
+const RETRY_DELAY = 5000;
 const HELIUS_WS_URL = `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -106,10 +109,18 @@ async function processTransaction(signature: string, tokenAddress: string) {
   }
 }
 
+let retryCount = 0;
+let ws: WebSocket | null = null;
+
 export function initializeHeliusWebSocket() {
   if (typeof window === 'undefined') return;
 
-  console.log('[Helius] Initializing WebSocket...');
+  const connect = () => {
+    console.log('[Helius] Initializing WebSocket...');
+    if (ws) {
+      ws.close();
+      ws = null;
+    }
 
   // Add aggressive polling
   setInterval(async () => {
@@ -134,12 +145,20 @@ export function initializeHeliusWebSocket() {
   }, 3000);
 
   try {
-    ws = new WebSocket(HELIUS_WS_URL);
+    ws = new WebSocket(`wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
 
     ws.onopen = () => {
       console.log('[Helius] Connected');
       useHeliusStore.getState().setConnected(true);
-      reconnectAttempts = 0;
+      retryCount = 0;
+      
+      // Subscribe to all existing tokens
+      const store = useUnifiedTokenStore.getState();
+      store.tokens.forEach(token => {
+        if (ws?.readyState === WebSocket.OPEN) {
+          subscribeToTokenUpdates(token.address);
+        }
+      });
     };
 
     ws.onmessage = async (event) => {
