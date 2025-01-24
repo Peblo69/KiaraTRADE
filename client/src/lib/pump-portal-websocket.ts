@@ -7,7 +7,7 @@ const TOTAL_SUPPLY = 1_000_000_000;
 const SOL_PRICE_UPDATE_INTERVAL = 10000; // Update every 10 seconds
 const MAX_TRADES_PER_TOKEN = 100; // Limit stored trades
 const RECONNECT_DELAY = 5000;
-const MAX_RECONNECT_ATTEMPTS = 5;
+const MAX_RECONNECT_ATTEMPTS = 10;
 
 // Types
 export interface TimeWindowStats {
@@ -185,7 +185,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           });
           return;
         } catch (error: any) {
-          console.error(`[PumpPortal] Failed to store trade (attempt ${i + 1}/${retries}):`, 
+          console.error(`[PumpPortal] Failed to store trade (attempt ${i + 1}/${retries}):`,
             error.response?.status || error.message);
           if (i < retries - 1) {
             await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
@@ -239,7 +239,7 @@ const fetchSolanaPrice = async (retries = 3): Promise<number> => {
       try {
         const response = await axiosInstance.get(endpoint.url);
         const price = endpoint.extract(response.data);
-        
+
         if (typeof price === 'number' && price > 0) {
           return price;
         }
@@ -247,8 +247,8 @@ const fetchSolanaPrice = async (retries = 3): Promise<number> => {
       } catch (error: any) {
         const isLastAttempt = i === retries - 1;
         const isLastEndpoint = endpoint === API_ENDPOINTS[API_ENDPOINTS.length - 1];
-        
-        console.error(`[PumpPortal] Error fetching SOL price from ${endpoint.url} (attempt ${i + 1}/${retries}):`, 
+
+        console.error(`[PumpPortal] Error fetching SOL price from ${endpoint.url} (attempt ${i + 1}/${retries}):`,
           error.response?.status || error.message);
 
         if (!isLastAttempt || !isLastEndpoint) {
@@ -259,7 +259,7 @@ const fetchSolanaPrice = async (retries = 3): Promise<number> => {
       }
     }
   }
-  
+
   console.warn('[PumpPortal] Using fallback SOL price after all attempts failed');
   return 100; // Final fallback price
 };
