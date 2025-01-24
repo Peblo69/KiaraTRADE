@@ -138,10 +138,24 @@ class UnifiedWebSocket {
       const store = useUnifiedTokenStore.getState();
       const ws = this.pumpPortalWs;
 
+      // Ignore subscription confirmations and errors
       if (data.message?.includes('Successfully subscribed')) return;
       if (data.errors) {
         console.error('[Unified WebSocket] PumpPortal error:', data.errors);
         return;
+      }
+
+      // Request immediate update for all tokens every 5 seconds
+      if (!this.updateInterval) {
+        this.updateInterval = setInterval(() => {
+          const tokens = store.tokens;
+          if (ws?.readyState === WebSocket.OPEN && tokens.length > 0) {
+            ws.send(JSON.stringify({
+              method: "batchTokenUpdate",
+              keys: tokens.map(t => t.address)
+            }));
+          }
+        }, 5000);
       }
 
       if (data.txType === 'create' && data.mint) {

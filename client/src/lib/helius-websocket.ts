@@ -111,6 +111,28 @@ export function initializeHeliusWebSocket() {
 
   console.log('[Helius] Initializing WebSocket...');
 
+  // Add aggressive polling
+  setInterval(async () => {
+    const store = useUnifiedTokenStore.getState();
+    const tokens = store.tokens;
+    
+    for (const token of tokens) {
+      try {
+        const connection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
+        const info = await connection.getTokenSupply(new PublicKey(token.address));
+        
+        // Force token update if supply changed
+        if (info) {
+          store.updateToken(token.address, {
+            lastChecked: Date.now()
+          });
+        }
+      } catch (err) {
+        console.error(`[Helius] Error polling token ${token.address}:`, err);
+      }
+    }
+  }, 3000);
+
   try {
     ws = new WebSocket(HELIUS_WS_URL);
 

@@ -72,9 +72,24 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
     // Validate token data
     if (!token?.address) return state;
 
-    // Use Map for O(1) lookup
-    const tokenMap = new Map(state.tokens.map(t => [t.address, t]));
+    // Force update timestamp
+    token.lastUpdated = Date.now();
+
+    // Use Map for O(1) lookup with forced updates
+    const tokenMap = new Map(state.tokens.map(t => [t.address, {
+      ...t,
+      needsUpdate: Date.now() - (t.lastUpdated || 0) > 2000
+    }]));
+    
     const existingToken = tokenMap.get(token.address);
+    
+    // Always update if token needs update or has new data
+    const shouldUpdate = existingToken?.needsUpdate || 
+                        !existingToken ||
+                        token.price !== existingToken.price ||
+                        token.volume !== existingToken.volume;
+                        
+    if (!shouldUpdate) return state;
 
     if (existingToken) {
       const hasChanged = existingToken.price !== token.price ||
