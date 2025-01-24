@@ -1,52 +1,24 @@
 // FILE: /src/pages/pumpfun-vision.tsx
 import '@/lib/unified-websocket';
 import { FC, useState, useRef, useEffect, useMemo } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { useUnifiedTokenStore } from "@/lib/unified-token-store";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
+import { useUnifiedTokenStore } from "@/lib/unified-token-store";
 import millify from "millify";
 import { getTokenImage } from "@/lib/token-metadata";
 import { AdvancedChart } from "@/components/AdvancedChart";
 
-interface PumpPortalToken {
-  address: string;
-  name: string;
-  symbol: string;
-  price: number | undefined | null;
-  marketCap: number | undefined | null;
-  liquidity: number | undefined | null;
-  volume: number | undefined | null;
-  volume24h: number;
-  trades24h: number;
-  buys24h: number;
-  sells24h: number;
-  walletCount: number;
-  timeWindows: {
-    '1m': TimeWindow;
-    '5m': TimeWindow;
-    '15m': TimeWindow;
-    '1h': TimeWindow;
-  };
-  recentTrades: Trade[];
-}
-
-interface TimeWindow {
-  openPrice: number;
-  closePrice: number;
-  volume: number;
-}
-
 interface Trade {
+  signature: string;
   timestamp: number;
   price: number;
-  volume: number;
-  isBuy: boolean;
-  wallet: string;
+  priceUSD: number;
+  type: 'buy' | 'sell';
+  buyer: string;
 }
 
-// Helper functions for formatting numbers
 const formatPrice = (price: number | undefined | null): string => {
   if (typeof price !== 'number' || isNaN(price)) return '$0.00';
   return `$${price.toFixed(8)}`;
@@ -65,66 +37,55 @@ function getTimeDiff(timestamp: number): string {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-const TokenRow: FC<{ token: PumpPortalToken; onClick: () => void }> = ({ token, onClick }) => {
-  return (
-    <Card
-      key={token.address}
-      className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
-      onClick={onClick}
-    >
-      <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
-        <div className="flex items-center gap-3">
-          <img
-            src={getTokenImage(token)}
-            alt={`${token.symbol} logo`}
-            className="w-10 h-10 rounded-full object-cover bg-purple-500/20"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150';
-            }}
-          />
-          <div>
-            <div className="font-medium group-hover:text-purple-400 transition-colors">
-              {token.name}
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {token.symbol}
-            </div>
+const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) => (
+  <Card
+    className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
+    onClick={onClick}
+  >
+    <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
+      <div className="flex items-center gap-3">
+        <img
+          src={getTokenImage(token)}
+          alt={`${token.symbol} logo`}
+          className="w-10 h-10 rounded-full object-cover bg-purple-500/20"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150';
+          }}
+        />
+        <div>
+          <div className="font-medium group-hover:text-purple-400 transition-colors">
+            {token.name}
+          </div>
+          <div className="text-sm text-muted-foreground">
+            {token.symbol}
           </div>
         </div>
-        <div className={`text-right font-medium ${
-          token.price > (token.timeWindows['1m']?.openPrice || 0) ? "text-green-500" : 
-          token.price < (token.timeWindows['1m']?.openPrice || 0) ? "text-red-500" : ""
-        }`}>
-          {formatPrice(token.price)}
-        </div>
-        <div className="text-right">
-          {formatMarketCap(token.marketCap)}
-        </div>
-        <div className="text-right">
-          {formatMarketCap(token.liquidity)}
-        </div>
-        <div className="text-right">
-          {formatMarketCap(token.volume)}
-        </div>
       </div>
-    </Card>
-  );
-};
+      <div className={`text-right font-medium ${
+        token.price > (token.previousPrice || 0) ? "text-green-500" : 
+        token.price < (token.previousPrice || 0) ? "text-red-500" : ""
+      }`}>
+        {formatPrice(token.price)}
+      </div>
+      <div className="text-right">
+        {formatMarketCap(token.marketCap)}
+      </div>
+      <div className="text-right">
+        {formatMarketCap(token.liquidity)}
+      </div>
+      <div className="text-right">
+        {formatMarketCap(token.volume)}
+      </div>
+    </div>
+  </Card>
+);
 
-const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, onBack }) => {
+const TokenView: FC<{ token: any; onBack: () => void }> = ({ token, onBack }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
-  const setActiveToken = useUnifiedTokenStore(state => state.setActiveToken);
+  const [timeframe, setTimeframe] = useState<'1s' | '5s' | '30s' | '1m' | '5m' | '15m' | '1h'>('1m');
 
-  useEffect(() => {
-    setActiveToken(token.address);
-    return () => setActiveToken(null);
-  }, [token.address, setActiveToken]);
-  const [timeframe, setTimeframe] = useState<'1s' | '5s' | '30s' | '1m' | '5m' | '15m' | '1h'>('1s');
-
-  const updatedToken = usePumpPortalStore(
-    (state) => state.tokens.find((t) => t.address === token.address)
-  );
+  const updatedToken = useUnifiedTokenStore(state => state.getToken(token.address));
 
   const candleData = useMemo(() => {
     if (!allTrades.length) return [];
@@ -141,19 +102,12 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
 
     const candles: any[] = [];
     let currentCandle: any = null;
-    let lastPrice = allTrades[0]?.price || 0; // Handle potential undefined
+    let lastPrice = allTrades[0]?.price || 0;
 
-    const calculatePriceImpact = (trade: Trade, basePrice: number) => {
-      const impactPercentage = Math.min(trade.volume / 100, 0.01); // Max 1% impact per trade
-      return basePrice * (1 + (trade.isBuy ? impactPercentage : -impactPercentage));
-    };
-
-    // Sort trades chronologically
     const sortedTrades = [...allTrades].sort((a, b) => a.timestamp - b.timestamp);
 
-    sortedTrades.forEach((trade, index) => {
+    sortedTrades.forEach(trade => {
       const candleTimestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
-      const tradePrice = calculatePriceImpact(trade, lastPrice);
 
       if (!currentCandle || currentCandle.timestamp !== candleTimestamp) {
         if (currentCandle) {
@@ -164,26 +118,19 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
           timestamp: candleTimestamp,
           time: Math.floor(candleTimestamp / 1000),
           open: lastPrice,
-          high: tradePrice,
-          low: tradePrice,
-          close: tradePrice,
-          volume: trade.volume,
-          buyVolume: trade.isBuy ? trade.volume : 0,
-          sellVolume: !trade.isBuy ? trade.volume : 0
+          high: trade.price,
+          low: trade.price,
+          close: trade.price,
+          volume: trade.priceUSD,
         };
       } else {
-        currentCandle.high = Math.max(currentCandle.high, tradePrice);
-        currentCandle.low = Math.min(currentCandle.low, tradePrice);
-        currentCandle.close = tradePrice;
-        currentCandle.volume += trade.volume;
-        if (trade.isBuy) {
-          currentCandle.buyVolume += trade.volume;
-        } else {
-          currentCandle.sellVolume += trade.volume;
-        }
+        currentCandle.high = Math.max(currentCandle.high, trade.price);
+        currentCandle.low = Math.min(currentCandle.low, trade.price);
+        currentCandle.close = trade.price;
+        currentCandle.volume += trade.priceUSD;
       }
 
-      lastPrice = tradePrice;
+      lastPrice = trade.price;
     });
 
     if (currentCandle) {
@@ -194,16 +141,15 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
   }, [allTrades, timeframe]);
 
   useEffect(() => {
-    if (updatedToken?.recentTrades) {
+    if (updatedToken?.trades) {
       setAllTrades(prev => {
         const tradeMap = new Map(
-          prev.map(trade => [`${trade.timestamp}-${trade.volume}-${trade.wallet}`, trade])
+          prev.map(trade => [trade.signature, trade])
         );
 
-        updatedToken.recentTrades.forEach(trade => {
-          const key = `${trade.timestamp}-${trade.volume}-${trade.wallet}`;
-          if (!tradeMap.has(key)) {
-            tradeMap.set(key, trade);
+        updatedToken.trades.forEach(trade => {
+          if (!tradeMap.has(trade.signature)) {
+            tradeMap.set(trade.signature, trade);
           }
         });
 
@@ -211,7 +157,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
           .sort((a, b) => b.timestamp - a.timestamp);
       });
     }
-  }, [updatedToken?.recentTrades]);
+  }, [updatedToken?.trades]);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -274,7 +220,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Holders</div>
-                <div className="font-medium">{currentToken.walletCount}</div>
+                <div className="font-medium">{currentToken.holders}</div>
               </div>
             </div>
           </div>
@@ -295,10 +241,10 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
 
               <div className="grid grid-cols-4 gap-4">
                 {[
-                  { label: "1m Volume", value: `$${millify(currentToken.timeWindows?.['1m']?.volume || 0)}` },
-                  { label: "5m Volume", value: `$${millify(currentToken.timeWindows?.['5m']?.volume || 0)}` },
-                  { label: "15m Volume", value: `$${millify(currentToken.timeWindows?.['15m']?.volume || 0)}` },
-                  { label: "1h Volume", value: `$${millify(currentToken.timeWindows?.['1h']?.volume || 0)}` },
+                  { label: "1m Volume", value: formatMarketCap(currentToken.volume) },
+                  { label: "5m Volume", value: formatMarketCap(currentToken.volume24h / 288) },
+                  { label: "15m Volume", value: formatMarketCap(currentToken.volume24h / 96) },
+                  { label: "1h Volume", value: formatMarketCap(currentToken.volume24h / 24) }
                 ].map((stat, idx) => (
                   <Card key={idx} className="p-4 bg-[#111111] border-purple-500/20">
                     <div className="text-sm text-muted-foreground">{stat.label}</div>
@@ -321,29 +267,29 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
                     <Card
                       key={`${trade.timestamp}-${idx}`}
                       className={`p-3 flex items-center justify-between ${
-                        trade.isBuy
+                        trade.type === 'buy'
                           ? "bg-green-500/5 border-green-500/20"
                           : "bg-red-500/5 border-red-500/20"
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        {trade.isBuy ? (
+                        {trade.type === 'buy' ? (
                           <TrendingUp className="h-4 w-4 text-green-500" />
                         ) : (
                           <TrendingDown className="h-4 w-4 text-red-500" />
                         )}
                         <div>
                           <div className="text-sm font-medium">
-                            {trade.isBuy ? "Buy" : "Sell"}
+                            {trade.type === 'buy' ? "Buy" : "Sell"}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {trade.wallet.slice(0, 4)}...{trade.wallet.slice(-4)}
+                            {trade.buyer.slice(0, 4)}...{trade.buyer.slice(-4)}
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="text-sm font-medium">
-                          ${trade.volume.toFixed(2)}
+                          ${trade.priceUSD.toFixed(2)}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {getTimeDiff(trade.timestamp)}
@@ -362,9 +308,9 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
 };
 
 const PumpFunVision: FC = () => {
-  const [selectedToken, setSelectedToken] = useState<PumpPortalToken | null>(null);
-  const tokens = usePumpPortalStore((state) => state.tokens);
-  const isConnected = usePumpPortalStore((state) => state.isConnected);
+  const [selectedToken, setSelectedToken] = useState<any | null>(null);
+  const tokens = useUnifiedTokenStore((state) => state.tokens);
+  const isConnected = useUnifiedTokenStore((state) => state.isConnected);
 
   return (
     <>
