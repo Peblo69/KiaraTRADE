@@ -1,0 +1,44 @@
+[Helius] Attempting reconnect 1/5
+[Helius] WebSocket disconnected
+[Helius] Attempting reconnect 2/5
+[Helius] WebSocket connected
+[PumpPortal] Raw data received: 
+Object {signature: "5FgYbKTNBQ9Cf7bHNJPqETZ2GwxvtZSwn7dUdGi4eKg6nUyNu5NfUhyP8hjLKkwQ9dKoJ6ZK761EtUmF5QhxhRvq", mint: "3hmn51t37F9LLggAPz2u3FscU8dLC2RRmNxbwF2Spump", traderPublicKey: "HmH5xgqN4poixmrYV9pZCmxwJsq2GuJEjh6YK2jChxB7", txType: "create", initialBuy: 67062499.999999, …}
+[PumpPortal] Mapped token: 
+Object {symbol: "Chromosome", price: 0.000008449033861447639, marketCap: 8449.033861447639, liquidity: 8499.199999999992}
+[Token Metadata] Preloading images for 1 tokens
+[Token Metadata] Resolved image URL for Chromosome : https://via.placeholder.com/150
+[Token Metadata] Failed to load image for token: Chromosome 
+Event {isTrusted: true}
+
+[PumpPortal] Raw data received: 
+Object {signature: "2MHC73rmQCCNSSLcz8v7ACoG4gZnYRkPMHs1aaP3AGNcHBUo9dQBD6FvhJsTFQ5NF9NMXEiaWswWCDN35QuGckrx", mint: "Cr2SvJ8j22bb98AwmJKQR1iDqG7syrEzbhVS3QBYAFVJ", traderPublicKey: "Ebsh1PiUQd3gtbEcEWV2DihtSUkZZmvnLqcXUxQj1Nha", txType: "create", initialBuy: 51095238.095238, …}
+[PumpPortal] Mapped token: 
+Object {symbol: "SOUL", price: 0.000008187064305684993, marketCap: 8187.064305684994, liquidity: 8366.4}
+[Token Metadata] Preloading images for 1 tokens
+[Token Metadata] Resolved image URL for SOUL : https://via.placeholder.com/150
+[Token Metadata] Failed to load image for token: SOUL 
+Event {isTrusted: true}
+
+[PumpPortal] Raw data received: 
+Object {signature: "5yZRHQ9fhCtKoekQzb1GVPS71CQXmXXF7GewnJFeZKc1DRmGgxmCEmMxf52ERd3iWGXXzUuDdAphAeZjYZ7SRFiy", mint: "J6pcpzXimsvWFNzq9jtms1b5K5LwcfNuU7J4whyX9AN4", traderPublicKey: "CDx9aEcikYVG2NZQzgvfrhwxNioJWBMc1yp919SbRuVh", txType: "create", initialBuy: 117807121.661721, …}
+[PumpPortal] Mapped token: 
+Object {symbol: "SEED", price: 0.000009370589127058093, marketCap: 9370.589127058092, liquidity: 8950.72}
+[Token Metadata] Preloading images for 1 tokens
+[Token Metadata] Resolved image URL for SEED : https://via.placeholder.com/150
+[Token Metadata] Failed to load image for token: SEED 
+Event {isTrusted: true}
+
+[Helius] Initializing WebSocket...
+[Helius] WebSocket disconnected
+[Helius] Attempting reconnect 1/5
+[Helius] Initializing WebSocket...
+[Helius] WebSocket error: 
+Event {isTrusted: true}
+isTrusted: true
+get isTrusted: ƒ get isTrusted()
+[[Prototype]]: Event
+
+[Helius] WebSocket disconnected
+[Helius] Attempting reconnect 2/5
+[Helius] WebSocket connected
