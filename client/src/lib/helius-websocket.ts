@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { useUnifiedTokenStore } from './unified-token-store';
@@ -78,10 +77,10 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
   subscribeToToken: (tokenAddress) => {
     const state = get();
     if (state.subscribedTokens.has(tokenAddress)) return;
-    
+
     state.pendingSubscriptions.add(tokenAddress);
     set({ pendingSubscriptions: new Set(state.pendingSubscriptions) });
-    
+
     if (ws?.readyState === WebSocket.OPEN) {
       processPendingSubscriptions();
     }
@@ -98,10 +97,10 @@ let connectionTimeout: NodeJS.Timeout | null = null;
 const processPendingSubscriptions = () => {
   const store = useHeliusStore.getState();
   const pendingArray = Array.from(store.pendingSubscriptions);
-  
+
   for (let i = 0; i < pendingArray.length; i += SUBSCRIPTION_BATCH_SIZE) {
     const batch = pendingArray.slice(i, i + SUBSCRIPTION_BATCH_SIZE);
-    
+
     batch.forEach(tokenAddress => {
       if (ws?.readyState === WebSocket.OPEN) {
         try {
@@ -130,7 +129,7 @@ const processPendingSubscriptions = () => {
       }
     });
   }
-  
+
   useHeliusStore.setState({
     subscribedTokens: new Set(store.subscribedTokens),
     pendingSubscriptions: new Set(store.pendingSubscriptions)
@@ -231,8 +230,18 @@ export function initializeHeliusWebSocket() {
     };
 
     ws.onerror = (error) => {
-      console.error('[Helius] WebSocket error:', error);
+      console.error('[Helius] WebSocket error:', error.type || 'Unknown error');
       store.setConnectionStatus('error');
+      ws?.close();
+
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        const delay = Math.min(RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts - 1), 30000);
+        console.log(`[Helius] Scheduling reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
+        reconnectTimeout = setTimeout(initializeHeliusWebSocket, delay);
+      } else {
+        console.error('[Helius] Max reconnect attempts reached');
+      }
     };
 
   } catch (error) {
@@ -251,7 +260,7 @@ export function initializeHeliusWebSocket() {
 async function handleWebSocketMessage(event: MessageEvent) {
   try {
     const data = JSON.parse(event.data);
-    
+
     if (data.method === 'accountNotification') {
       await handleAccountUpdate(data.params.result);
     }
