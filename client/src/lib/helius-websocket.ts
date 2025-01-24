@@ -70,6 +70,56 @@ function subscribeToTokenUpdates(tokenAddress: string) {
   }
 }
 
+export function initializeHeliusWebSocket() {
+  if (typeof window === 'undefined') return;
+
+  console.log('[Helius] Initializing WebSocket...');
+
+  try {
+    ws = new WebSocket(HELIUS_WS_URL);
+
+    ws.onopen = () => {
+      console.log('[Helius] Connected');
+      useHeliusStore.getState().setConnected(true);
+      reconnectAttempts = 0;
+    };
+
+    ws.onclose = () => {
+      console.log('[Helius] WebSocket disconnected');
+      useHeliusStore.getState().setConnected(false);
+
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        setTimeout(initializeHeliusWebSocket, RECONNECT_DELAY);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('[Helius] WebSocket error:', error);
+    };
+
+    ws.onmessage = async (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.method === 'accountNotification') {
+          const signature = data.params.result.signature;
+          const tokenAddress = data.params.result.accountId;
+          await processTransaction(signature, tokenAddress);
+        }
+      } catch (error) {
+        console.error('[Helius] Message processing error:', error);
+      }
+    };
+
+  } catch (error) {
+    console.error('[Helius] Initialization error:', error);
+    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      reconnectAttempts++;
+      setTimeout(initializeHeliusWebSocket, RECONNECT_DELAY);
+    }
+  }
+}
+
 async function processTransaction(signature: string, tokenAddress: string) {
   try {
     const connection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
@@ -103,78 +153,6 @@ async function processTransaction(signature: string, tokenAddress: string) {
     });
   } catch (error) {
     console.error('[Helius] Process transaction error:', error);
-  }
-}
-
-export function initializeHeliusWebSocket() {
-  if (typeof window === 'undefined') return;
-
-  console.log('[Helius] Initializing WebSocket...');
-
-  // Add aggressive polling
-  setInterval(async () => {
-    const store = useUnifiedTokenStore.getState();
-    const tokens = store.tokens;
-    
-    for (const token of tokens) {
-      try {
-        const connection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
-        const info = await connection.getTokenSupply(new PublicKey(token.address));
-        
-        // Force token update if supply changed
-        if (info) {
-          store.updateToken(token.address, {
-            lastChecked: Date.now()
-          });
-        }
-      } catch (err) {
-        console.error(`[Helius] Error polling token ${token.address}:`, err);
-      }
-    }
-  }, 3000);
-
-  try {
-    ws = new WebSocket(HELIUS_WS_URL);
-
-    ws.onopen = () => {
-      console.log('[Helius] Connected');
-      useHeliusStore.getState().setConnected(true);
-      reconnectAttempts = 0;
-    };
-
-    ws.onmessage = async (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.method === 'accountNotification') {
-          const signature = data.params.result.signature;
-          const tokenAddress = data.params.result.accountId;
-          await processTransaction(signature, tokenAddress);
-        }
-      } catch (error) {
-        console.error('[Helius] Message processing error:', error);
-      }
-    };
-
-    ws.onclose = () => {
-      console.log('[Helius] Disconnected');
-      useHeliusStore.getState().setConnected(false);
-
-      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-        reconnectAttempts++;
-        setTimeout(initializeHeliusWebSocket, RECONNECT_DELAY);
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error('[Helius] WebSocket error:', error);
-    };
-
-  } catch (error) {
-    console.error('[Helius] Initialization error:', error);
-    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      reconnectAttempts++;
-      setTimeout(initializeHeliusWebSocket, RECONNECT_DELAY);
-    }
   }
 }
 
