@@ -213,10 +213,26 @@ export function initializeHeliusWebSocket() {
     console.log('[Helius] Initializing WebSocket...');
     ws = new WebSocket(`wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
 
+    // Add connection timeout
+    const connectionTimeout = setTimeout(() => {
+      console.error('[Helius] Connection timeout');
+      ws?.close();
+    }, 10000);
+
     ws.onopen = () => {
+      clearTimeout(connectionTimeout);
       console.log('[Helius] WebSocket connected');
       store.setConnected(true);
       reconnectAttempts = 0;
+
+      // Send ping every 30 seconds to keep connection alive
+      const pingInterval = setInterval(() => {
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'ping' }));
+        } else {
+          clearInterval(pingInterval);
+        }
+      }, 30000);
 
       // Resubscribe to existing tokens
       const { subscribedTokens } = store;
@@ -239,7 +255,12 @@ export function initializeHeliusWebSocket() {
     };
 
     ws.onerror = (error) => {
-      console.error('[Helius] WebSocket error:', error);
+      const errorDetails = {
+        readyState: ws?.readyState,
+        timestamp: new Date().toISOString(),
+        reconnectAttempts
+      };
+      console.error('[Helius] WebSocket error:', error, errorDetails);
       store.setConnected(false);
     };
 
