@@ -1,4 +1,3 @@
-// FILE: /src/pages/pumpfun-vision.tsx
 import '@/lib/unified-websocket';
 import { FC, useState, useRef, useEffect, useMemo } from "react";
 import { Card } from "@/components/ui/card";

@@ -22,10 +22,10 @@ interface TokenMetadata {
 }
 
 interface Trade {
-  signature: string;
   timestamp: number;
   price: number;
   priceUSD: number;
+  signature: string;
 }
 
 interface TokenData {
@@ -90,9 +90,9 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
             ...token,
             lastUpdated: Date.now(),
             trades: token.trades?.length ? 
-              [...new Map([...token.trades, ...existingToken.trades]
-                .map(trade => [trade.signature, trade]))
-                .values()]
+              [...new Set([...token.trades, ...existingToken.trades]
+                .map(trade => JSON.stringify(trade)))]
+                .map(str => JSON.parse(str))
                 .sort((a, b) => b.timestamp - a.timestamp)
                 .slice(0, 1000) : 
               existingToken.trades
@@ -160,7 +160,7 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()(
     }),
     {
       name: 'unified-token-store',
-      getStorage: () => localStorage,
+      storage: localStorage,
       version: 1,
     }
   )

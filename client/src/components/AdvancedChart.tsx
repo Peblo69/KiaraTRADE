@@ -329,7 +329,6 @@ export const AdvancedChart: FC<ChartProps> = ({
             </button>
           ))}
         </div>
-
       </div>
     </Card>
   );

@@ -1,0 +1,84 @@
+// client/src/components/AdvancedChart.tsx
+
+import React from 'react';
+import { createChart, IChartApi, ISeriesApi, BarData } from 'lightweight-charts';
+
+interface AdvancedChartProps {
+  data: BarData[];
+  timeframe: string;
+  onTimeframeChange: (tf: string) => void;
+  symbol: string;
+  className?: string;
+}
+
+export const AdvancedChart: React.FC<AdvancedChartProps> = ({ data, timeframe, onTimeframeChange, symbol, className }) => {
+  const chartContainerRef = React.useRef<HTMLDivElement>(null);
+  const chartRef = React.useRef<IChartApi | null>(null);
+  const candleSeriesRef = React.useRef<ISeriesApi<'Candlestick'> | null>(null);
+
+  React.useEffect(() => {
+    if (chartContainerRef.current) {
+      chartRef.current = createChart(chartContainerRef.current, {
+        width: chartContainerRef.current.clientWidth,
+        height: 300,
+        layout: {
+          backgroundColor: '#0A0A0A',
+          textColor: '#FFFFFF',
+        },
+        grid: {
+          vertLines: {
+            color: '#333',
+          },
+          horzLines: {
+            color: '#333',
+          },
+        },
+        priceScale: {
+          borderColor: '#555',
+        },
+        timeScale: {
+          borderColor: '#555',
+          timeVisible: true,
+          secondsVisible: false,
+        },
+      });
+
+      candleSeriesRef.current = chartRef.current.addCandlestickSeries({
+        upColor: '#4CAF50',
+        downColor: '#F44336',
+        borderDownColor: '#F44336',
+        borderUpColor: '#4CAF50',
+        wickDownColor: '#F44336',
+        wickUpColor: '#4CAF50',
+      });
+
+      candleSeriesRef.current.setData(data);
+
+      // Handle resize
+      const handleResize = () => {
+        if (chartRef.current && chartContainerRef.current) {
+          chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+          chartRef.current.resize(chartContainerRef.current.clientWidth, 300);
+        }
+      };
+
+      window.addEventListener('resize', handleResize);
+
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        chartRef.current?.remove();
+      };
+    }
+  }, []);
+
+  React.useEffect(() => {
+    candleSeriesRef.current?.setData(data);
+  }, [data]);
+
+  return (
+    <div className={`relative ${className}`}>
+      <div ref={chartContainerRef} className="w-full h-full" />
+      {/* Add timeframe selectors if needed */}
+    </div>
+  );
+};
