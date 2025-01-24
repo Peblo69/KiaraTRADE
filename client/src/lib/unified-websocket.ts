@@ -1,4 +1,3 @@
-
 import { useUnifiedTokenStore } from './unified-token-store';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { preloadTokenImages } from './token-metadata';
@@ -108,7 +107,7 @@ class UnifiedWebSocket {
 
     const store = useUnifiedTokenStore.getState();
     const existingTokens = store.tokens.map(t => t.address);
-    
+
     if (existingTokens.length > 0) {
       this.pumpPortalWs.send(JSON.stringify({
         method: "subscribeTokenTrade",
@@ -136,6 +135,8 @@ class UnifiedWebSocket {
   private handlePumpPortalMessage(event: MessageEvent) {
     try {
       const data = JSON.parse(event.data);
+      const store = useUnifiedTokenStore.getState();
+      const ws = this.pumpPortalWs;
 
       if (data.message?.includes('Successfully subscribed')) return;
       if (data.errors) {
@@ -144,18 +145,58 @@ class UnifiedWebSocket {
       }
 
       if (data.txType === 'create' && data.mint) {
-        const token = mapPumpPortalData(data);
-        useUnifiedTokenStore.getState().addToken(token);
+        try {
+          const token = await mapPumpPortalData(data);
+          store.addToken(token);
 
-        if (token.imageLink) {
-          preloadTokenImages([{
-            imageLink: token.imageLink,
-            symbol: token.symbol
-          }]);
+          if (token.imageLink) {
+            preloadTokenImages([{
+              imageLink: token.imageLink,
+              symbol: token.symbol
+            }]);
+          }
+
+          // Subscribe to both trade and account updates
+          ws?.send(JSON.stringify({
+            method: "subscribeTokenTrade",
+            keys: [token.address]
+          }));
+
+          ws?.send(JSON.stringify({
+            method: "subscribeAccountUpdates",
+            keys: [token.address]
+          }));
+        } catch (err) {
+          console.error('[PumpPortal] Failed to process token:', err);
         }
+      } else if (['buy', 'sell'].includes(data.txType) && data.mint) {
+        // Add timestamp if not present
+        const trade = {
+          ...data,
+          timestamp: data.timestamp || Date.now()
+        };
 
-        this.subscribeToPumpPortal();
+        store.addTradeToHistory(data.mint, trade);
+
+        // Request a full update for this token
+        ws?.send(JSON.stringify({
+          method: "requestTokenUpdate",
+          keys: [data.mint]
+        }));
       }
+
+      // Implement periodic token updates
+      setInterval(() => {
+        const tokens = store.getState().tokens;
+        tokens.forEach(token => {
+          if (ws?.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              method: "requestTokenUpdate",
+              keys: [token.address]
+            }));
+          }
+        });
+      }, 15000); // Poll every 15 seconds
     } catch (error) {
       console.error('[Unified WebSocket] PumpPortal message error:', error);
     }
@@ -221,7 +262,7 @@ class UnifiedWebSocket {
     try {
       const connection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
       const [status] = await connection.getSignatureStatuses([data.signature]);
-      
+
       if (!status?.confirmationStatus) return;
 
       const tx = await connection.getTransaction(data.signature, {
@@ -231,7 +272,7 @@ class UnifiedWebSocket {
       if (!tx?.meta) return;
 
       const accountKeys = tx.transaction.message.accountKeys;
-      const isTokenTx = accountKeys.some(key => 
+      const isTokenTx = accountKeys.some(key =>
         key.equals(new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'))
       );
 

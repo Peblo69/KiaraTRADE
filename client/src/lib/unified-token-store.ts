@@ -128,15 +128,27 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
 
   addTransaction: (tokenAddress, transaction) => set(state => {
     const existingTransactions = state.transactions[tokenAddress] || [];
-    // Skip if transaction already exists
-    if (existingTransactions.some(tx => tx.signature === transaction.signature)) {
-      return state;
-    }
-    const maxTrades = 100; // Increased trade history limit
+    
+    // Enhanced duplicate check
+    const isDuplicate = existingTransactions.some(tx => 
+      tx.signature === transaction.signature ||
+      (Math.abs(tx.timestamp - transaction.timestamp) < 1000 && 
+       tx.amount === transaction.amount && 
+       tx.type === transaction.type)
+    );
+
+    if (isDuplicate) return state;
+
+    // Keep more history and sort by timestamp
+    const maxTrades = 500;
+    const updatedTrades = [transaction, ...existingTransactions]
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, maxTrades);
+
     return {
       transactions: {
         ...state.transactions,
-        [tokenAddress]: [transaction, ...existingTransactions].slice(0, maxTrades)
+        [tokenAddress]: updatedTrades
       }
     };
   }),
