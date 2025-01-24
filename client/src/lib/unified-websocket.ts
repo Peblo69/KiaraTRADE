@@ -116,7 +116,7 @@ class UnifiedWebSocket {
     }
   }
 
-  private handlePumpPortalMessage(event: MessageEvent) {
+  private async handlePumpPortalMessage(event: MessageEvent) {
     try {
       const data = JSON.parse(event.data);
       const store = useUnifiedTokenStore.getState();
