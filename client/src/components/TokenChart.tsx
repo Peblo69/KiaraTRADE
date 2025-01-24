@@ -306,15 +306,15 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
                 <div 
                   key={trade.signature || idx}
                   className={`grid grid-cols-4 text-sm p-2 rounded ${
-                    trade.isBuy ? 'bg-green-500/10' : 'bg-red-500/10'
+                    trade.type === 'buy' ? 'bg-green-500/10' : 'bg-red-500/10'
                   }`}
                 >
                   <div>{new Date(trade.timestamp).toLocaleTimeString()}</div>
-                  <div className={trade.isBuy ? 'text-green-400' : 'text-red-400'}>
-                    {trade.isBuy ? 'Buy' : 'Sell'}
+                  <div className={trade.type === 'buy' ? 'text-green-400' : 'text-red-400'}>
+                    {trade.type === 'buy' ? 'Buy' : 'Sell'}
                   </div>
                   <div>{formatPrice(trade.price)}</div>
-                  <div>{trade.volume?.toFixed(4)}</div>
+                  <div>{trade.amount?.toFixed(4)}</div>
                 </div>
               ))}
             </div>
