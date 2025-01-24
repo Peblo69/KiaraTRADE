@@ -61,7 +61,7 @@ interface UnifiedTokenState {
   getToken: (address: string) => TokenData | undefined;
   getTransactions: (address: string) => Transaction[];
   activeToken: string | null;
-  setActiveToken: (address: string) => void;
+  setActiveToken: (address: string | null) => void;
 }
 
 export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
@@ -185,5 +185,5 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
   getToken: (address) => get().tokens.find(token => token.address === address),
   getTransactions: (address) => get().transactions[address] || [],
   activeToken: null,
-  setActiveToken: (address) => set({ activeToken: address })
+  setActiveToken: (address: string | null) => set({ activeToken: address }),
 }));

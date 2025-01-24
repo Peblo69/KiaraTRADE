@@ -121,7 +121,7 @@ const TokenView: FC<{ token: PumpPortalToken; onBack: () => void }> = ({ token, 
   useEffect(() => {
     setActiveToken(token.address);
     return () => setActiveToken(null);
-  }, [token.address]);
+  }, [token.address, setActiveToken]);
   const [timeframe, setTimeframe] = useState<'1s' | '5s' | '30s' | '1m' | '5m' | '15m' | '1h'>('1s');
 
   const updatedToken = usePumpPortalStore(
