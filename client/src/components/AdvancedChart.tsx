@@ -1,49 +1,25 @@
-
-import React, { useEffect, useRef, memo } from 'react';
-import { createChart, IChartApi, CandlestickData } from 'lightweight-charts';
+import React from 'react';
+import { createChart, IChartApi, ColorType } from 'lightweight-charts';
 
 interface Props {
-  data: CandlestickData[];
-  timeframe?: string;
-  onTimeframeChange?: (timeframe: string) => void;
-  symbol?: string;
   className?: string;
 }
 
-export const AdvancedChart: React.FC<Props> = memo(({
-  data,
-  timeframe = '1m',
-  onTimeframeChange,
-  symbol = '',
-  className = ''
-}) => {
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
+const AdvancedChart: React.FC<Props> = ({ className = '' }) => {
+  const chartContainerRef = React.useRef<HTMLDivElement>(null);
+  const chartRef = React.useRef<IChartApi | null>(null);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (chartContainerRef.current) {
       const chart = createChart(chartContainerRef.current, {
         layout: {
-          background: { type: 'solid', color: 'transparent' },
+          background: { color: '#000000' as ColorType },
           textColor: '#DDD',
-        },
-        grid: {
-          vertLines: { color: '#2B2B43' },
-          horzLines: { color: '#2B2B43' },
         },
         width: chartContainerRef.current.clientWidth,
         height: 400,
       });
 
-      const candlestickSeries = chart.addCandlestickSeries({
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-        borderVisible: false,
-        wickUpColor: '#26a69a',
-        wickDownColor: '#ef5350',
-      });
-
-      candlestickSeries.setData(data);
       chartRef.current = chart;
 
       const handleResize = () => {
@@ -65,36 +41,12 @@ export const AdvancedChart: React.FC<Props> = memo(({
     }
   }, []);
 
-  useEffect(() => {
-    if (chartRef.current && data.length > 0) {
-      const candlestickSeries = chartRef.current.addCandlestickSeries();
-      candlestickSeries.setData(data);
-    }
-  }, [data]);
-
   return (
     <div className={className}>
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold">{symbol} Price Chart</h3>
-        <div className="flex gap-2">
-          {['1m', '5m', '15m', '1h'].map((tf) => (
-            <button
-              key={tf}
-              onClick={() => onTimeframeChange?.(tf)}
-              className={`px-2 py-1 rounded ${
-                timeframe === tf
-                  ? 'bg-purple-500 text-white'
-                  : 'bg-purple-500/10 hover:bg-purple-500/20'
-              }`}
-            >
-              {tf}
-            </button>
-          ))}
-        </div>
-      </div>
       <div ref={chartContainerRef} />
     </div>
   );
-});
+};
 
+export { AdvancedChart };
 export default AdvancedChart;
