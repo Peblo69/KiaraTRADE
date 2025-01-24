@@ -1,11 +1,15 @@
 import { create } from "zustand";
-import { useHeliusStore } from './helius-websocket';
 import { preloadTokenImages } from './token-metadata';
 import axios from 'axios';
 
-// -----------------------------------
-// TYPES
-// -----------------------------------
+// Constants
+const TOTAL_SUPPLY = 1_000_000_000;
+const SOL_PRICE_UPDATE_INTERVAL = 30000;
+const MAX_TRADES_PER_TOKEN = 100; // Limit stored trades
+const RECONNECT_DELAY = 5000;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+// Types
 export interface TimeWindowStats {
   startTime: number;
   endTime: number;
@@ -37,49 +41,26 @@ export interface PumpPortalToken {
   walletCount: number;
   timestamp: number;
   timeWindows: {
-    '1s': TimeWindowStats;
-    '5s': TimeWindowStats;
-    '15s': TimeWindowStats;
-    '30s': TimeWindowStats;
-    '1m': TimeWindowStats;
-    '5m': TimeWindowStats;
-    '15m': TimeWindowStats;
-    '30m': TimeWindowStats;
-    '1h': TimeWindowStats;
+    [key: string]: TimeWindowStats;
   };
-  priceHistory: {
-    [timeframe: string]: {
-      timestamp: number;
-      price: number;
-      volume: number;
-    }[];
-  };
-  recentTrades: {
-    timestamp: number;
-    price: number;
-    volume: number;
-    isBuy: boolean;
-    wallet: string;
-  }[];
-  status: {
-    mad: boolean;
-    fad: boolean;
-    lb: boolean;
-    tri: boolean;
-  };
+  recentTrades: TokenTrade[];
+  status: TokenStatus;
   imageLink?: string;
 }
 
-export interface PaginatedTradeHistory {
-  trades: {
-    timestamp: number;
-    price: number;
-    volume: number;
-    isBuy: boolean;
-    wallet: string;
-  }[];
-  hasMore: boolean;
-  nextCursor?: string;
+interface TokenStatus {
+  mad: boolean;
+  fad: boolean;
+  lb: boolean;
+  tri: boolean;
+}
+
+interface TokenTrade {
+  timestamp: number;
+  price: number;
+  volume: number;
+  isBuy: boolean;
+  wallet: string;
 }
 
 interface PumpPortalStore {
@@ -93,243 +74,275 @@ interface PumpPortalStore {
   setSolPrice: (price: number) => void;
 }
 
-// -----------------------------------
-// CONSTANTS
-// -----------------------------------
-const TOTAL_SUPPLY = 1_000_000_000;
-const SOL_PRICE_UPDATE_INTERVAL = 30000; // 30 seconds
-const COINGECKO_API_URL = 'https://api.coingecko.com/api/v3';
+// Helper functions
+const createEmptyTimeWindow = (startTime: number): TimeWindowStats => ({
+  startTime,
+  endTime: startTime + 1000,
+  openPrice: 0,
+  closePrice: 0,
+  highPrice: 0,
+  lowPrice: Infinity,
+  volume: 0,
+  trades: 0,
+  buys: 0,
+  sells: 0,
+});
 
-let solPriceInterval: NodeJS.Timeout | null = null;
-
-async function fetchSolanaPrice(): Promise<number> {
-  try {
-    const response = await axios.get(`${COINGECKO_API_URL}/simple/price`, {
-      params: {
-        ids: 'solana',
-        vs_currencies: 'usd'
-      }
-    });
-
-    const solPrice = response.data?.solana?.usd;
-    if (!solPrice) {
-      throw new Error('Invalid price response');
-    }
-    console.log('[PumpPortal] Updated SOL price:', solPrice);
-    return solPrice;
-  } catch (error) {
-    console.error('[PumpPortal] Error fetching SOL price:', error);
-    const currentPrice = usePumpPortalStore.getState().solPrice;
-    if (currentPrice > 0) {
-      console.log('[PumpPortal] Using cached SOL price:', currentPrice);
-      return currentPrice;
-    }
-    throw error;
-  }
-}
-
-function createEmptyTimeWindow(startTime: number): TimeWindowStats {
-  return {
-    startTime,
-    endTime: startTime + 1000,
-    openPrice: 0,
-    closePrice: 0,
-    highPrice: 0,
-    lowPrice: Infinity,
-    volume: 0,
-    trades: 0,
-    buys: 0,
-    sells: 0,
-  };
-}
-
-function createEmptyTimeWindows(timestamp: number) {
-  const windows: any = {};
-  Object.keys(TIME_WINDOWS).forEach(window => {
-    windows[window] = createEmptyTimeWindow(timestamp);
-  });
-  return windows;
-}
-
-function calculatePriceImpact(liquidity: number, tradeVolume: number, isBuy: boolean): number {
-  const impact = (tradeVolume / liquidity) * 0.005; // 0.5% max impact per trade
+const calculatePriceImpact = (liquidity: number, tradeVolume: number, isBuy: boolean): number => {
+  const impact = Math.min((tradeVolume / liquidity) * 0.005, 0.01); // Max 1% impact
   return isBuy ? (1 + impact) : (1 - impact);
-}
+};
 
-// -----------------------------------
-// STORE
-// -----------------------------------
+// Store implementation
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
   isConnected: false,
   solPrice: 0,
-  addToken: (token) =>
+  addToken: (token) => set((state) => ({
+    tokens: [token, ...state.tokens].slice(0, 50), // Keep max 50 tokens
+  })),
+  updateToken: (address, updates) => set((state) => ({
+    tokens: state.tokens.map((token) =>
+      token.address === address ? { ...token, ...updates } : token
+    ),
+  })),
+  addTradeToHistory: (address, trade) => {
+    const state = get();
+    const token = state.tokens.find(t => t.address === address);
+    if (!token || !state.solPrice) return;
+
+    const now = Date.now();
+    const tradeVolume = Number(trade.solAmount || 0) * state.solPrice;
+    const isBuy = trade.txType === 'buy';
+
+    // Calculate new price with impact
+    const priceImpact = calculatePriceImpact(token.liquidity || 1, tradeVolume, isBuy);
+    const newPrice = (token.price || 0) * priceImpact;
+
+    // Create new trade record
+    const newTrade = {
+      timestamp: now,
+      price: newPrice,
+      volume: tradeVolume,
+      isBuy,
+      wallet: trade.traderPublicKey
+    };
+
+    // Keep recent trades limited
+    const recentTrades = [newTrade, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN);
+
+    // Calculate 24h stats
+    const last24h = now - 24 * 60 * 60 * 1000;
+    const trades24h = recentTrades.filter(t => t.timestamp > last24h);
+    const volume24h = trades24h.reduce((sum, t) => sum + t.volume, 0);
+    const buys24h = trades24h.filter(t => t.isBuy).length;
+    const sells24h = trades24h.length - buys24h;
+
+    // Calculate market cap and liquidity
+    const newMarketCap = newPrice * TOTAL_SUPPLY;
+    const newLiquidity = token.liquidity + (isBuy ? tradeVolume : -tradeVolume);
+    const liquidityChange = ((newLiquidity - token.liquidity) / token.liquidity) * 100;
+
+    // Update token state
     set((state) => ({
-      tokens: [token, ...state.tokens].slice(0, 10),
-    })),
-  updateToken: (address, updates) =>
-    set((state) => ({
-      tokens: state.tokens.map((token) =>
-        token.address === address ? { ...token, ...updates } : token
-      ),
-    })),
-  addTradeToHistory: async (address, trade) =>
-    set(async (state) => {
-      const token = state.tokens.find(t => t.address === address);
-      if (!token) {
-        console.warn('[PumpPortal] No token found for trade:', address);
-        return state;
-      }
+      tokens: state.tokens.map(t =>
+        t.address === address ? {
+          ...t,
+          price: newPrice,
+          marketCap: newMarketCap,
+          liquidity: newLiquidity,
+          liquidityChange,
+          volume: t.volume + tradeVolume,
+          volume24h,
+          trades: t.trades + 1,
+          trades24h: trades24h.length,
+          buys24h,
+          sells24h,
+          recentTrades,
+          walletCount: new Set(recentTrades.map(trade => trade.wallet)).size
+        } : t
+      )
+    }));
 
-      const now = Date.now();
-      const solPrice = state.solPrice;
-      if (!solPrice) {
-        console.warn('[PumpPortal] No SOL price available for trade calculation');
-        return state;
-      }
-
-      console.log('[PumpPortal] Processing trade:', {
-        type: trade.txType,
-        mint: trade.mint,
-        solAmount: trade.solAmount,
-        trader: trade.traderPublicKey,
-        timestamp: new Date().toISOString()
-      });
-
-      const tradeVolume = Number(trade.solAmount || 0) * solPrice;
-      const isBuy = trade.txType === 'buy';
-
-      // Calculate new price with impact
-      const priceImpact = calculatePriceImpact(token.liquidity || 1, tradeVolume, isBuy);
-      const newPrice = (token.price || 0) * priceImpact;
-
-      // Update time windows
-      const updatedWindows = { ...token.timeWindows };
-      Object.entries(TIME_WINDOWS).forEach(([window, duration]) => {
-        const currentWindow = updatedWindows[window as keyof typeof TIME_WINDOWS];
-        const windowStart = Math.floor(now / duration) * duration;
-
-        // Reset window if expired or significant price change
-        const priceChange = Math.abs((newPrice - currentWindow.closePrice) / currentWindow.closePrice);
-        const shouldResetWindow = now > currentWindow.endTime || priceChange > 0.05;
-
-        if (shouldResetWindow) {
-          updatedWindows[window as keyof typeof TIME_WINDOWS] = {
-            startTime: windowStart,
-            endTime: windowStart + duration,
-            openPrice: newPrice,
-            closePrice: newPrice,
-            highPrice: newPrice,
-            lowPrice: newPrice,
-            volume: tradeVolume,
-            trades: 1,
-            buys: isBuy ? 1 : 0,
-            sells: isBuy ? 0 : 1,
-          };
-        } else {
-          currentWindow.closePrice = newPrice;
-          currentWindow.highPrice = Math.max(currentWindow.highPrice, newPrice);
-          currentWindow.lowPrice = Math.min(currentWindow.lowPrice, newPrice);
-          currentWindow.volume += tradeVolume;
-          currentWindow.trades += 1;
-          if (isBuy) currentWindow.buys += 1;
-          else currentWindow.sells += 1;
-        }
-      });
-
-      // Create new trade record
-      const newTrade = {
-        timestamp: now,
-        price: newPrice,
-        volume: tradeVolume,
-        isBuy,
-        wallet: trade.traderPublicKey
-      };
-
-      // Keep all trades in memory without limit for real-time data
-      const recentTrades = [newTrade, ...(token.recentTrades || [])];
-
-      // Store trade in database through API
-      try {
-        await axios.post('/api/trades', {
-          token_address: address,
-          timestamp: new Date(now),
-          price_usd: newPrice,
-          volume_usd: tradeVolume,
-          amount_sol: Number(trade.solAmount),
-          is_buy: isBuy,
-          wallet_address: trade.traderPublicKey,
-          tx_signature: trade.signature,
-        });
-      } catch (error) {
-        console.error('[PumpPortal] Failed to store trade:', error);
-      }
-
-      // Calculate 24h stats using full trade history
-      const last24h = now - 24 * 60 * 60 * 1000;
-      const trades24h = recentTrades.filter(t => t.timestamp > last24h);
-      const volume24h = trades24h.reduce((sum, t) => sum + t.volume, 0);
-      const buys24h = trades24h.filter(t => t.isBuy).length;
-      const sells24h = trades24h.filter(t => !t.isBuy).length;
-
-      // Calculate market cap and liquidity
-      const newMarketCap = newPrice * TOTAL_SUPPLY;
-      const newLiquidity = token.liquidity + (isBuy ? tradeVolume : -tradeVolume);
-      const liquidityChange = ((newLiquidity - token.liquidity) / token.liquidity) * 100;
-
-      console.log('[PumpPortal] Updated trade stats:', {
-        address,
-        newPrice,
-        tradeVolume,
-        totalTrades: recentTrades.length,
-        trades24h: trades24h.length
-      });
-
-      return {
-        tokens: state.tokens.map(t =>
-          t.address === address ? {
-            ...t,
-            price: newPrice,
-            marketCap: newMarketCap,
-            liquidity: newLiquidity,
-            liquidityChange,
-            volume: t.volume + tradeVolume,
-            volume24h,
-            trades: t.trades + 1,
-            trades24h: trades24h.length,
-            buys24h,
-            sells24h,
-            timeWindows: updatedWindows,
-            recentTrades,
-            walletCount: new Set([...recentTrades.map(trade => trade.wallet)]).size
-          } : t
-        )
-      };
-    }),
+    // Store trade in database
+    axios.post('/api/trades', {
+      token_address: address,
+      timestamp: new Date(now),
+      price_usd: newPrice,
+      volume_usd: tradeVolume,
+      amount_sol: Number(trade.solAmount),
+      is_buy: isBuy,
+      wallet_address: trade.traderPublicKey,
+      tx_signature: trade.signature,
+    }).catch(error => {
+      console.error('[PumpPortal] Failed to store trade:', error);
+    });
+  },
   setConnected: (connected) => set({ isConnected: connected }),
   setSolPrice: (price) => {
     if (price > 0) {
       console.log('[PumpPortal] Setting SOL price:', price);
       set({ solPrice: price });
-    } else {
-      console.warn('[PumpPortal] Attempted to set invalid SOL price:', price);
     }
   },
 }));
 
-// Time windows in milliseconds
-const TIME_WINDOWS = {
-  '1s': 1000,
-  '5s': 5000,
-  '15s': 15000,
-  '30s': 30000,
-  '1m': 60000,
-  '5m': 300000,
-  '15m': 900000,
-  '30m': 1800000,
-  '1h': 3600000,
-} as const;
+// WebSocket connection management
+let ws: WebSocket | null = null;
+let reconnectTimeout: NodeJS.Timeout | null = null;
+let reconnectAttempts = 0;
+let solPriceInterval: NodeJS.Timeout | null = null;
 
+const fetchSolanaPrice = async (): Promise<number> => {
+  try {
+    const response = await axios.get('/api/solana/price');
+    const price = response.data?.price;
+    if (!price || price <= 0) throw new Error('Invalid price response');
+    return price;
+  } catch (error) {
+    console.error('[PumpPortal] Error fetching SOL price:', error);
+    return usePumpPortalStore.getState().solPrice;
+  }
+};
+
+export function initializePumpPortalWebSocket() {
+  if (typeof window === 'undefined') return;
+
+  const cleanup = () => {
+    if (ws) {
+      try {
+        ws.close();
+      } catch (e) {
+        console.error('[PumpPortal] Error closing WebSocket:', e);
+      }
+      ws = null;
+    }
+
+    if (solPriceInterval) {
+      clearInterval(solPriceInterval);
+      solPriceInterval = null;
+    }
+
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout);
+      reconnectTimeout = null;
+    }
+  };
+
+  cleanup();
+
+  const store = usePumpPortalStore.getState();
+
+  // Initialize SOL price updates
+  fetchSolanaPrice()
+    .then(price => {
+      store.setSolPrice(price);
+      solPriceInterval = setInterval(async () => {
+        try {
+          const price = await fetchSolanaPrice();
+          store.setSolPrice(price);
+        } catch (error) {
+          console.error('[PumpPortal] Failed to update SOL price:', error);
+        }
+      }, SOL_PRICE_UPDATE_INTERVAL);
+    })
+    .catch(console.error);
+
+  try {
+    console.log('[PumpPortal] Initializing WebSocket...');
+    ws = new WebSocket('wss://pumpportal.fun/api/data');
+
+    ws.onopen = () => {
+      console.log('[PumpPortal] WebSocket connected');
+      store.setConnected(true);
+      reconnectAttempts = 0;
+
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          method: "subscribeNewToken",
+          keys: []
+        }));
+
+        const existingTokenAddresses = store.tokens.map(t => t.address);
+        if (existingTokenAddresses.length > 0) {
+          ws.send(JSON.stringify({
+            method: "subscribeTokenTrade",
+            keys: existingTokenAddresses
+          }));
+        }
+      }
+    };
+
+    ws.onmessage = async (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.message?.includes('Successfully subscribed')) return;
+        if (data.errors) {
+          console.error('[PumpPortal] Error received:', data.errors);
+          return;
+        }
+
+        if (data.txType === 'create' && data.mint) {
+          try {
+            const token = await mapPumpPortalData(data);
+            store.addToken(token);
+
+            if (token.imageLink) {
+              preloadTokenImages([{
+                imageLink: token.imageLink,
+                symbol: token.symbol
+              }]);
+            }
+
+            ws?.send(JSON.stringify({
+              method: "subscribeTokenTrade",
+              keys: [token.address]
+            }));
+          } catch (err) {
+            console.error('[PumpPortal] Failed to process token:', err);
+          }
+        } else if (['buy', 'sell'].includes(data.txType) && data.mint) {
+          store.addTradeToHistory(data.mint, data);
+        }
+      } catch (error) {
+        console.error('[PumpPortal] Failed to parse message:', error);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('[PumpPortal] WebSocket disconnected');
+      store.setConnected(false);
+      cleanup();
+
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+        reconnectTimeout = setTimeout(initializePumpPortalWebSocket, RECONNECT_DELAY);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('[PumpPortal] WebSocket error:', error);
+      store.setConnected(false);
+    };
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', cleanup);
+
+  } catch (error) {
+    console.error('[PumpPortal] Failed to initialize WebSocket:', error);
+    store.setConnected(false);
+
+    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      reconnectAttempts++;
+      reconnectTimeout = setTimeout(initializePumpPortalWebSocket, RECONNECT_DELAY);
+    }
+  }
+}
+
+// Initialize WebSocket connection
+initializePumpPortalWebSocket();
 
 async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
   try {
@@ -380,7 +393,7 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
       sells24h: 0,
       walletCount: 1,
       timestamp: now,
-      timeWindows: createEmptyTimeWindows(now),
+      timeWindows: {}, //createEmptyTimeWindows(now),
       priceHistory: {},
       recentTrades: [{
         timestamp: now,
@@ -411,164 +424,3 @@ async function mapPumpPortalData(data: any): Promise<PumpPortalToken> {
     throw error;
   }
 }
-
-let ws: WebSocket | null = null;
-let reconnectTimeout: NodeJS.Timeout | null = null;
-let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_DELAY = 5000;
-
-export function initializePumpPortalWebSocket() {
-  if (typeof window === 'undefined') return;
-
-  const store = usePumpPortalStore.getState();
-
-  if (ws) {
-    try {
-      ws.close();
-    } catch (e) {
-      console.error('[PumpPortal] Error closing WebSocket:', e);
-    }
-    ws = null;
-  }
-
-  // Clear existing SOL price interval
-  if (solPriceInterval) {
-    clearInterval(solPriceInterval);
-  }
-
-  // Initialize SOL price updates
-  fetchSolanaPrice()
-    .then(price => {
-      store.setSolPrice(price);
-
-      // Start regular price updates
-      solPriceInterval = setInterval(async () => {
-        try {
-          const price = await fetchSolanaPrice();
-          store.setSolPrice(price);
-        } catch (error) {
-          console.error('[PumpPortal] Failed to update SOL price:', error);
-        }
-      }, SOL_PRICE_UPDATE_INTERVAL);
-    })
-    .catch(error => {
-      console.error('[PumpPortal] Initial SOL price fetch failed:', error);
-    });
-
-  try {
-    console.log('[PumpPortal] Initializing WebSocket...');
-    ws = new WebSocket('wss://pumpportal.fun/api/data');
-
-    ws.onopen = () => {
-      console.log('[PumpPortal] WebSocket connected.');
-      store.setConnected(true);
-      reconnectAttempts = 0;
-
-      if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          method: "subscribeNewToken",
-          keys: []
-        }));
-        console.log('[PumpPortal] Subscribed to new token events');
-
-        const existingTokenAddresses = usePumpPortalStore.getState().tokens.map(t => t.address);
-        if (existingTokenAddresses.length > 0) {
-          ws.send(JSON.stringify({
-            method: "subscribeTokenTrade",
-            keys: existingTokenAddresses
-          }));
-          console.log('[PumpPortal] Subscribed to trade events for existing tokens');
-        }
-      }
-    };
-
-    ws.onmessage = async (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('[PumpPortal] Raw event data:', data);
-
-        if (data.message?.includes('Successfully subscribed')) {
-          return;
-        }
-
-        if (data.errors) {
-          console.error('[PumpPortal] Error received:', data.errors);
-          return;
-        }
-
-        if (data.txType === 'create' && data.mint) {
-          try {
-            const token = await mapPumpPortalData(data);
-            store.addToken(token);
-            useHeliusStore.getState().subscribeToToken(data.mint);
-            console.log('[PumpPortal] Added new token:', {
-              symbol: token.symbol,
-              price: token.price,
-              marketCap: token.marketCap,
-              liquidity: token.liquidity
-            });
-
-            preloadTokenImages([{
-              imageLink: token.imageLink,
-              symbol: token.symbol
-            }]);
-
-            ws?.send(JSON.stringify({
-              method: "subscribeTokenTrade",
-              keys: [token.address]
-            }));
-            console.log(`[PumpPortal] Subscribed to trade events for token: ${token.symbol}`);
-          } catch (err) {
-            console.error('[PumpPortal] Failed to process token:', err);
-          }
-        } else if (['buy', 'sell'].includes(data.txType) && data.mint) {
-          console.log('[PumpPortal] Processing trade:', {
-            type: data.txType,
-            mint: data.mint,
-            solAmount: data.solAmount,
-            trader: data.traderPublicKey,
-            timestamp: new Date().toISOString()
-          });
-          store.addTradeToHistory(data.mint, data);
-        }
-      } catch (error) {
-        console.error('[PumpPortal] Failed to parse message:', error);
-      }
-    };
-
-    ws.onclose = () => {
-      console.log('[PumpPortal] WebSocket disconnected');
-      store.setConnected(false);
-
-      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-        reconnectAttempts++;
-        console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-        reconnectTimeout = setTimeout(initializePumpPortalWebSocket, RECONNECT_DELAY);
-      }
-
-      // Clear price update interval on disconnect
-      if (solPriceInterval) {
-        clearInterval(solPriceInterval);
-        solPriceInterval = null;
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error('[PumpPortal] WebSocket error:', error);
-      store.setConnected(false);
-    };
-
-  } catch (error) {
-    console.error('[PumpPortal] Failed to initialize WebSocket:', error);
-    store.setConnected(false);
-
-    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      reconnectAttempts++;
-      console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-      reconnectTimeout = setTimeout(initializePumpPortalWebSocket, RECONNECT_DELAY);
-    }
-  }
-}
-
-initializePumpPortalWebSocket();

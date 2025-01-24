@@ -26,7 +26,7 @@ interface CandleData {
 }
 
 interface Props {
-  data: CandleData[];
+  data?: CandleData[];
   timeframe?: '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
   onTimeframeChange?: (timeframe: string) => void;
   className?: string;
@@ -45,7 +45,7 @@ const formatYAxis = (value: number) => {
 };
 
 const CustomTooltip = memo(({ active, payload }: any) => {
-  if (active && payload && payload.length) {
+  if (active && payload?.length) {
     const data = payload[0].payload;
     return (
       <div className="bg-background/95 backdrop-blur-sm border border-border/40 p-3 rounded-lg shadow-lg">
@@ -85,12 +85,15 @@ const CustomTooltip = memo(({ active, payload }: any) => {
 CustomTooltip.displayName = 'CustomTooltip';
 
 const CandlestickChartBase: FC<Props> = ({ 
-  data, 
+  data = [], // Default to empty array
   timeframe = '1m',
   onTimeframeChange,
   className 
 }) => {
+  // Memoize chart data transformations
   const chartData = useMemo(() => {
+    if (!Array.isArray(data)) return [];
+
     return data.map(candle => ({
       ...candle,
       color: candle.close >= candle.open ? '#22c55e' : '#ef4444',
@@ -101,6 +104,33 @@ const CandlestickChartBase: FC<Props> = ({
   const handleTimeframeChange = useCallback((newTimeframe: string) => {
     onTimeframeChange?.(newTimeframe);
   }, [onTimeframeChange]);
+
+  // Early return if no data
+  if (!chartData.length) {
+    return (
+      <Card className={cn("w-full", className)}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <h3 className="font-semibold text-lg">Price Chart</h3>
+          <div className="flex gap-2">
+            {timeframes.map((tf) => (
+              <Button
+                key={tf}
+                variant={tf === timeframe ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleTimeframeChange(tf)}
+                className="text-xs"
+              >
+                {tf}
+              </Button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent className="h-[400px] flex items-center justify-center">
+          <p className="text-muted-foreground">No data available for this timeframe</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className={cn("w-full", className)}>
@@ -126,24 +156,23 @@ const CandlestickChartBase: FC<Props> = ({
             <ComposedChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
 
-              {/* Volume bars */}
               <Bar
                 dataKey="volume"
                 yAxisId="volume"
                 fill={d => d.volumeColor}
                 opacity={0.3}
+                isAnimationActive={false}
               />
 
-              {/* Price line */}
               <Line
                 type="linear"
                 dataKey="close"
                 stroke="hsl(var(--primary))"
                 dot={false}
                 yAxisId="price"
+                isAnimationActive={false}
               />
 
-              {/* Market cap line */}
               <Line
                 type="monotone"
                 dataKey="marketCap"
@@ -151,6 +180,7 @@ const CandlestickChartBase: FC<Props> = ({
                 strokeWidth={1}
                 dot={false}
                 yAxisId="marketCap"
+                isAnimationActive={false}
               />
 
               <XAxis
