@@ -344,7 +344,7 @@ class UnifiedWebSocket {
       // Always subscribe to new tokens
       this.pumpPortalWs.send(JSON.stringify({
         method: "subscribeNewToken",
-        keys: ["*"]
+        keys: []
       }));
 
       const store = useUnifiedTokenStore.getState();
@@ -355,7 +355,8 @@ class UnifiedWebSocket {
       if (activeToken && existingTokens.includes(activeToken)) {
         this.pumpPortalWs.send(JSON.stringify({
           method: "subscribeTokenTrade",
-          keys: [activeToken]
+          keys: [activeToken],
+          type: "trade"
         }));
       }
 
@@ -370,7 +371,8 @@ class UnifiedWebSocket {
             if (this.pumpPortalWs?.readyState === WebSocket.OPEN) {
               this.pumpPortalWs.send(JSON.stringify({
                 method: "subscribeTokenTrade",
-                keys: batch
+                keys: batch,
+                type: "trade"
               }));
             }
           }, i * 100); // Delay each batch by 100ms to prevent overwhelming the server
