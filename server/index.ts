@@ -9,6 +9,7 @@ app.use(express.urlencoded({ extended: false }));
 
 // Initialize server and handle startup errors
 async function startServer() {
+  console.log('[express] Starting server initialization...');
   try {
     // Start the image worker before setting up routes
     try {
