@@ -1,15 +1,14 @@
 import '@/lib/unified-websocket';
 import { FC, useState } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { useUnifiedTokenStore } from "@/lib/unified-token-store";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import millify from "millify";
 import { getTokenImage } from "@/lib/token-metadata";
 import { formatPrice, formatMarketCap } from "@/lib/utils";
 import Modal from "@/components/ui/modal";
-
+import TokenChart from "@/components/TokenChart";
 
 const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) => {
   return (
@@ -101,13 +100,46 @@ const PumpFunVision: FC = () => {
             </div>
           )}
           <Modal open={showChart} onClose={() => setShowChart(false)}>
-            {/* Replace with your actual chart component */}
-            {selectedToken && (
-              <div>
-                <h1>{selectedToken.name} Chart</h1>
-                {/* Add your chart here using selectedToken data */}
-              </div>
-            )}
+            <div className="max-w-4xl w-full mx-auto p-4 space-y-4">
+              {selectedToken && (
+                <>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={selectedToken.imageLink || 'https://via.placeholder.com/150'}
+                        alt={`${selectedToken.symbol} logo`}
+                        className="w-12 h-12 rounded-full object-cover bg-purple-500/20"
+                      />
+                      <div>
+                        <h2 className="text-2xl font-bold">{selectedToken.name}</h2>
+                        <p className="text-muted-foreground">{selectedToken.symbol}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold">{formatPrice(selectedToken.price)}</div>
+                      <div className="text-sm text-muted-foreground">Current Price</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 mb-6">
+                    <Card className="p-4">
+                      <div className="text-sm text-muted-foreground">Market Cap</div>
+                      <div className="text-lg font-bold">{formatMarketCap(selectedToken.marketCap)}</div>
+                    </Card>
+                    <Card className="p-4">
+                      <div className="text-sm text-muted-foreground">Liquidity</div>
+                      <div className="text-lg font-bold">{formatMarketCap(selectedToken.liquidity)}</div>
+                    </Card>
+                    <Card className="p-4">
+                      <div className="text-sm text-muted-foreground">24h Volume</div>
+                      <div className="text-lg font-bold">{formatMarketCap(selectedToken.volume)}</div>
+                    </Card>
+                  </div>
+
+                  <TokenChart tokenAddress={selectedToken.address} />
+                </>
+              )}
+            </div>
           </Modal>
         </div>
       </div>
