@@ -4,7 +4,7 @@ import axios from 'axios';
 
 // Constants
 const TOTAL_SUPPLY = 1_000_000_000;
-const SOL_PRICE_UPDATE_INTERVAL = 30000;
+const SOL_PRICE_UPDATE_INTERVAL = 10000; // Update every 10 seconds
 const MAX_TRADES_PER_TOKEN = 100; // Limit stored trades
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -193,17 +193,23 @@ let reconnectTimeout: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
 let solPriceInterval: NodeJS.Timeout | null = null;
 
-const fetchSolanaPrice = async (): Promise<number> => {
-  try {
-    // Fallback to CoinGecko if internal API fails
-    const response = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-    const price = response.data?.solana?.usd;
-    if (!price || price <= 0) throw new Error('Invalid price response');
-    return price;
-  } catch (error) {
-    console.error('[PumpPortal] Error fetching SOL price:', error);
-    return 100; // Fallback price to prevent $0 display
+const fetchSolanaPrice = async (retries = 3): Promise<number> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await axios.get(
+        'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
+        { timeout: 5000 }
+      );
+      const price = response.data?.solana?.usd;
+      if (!price || price <= 0) throw new Error('Invalid price response');
+      return price;
+    } catch (error) {
+      console.error(`[PumpPortal] Error fetching SOL price (attempt ${i + 1}/${retries}):`, error);
+      if (i === retries - 1) return 100; // Fallback price after all retries
+      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+    }
   }
+  return 100; // Fallback price if all retries fail
 };
 
 export function initializePumpPortalWebSocket() {
