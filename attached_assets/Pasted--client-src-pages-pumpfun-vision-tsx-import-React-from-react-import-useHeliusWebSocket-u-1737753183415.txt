@@ -1,0 +1,92 @@
+// client/src/pages/pumpfun-vision.tsx
+
+import React from 'react';
+import { useHeliusWebSocket, useHeliusStore } from '../lib/helius-websocket';
+import { Line } from 'react-chartjs-2'; // Assuming you're using Chart.js for lightweight charts
+import { Spinner } from '@shadcn/ui'; // Example UI component from Shadcn/UI
+
+const PumpFunVision: React.FC = () => {
+  // Initialize Helius WebSocket
+  useHeliusWebSocket();
+
+  // Access Helius data from Zustand store
+  const heliusData = useHeliusStore((state) => state.data);
+
+  if (!heliusData) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Spinner />
+      </div>
+    );
+  }
+
+  // Extract necessary data
+  const {
+    marketCapSol,
+    solAmount,
+    initialBuy,
+    vSolInBondingCurve,
+    vTokensInBondingCurve,
+    name,
+    symbol,
+    price, // Assume Helius provides price directly
+    buyVolume,
+    sellVolume,
+    // Add other fields as necessary
+  } = heliusData;
+
+  return (
+    <div className="p-4">
+      <h1 className="text-2xl font-bold mb-4">{name} ({symbol})</h1>
+
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="bg-white shadow rounded p-4">
+          <h2 className="text-lg font-semibold">Market Cap</h2>
+          <p>{marketCapSol} SOL</p>
+        </div>
+        <div className="bg-white shadow rounded p-4">
+          <h2 className="text-lg font-semibold">Liquidity</h2>
+          <p>{solAmount} SOL</p>
+        </div>
+        <div className="bg-white shadow rounded p-4">
+          <h2 className="text-lg font-semibold">Buy Volume</h2>
+          <p>{initialBuy}</p>
+        </div>
+        <div className="bg-white shadow rounded p-4">
+          <h2 className="text-lg font-semibold">Sell Volume</h2>
+          <p>{sellVolume}</p>
+        </div>
+        <div className="bg-white shadow rounded p-4">
+          <h2 className="text-lg font-semibold">Price</h2>
+          <p>{price} SOL</p>
+        </div>
+        {/* Add more metrics as needed */}
+      </div>
+
+      {/* Example Chart */}
+      <div className="bg-white shadow rounded p-4">
+        <h2 className="text-lg font-semibold mb-2">Price Chart</h2>
+        {/* Replace with your chart implementation */}
+        <Line
+          data={{
+            labels: [], // Populate with time labels
+            datasets: [
+              {
+                label: 'Price',
+                data: [], // Populate with price data
+                borderColor: 'rgba(75,192,192,1)',
+                fill: false,
+              },
+            ],
+          }}
+          options={{
+            responsive: true,
+            maintainAspectRatio: false,
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+
+export default PumpFunVision;
