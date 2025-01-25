@@ -8,6 +8,7 @@ const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${win
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const SOL_PRICE_UPDATE_INTERVAL = 10_000;
+const MAX_TOKENS_IN_LIST = 50;
 
 export interface TokenTrade {
   // Trade identification
@@ -50,19 +51,23 @@ export interface PumpPortalToken {
 
 interface PumpPortalStore {
   tokens: PumpPortalToken[];
+  viewedTokens: { [key: string]: PumpPortalToken }; // Cache for viewed tokens
   isConnected: boolean;
   solPrice: number;
-  lastUpdate: number; // Track last update time
+  lastUpdate: number;
 
   addToken: (tokenData: any) => void;
   addTradeToHistory: (address: string, tradeData: any) => void;
   setConnected: (connected: boolean) => void;
   setSolPrice: (price: number) => void;
-  resetTokens: () => void; // Add reset function
+  resetTokens: () => void;
+  addToViewedTokens: (address: string) => void; // New function to track viewed tokens
+  getToken: (address: string) => PumpPortalToken | undefined; // Helper to get token from either list
 }
 
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
+  viewedTokens: {},
   isConnected: false,
   solPrice: 0,
   lastUpdate: Date.now(),
@@ -79,6 +84,22 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           ...updatedTokens[existingTokenIndex],
           ...newToken
         };
+
+        // Also update in viewed tokens if present
+        if (state.viewedTokens[newToken.address]) {
+          return { 
+            tokens: updatedTokens,
+            viewedTokens: {
+              ...state.viewedTokens,
+              [newToken.address]: {
+                ...state.viewedTokens[newToken.address],
+                ...newToken
+              }
+            },
+            lastUpdate: Date.now()
+          };
+        }
+
         return { 
           tokens: updatedTokens,
           lastUpdate: Date.now()
@@ -87,41 +108,58 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
       // Add new token
       return { 
-        tokens: [newToken, ...state.tokens].slice(0, 50),
+        tokens: [newToken, ...state.tokens].slice(0, MAX_TOKENS_IN_LIST),
         lastUpdate: Date.now()
       };
     }),
 
   addTradeToHistory: (address, tradeData) => 
     set((state) => {
-      const updatedTokens = state.tokens.map((t) => {
-        if (t.address !== address) return t;
+      const newTrade: TokenTrade = {
+        signature: tradeData.signature,
+        timestamp: Date.now(),
+        mint: tradeData.mint,
+        txType: tradeData.txType,
+        tokenAmount: tradeData.tokenAmount,
+        solAmount: tradeData.solAmount,
+        traderPublicKey: tradeData.traderPublicKey,
+        counterpartyPublicKey: tradeData.counterpartyPublicKey,
+        bondingCurveKey: tradeData.bondingCurveKey,
+        vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
+        vSolInBondingCurve: tradeData.vSolInBondingCurve,
+        marketCapSol: tradeData.marketCapSol
+      };
 
-        // Create trade record with raw data
-        const newTrade: TokenTrade = {
-          signature: tradeData.signature,
-          timestamp: Date.now(),
-          mint: tradeData.mint,
-          txType: tradeData.txType,
-          tokenAmount: tradeData.tokenAmount,
-          solAmount: tradeData.solAmount,
-          traderPublicKey: tradeData.traderPublicKey,
-          counterpartyPublicKey: tradeData.counterpartyPublicKey,
-          bondingCurveKey: tradeData.bondingCurveKey,
-          vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
-          vSolInBondingCurve: tradeData.vSolInBondingCurve,
-          marketCapSol: tradeData.marketCapSol
-        };
-
-        return {
+      // Update in main list
+      const updatedTokens = state.tokens.map((t) => 
+        t.address === address ? {
           ...t,
           recentTrades: [newTrade, ...t.recentTrades].slice(0, MAX_TRADES_PER_TOKEN),
           bondingCurveKey: tradeData.bondingCurveKey,
           vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
           vSolInBondingCurve: tradeData.vSolInBondingCurve,
           marketCapSol: tradeData.marketCapSol
+        } : t
+      );
+
+      // Also update in viewed tokens if present
+      if (state.viewedTokens[address]) {
+        return {
+          tokens: updatedTokens,
+          viewedTokens: {
+            ...state.viewedTokens,
+            [address]: {
+              ...state.viewedTokens[address],
+              recentTrades: [newTrade, ...state.viewedTokens[address].recentTrades].slice(0, MAX_TRADES_PER_TOKEN),
+              bondingCurveKey: tradeData.bondingCurveKey,
+              vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
+              vSolInBondingCurve: tradeData.vSolInBondingCurve,
+              marketCapSol: tradeData.marketCapSol
+            }
+          },
+          lastUpdate: Date.now()
         };
-      });
+      }
 
       return { 
         tokens: updatedTokens,
@@ -141,8 +179,29 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
   resetTokens: () => set({ 
     tokens: [],
+    viewedTokens: {}, // Also reset viewed tokens
     lastUpdate: Date.now()
-  })
+  }),
+
+  // Add token to viewed tokens cache when viewing its chart
+  addToViewedTokens: (address) => set((state) => {
+    const token = state.tokens.find(t => t.address === address);
+    if (!token) return state;
+
+    return {
+      viewedTokens: {
+        ...state.viewedTokens,
+        [address]: token
+      },
+      lastUpdate: Date.now()
+    };
+  }),
+
+  // Helper to get token from either main list or viewed cache
+  getToken: (address) => {
+    const state = get();
+    return state.tokens.find(t => t.address === address) || state.viewedTokens[address];
+  }
 }));
 
 // Map raw token data 

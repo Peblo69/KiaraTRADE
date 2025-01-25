@@ -82,6 +82,8 @@ const TokenListContent: FC = () => {
   const tokens = usePumpPortalStore(useCallback(state => state.tokens, []));
   const isConnected = usePumpPortalStore(useCallback(state => state.isConnected, []));
   const lastUpdate = usePumpPortalStore(useCallback(state => state.lastUpdate, []));
+  const addToViewedTokens = usePumpPortalStore(useCallback(state => state.addToViewedTokens, []));
+  const getToken = usePumpPortalStore(useCallback(state => state.getToken, []));
 
   // Reset selection on unmount
   useEffect(() => {
@@ -100,7 +102,20 @@ const TokenListContent: FC = () => {
     return () => clearInterval(healthCheck);
   }, [lastUpdate]);
 
+  // Handle token selection
+  const handleTokenSelect = useCallback((address: string) => {
+    addToViewedTokens(address); // Add to viewed tokens cache
+    setSelectedToken(address);
+  }, [addToViewedTokens]);
+
   if (selectedToken) {
+    const token = getToken(selectedToken);
+    if (!token) {
+      console.error('[PumpFunVision] Selected token not found:', selectedToken);
+      setSelectedToken(null);
+      return null;
+    }
+
     return (
       <Suspense fallback={
         <div className="flex items-center justify-center h-screen">
@@ -148,7 +163,7 @@ const TokenListContent: FC = () => {
                 <TokenRow
                   key={token.address}
                   token={token}
-                  onClick={() => setSelectedToken(token.address)}
+                  onClick={() => handleTokenSelect(token.address)}
                 />
               ))}
             </div>
