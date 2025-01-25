@@ -71,7 +71,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const now = Date.now();
     const tradeAmount = Number(trade.solAmount || 0);
     const isBuy = trade.txType === 'buy';
-    const tradePrice = Number(trade.solAmount || 0) / Number(trade.tokenAmount || 1);
+    // Calculate price as solAmount/tokenAmount
+    const tokenAmount = Number(trade.tokenAmount || 0);
+    const tradePrice = tokenAmount > 0 ? tradeAmount / tokenAmount : 0;
     const tradePriceUsd = tradePrice * state.solPrice;
     const tradeVolume = tradeAmount * state.solPrice;
 

@@ -22,18 +22,46 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   useEffect(() => {
     if (!chartContainerRef.current || !token?.recentTrades) return;
 
-    // Process trades into candlestick data with unique timestamps
+    // Process trades into OHLC data
     const trades = token.recentTrades
-      .map((trade, index) => ({
-        // Add microseconds to ensure unique timestamps
-        time: Math.floor(trade.timestamp / 1000) + (index * 0.001),
-        value: trade.price,
-        color: trade.type === 'buy' ? '#22c55e' : '#ef4444'
+      .map(trade => ({
+        timestamp: trade.timestamp,
+        price: trade.price,
+        type: trade.type,
       }))
-      .filter(trade => !isNaN(trade.value) && trade.value > 0)
-      .sort((a, b) => a.time - b.time);
+      .filter(trade => !isNaN(trade.price) && trade.price > 0)
+      .sort((a, b) => a.timestamp - b.timestamp);
 
     if (trades.length === 0) return;
+
+    // Group trades into 1-minute candles
+    const candleMap = new Map();
+    const MINUTE = 60 * 1000; // 1 minute in milliseconds
+
+    trades.forEach(trade => {
+      const candleTime = Math.floor(trade.timestamp / MINUTE) * MINUTE;
+
+      if (!candleMap.has(candleTime)) {
+        candleMap.set(candleTime, {
+          time: candleTime / 1000,
+          open: trade.price,
+          high: trade.price,
+          low: trade.price,
+          close: trade.price
+        });
+      } else {
+        const candle = candleMap.get(candleTime);
+        candle.high = Math.max(candle.high, trade.price);
+        candle.low = Math.min(candle.low, trade.price);
+        candle.close = trade.price;
+      }
+    });
+
+    // Convert to array and sort by time
+    const candleData = Array.from(candleMap.values())
+      .sort((a, b) => a.time - b.time);
+
+    if (candleData.length === 0) return;
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
@@ -53,9 +81,13 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       },
     });
 
-    const series = chart.addLineSeries({
-      color: '#22c55e',
-      lineWidth: 2,
+    // Create candlestick series
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: '#22c55e',
+      downColor: '#ef4444',
+      borderVisible: false,
+      wickUpColor: '#22c55e',
+      wickDownColor: '#ef4444',
       priceFormat: {
         type: 'price',
         precision: 8,
@@ -63,12 +95,12 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       },
     });
 
-    series.setData(trades);
+    candlestickSeries.setData(candleData);
 
     // Set visible range with padding
     const timeRange = {
-      from: trades[0].time - 300,
-      to: trades[trades.length - 1].time + 300
+      from: candleData[0].time - 300,
+      to: candleData[candleData.length - 1].time + 300
     };
 
     chart.timeScale().setVisibleRange(timeRange);
@@ -110,7 +142,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
   const formatUsdPrice = (price: number) => {
     if (!price || isNaN(price)) return '$0.00';
-    return `$${price.toFixed(2)}`;
+    return `$${price.toFixed(6)}`;
   };
 
   return (
