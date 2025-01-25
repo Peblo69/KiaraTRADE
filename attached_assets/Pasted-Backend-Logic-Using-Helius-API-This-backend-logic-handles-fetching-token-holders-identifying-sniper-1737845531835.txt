@@ -1,0 +1,183 @@
+Backend Logic Using Helius API
+This backend logic handles fetching token holders, identifying snipers, and detecting insiders.
+
+Backend API Endpoint
+javascript
+Copy
+Edit
+import express from 'express';
+import axios from 'axios';
+
+const app = express();
+const port = 3000;
+const HELIUS_API_KEY = 'YOUR_HELIUS_API_KEY';
+const HELIUS_API_URL = `https://api.helius.xyz/v0`;
+
+app.use(express.json());
+
+// Helper function to fetch token holders
+async function fetchTokenHolders(mintAddress) {
+    try {
+        const response = await axios.post(`${HELIUS_API_URL}/token-holders`, {
+            apiKey: HELIUS_API_KEY,
+            mintAddress,
+        });
+        return response.data || [];
+    } catch (error) {
+        console.error('Error fetching token holders:', error.message);
+        return [];
+    }
+}
+
+// Helper function to fetch account transactions
+async function fetchAccountTransactions(address) {
+    try {
+        const response = await axios.post(`${HELIUS_API_URL}/account-transactions`, {
+            apiKey: HELIUS_API_KEY,
+            account: address,
+        });
+        return response.data || [];
+    } catch (error) {
+        console.error('Error fetching account transactions:', error.message);
+        return [];
+    }
+}
+
+// API Endpoint: Get Wallet Data for a Token
+app.post('/api/token-wallet-data', async (req, res) => {
+    const { mintAddress, devWallet } = req.body;
+
+    if (!mintAddress) {
+        return res.status(400).json({ error: 'Mint address is required' });
+    }
+
+    try {
+        // Fetch token holders
+        const holders = await fetchTokenHolders(mintAddress);
+        const totalSupply = holders.reduce((sum, holder) => sum + holder.amount, 0);
+
+        // Identify Top 10% Holders
+        let topHolders = [];
+        let cumulativeSupply = 0;
+        for (const holder of holders.sort((a, b) => b.amount - a.amount)) {
+            topHolders.push(holder);
+            cumulativeSupply += holder.amount;
+            if (cumulativeSupply >= totalSupply * 0.1) break;
+        }
+
+        // Identify Snipers (First 10 Trades)
+        const transactions = await fetchAccountTransactions(devWallet);
+        const snipers = transactions
+            .filter(tx => tx.type === 'buy')
+            .sort((a, b) => a.timestamp - b.timestamp)
+            .slice(0, 10);
+
+        // Identify Insiders (Dev Wallet Interactions)
+        const insiders = transactions.filter(
+            tx => tx.source === devWallet || tx.destination === devWallet
+        );
+
+        return res.json({ topHolders, snipers, insiders });
+    } catch (error) {
+        console.error('Error processing wallet data:', error.message);
+        res.status(500).json({ error: 'Failed to process wallet data' });
+    }
+});
+
+app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+});
+Frontend: React Component for Displaying Wallet Data
+Add Button to Token Chart Page
+In your TokenChartContent component:
+
+tsx
+Copy
+Edit
+<Button
+    variant="ghost"
+    className="text-white hover:bg-white/10"
+    onClick={fetchWalletData}
+>
+    Show Wallet Data
+</Button>
+Fetch and Display Data
+Create a modal to display the fetched data:
+
+tsx
+Copy
+Edit
+import { FC, useState } from 'react';
+import Modal from './Modal'; // Assume you have a Modal component
+import axios from 'axios';
+
+const WalletDataModal: FC<{ mintAddress: string; devWallet: string; onClose: () => void }> = ({
+    mintAddress,
+    devWallet,
+    onClose,
+}) => {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const fetchWalletData = async () => {
+        setLoading(true);
+        setError('');
+
+        try {
+            const response = await axios.post('/api/token-wallet-data', { mintAddress, devWallet });
+            setData(response.data);
+        } catch (err) {
+            setError('Failed to fetch wallet data.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchWalletData();
+    }, [mintAddress, devWallet]);
+
+    if (loading) return <div>Loading...</div>;
+    if (error) return <div>Error: {error}</div>;
+
+    return (
+        <Modal onClose={onClose}>
+            <h3 className="text-lg font-bold">Wallet Data</h3>
+            <div className="space-y-4">
+                <div>
+                    <h4 className="font-semibold">Top 10% Holders</h4>
+                    <ul>
+                        {data?.topHolders.map(holder => (
+                            <li key={holder.walletAddress}>
+                                {holder.walletAddress}: {holder.amount} tokens
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+                <div>
+                    <h4 className="font-semibold">Snipers</h4>
+                    <ul>
+                        {data?.snipers.map(sniper => (
+                            <li key={sniper.walletAddress}>
+                                {sniper.walletAddress}: Bought at {new Date(sniper.timestamp).toLocaleString()}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+                <div>
+                    <h4 className="font-semibold">Insiders</h4>
+                    <ul>
+                        {data?.insiders.map(insider => (
+                            <li key={insider.walletAddress}>
+                                {insider.walletAddress}: Frequent trades with Dev
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            </div>
+        </Modal>
+    );
+};
+
+export default WalletDataModal;

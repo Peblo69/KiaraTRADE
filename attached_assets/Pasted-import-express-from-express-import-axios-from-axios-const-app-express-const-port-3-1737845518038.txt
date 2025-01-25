@@ -1,0 +1,82 @@
+import express from 'express';
+import axios from 'axios';
+
+const app = express();
+const port = 3000;
+const HELIUS_API_KEY = 'YOUR_HELIUS_API_KEY';
+const HELIUS_API_URL = `https://api.helius.xyz/v0`;
+
+app.use(express.json());
+
+// Helper function to fetch token holders
+async function fetchTokenHolders(mintAddress) {
+    try {
+        const response = await axios.post(`${HELIUS_API_URL}/token-holders`, {
+            apiKey: HELIUS_API_KEY,
+            mintAddress,
+        });
+        return response.data || [];
+    } catch (error) {
+        console.error('Error fetching token holders:', error.message);
+        return [];
+    }
+}
+
+// Helper function to fetch account transactions
+async function fetchAccountTransactions(address) {
+    try {
+        const response = await axios.post(`${HELIUS_API_URL}/account-transactions`, {
+            apiKey: HELIUS_API_KEY,
+            account: address,
+        });
+        return response.data || [];
+    } catch (error) {
+        console.error('Error fetching account transactions:', error.message);
+        return [];
+    }
+}
+
+// API Endpoint: Get Wallet Data for a Token
+app.post('/api/token-wallet-data', async (req, res) => {
+    const { mintAddress, devWallet } = req.body;
+
+    if (!mintAddress) {
+        return res.status(400).json({ error: 'Mint address is required' });
+    }
+
+    try {
+        // Fetch token holders
+        const holders = await fetchTokenHolders(mintAddress);
+        const totalSupply = holders.reduce((sum, holder) => sum + holder.amount, 0);
+
+        // Identify Top 10% Holders
+        let topHolders = [];
+        let cumulativeSupply = 0;
+        for (const holder of holders.sort((a, b) => b.amount - a.amount)) {
+            topHolders.push(holder);
+            cumulativeSupply += holder.amount;
+            if (cumulativeSupply >= totalSupply * 0.1) break;
+        }
+
+        // Identify Snipers (First 10 Trades)
+        const transactions = await fetchAccountTransactions(devWallet);
+        const snipers = transactions
+            .filter(tx => tx.type === 'buy')
+            .sort((a, b) => a.timestamp - b.timestamp)
+            .slice(0, 10);
+
+        // Identify Insiders (Dev Wallet Interactions)
+        const insiders = transactions.filter(
+            tx => tx.source === devWallet || tx.destination === devWallet
+        );
+
+        return res.json({ topHolders, snipers, insiders });
+    } catch (error) {
+        console.error('Error processing wallet data:', error.message);
+        res.status(500).json({ error: 'Failed to process wallet data' });
+    }
+});
+
+app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+});

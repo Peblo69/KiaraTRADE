@@ -1,0 +1,94 @@
+Frontend: React Component for Displaying Wallet Data
+Add Button to Token Chart Page
+In your TokenChartContent component:
+
+tsx
+Copy
+Edit
+<Button
+    variant="ghost"
+    className="text-white hover:bg-white/10"
+    onClick={fetchWalletData}
+>
+    Show Wallet Data
+</Button>
+Fetch and Display Data
+Create a modal to display the fetched data:
+
+tsx
+Copy
+Edit
+import { FC, useState } from 'react';
+import Modal from './Modal'; // Assume you have a Modal component
+import axios from 'axios';
+
+const WalletDataModal: FC<{ mintAddress: string; devWallet: string; onClose: () => void }> = ({
+    mintAddress,
+    devWallet,
+    onClose,
+}) => {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const fetchWalletData = async () => {
+        setLoading(true);
+        setError('');
+
+        try {
+            const response = await axios.post('/api/token-wallet-data', { mintAddress, devWallet });
+            setData(response.data);
+        } catch (err) {
+            setError('Failed to fetch wallet data.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchWalletData();
+    }, [mintAddress, devWallet]);
+
+    if (loading) return <div>Loading...</div>;
+    if (error) return <div>Error: {error}</div>;
+
+    return (
+        <Modal onClose={onClose}>
+            <h3 className="text-lg font-bold">Wallet Data</h3>
+            <div className="space-y-4">
+                <div>
+                    <h4 className="font-semibold">Top 10% Holders</h4>
+                    <ul>
+                        {data?.topHolders.map(holder => (
+                            <li key={holder.walletAddress}>
+                                {holder.walletAddress}: {holder.amount} tokens
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+                <div>
+                    <h4 className="font-semibold">Snipers</h4>
+                    <ul>
+                        {data?.snipers.map(sniper => (
+                            <li key={sniper.walletAddress}>
+                                {sniper.walletAddress}: Bought at {new Date(sniper.timestamp).toLocaleString()}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+                <div>
+                    <h4 className="font-semibold">Insiders</h4>
+                    <ul>
+                        {data?.insiders.map(insider => (
+                            <li key={insider.walletAddress}>
+                                {insider.walletAddress}: Frequent trades with Dev
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            </div>
+        </Modal>
+    );
+};
+
+export default WalletDataModal;
