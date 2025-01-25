@@ -96,21 +96,15 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const now = Date.now();
 
     /************************************************
-     * 1) Convert lamports -> SOL
-     *    If your backend is already in decimal SOL,
-     *    remove the "/ 1e9".
+     * 1) Handle SOL amount (already in decimal SOL)
      ***********************************************/
-    const rawSolLamports = Number(trade.solAmount || 0);
-    const solAmount = rawSolLamports / 1e9; // or just = rawSolLamports if it's in SOL
+    const solAmount = Number(trade.solAmount || 0);
 
     /************************************************
-     * 2) Convert tokenAmount to "human" tokens
-     *    If your server sends integer tokens w/ 0 decimals,
-     *    keep userTokenAmount = tokenAmount.
-     *    If server uses 9 decimals, do / 1e9, etc.
+     * 2) Convert token amount (using 9 decimals)
      ***********************************************/
     const rawTokenAmount = Number(trade.tokenAmount || 0);
-    const userTokenAmount = rawTokenAmount / 10 ** TOKEN_DECIMALS;
+    const userTokenAmount = rawTokenAmount / 1e9;
 
     /************************************************
      * 3) Actual fill price => (sol spent) / (tokens)
