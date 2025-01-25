@@ -75,7 +75,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const vTokens = Number(trade.vTokensInBondingCurve || 0);
     const vSol = Number(trade.vSolInBondingCurve || 0);
     const marketCapSol = Number(trade.marketCapSol || 0);
-    const tradeAmount = Number(trade.solAmount || 0);
     const liquidity = vSol;
 
     // Calculate base price from bonding curve
