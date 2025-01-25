@@ -20,7 +20,9 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   const chartRef = useRef<IChartApi | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const isMountedRef = useRef(true);
+  const lastRenderTimeRef = useRef<number>(Date.now());
   const [showUsd, setShowUsd] = useState(true);
+  const [renderKey, setRenderKey] = useState(0); // Force re-render key
 
   const token = usePumpPortalStore(state => 
     state.tokens.find(t => t.address === tokenAddress)
@@ -28,8 +30,32 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   const solPrice = usePumpPortalStore(state => state.solPrice);
   const isConnected = usePumpPortalStore(state => state.isConnected);
 
+  // Debug logs
+  useEffect(() => {
+    console.log('[TokenChart] Component mounted', {
+      tokenAddress,
+      hasToken: !!token,
+      trades: token?.recentTrades?.length,
+      chartExists: !!chartRef.current,
+      timestamp: new Date().toISOString()
+    });
+
+    return () => {
+      console.log('[TokenChart] Component unmounting', {
+        tokenAddress,
+        timestamp: new Date().toISOString()
+      });
+    };
+  }, [tokenAddress, token]);
+
   // Cleanup function
   const cleanupChart = useCallback(() => {
+    console.log('[TokenChart] Cleaning up chart', {
+      hasChart: !!chartRef.current,
+      hasObserver: !!resizeObserverRef.current,
+      timestamp: new Date().toISOString()
+    });
+
     if (resizeObserverRef.current && chartContainerRef.current) {
       resizeObserverRef.current.disconnect();
       resizeObserverRef.current = null;
@@ -43,9 +69,22 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
   // Initialize chart
   const initializeChart = useCallback(() => {
-    if (!chartContainerRef.current || !token?.recentTrades || !isMountedRef.current) return;
+    if (!chartContainerRef.current || !token?.recentTrades || !isMountedRef.current) {
+      console.log('[TokenChart] Skipping chart initialization', {
+        hasContainer: !!chartContainerRef.current,
+        hasTrades: !!token?.recentTrades,
+        isMounted: isMountedRef.current,
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
 
     try {
+      console.log('[TokenChart] Initializing chart', {
+        tradesCount: token.recentTrades.length,
+        timestamp: new Date().toISOString()
+      });
+
       // Clean up existing chart if any
       cleanupChart();
 
@@ -107,11 +146,17 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       const resizeObserver = new ResizeObserver(entries => {
         if (!chartRef.current || !isMountedRef.current) return;
         const { width, height } = entries[0].contentRect;
-        requestAnimationFrame(() => {
-          if (chartRef.current && isMountedRef.current) {
-            chartRef.current.applyOptions({ width, height });
-          }
-        });
+
+        // Debounce resize updates
+        const now = Date.now();
+        if (now - lastRenderTimeRef.current > 100) { // Only update every 100ms
+          lastRenderTimeRef.current = now;
+          requestAnimationFrame(() => {
+            if (chartRef.current && isMountedRef.current) {
+              chartRef.current.applyOptions({ width, height });
+            }
+          });
+        }
       });
 
       if (chartContainerRef.current) {
@@ -120,10 +165,12 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       }
 
     } catch (error) {
-      console.error('Chart initialization error:', error);
+      console.error('[TokenChart] Chart initialization error:', error);
       // Try to recover
       cleanupChart();
-      setTimeout(initializeChart, 1000);
+
+      // Force component re-render
+      setRenderKey(prev => prev + 1);
     }
   }, [token?.recentTrades, cleanupChart]);
 
@@ -132,23 +179,34 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     isMountedRef.current = true;
     initializeChart();
 
-    // Periodic chart refresh to prevent black screen
+    // Periodic chart refresh and health check
     const refreshInterval = setInterval(() => {
-      if (isMountedRef.current && chartRef.current) {
-        requestAnimationFrame(() => {
-          if (chartRef.current && isMountedRef.current) {
+      if (isMountedRef.current) {
+        // Check if chart container is still visible
+        if (chartContainerRef.current?.clientWidth === 0 || chartContainerRef.current?.clientHeight === 0) {
+          console.log('[TokenChart] Container dimensions zero, forcing re-render');
+          setRenderKey(prev => prev + 1);
+          return;
+        }
+
+        // Check if chart is responsive
+        if (chartRef.current) {
+          try {
             chartRef.current.timeScale().fitContent();
+          } catch (error) {
+            console.error('[TokenChart] Chart refresh error:', error);
+            setRenderKey(prev => prev + 1);
           }
-        });
+        }
       }
-    }, 30000);
+    }, 10000); // Check every 10 seconds
 
     return () => {
       isMountedRef.current = false;
       cleanupChart();
       clearInterval(refreshInterval);
     };
-  }, [token?.recentTrades, tokenAddress, initializeChart, cleanupChart]);
+  }, [token?.recentTrades, tokenAddress, initializeChart, cleanupChart, renderKey]);
 
   // Handle WebSocket reconnection and status
   useEffect(() => {
@@ -163,8 +221,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     }
   }, [isConnected]);
 
-  if (!token) return null;
-
+  // Format helpers
   const formatAddress = (address: string) => {
     if (!address) return '';
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
@@ -201,8 +258,10 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     }
   };
 
+  if (!token) return null;
+
   return (
-    <div className="flex-1 h-screen bg-black text-white">
+    <div className="flex-1 h-screen bg-black text-white" key={renderKey}>
       <div className="absolute top-4 left-4 z-10">
         <Button 
           variant="ghost" 
