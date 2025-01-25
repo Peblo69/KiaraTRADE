@@ -21,6 +21,7 @@ const formatTime = (timestamp: number): string => {
 
 const TransactionHistory: FC<TransactionHistoryProps> = ({ tokenAddress }) => {
   const transactions = useUnifiedTokenStore(state => state.getTransactions(tokenAddress));
+  const solPrice = usePumpPortalStore(state => state.solPrice);
 
   if (!transactions?.length) {
     return null;
@@ -33,28 +34,21 @@ const TransactionHistory: FC<TransactionHistoryProps> = ({ tokenAddress }) => {
         {transactions.map((tx) => {
           const timeAgo = formatTime(tx.timestamp);
           const buyerAddress = formatAddress(tx.buyer);
+          const sellerAddress = formatAddress(tx.seller);
+          const usdAmount = tx.solAmount * (solPrice || 0);
 
           return (
             <div 
               key={tx.signature} 
-              className="flex items-center justify-between p-2 bg-gray-900/50 rounded-lg text-sm"
+              className="flex flex-col p-3 bg-gray-900/50 rounded-lg text-sm"
             >
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-medium ${tx.type === 'buy' ? 'text-green-400' : 'text-blue-400'}`}>
-                  {tx.type === 'buy' ? 'Buy' : 'Sell'}
-                </span>
-                <a
-                  href={`https://solscan.io/account/${tx.buyer}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gray-400 hover:text-blue-400 transition-colors"
-                >
-                  {buyerAddress}
-                </a>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-white">{tx.solAmount.toFixed(3)} SOL</span>
-                <span className="text-gray-500 text-xs">{timeAgo}</span>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded ${tx.type === 'buy' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                    {tx.type === 'buy' ? 'Buy' : 'Sell'}
+                  </span>
+                  <span className="text-gray-500 text-xs">{timeAgo}</span>
+                </div>
                 <a
                   href={`https://solscan.io/tx/${tx.signature}`}
                   target="_blank"
@@ -63,6 +57,36 @@ const TransactionHistory: FC<TransactionHistoryProps> = ({ tokenAddress }) => {
                 >
                   <ExternalLink size={14} />
                 </a>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-400 text-xs">From:</span>
+                    <a
+                      href={`https://solscan.io/account/${tx.seller}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-300 hover:text-blue-400 transition-colors"
+                    >
+                      {sellerAddress}
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-400 text-xs">To:</span>
+                    <a
+                      href={`https://solscan.io/account/${tx.buyer}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-300 hover:text-blue-400 transition-colors"
+                    >
+                      {buyerAddress}
+                    </a>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-white">{tx.solAmount.toFixed(4)} SOL</span>
+                  <span className="text-gray-400 text-xs">${usdAmount.toFixed(2)}</span>
+                </div>
               </div>
             </div>
           );
