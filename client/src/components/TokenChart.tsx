@@ -1,4 +1,4 @@
-import { FC, useEffect, useRef, useState, useCallback } from 'react';
+import { FC, useEffect, useRef, useState, useCallback, memo } from 'react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { ArrowLeft, DollarSign, Coins } from "lucide-react";
 import { createChart, IChartApi } from 'lightweight-charts';
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -15,80 +16,67 @@ interface TokenChartProps {
 
 const TOKEN_DECIMALS = 9;
 
-const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
+// Memoized chart component to prevent unnecessary re-renders
+const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const isMountedRef = useRef(true);
   const lastRenderTimeRef = useRef<number>(Date.now());
   const [showUsd, setShowUsd] = useState(true);
-  const [renderKey, setRenderKey] = useState(0); // Force re-render key
+  const [error, setError] = useState<Error | null>(null);
 
-  const token = usePumpPortalStore(state => 
-    state.tokens.find(t => t.address === tokenAddress)
+  // Prevent unnecessary re-renders with useCallback for store selectors
+  const token = usePumpPortalStore(
+    useCallback(state => state.tokens.find(t => t.address === tokenAddress), [tokenAddress])
   );
+
   const solPrice = usePumpPortalStore(state => state.solPrice);
   const isConnected = usePumpPortalStore(state => state.isConnected);
 
-  // Debug logs
+  // Component state debugging
   useEffect(() => {
-    console.log('[TokenChart] Component mounted', {
-      tokenAddress,
-      hasToken: !!token,
-      trades: token?.recentTrades?.length,
-      chartExists: !!chartRef.current,
-      timestamp: new Date().toISOString()
-    });
+    const intervalId = setInterval(() => {
+      if (isMountedRef.current) {
+        console.log('[TokenChart] Health check', {
+          timestamp: new Date().toISOString(),
+          hasChart: !!chartRef.current,
+          hasToken: !!token,
+          tradesCount: token?.recentTrades?.length,
+          containerWidth: chartContainerRef.current?.clientWidth,
+          containerHeight: chartContainerRef.current?.clientHeight,
+          isConnected
+        });
+      }
+    }, 5000);
 
-    return () => {
-      console.log('[TokenChart] Component unmounting', {
-        tokenAddress,
-        timestamp: new Date().toISOString()
-      });
-    };
-  }, [tokenAddress, token]);
+    return () => clearInterval(intervalId);
+  }, [token, isConnected]);
 
-  // Cleanup function
   const cleanupChart = useCallback(() => {
-    console.log('[TokenChart] Cleaning up chart', {
-      hasChart: !!chartRef.current,
-      hasObserver: !!resizeObserverRef.current,
-      timestamp: new Date().toISOString()
-    });
+    try {
+      if (resizeObserverRef.current && chartContainerRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
+      }
 
-    if (resizeObserverRef.current && chartContainerRef.current) {
-      resizeObserverRef.current.disconnect();
-      resizeObserverRef.current = null;
-    }
-
-    if (chartRef.current) {
-      chartRef.current.remove();
-      chartRef.current = null;
+      if (chartRef.current) {
+        chartRef.current.remove();
+        chartRef.current = null;
+      }
+    } catch (err) {
+      console.error('[TokenChart] Cleanup error:', err);
     }
   }, []);
 
-  // Initialize chart
   const initializeChart = useCallback(() => {
-    if (!chartContainerRef.current || !token?.recentTrades || !isMountedRef.current) {
-      console.log('[TokenChart] Skipping chart initialization', {
-        hasContainer: !!chartContainerRef.current,
-        hasTrades: !!token?.recentTrades,
-        isMounted: isMountedRef.current,
-        timestamp: new Date().toISOString()
-      });
+    if (!chartContainerRef.current || !token?.recentTrades?.length || !isMountedRef.current) {
       return;
     }
 
     try {
-      console.log('[TokenChart] Initializing chart', {
-        tradesCount: token.recentTrades.length,
-        timestamp: new Date().toISOString()
-      });
-
-      // Clean up existing chart if any
       cleanupChart();
 
-      // Create new chart
       const chart = createChart(chartContainerRef.current, {
         layout: {
           background: { color: '#000000' },
@@ -119,37 +107,29 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         },
       });
 
-      // Convert trades to chart data
       const trades = token.recentTrades
         .map((trade, index) => {
           const tokenAmount = trade.tokenAmount / (10 ** TOKEN_DECIMALS);
           const fillPrice = tokenAmount > 0 ? trade.solAmount / tokenAmount : 0;
-          const timestamp = Math.floor(trade.timestamp / 1000);
-
           return {
-            time: timestamp + (index * 0.001),
+            time: Math.floor(trade.timestamp / 1000) + (index * 0.001),
             value: fillPrice,
           };
         })
         .filter(trade => !isNaN(trade.value) && trade.value > 0)
-        .sort((a, b) => {
-          if (a.time === b.time) return 0;
-          return a.time - b.time;
-        });
+        .sort((a, b) => a.time - b.time);
 
       if (trades.length > 0) {
         lineSeries.setData(trades);
         chart.timeScale().fitContent();
       }
 
-      // Set up resize observer
       const resizeObserver = new ResizeObserver(entries => {
         if (!chartRef.current || !isMountedRef.current) return;
         const { width, height } = entries[0].contentRect;
 
-        // Debounce resize updates
         const now = Date.now();
-        if (now - lastRenderTimeRef.current > 100) { // Only update every 100ms
+        if (now - lastRenderTimeRef.current > 100) {
           lastRenderTimeRef.current = now;
           requestAnimationFrame(() => {
             if (chartRef.current && isMountedRef.current) {
@@ -164,103 +144,111 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         resizeObserverRef.current = resizeObserver;
       }
 
-    } catch (error) {
-      console.error('[TokenChart] Chart initialization error:', error);
-      // Try to recover
-      cleanupChart();
-
-      // Force component re-render
-      setRenderKey(prev => prev + 1);
+    } catch (err) {
+      console.error('[TokenChart] Initialization error:', err);
+      setError(err as Error);
     }
   }, [token?.recentTrades, cleanupChart]);
 
-  // Handle chart initialization and cleanup
+  // Chart lifecycle management
   useEffect(() => {
     isMountedRef.current = true;
-    initializeChart();
 
-    // Periodic chart refresh and health check
-    const refreshInterval = setInterval(() => {
-      if (isMountedRef.current) {
-        // Check if chart container is still visible
-        if (chartContainerRef.current?.clientWidth === 0 || chartContainerRef.current?.clientHeight === 0) {
-          console.log('[TokenChart] Container dimensions zero, forcing re-render');
-          setRenderKey(prev => prev + 1);
-          return;
-        }
-
-        // Check if chart is responsive
-        if (chartRef.current) {
-          try {
-            chartRef.current.timeScale().fitContent();
-          } catch (error) {
-            console.error('[TokenChart] Chart refresh error:', error);
-            setRenderKey(prev => prev + 1);
-          }
-        }
+    const setupChart = () => {
+      if (!chartRef.current && isMountedRef.current) {
+        initializeChart();
       }
-    }, 10000); // Check every 10 seconds
+    };
+
+    setupChart();
+
+    // Periodic health checks
+    const healthCheckInterval = setInterval(() => {
+      if (!isMountedRef.current) return;
+
+      // Verify chart container
+      if (!chartContainerRef.current || 
+          chartContainerRef.current.clientWidth === 0 || 
+          chartContainerRef.current.clientHeight === 0) {
+        console.log('[TokenChart] Container issue detected, reinitializing');
+        cleanupChart();
+        setupChart();
+        return;
+      }
+
+      // Verify chart instance
+      if (!chartRef.current) {
+        console.log('[TokenChart] Missing chart instance, reinitializing');
+        setupChart();
+        return;
+      }
+
+      // Update chart if needed
+      try {
+        chartRef.current.timeScale().fitContent();
+      } catch (err) {
+        console.error('[TokenChart] Chart update error:', err);
+        cleanupChart();
+        setupChart();
+      }
+    }, 5000);
 
     return () => {
       isMountedRef.current = false;
       cleanupChart();
-      clearInterval(refreshInterval);
+      clearInterval(healthCheckInterval);
     };
-  }, [token?.recentTrades, tokenAddress, initializeChart, cleanupChart, renderKey]);
-
-  // Handle WebSocket reconnection and status
-  useEffect(() => {
-    if (!isConnected) {
-      const reconnectInterval = setInterval(() => {
-        if (!isConnected) {
-          window.location.reload();
-        }
-      }, 30000);
-
-      return () => clearInterval(reconnectInterval);
-    }
-  }, [isConnected]);
+  }, [token?.recentTrades, initializeChart, cleanupChart]);
 
   // Format helpers
-  const formatAddress = (address: string) => {
-    if (!address) return '';
-    return `${address.slice(0, 4)}...${address.slice(-4)}`;
-  };
+  const formatAddress = (address: string) => 
+    address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '';
 
-  const formatTimestamp = (timestamp: number) => {
-    return new Date(timestamp).toLocaleTimeString();
-  };
+  const formatTimestamp = (timestamp: number) => 
+    new Date(timestamp).toLocaleTimeString();
 
   const formatAmount = (solAmount: number, showUsd: boolean) => {
     if (!solAmount || isNaN(solAmount)) return showUsd ? '$0.00' : '0 SOL';
-
-    if (showUsd) {
-      const usdAmount = solAmount * solPrice;
-      return `$${usdAmount.toFixed(2)}`;
-    }
-
-    return `${solAmount.toFixed(9)} SOL`;
+    return showUsd 
+      ? `$${(solAmount * solPrice).toFixed(2)}`
+      : `${solAmount.toFixed(9)} SOL`;
   };
 
-  const getTraderAddress = (trade: any) => {
-    if (trade.txType === 'buy') {
-      return trade.traderPublicKey;
-    } else {
-      return trade.counterpartyPublicKey || trade.traderPublicKey;
-    }
-  };
+  const getTraderAddress = (trade: any) => 
+    trade.txType === 'buy' ? trade.traderPublicKey : trade.counterpartyPublicKey;
 
   if (!token) return null;
 
-  // Calculate current bonding curve price - moved inside render after token null check
-  const bondingCurvePrice = token ? (() => {
-    const vTokens = token.vTokensInBondingCurve / (10 ** TOKEN_DECIMALS);
-    if (vTokens <= 0) return 0;
-    return token.vSolInBondingCurve / vTokens;
-  })() : 0;
+  // Calculate bonding curve price
+  const bondingCurvePrice = (() => {
+    try {
+      const vTokens = token.vTokensInBondingCurve / (10 ** TOKEN_DECIMALS);
+      if (vTokens <= 0) return 0;
+      return token.vSolInBondingCurve / vTokens;
+    } catch (err) {
+      console.error('[TokenChart] Price calculation error:', err);
+      return 0;
+    }
+  })();
+
+  if (error) {
+    return (
+      <div className="p-4 bg-black/90 text-white">
+        <h3>Chart Error</h3>
+        <p>{error.message}</p>
+        <Button onClick={() => {
+          setError(null);
+          cleanupChart();
+          initializeChart();
+        }}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex-1 h-screen bg-black text-white" key={renderKey}>
+    <div className="flex-1 h-screen bg-black text-white">
       <div className="absolute top-4 left-4 z-10">
         <Button 
           variant="ghost" 
@@ -336,9 +324,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                     >
                       <div className="flex items-center gap-2">
                         <span>{formatTimestamp(trade.timestamp)}</span>
-                        <span>
-                          {formatAddress(getTraderAddress(trade))}
-                        </span>
+                        <span>{formatAddress(getTraderAddress(trade))}</span>
                       </div>
                       <div className="text-right">
                         {formatAmount(trade.solAmount, showUsd)}
@@ -371,7 +357,11 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                   </div>
                 </div>
 
-                <Input type="number" placeholder="Enter SOL amount..." className="bg-black border-gray-800" />
+                <Input 
+                  type="number" 
+                  placeholder="Enter SOL amount..." 
+                  className="bg-black border-gray-800" 
+                />
 
                 <div className="grid grid-cols-2 gap-2">
                   <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
@@ -396,6 +386,15 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         </div>
       </div>
     </div>
+  );
+});
+
+// Wrap the chart content with error boundary
+const TokenChart: FC<TokenChartProps> = (props) => {
+  return (
+    <ErrorBoundary>
+      <TokenChartContent {...props} />
+    </ErrorBoundary>
   );
 };
 
