@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { createChart, CrosshairMode, IChartApi, ISeriesApi, LineStyle } from 'lightweight-charts';
+import { createChart, CrosshairMode, IChartApi, ISeriesApi, LineStyle, Time } from 'lightweight-charts';
 
 interface ChartProps {
   symbol: string;
@@ -12,14 +12,9 @@ interface ChartProps {
     volume: number;
   }[];
   indicators: {
-    rsi: number[];
-    macd: number[];
-    ema: number[];
-    bollingerBands: {
-      upper: number[];
-      middle: number[];
-      lower: number[];
-    };
+    rsi: number;
+    macd: number;
+    ema: number;
   };
   onTimeRangeChange?: (range: { from: number; to: number }) => void;
 }
@@ -66,23 +61,16 @@ export function AdvancedPriceChart({ symbol, data, indicators, onTimeRangeChange
       wickDownColor: '#ef5350',
     });
 
-    // Add Bollinger Bands
-    const upperBandSeries = chart.addLineSeries({
-      color: 'rgba(250, 250, 250, 0.3)',
-      lineWidth: 1,
-      lineStyle: LineStyle.Dotted,
-    });
+    // Format data for chart
+    const formattedData = data.map(d => ({
+      time: d.time as Time,
+      open: d.open,
+      high: d.high,
+      low: d.low,
+      close: d.close,
+    }));
 
-    const middleBandSeries = chart.addLineSeries({
-      color: 'rgba(250, 250, 250, 0.6)',
-      lineWidth: 1,
-    });
-
-    const lowerBandSeries = chart.addLineSeries({
-      color: 'rgba(250, 250, 250, 0.3)',
-      lineWidth: 1,
-      lineStyle: LineStyle.Dotted,
-    });
+    candlestickSeries.setData(formattedData);
 
     // Add volume series
     const volumeSeries = chart.addHistogramSeries({
@@ -97,40 +85,26 @@ export function AdvancedPriceChart({ symbol, data, indicators, onTimeRangeChange
       },
     });
 
-    // Set data
-    candlestickSeries.setData(data.map(d => ({
-      time: d.time,
-      open: d.open,
-      high: d.high,
-      low: d.low,
-      close: d.close,
-    })));
-
-    // Set Bollinger Bands data
-    const bbData = data.map((d, i) => ({
-      time: d.time,
-      value: indicators.bollingerBands.upper[i],
-    }));
-    upperBandSeries.setData(bbData);
-
-    const middleBBData = data.map((d, i) => ({
-      time: d.time,
-      value: indicators.bollingerBands.middle[i],
-    }));
-    middleBandSeries.setData(middleBBData);
-
-    const lowerBBData = data.map((d, i) => ({
-      time: d.time,
-      value: indicators.bollingerBands.lower[i],
-    }));
-    lowerBandSeries.setData(lowerBBData);
-
     // Set volume data
     volumeSeries.setData(data.map(d => ({
-      time: d.time,
+      time: d.time as Time,
       value: d.volume,
       color: d.close >= d.open ? '#26a69a50' : '#ef535050',
     })));
+
+    // Add EMA line
+    const emaSeries = chart.addLineSeries({
+      color: 'rgba(255, 255, 255, 0.6)',
+      lineWidth: 1,
+    });
+
+    const emaData = data.map((d, i) => ({
+      time: d.time as Time,
+      value: indicators.ema,
+    }));
+
+    emaSeries.setData(emaData);
+
 
     // Add legends
     const legend = document.createElement('div');
