@@ -45,6 +45,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const chartRef = useRef<IChartApi | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const isMountedRef = useRef(true);
+  const lastViewRangeRef = useRef<{ from: number; to: number } | null>(null);
   const [showUsd, setShowUsd] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [selectedInterval, setSelectedInterval] = useState<TimeInterval>(TIME_INTERVALS[0]); // Default to 1s
@@ -62,6 +63,13 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     }
 
     if (chartRef.current) {
+      // Store current view range before cleanup
+      const timeScale = chartRef.current.timeScale();
+      const visibleRange = timeScale.getVisibleLogicalRange();
+      if (visibleRange) {
+        lastViewRangeRef.current = visibleRange;
+      }
+
       chartRef.current.remove();
       chartRef.current = null;
     }
@@ -134,7 +142,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     // Process trades into candles
     const generateCandles = () => {
       const candles = new Map<number, Candle>();
-      let lastClose = token.marketCapSol; // Start with current market cap
+      let lastClose = token.marketCapSol;
 
       token.recentTrades.forEach(trade => {
         const timestamp = Math.floor(trade.timestamp / 1000);
@@ -147,7 +155,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         if (!existing) {
           candles.set(candleTime, {
             time: candleTime,
-            open: lastClose, // Use last close as open
+            open: lastClose,
             high: Math.max(lastClose, mcap),
             low: Math.min(lastClose, mcap),
             close: mcap,
@@ -170,9 +178,12 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     if (candles.length > 0) {
       candlestickSeries.setData(candles);
 
-      // Only fit content on initial load
-      if (!chartRef.current.timeScale().getVisibleLogicalRange()) {
+      // Only fit content on initial load if no previous view range
+      if (!lastViewRangeRef.current) {
         chart.timeScale().fitContent();
+      } else {
+        // Restore previous view range
+        chart.timeScale().setVisibleLogicalRange(lastViewRangeRef.current);
       }
     }
 
