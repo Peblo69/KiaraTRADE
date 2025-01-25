@@ -372,11 +372,12 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Klines (candlestick) endpoint with configurable timeframe
-  app.get('/api/coins/:symbol/klines', async (req, res) => {
+  // Add klines (candlestick) endpoint with configurable timeframe
+  app.get('/api/klines', async (req, res) => {
     try {
-      const symbol = req.params.symbol;
-      const timeframe = req.query.timeframe || '1d';
+      const timeframe = req.query.timeframe || '1h';
+      const tokens = ['BTC-USDT', 'ETH-USDT', 'SOL-USDT'];
+      const chartData: Record<string, any> = {};
 
       // Map frontend timeframes to KuCoin timeframes
       const timeframeMap: Record<string, string> = {
@@ -390,48 +391,51 @@ export function registerRoutes(app: Express): Server {
         '1w': '1week'
       };
 
-      const kucoinTimeframe = timeframeMap[timeframe as string] || '1day';
+      const kucoinTimeframe = timeframeMap[timeframe as string] || '1hour';
 
-      console.log(`[Routes] Fetching klines for ${symbol} with timeframe ${kucoinTimeframe}`);
+      await Promise.all(
+        tokens.map(async (symbol) => {
+          try {
+            const response = await axios.get(`${KUCOIN_API_BASE}/market/candles`, {
+              params: {
+                symbol,
+                type: kucoinTimeframe,
+                startAt: Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000), // Last 7 days
+                endAt: Math.floor(Date.now() / 1000)
+              }
+            });
 
-      const response = await axios.get(`${KUCOIN_API_BASE}/market/candles`, {
-        params: {
-          symbol,
-          type: kucoinTimeframe,
-          startAt: Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000), // Last 7 days by default
-          endAt: Math.floor(Date.now() / 1000)
-        }
-      });
+            if (!response.data.data) {
+              console.warn(`[Routes] No klines data received for ${symbol}`);
+              return;
+            }
 
-      if (!response.data.data) {
-        console.warn(`[Routes] No klines data received for ${symbol}`);
-        return res.json({ klines: [] });
-      }
+            // KuCoin returns klines in reverse chronological order as arrays:
+            // [timestamp, open, close, high, low, volume, turnover]
+            const klines = response.data.data
+              .reverse() // Reverse to get chronological order
+              .map((k: string[]) => ({
+                time: parseInt(k[0]), // Timestamp in seconds
+                open: parseFloat(k[1]),
+                close: parseFloat(k[2]),
+                high: parseFloat(k[3]),
+                low: parseFloat(k[4]),
+                volume: parseFloat(k[5])
+              }));
 
-      // KuCoin returns klines in reverse chronological order as arrays:
-      // [timestamp, open, close, high, low, volume, turnover]
-      const klines = response.data.data
-        .reverse() // Reverse to get chronological order
-        .map((k: string[]) => ({
-          time: parseInt(k[0]), // Timestamp in seconds
-          open: parseFloat(k[1]),
-          close: parseFloat(k[2]),
-          high: parseFloat(k[3]),
-          low: parseFloat(k[4]),
-          volume: parseFloat(k[5])
-        }));
+            chartData[symbol] = { klines };
+          } catch (error) {
+            console.error(`[Routes] Failed to fetch klines for ${symbol}:`, error);
+          }
+        })
+      );
 
-      console.log(`[Routes] Processed ${klines.length} klines for ${symbol}`);
-      if (klines.length > 0) {
-        console.log('[Routes] Sample kline:', klines[0]);
-      }
-
-      res.json({ klines });
+      res.json(chartData);
     } catch (error: any) {
-      console.error('Klines error:', error.response?.data || error.message);
-      res.status(error.response?.status || 500).json({
+      console.error('[Routes] Failed to fetch klines:', error);
+      res.status(500).json({
         error: 'Failed to fetch klines data',
-        details: error.response?.data?.msg || error.message
+        details: error.message
       });
     }
   });
