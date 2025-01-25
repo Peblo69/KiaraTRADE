@@ -28,9 +28,7 @@ class PricePredictionService {
   private readonly EMA_PERIOD = 20;
   private readonly BOLLINGER_PERIOD = 20;
   private readonly BOLLINGER_STD = 2;
-  private readonly VOLUME_PERIODS = [15, 30, 60]; // minutes
 
-  // Calculate Bollinger Bands
   private calculateBollingerBands(prices: number[]): { upper: number; middle: number; lower: number } {
     if (prices.length < this.BOLLINGER_PERIOD) {
       return { upper: 0, middle: 0, lower: 0 };
@@ -38,7 +36,6 @@ class PricePredictionService {
 
     const recentPrices = prices.slice(-this.BOLLINGER_PERIOD);
     const sma = recentPrices.reduce((sum, price) => sum + price, 0) / this.BOLLINGER_PERIOD;
-
     const squaredDiffs = recentPrices.map(price => Math.pow(price - sma, 2));
     const standardDeviation = Math.sqrt(squaredDiffs.reduce((sum, diff) => sum + diff, 0) / this.BOLLINGER_PERIOD);
 
@@ -49,13 +46,11 @@ class PricePredictionService {
     };
   }
 
-  // Calculate Fibonacci retracement levels
   private calculateFibonacciLevels(high: number, low: number): number[] {
     const diff = high - low;
     return [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1].map(level => low + (diff * level));
   }
 
-  // Calculate Volume Profile
   private calculateVolumeProfile(prices: number[], volumes: number[]): { value: number; strength: number } {
     if (prices.length === 0 || volumes.length === 0) {
       return { value: 0, strength: 0 };
@@ -74,17 +69,15 @@ class PricePredictionService {
     };
   }
 
-  // Enhanced RSI calculation with volume weighting
-  private calculateRSI(prices: number[], volumes: number[] = []): number {
+  private calculateRSI(prices: number[], volumes: number[]): number {
     if (prices.length < this.RSI_PERIOD) return 50;
 
     let gains = 0;
     let losses = 0;
-    const useVolume = volumes.length === prices.length;
 
     for (let i = 1; i < this.RSI_PERIOD + 1; i++) {
       const difference = prices[i] - prices[i - 1];
-      const volumeWeight = useVolume ? volumes[i] / Math.max(...volumes) : 1;
+      const volumeWeight = volumes[i] / Math.max(...volumes.slice(0, this.RSI_PERIOD + 1));
 
       if (difference >= 0) {
         gains += difference * volumeWeight;
@@ -99,7 +92,6 @@ class PricePredictionService {
     return 100 - (100 / (1 + rs));
   }
 
-  // Enhanced MACD with multiple timeframe analysis
   private calculateMACD(prices: number[]): number {
     if (prices.length < this.MACD_SLOW) return 0;
 
@@ -111,7 +103,6 @@ class PricePredictionService {
     return macdLine - signalLine; // MACD histogram
   }
 
-  // Enhanced EMA calculation
   private calculateEMA(prices: number[], period: number): number {
     if (prices.length < period) return prices[prices.length - 1];
 
@@ -125,8 +116,7 @@ class PricePredictionService {
     return ema;
   }
 
-  // Calculate all technical indicators
-  private calculateIndicators(prices: number[], volumes: number[] = []): IndicatorValues {
+  private calculateIndicators(prices: number[], volumes: number[]): IndicatorValues {
     const high = Math.max(...prices);
     const low = Math.min(...prices);
 
@@ -143,12 +133,10 @@ class PricePredictionService {
     };
   }
 
-  // Generate advanced price prediction
   private generatePrediction(
     currentPrice: number,
     indicators: IndicatorValues
   ): PredictionResult {
-    // Advanced signal analysis
     let bullishSignals = 0;
     let bearishSignals = 0;
     let totalSignals = 0;
@@ -191,7 +179,6 @@ class PricePredictionService {
     const sentiment = bullishSignals > bearishSignals ? 'bullish' : 'bearish';
     const confidence = Math.abs(bullishSignals - bearishSignals) / totalSignals;
 
-    // Calculate predicted price range using volatility and technical levels
     const volatilityFactor = Math.abs(
       indicators.bollingerBands.upper - indicators.bollingerBands.lower
     ) / currentPrice;
@@ -215,7 +202,6 @@ class PricePredictionService {
     };
   }
 
-  // Public method to get price prediction
   async getPricePrediction(symbol: string): Promise<PredictionResult> {
     try {
       const priceData = await cryptoService.getPriceData(symbol);
@@ -224,7 +210,11 @@ class PricePredictionService {
         throw new Error(`No price data available for ${symbol}`);
       }
 
-      const indicators = this.calculateIndicators([priceData.price], [priceData.volume]);
+      const indicators = this.calculateIndicators(
+        priceData.historicalPrices, 
+        priceData.historicalVolumes
+      );
+
       return this.generatePrediction(priceData.price, indicators);
     } catch (error) {
       console.error(`Error generating prediction for ${symbol}:`, error);

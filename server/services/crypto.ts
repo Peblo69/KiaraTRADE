@@ -4,20 +4,13 @@ interface PriceData {
   price: number;
   change24h: number;
   lastUpdated: number;
+  volume: number;
+  historicalPrices: number[];
+  historicalVolumes: number[];
 }
 
-interface MarketOverview {
-  total_coins: number;
-  total_exchanges: number;
-  market_cap: {
-    value: number;
-    change_24h: number;
-  };
-  volume_24h: number;
-  btc_dominance: number;
-  eth_dominance: number;
-  gas_price: number;
-}
+const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
+const CACHE_DURATION = 60000; // 1 minute cache
 
 class CryptoService {
   private cache: Map<string, PriceData> = new Map();
@@ -29,8 +22,7 @@ class CryptoService {
     lastUpdated: 0
   };
   private readonly MIN_REQUEST_INTERVAL = 2000; // 2 seconds between requests
-  private readonly CACHE_DURATION = 30000; // 30 seconds cache
-  private readonly REQUEST_TIMEOUT = 5000; // 5 seconds timeout
+  private readonly REQUEST_TIMEOUT = 10000; // 10 seconds
 
   private async fetchWithRetry<T>(url: string, retries = 3): Promise<T> {
     let lastError;
@@ -38,21 +30,13 @@ class CryptoService {
       try {
         const response = await axios.get(url, {
           timeout: this.REQUEST_TIMEOUT,
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'KiaraAI/1.0'
-          }
+          headers: { 'Accept': 'application/json' }
         });
         return response.data;
       } catch (error: any) {
         console.error(`Attempt ${i + 1} failed:`, error.message);
         lastError = error;
-        if (error.response?.status === 429) {
-          const retryAfter = parseInt(error.response.headers['retry-after']) || 60;
-          await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-        } else {
-          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
-        }
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
       }
     }
     throw lastError;
@@ -109,38 +93,55 @@ class CryptoService {
     }
   }
 
-  async getPriceData(coinId: string): Promise<PriceData> {
-    const cached = this.cache.get(coinId);
+  async getPriceData(symbol: string): Promise<PriceData> {
+    const cached = this.cache.get(symbol);
     const now = Date.now();
 
-    if (cached && now - cached.lastUpdated < this.CACHE_DURATION) {
+    if (cached && now - cached.lastUpdated < CACHE_DURATION) {
       return cached;
     }
 
     try {
-      const data = await this.fetchWithRetry<any>(
-        `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true`
+      // Fetch current market stats
+      const statsResponse = await this.fetchWithRetry<any>(
+        `${KUCOIN_API_BASE}/market/stats?symbol=${symbol}`
       );
 
-      if (!data || !data[coinId]) {
-        throw new Error(`No data returned for ${coinId}`);
+      if (!statsResponse.data) {
+        throw new Error(`No data returned for ${symbol}`);
       }
 
-      const priceData: PriceData = {
-        price: data[coinId].usd || 0,
-        change24h: data[coinId].usd_24h_change || 0,
-        lastUpdated: Date.now()
-      };
+      // Fetch historical klines for technical analysis
+      const klinesResponse = await this.fetchWithRetry<any>(
+        `${KUCOIN_API_BASE}/market/candles?symbol=${symbol}&type=1min&startAt=${Math.floor((now - 24 * 60 * 60 * 1000) / 1000)}&endAt=${Math.floor(now / 1000)}`
+      );
 
-      this.cache.set(coinId, priceData);
-      return priceData;
-    } catch (error: any) {
-      console.error(`Error fetching price for ${coinId}:`, error.message);
-      return cached || {
-        price: 0,
-        change24h: 0,
+      // Process historical data
+      const historicalData = klinesResponse.data
+        ? klinesResponse.data.reverse().map((kline: string[]) => ({
+            price: parseFloat(kline[2]), // close price
+            volume: parseFloat(kline[5]) // volume
+          }))
+        : [];
+
+      const priceData: PriceData = {
+        price: parseFloat(statsResponse.data.last),
+        change24h: parseFloat(statsResponse.data.changeRate) * 100,
+        volume: parseFloat(statsResponse.data.vol),
+        historicalPrices: historicalData.map(d => d.price),
+        historicalVolumes: historicalData.map(d => d.volume),
         lastUpdated: now
       };
+
+      this.cache.set(symbol, priceData);
+      return priceData;
+    } catch (error: any) {
+      console.error(`Error fetching price for ${symbol}:`, error.message);
+      if (cached) {
+        console.log(`Returning cached data for ${symbol}`);
+        return cached;
+      }
+      throw error;
     }
   }
 
@@ -151,9 +152,22 @@ class CryptoService {
   getCacheStatus() {
     return {
       cacheSize: this.cache.size,
-      marketOverviewAge: Math.floor((Date.now() - (this.marketOverviewCache.lastUpdated || 0)) / 1000)
+      lastUpdated: Array.from(this.cache.values()).map(v => v.lastUpdated)
     };
   }
+}
+
+interface MarketOverview {
+  total_coins: number;
+  total_exchanges: number;
+  market_cap: {
+    value: number;
+    change_24h: number;
+  };
+  volume_24h: number;
+  btc_dominance: number;
+  eth_dominance: number;
+  gas_price: number;
 }
 
 export const cryptoService = new CryptoService();
