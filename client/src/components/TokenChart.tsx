@@ -242,14 +242,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     return `${solAmount.toFixed(9)} SOL`;
   };
 
-  const getBondingCurvePrice = () => {
-    const vTokens = token.vTokensInBondingCurve / (10 ** TOKEN_DECIMALS);
-    if (vTokens <= 0) return 0;
-    return token.vSolInBondingCurve / vTokens;
-  };
-
-  const bondingCurvePrice = getBondingCurvePrice();
-
   const getTraderAddress = (trade: any) => {
     if (trade.txType === 'buy') {
       return trade.traderPublicKey;
@@ -259,6 +251,13 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   };
 
   if (!token) return null;
+
+  // Calculate current bonding curve price - moved inside render after token null check
+  const bondingCurvePrice = token ? (() => {
+    const vTokens = token.vTokensInBondingCurve / (10 ** TOKEN_DECIMALS);
+    if (vTokens <= 0) return 0;
+    return token.vSolInBondingCurve / vTokens;
+  })() : 0;
 
   return (
     <div className="flex-1 h-screen bg-black text-white" key={renderKey}>
