@@ -25,21 +25,25 @@ interface Props {
 
 export const TechnicalAnalysis: FC<Props> = ({
   symbol,
-  patterns,
-  supportLevels,
-  resistanceLevels,
+  patterns = [],
+  supportLevels = [],
+  resistanceLevels = [],
   currentPrice,
   rsi,
   macd,
   volume
 }) => {
-  const nearestSupport = supportLevels
-    .filter(level => level < currentPrice)
-    .sort((a, b) => b - a)[0];
+  const nearestSupport = supportLevels.length > 0
+    ? supportLevels
+        .filter(level => level < currentPrice)
+        .sort((a, b) => b - a)[0]
+    : currentPrice * 0.95; // Default to 5% below current price
 
-  const nearestResistance = resistanceLevels
-    .filter(level => level > currentPrice)
-    .sort((a, b) => a - b)[0];
+  const nearestResistance = resistanceLevels.length > 0
+    ? resistanceLevels
+        .filter(level => level > currentPrice)
+        .sort((a, b) => a - b)[0]
+    : currentPrice * 1.05; // Default to 5% above current price
 
   const getPriceStrength = () => {
     if (rsi > 70) return { text: 'Overbought', color: 'text-red-400' };
@@ -51,29 +55,31 @@ export const TechnicalAnalysis: FC<Props> = ({
 
   return (
     <div className="space-y-6">
-      <Card className="p-6 bg-gray-800/50">
-        <h3 className="text-lg font-semibold text-white mb-4">Pattern Recognition</h3>
-        <div className="space-y-4">
-          {patterns.map((pattern, i) => (
-            <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-gray-900/50">
-              {pattern.type === 'bullish' ? (
-                <TrendingUp className="w-5 h-5 text-green-400 mt-1" />
-              ) : (
-                <TrendingDown className="w-5 h-5 text-red-400 mt-1" />
-              )}
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-white">{pattern.name}</span>
-                  <span className={`text-sm ${pattern.type === 'bullish' ? 'text-green-400' : 'text-red-400'}`}>
-                    {(pattern.confidence * 100).toFixed(1)}% confidence
-                  </span>
+      {patterns.length > 0 && (
+        <Card className="p-6 bg-gray-800/50">
+          <h3 className="text-lg font-semibold text-white mb-4">Pattern Recognition</h3>
+          <div className="space-y-4">
+            {patterns.map((pattern, i) => (
+              <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-gray-900/50">
+                {pattern.type === 'bullish' ? (
+                  <TrendingUp className="w-5 h-5 text-green-400 mt-1" />
+                ) : (
+                  <TrendingDown className="w-5 h-5 text-red-400 mt-1" />
+                )}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-white">{pattern.name}</span>
+                    <span className={`text-sm ${pattern.type === 'bullish' ? 'text-green-400' : 'text-red-400'}`}>
+                      {(pattern.confidence * 100).toFixed(1)}% confidence
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-400 mt-1">{pattern.description}</p>
                 </div>
-                <p className="text-sm text-gray-400 mt-1">{pattern.description}</p>
               </div>
-            </div>
-          ))}
-        </div>
-      </Card>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card className="p-6 bg-gray-800/50">
         <h3 className="text-lg font-semibold text-white mb-4">Key Levels</h3>
@@ -115,7 +121,7 @@ export const TechnicalAnalysis: FC<Props> = ({
               <span className={`text-sm ${strength.color}`}>{strength.text}</span>
             </div>
           </div>
-          
+
           <div className="p-3 rounded-lg bg-gray-900/50">
             <div className="flex items-center gap-2 mb-2">
               <BarChart2 className="w-4 h-4 text-purple-400" />
