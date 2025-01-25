@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { useUnifiedTokenStore } from './unified-token-store';
+import { usePumpPortalStore } from './pump-portal-websocket';
 
 // Constants
 const HELIUS_API_KEY = '004f9b13-f526-4952-9998-52f5c7bec6ee';
@@ -154,10 +155,6 @@ async function processTransaction(signature: string, tokenAddress: string) {
     const wallets = tx.transaction.message.accountKeys.map(key => key.toString());
     const buyer = isBuy ? wallets[0] : wallets[1];
     const seller = isBuy ? wallets[1] : wallets[0];
-    
-    const solAmount = Math.abs(Math.max(...solTransfers));
-    const price = solAmount / deltaAmount;
-    const isBuy = postAmount > preAmount;
     
     const store = useHeliusStore.getState();
     const solPrice = usePumpPortalStore.getState().solPrice || 0;

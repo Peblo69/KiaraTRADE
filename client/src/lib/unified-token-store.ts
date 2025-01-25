@@ -12,19 +12,37 @@ interface Transaction {
   type: 'buy' | 'sell' | 'trade';
 }
 
+interface TokenData {
+  name: string;
+  symbol: string;
+  marketCap: number;
+  marketCapSol: number;
+  liquidityAdded: boolean;
+  holders: number;
+  volume24h: number;
+  address: string;
+  price: number;
+  priceUsd?: number;
+  liquidityUsd?: number;
+  liquidityChange24h?: number;
+  lastTradeTime?: number;
+  highPrice24h?: number;
+  lowPrice24h?: number;
+}
+
 interface UnifiedTokenState {
-  tokens: any[];
-  transactions: Record<string, any[]>;
+  tokens: TokenData[];
+  transactions: Record<string, Transaction[]>;
   isConnected: boolean;
   connectionError: string | null;
   activeToken: string | null;
-  addToken: (token: any) => void;
-  updateToken: (address: string, updates: any) => void;
-  addTransaction: (tokenAddress: string, transaction: any) => void;
+  addToken: (token: TokenData) => void;
+  updateToken: (address: string, updates: Partial<TokenData>) => void;
+  addTransaction: (tokenAddress: string, transaction: Transaction) => void;
   setConnected: (status: boolean) => void;
   setError: (error: string | null) => void;
-  getToken: (address: string) => any | undefined;
-  getTransactions: (address: string) => any[];
+  getToken: (address: string) => TokenData | undefined;
+  getTransactions: (address: string) => Transaction[];
   setActiveToken: (address: string | null) => void;
 }
 
@@ -48,7 +66,7 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>((set, get) => ({
       const updatedToken = {
         ...token,
         marketCap: marketCapUsd,
-        priceUSD: priceUsd,
+        priceUsd: priceUsd,
         lastUpdated: now
       };
 
@@ -86,14 +104,8 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>((set, get) => ({
       if (!token) return state;
 
       // Calculate price impact
-      const solPrice = usePumpPortalStore.getState().solPrice || 0;
-      const priceImpact = (transaction.solAmount * solPrice) / token.marketCap * 100;
-
-      const enrichedTransaction = {
-        ...transaction,
-        priceImpact,
-        priceUSD: transaction.price * solPrice
-      };
+      const priceImpact = (transaction.solAmount / (token.marketCapSol || 1)) * 100;
+      transaction.priceImpact = Math.min(priceImpact, 15); // Cap at 15%
 
       // Check for duplicates with more precise matching
       const isDuplicate = existingTransactions.some(tx => 
@@ -104,7 +116,7 @@ export const useUnifiedTokenStore = create<UnifiedTokenState>((set, get) => ({
 
       if (isDuplicate) return state;
 
-      const updatedTrades = [enrichedTransaction, ...existingTransactions]
+      const updatedTrades = [transaction, ...existingTransactions]
         .sort((a, b) => b.timestamp - a.timestamp)
         .slice(0, 500);
 
