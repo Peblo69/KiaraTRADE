@@ -371,7 +371,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                       key={trade.signature || idx}
                       className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
                         isDevWallet ?
-                          isDevBuying ? 'text-amber-400' : 'text-orange-500' : // Yellow for DEV buys, Orange for DEV sells
+                          isDevBuying ? 'bg-amber-400/10 text-amber-400' : 'bg-orange-500/10 text-orange-500' : // Enhanced DEV indicators
                           trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
                       }`}
                     >
