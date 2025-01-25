@@ -37,6 +37,7 @@ interface Candle {
   high: number;
   low: number;
   close: number;
+  color?: string;
 }
 
 // Memoized chart component to prevent unnecessary re-renders
@@ -75,6 +76,12 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     }
   }, []);
 
+  const formatPriceScale = (price: number): string => {
+    if (price >= 1000000) return `${(price / 1000000).toFixed(1)}M`;
+    if (price >= 1000) return `${(price / 1000).toFixed(1)}K`;
+    return price.toFixed(2);
+  };
+
   const initializeChart = useCallback(() => {
     if (!chartContainerRef.current || !token?.recentTrades?.length) return;
 
@@ -99,6 +106,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         },
         mode: 1,
         autoScale: true,
+        formatter: formatPriceScale,
       },
       timeScale: {
         timeVisible: true,
@@ -131,8 +139,8 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     chartRef.current = chart;
 
     const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#22c55e',
-      downColor: '#ef4444',
+      upColor: '#22c55e',      // Green for buys
+      downColor: '#ef4444',    // Red for sells
       borderUpColor: '#22c55e',
       borderDownColor: '#ef4444',
       wickUpColor: '#22c55e',
@@ -142,14 +150,14 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     // Process trades into candles
     const generateCandles = () => {
       const candles = new Map<number, Candle>();
-      let lastClose = token.marketCapSol;
+      let lastClose = token.marketCapSol * solPrice; // Initialize in USD
 
       token.recentTrades.forEach(trade => {
         const timestamp = Math.floor(trade.timestamp / 1000);
         const interval = selectedInterval.seconds;
         const candleTime = Math.floor(timestamp / interval) * interval;
 
-        const mcap = trade.marketCapSol;
+        const mcap = trade.marketCapSol * solPrice; // Convert to USD
         const existing = candles.get(candleTime);
 
         if (!existing) {
@@ -159,11 +167,14 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
             high: Math.max(lastClose, mcap),
             low: Math.min(lastClose, mcap),
             close: mcap,
+            color: trade.txType === 'buy' ? '#22c55e' : '#ef4444'
           });
         } else {
           existing.high = Math.max(existing.high, mcap);
           existing.low = Math.min(existing.low, mcap);
           existing.close = mcap;
+          // Color based on the last trade in the candle
+          existing.color = trade.txType === 'buy' ? '#22c55e' : '#ef4444';
         }
 
         lastClose = mcap;
@@ -202,7 +213,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       resizeObserverRef.current = resizeObserver;
     }
 
-  }, [token?.recentTrades, cleanupChart, selectedInterval]);
+  }, [token?.recentTrades, cleanupChart, selectedInterval, solPrice]);
 
   // Handle interval change
   const handleIntervalChange = useCallback((interval: TimeInterval) => {
@@ -223,15 +234,15 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
   const formatPrice = (value: number) => {
     if (!value || isNaN(value)) return showUsd ? '$0.00' : '0 SOL';
-    return showUsd 
-      ? `$${(value * solPrice).toFixed(2)}`
+    return showUsd
+      ? `$${(value).toFixed(2)}` // Updated to format USD directly
       : `${value.toFixed(9)} SOL`;
   };
 
-  const formatAddress = (address: string) => 
+  const formatAddress = (address: string) =>
     address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '';
 
-  const formatTimestamp = (timestamp: number) => 
+  const formatTimestamp = (timestamp: number) =>
     new Date(timestamp).toLocaleTimeString();
 
   if (!token) return null;
@@ -241,7 +252,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       <div className="p-4 bg-black/90 text-white rounded-lg">
         <h3 className="text-lg font-semibold mb-2">Chart Error</h3>
         <p className="text-sm text-gray-400">{error.message}</p>
-        <Button 
+        <Button
           onClick={() => {
             setError(null);
             cleanupChart();
@@ -258,9 +269,9 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   return (
     <div className="flex-1 h-screen bg-black text-white">
       <div className="absolute top-4 left-4 z-10">
-        <Button 
-          variant="ghost" 
-          className="text-white hover:bg-white/10" 
+        <Button
+          variant="ghost"
+          className="text-white hover:bg-white/10"
           onClick={onBack}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -271,8 +282,8 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       <div className="p-4">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <img 
-              src={token.imageLink || 'https://via.placeholder.com/150'} 
+            <img
+              src={token.imageLink || 'https://via.placeholder.com/150'}
               className="w-8 h-8 rounded-full"
               alt={token.symbol}
               onError={(e) => {
@@ -290,15 +301,15 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           <div className="flex gap-6">
             <div className="text-right">
               <div className="text-sm text-gray-400">Price</div>
-              <div className="font-bold">{formatPrice(token.marketCapSol)}</div>
+              <div className="font-bold">{formatPrice(token.marketCapSol * solPrice)}</div> {/* Updated to use USD */}
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Liquidity</div>
-              <div className="font-bold">{formatPrice(token.vSolInBondingCurve)}</div>
+              <div className="font-bold">{formatPrice(token.vSolInBondingCurve * solPrice)}</div> {/* Updated to use USD */}
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Market Cap</div>
-              <div className="font-bold">{formatPrice(token.marketCapSol)}</div>
+              <div className="font-bold">{formatPriceScale(token.marketCapSol * solPrice)}</div> {/* Updated to use new formatter */}
             </div>
           </div>
         </div>
@@ -350,7 +361,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                       <span>{formatAddress(trade.traderPublicKey)}</span>
                     </div>
                     <div className="text-right">
-                      {formatPrice(trade.solAmount)}
+                      {formatPrice(trade.solAmount * solPrice)} {/* Updated to use USD */}
                     </div>
                   </div>
                 ))}
@@ -378,10 +389,10 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                     </div>
                   </div>
 
-                  <Input 
-                    type="number" 
-                    placeholder="Enter SOL amount..." 
-                    className="bg-black border-gray-800" 
+                  <Input
+                    type="number"
+                    placeholder="Enter SOL amount..."
+                    className="bg-black border-gray-800"
                   />
 
                   <div className="grid grid-cols-2 gap-2">
@@ -394,11 +405,11 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                   <div className="grid grid-cols-2 text-sm">
                     <div>
                       <div className="text-gray-400">Liquidity</div>
-                      <div>{formatPrice(token.vSolInBondingCurve)}</div>
+                      <div>{formatPrice(token.vSolInBondingCurve * solPrice)}</div> {/* Updated to use USD */}
                     </div>
                     <div>
                       <div className="text-gray-400">Market Cap</div>
-                      <div>{formatPrice(token.marketCapSol)}</div>
+                      <div>{formatPriceScale(token.marketCapSol * solPrice)}</div> {/* Updated to use new formatter */}
                     </div>
                   </div>
                 </div>
