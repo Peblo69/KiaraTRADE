@@ -10,14 +10,21 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 const SOL_PRICE_UPDATE_INTERVAL = 10_000;
 
 export interface TokenTrade {
+  // Trade identification
   signature: string;
   timestamp: number;
+
+  // Core trade data
   mint: string;
   txType: 'buy' | 'sell';
   tokenAmount: number;
   solAmount: number;
+
+  // Addresses
   traderPublicKey: string;
   counterpartyPublicKey: string;
+
+  // Bonding curve state after trade
   bondingCurveKey: string;
   vTokensInBondingCurve: number;
   vSolInBondingCurve: number;
@@ -52,59 +59,55 @@ interface PumpPortalStore {
   setSolPrice: (price: number) => void;
 }
 
-export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
+export const usePumpPortalStore = create<PumpPortalStore>((set) => ({
   tokens: [],
   isConnected: false,
   solPrice: 0,
 
   addToken: (tokenData) => 
     set((state) => ({
-      tokens: [mapRawTokenData(tokenData), ...state.tokens].slice(0, 50),
+      tokens: [mapTokenData(tokenData), ...state.tokens].slice(0, 50),
     })),
 
-  addTradeToHistory: (address, tradeData) => {
-    const token = get().tokens.find((t) => t.address === address);
-    if (!token) return;
-
-    // Create trade record with raw data
-    const newTrade: TokenTrade = {
-      signature: tradeData.signature,
-      timestamp: Date.now(),
-      mint: tradeData.mint,
-      txType: tradeData.txType,
-      tokenAmount: tradeData.tokenAmount,
-      solAmount: tradeData.solAmount,
-      traderPublicKey: tradeData.traderPublicKey,
-      counterpartyPublicKey: tradeData.counterpartyPublicKey,
-      bondingCurveKey: tradeData.bondingCurveKey,
-      vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
-      vSolInBondingCurve: tradeData.vSolInBondingCurve,
-      marketCapSol: tradeData.marketCapSol
-    };
-
-    // Update token with new trade
+  addTradeToHistory: (address, tradeData) => 
     set((state) => ({
       tokens: state.tokens.map((t) => {
         if (t.address !== address) return t;
+
+        // Create trade record with raw data
+        const newTrade: TokenTrade = {
+          signature: tradeData.signature,
+          timestamp: Date.now(),
+          mint: tradeData.mint,
+          txType: tradeData.txType,
+          tokenAmount: tradeData.tokenAmount,
+          solAmount: tradeData.solAmount,
+          traderPublicKey: tradeData.traderPublicKey,
+          counterpartyPublicKey: tradeData.counterpartyPublicKey,
+          bondingCurveKey: tradeData.bondingCurveKey,
+          vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
+          vSolInBondingCurve: tradeData.vSolInBondingCurve,
+          marketCapSol: tradeData.marketCapSol
+        };
+
+        // Update token state 
         return {
           ...t,
           recentTrades: [newTrade, ...t.recentTrades].slice(0, MAX_TRADES_PER_TOKEN),
-          // Update raw bonding curve data
           bondingCurveKey: tradeData.bondingCurveKey,
           vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
           vSolInBondingCurve: tradeData.vSolInBondingCurve,
           marketCapSol: tradeData.marketCapSol
         };
       }),
-    }));
-  },
+    })),
 
   setConnected: (connected) => set({ isConnected: connected }),
   setSolPrice: (price) => set({ solPrice: price }),
 }));
 
-// Map raw token data from PumpPortal
-function mapRawTokenData(data: any): PumpPortalToken {
+// Map raw token data 
+function mapTokenData(data: any): PumpPortalToken {
   return {
     symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
     name: data.name || `Token ${data.mint?.slice(0, 8)}`,
@@ -114,66 +117,56 @@ function mapRawTokenData(data: any): PumpPortalToken {
     // Raw bonding curve data
     bondingCurveKey: data.bondingCurveKey,
     vTokensInBondingCurve: data.vTokensInBondingCurve,
-    vSolInBondingCurve: data.vSolInBondingCurve, 
+    vSolInBondingCurve: data.vSolInBondingCurve,
     marketCapSol: data.marketCapSol,
 
     recentTrades: []
   };
 }
 
-// Initialize WebSocket connection
+// WebSocket connection
 let ws: WebSocket | null = null;
 let reconnectTimeout: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
 let solPriceInterval: NodeJS.Timeout | null = null;
 
-const API_ENDPOINTS = [
-  {
-    url: 'https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT',
-    extract: (data: any) => Number(data?.price),
-  },
-];
-
-// Fetch SOL Price
+// Fetch SOL price from Binance
 const fetchSolanaPrice = async (retries = 3): Promise<number> => {
-  for (const endpoint of API_ENDPOINTS) {
-    for (let i = 0; i < retries; i++) {
-      try {
-        const response = await axios.get(endpoint.url);
-        const price = endpoint.extract(response.data);
-        if (typeof price === 'number' && price > 0) {
-          return price;
-        }
-      } catch (error) {
-        console.error(`[PumpPortal] Error fetching SOL price:`, error);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
+  try {
+    const response = await axios.get('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT');
+    const price = Number(response.data.price);
+    if (!isNaN(price) && price > 0) {
+      return price;
+    }
+  } catch (error) {
+    console.error('[PumpPortal] Failed to fetch SOL price:', error);
+    if (retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return fetchSolanaPrice(retries - 1);
     }
   }
-  return 100; // fallback
+  return 100; // fallback price
 };
 
+// Cleanup function
+function cleanup() {
+  if (ws) {
+    try { ws.close(); } catch {}
+    ws = null;
+  }
+  if (solPriceInterval) {
+    clearInterval(solPriceInterval);
+    solPriceInterval = null;
+  }
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
+}
+
+// Initialize WebSocket
 export function initializePumpPortalWebSocket() {
   if (typeof window === 'undefined') return;
-
-  const cleanup = () => {
-    if (ws) {
-      try {
-        ws.close();
-      } catch (e) {
-        console.error('[PumpPortal] Error closing WebSocket:', e);
-      }
-      ws = null;
-    }
-    if (solPriceInterval) {
-      clearInterval(solPriceInterval);
-      solPriceInterval = null;
-    }
-    if (reconnectTimeout) {
-      clearTimeout(reconnectTimeout);
-      reconnectTimeout = null;
-    }
-  };
 
   cleanup();
 
@@ -183,15 +176,11 @@ export function initializePumpPortalWebSocket() {
     const store = usePumpPortalStore.getState();
 
     // Get initial SOL price
-    fetchSolanaPrice().then((price) => {
+    fetchSolanaPrice().then(price => {
       store.setSolPrice(price);
       solPriceInterval = setInterval(async () => {
-        try {
-          const newPrice = await fetchSolanaPrice();
-          store.setSolPrice(newPrice);
-        } catch (error) {
-          console.error('[PumpPortal] Failed to update SOL price:', error);
-        }
+        const newPrice = await fetchSolanaPrice();
+        store.setSolPrice(newPrice);
       }, SOL_PRICE_UPDATE_INTERVAL);
     });
 
@@ -236,10 +225,8 @@ export function initializePumpPortalWebSocket() {
 
       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         reconnectAttempts++;
-        reconnectTimeout = setTimeout(
-          initializePumpPortalWebSocket,
-          RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts)
-        );
+        const delay = RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts);
+        reconnectTimeout = setTimeout(initializePumpPortalWebSocket, delay);
       }
     };
 
@@ -252,10 +239,8 @@ export function initializePumpPortalWebSocket() {
     console.error('[PumpPortal] Failed to initialize WebSocket:', error);
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
       reconnectAttempts++;
-      reconnectTimeout = setTimeout(
-        initializePumpPortalWebSocket,
-        RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts)
-      );
+      const delay = RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts);
+      reconnectTimeout = setTimeout(initializePumpPortalWebSocket, delay);
     }
   }
 }
