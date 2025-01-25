@@ -91,25 +91,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         borderColor: '#333333',
         rightOffset: 12,
         barSpacing: 12,
-        lockVisibleTimeRangeOnResize: true,
-        rightBarStaysOnScroll: true,
-      },
-      handleScroll: {
-        mouseWheel: true,
-        pressedMouseMove: true,
-        horzTouchDrag: true,
-        vertTouchDrag: true,
-      },
-      handleScale: {
-        axisPressedMouseMove: {
-          time: true,
-          price: true,
-        },
-        mouseWheel: true,
-        pinch: true,
-      },
-      crosshair: {
-        mode: 1,
       },
     });
 
@@ -127,17 +108,29 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     const generateCandles = () => {
       const candles: Candle[] = [];
       let prevPrice = token.marketCapSol * solPrice;
+      let lastTimestamp = 0;
+      let offset = 0;
 
-      // Sort trades by timestamp in ascending order
+      // Sort trades by timestamp ascending
       const sortedTrades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
 
       sortedTrades.forEach(trade => {
         const currentPrice = trade.marketCapSol * solPrice;
+        let tradeTime = Math.floor(trade.timestamp / 1000);
 
-        // For buys: start from prev price, go up to current
-        // For sells: start from current price, go down to prev
+        // Add offset for trades in the same second
+        if (tradeTime === lastTimestamp) {
+          offset += 1;
+        } else {
+          offset = 0;
+          lastTimestamp = tradeTime;
+        }
+
+        // Add millisecond offset to ensure unique timestamps
+        tradeTime = tradeTime + (offset * 0.001);
+
         const candle: Candle = {
-          time: Math.floor(trade.timestamp / 1000),
+          time: tradeTime,
           open: trade.txType === 'buy' ? prevPrice : currentPrice,
           close: trade.txType === 'buy' ? currentPrice : prevPrice,
           high: Math.max(prevPrice, currentPrice),
