@@ -22,7 +22,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   useEffect(() => {
     if (!chartContainerRef.current || !token?.recentTrades) return;
 
-    // Process trades into OHLC data
+    // Convert trades to OHLC data
     const trades = token.recentTrades
       .map(trade => ({
         timestamp: trade.timestamp,
@@ -36,7 +36,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
     // Group trades into 1-minute candles
     const candleMap = new Map();
-    const MINUTE = 60 * 1000; // 1 minute in milliseconds
+    const MINUTE = 60 * 1000;
 
     trades.forEach(trade => {
       const candleTime = Math.floor(trade.timestamp / MINUTE) * MINUTE;
@@ -57,7 +57,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       }
     });
 
-    // Convert to array and sort by time
     const candleData = Array.from(candleMap.values())
       .sort((a, b) => a.time - b.time);
 
@@ -81,7 +80,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       },
     });
 
-    // Create candlestick series
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: '#22c55e',
       downColor: '#ef4444',
@@ -97,7 +95,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
     candlestickSeries.setData(candleData);
 
-    // Set visible range with padding
     const timeRange = {
       from: candleData[0].time - 300,
       to: candleData[candleData.length - 1].time + 300
@@ -105,13 +102,9 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
     chart.timeScale().setVisibleRange(timeRange);
 
-    // Handle resize
     const resizeObserver = new ResizeObserver(entries => {
       const { width, height } = entries[0].contentRect;
-      chart.applyOptions({
-        width,
-        height,
-      });
+      chart.applyOptions({ width, height });
     });
 
     if (chartContainerRef.current) {
@@ -136,13 +129,13 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   };
 
   const formatSolPrice = (price: number) => {
-    if (!price || isNaN(price)) return '0.00 SOL';
+    if (!price || isNaN(price)) return '0.00000000 SOL';
     return `${price.toFixed(8)} SOL`;
   };
 
   const formatUsdPrice = (price: number) => {
-    if (!price || isNaN(price)) return '$0.00';
-    return `$${price.toFixed(6)}`;
+    if (!price || isNaN(price)) return '$0.00000000';
+    return `$${price.toFixed(8)}`;
   };
 
   return (
@@ -212,7 +205,9 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                     >
                       <div className="flex items-center gap-2">
                         <span>{formatTimestamp(trade.timestamp)}</span>
-                        <span>{formatAddress(trade.type === 'buy' ? trade.buyer : trade.seller)}</span>
+                        <span>
+                          {formatAddress(trade.type === 'buy' ? trade.buyer : trade.seller)}
+                        </span>
                       </div>
                       <div className="text-right">
                         <div>{formatSolPrice(trade.price)}</div>
