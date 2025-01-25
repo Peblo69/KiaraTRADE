@@ -86,18 +86,18 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const token = state.tokens.find((t) => t.address === address);
     if (!token || !state.solPrice) return;
 
-    // Process raw token amounts (PumpPortal sends tokenAmount with 9 decimals)
+    // Get raw token amount with 9 decimals from PumpPortal
     const rawTokenAmount = Number(trade.tokenAmount || 0);
     const tokenAmount = rawTokenAmount / (10 ** TOKEN_DECIMALS);
 
-    // Get SOL amount (already in SOL)
+    // Get raw SOL amount (already in SOL)
     const solAmount = Number(trade.solAmount || 0);
 
-    // Calculate actual trade price (SOL per token)
+    // Calculate trade price (SOL per token)
     const tradePriceSol = tokenAmount > 0 ? solAmount / tokenAmount : 0;
     const tradePriceUsd = tradePriceSol * state.solPrice;
 
-    // Get bonding curve data
+    // Get bonding curve data (raw values)
     const rawVTokens = Number(trade.vTokensInBondingCurve || 0);
     const rawVSol = Number(trade.vSolInBondingCurve || 0);
     const realVTokens = rawVTokens / (10 ** TOKEN_DECIMALS);
@@ -106,11 +106,11 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const bcPriceSol = realVTokens > 0 ? rawVSol / realVTokens : 0;
     const bcPriceUsd = bcPriceSol * state.solPrice;
 
-    // Use market cap from server if provided, otherwise calculate
+    // Get market cap from server
     const marketCapSol = Number(trade.marketCapSol || 0);
     const marketCapUsd = marketCapSol * state.solPrice;
 
-    // Calculate liquidity in USD (total SOL in bonding curve)
+    // Calculate liquidity (total SOL in bonding curve)
     const liquidityUsd = rawVSol * state.solPrice;
 
     console.log('[Trade Debug]', {
@@ -121,7 +121,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       bcPriceSol,
       bcPriceUsd,
       marketCapUsd,
-      liquidityUsd,
+      liquidityUsd
     });
 
     // Create trade record
@@ -153,14 +153,13 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           priceUsd: bcPriceUsd,
           marketCap: marketCapUsd,
           liquidity: liquidityUsd,
-          volume: t.volume + (solAmount * state.solPrice), // Add trade volume
+          volume: t.volume + (solAmount * state.solPrice),
           volume24h: trades24h.reduce((sum, tr) => sum + (tr.solAmount * state.solPrice), 0),
           trades: t.trades + 1,
           trades24h: trades24h.length,
           buys24h: trades24h.filter((x) => x.type === 'buy').length,
           sells24h: trades24h.filter((x) => x.type === 'sell').length,
           recentTrades,
-          // Store bonding curve state
           vSolInBondingCurve: rawVSol,
           vTokensInBondingCurve: rawVTokens,
           walletCount: new Set(recentTrades.flatMap((x) => [x.buyer, x.seller])).size,
@@ -266,19 +265,7 @@ export function initializePumpPortalWebSocket() {
 
         switch (type) {
           case 'newToken': {
-            console.log('[PumpPortal] New Token Details:', {
-              name: data.name,
-              symbol: data.symbol,
-              mint: data.mint,
-              initialBuy: data.initialBuy,
-              bondingCurveKey: data.bondingCurveKey,
-              vTokensInBondingCurve: data.vTokensInBondingCurve,
-              vSolInBondingCurve: data.vSolInBondingCurve,
-              marketCapSol: data.marketCapSol,
-              solAmount: data.solAmount,
-              imageLink: data.imageLink,
-              uri: data.uri
-            });
+            console.log('[PumpPortal] New Token Details:', data);
 
             const token = mapPumpPortalData(data);
             store.addToken(token);
@@ -298,16 +285,7 @@ export function initializePumpPortalWebSocket() {
             break;
           }
           case 'trade': {
-            console.log('[PumpPortal] Trade Details:', {
-              mint: data.mint,
-              txType: data.txType,
-              tokenAmount: data.tokenAmount,
-              solAmount: data.solAmount,
-              bondingCurveKey: data.bondingCurveKey,
-              vTokensInBondingCurve: data.vTokensInBondingCurve,
-              vSolInBondingCurve: data.vSolInBondingCurve,
-              marketCapSol: data.marketCapSol
-            });
+            console.log('[PumpPortal] Trade Details:', data);
             store.addTradeToHistory(data.mint, data);
             break;
           }
