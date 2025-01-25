@@ -72,15 +72,18 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     const existingCandle = currentCandle?.time === candleStartTime ? currentCandle : null;
 
     if (!existingCandle) {
+      // Start new candle from previous close or current market cap
+      const startValue = currentCandle ? currentCandle.close : marketCap;
       return {
         time: candleStartTime,
-        open: marketCap,
-        high: marketCap,
-        low: marketCap,
+        open: startValue,
+        high: Math.max(startValue, marketCap),
+        low: Math.min(startValue, marketCap),
         close: marketCap
       };
     }
 
+    // Update existing candle preserving continuous movement
     return {
       ...existingCandle,
       high: Math.max(existingCandle.high, marketCap),
@@ -123,6 +126,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           top: 0.1,
           bottom: 0.1,
         },
+        autoScale: true,
       },
       timeScale: {
         timeVisible: true,
@@ -130,18 +134,25 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         borderColor: '#333333',
         rightOffset: 15,
         barSpacing: 12,
-        fixLeftEdge: false,
-        fixRightEdge: true,
         lockVisibleTimeRangeOnResize: true,
+        rightBarStaysOnScroll: true,
       },
       handleScroll: {
         mouseWheel: true,
         pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true,
       },
       handleScale: {
-        axisPressedMouseMove: true,
+        axisPressedMouseMove: {
+          time: true,
+          price: true,
+        },
         mouseWheel: true,
         pinch: true,
+      },
+      crosshair: {
+        mode: 1,
       },
     });
 
@@ -154,6 +165,11 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       borderDownColor: '#ef5350',
       wickUpColor: '#26a69a',
       wickDownColor: '#ef5350',
+      priceFormat: {
+        type: 'price',
+        precision: 4,
+        minMove: 0.0001,
+      },
     });
 
     // Process trades into candles
@@ -180,33 +196,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
     if (sortedCandles.length > 0) {
       candlestickSeries.setData(sortedCandles);
-
-      // Calculate price range for auto-scaling
-      const priceRange = sortedCandles.reduce(
-        (acc, candle) => ({
-          min: Math.min(acc.min, candle.low),
-          max: Math.max(acc.max, candle.high),
-        }),
-        { min: Infinity, max: -Infinity }
-      );
-
-      // Add padding to price range
-      const padding = (priceRange.max - priceRange.min) * 0.2;
-      candlestickSeries.applyOptions({
-        priceFormat: {
-          type: 'price',
-          precision: 2,
-          minMove: 0.01,
-        },
-      });
-
-      // Set visible range to show latest candles
-      chart.timeScale().setVisibleLogicalRange({
-        from: Math.max(0, sortedCandles.length - 50),
-        to: sortedCandles.length + 5,
-      });
-
-      // Update current candle
       setCurrentCandle(sortedCandles[sortedCandles.length - 1]);
     }
 
