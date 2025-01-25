@@ -92,69 +92,101 @@ export function AdvancedPriceChart({ symbol, data, indicators, onTimeRangeChange
 
     candlestickSeries.setData(formattedData);
 
-    // Add Bollinger Bands
-    const upperBandSeries = chart.addLineSeries({
-      color: 'rgba(250, 250, 250, 0.3)',
-      lineWidth: 1,
-      lineStyle: LineStyle.Dotted,
-    });
+    // Add Bollinger Bands if available
+    if (indicators.bollingerBands) {
+      const upperBandSeries = chart.addLineSeries({
+        color: 'rgba(250, 250, 250, 0.3)',
+        lineWidth: 1,
+        lineStyle: LineStyle.Dotted,
+      });
 
-    const middleBandSeries = chart.addLineSeries({
-      color: 'rgba(250, 250, 250, 0.6)',
-      lineWidth: 1,
-    });
+      const middleBandSeries = chart.addLineSeries({
+        color: 'rgba(250, 250, 250, 0.6)',
+        lineWidth: 1,
+      });
 
-    const lowerBandSeries = chart.addLineSeries({
-      color: 'rgba(250, 250, 250, 0.3)',
-      lineWidth: 1,
-      lineStyle: LineStyle.Dotted,
-    });
+      const lowerBandSeries = chart.addLineSeries({
+        color: 'rgba(250, 250, 250, 0.3)',
+        lineWidth: 1,
+        lineStyle: LineStyle.Dotted,
+      });
 
-    // Add Fibonacci Levels
-    const fibLevels = indicators.fibonacci.levels;
-    const fibSeries = fibLevels.map(level => {
-      const series = chart.addLineSeries({
-        color: 'rgba(255, 215, 0, 0.3)',
+      // Set Bollinger Bands data
+      const bbData = data.map(d => ({
+        time: d.time as Time,
+        value: indicators.bollingerBands.upper,
+      }));
+      upperBandSeries.setData(bbData);
+
+      const middleBBData = data.map(d => ({
+        time: d.time as Time,
+        value: indicators.bollingerBands.middle,
+      }));
+      middleBandSeries.setData(middleBBData);
+
+      const lowerBBData = data.map(d => ({
+        time: d.time as Time,
+        value: indicators.bollingerBands.lower,
+      }));
+      lowerBandSeries.setData(lowerBBData);
+    }
+
+    // Add Fibonacci Levels if available
+    if (indicators.fibonacci?.levels) {
+      indicators.fibonacci.levels.forEach((level, index) => {
+        const series = chart.addLineSeries({
+          color: 'rgba(255, 215, 0, 0.3)',
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+        });
+        series.setData(data.map(d => ({
+          time: d.time as Time,
+          value: level
+        })));
+      });
+    }
+
+    // Add Pivot Points if available
+    if (indicators.pivotPoints) {
+      const { pivot, r1, r2, s1, s2 } = indicators.pivotPoints;
+      const timeRange = data.map(d => ({ time: d.time as Time }));
+
+      const pivotSeries = chart.addLineSeries({
+        color: 'rgba(255, 255, 255, 0.6)',
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
       });
-      series.setData(data.map(d => ({
-        time: d.time as Time,
-        value: level
-      })));
-      return series;
-    });
 
-    // Add Pivot Points
-    const pivotSeries = chart.addLineSeries({
-      color: 'rgba(255, 255, 255, 0.6)',
-      lineWidth: 1,
-      lineStyle: LineStyle.Dashed,
-    });
+      const r1Series = chart.addLineSeries({
+        color: 'rgba(76, 175, 80, 0.4)',
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+      });
 
-    const r1Series = chart.addLineSeries({
-      color: 'rgba(76, 175, 80, 0.4)',
-      lineWidth: 1,
-      lineStyle: LineStyle.Dashed,
-    });
+      const r2Series = chart.addLineSeries({
+        color: 'rgba(76, 175, 80, 0.6)',
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+      });
 
-    const r2Series = chart.addLineSeries({
-      color: 'rgba(76, 175, 80, 0.6)',
-      lineWidth: 1,
-      lineStyle: LineStyle.Dashed,
-    });
+      const s1Series = chart.addLineSeries({
+        color: 'rgba(244, 67, 54, 0.4)',
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+      });
 
-    const s1Series = chart.addLineSeries({
-      color: 'rgba(244, 67, 54, 0.4)',
-      lineWidth: 1,
-      lineStyle: LineStyle.Dashed,
-    });
+      const s2Series = chart.addLineSeries({
+        color: 'rgba(244, 67, 54, 0.6)',
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+      });
 
-    const s2Series = chart.addLineSeries({
-      color: 'rgba(244, 67, 54, 0.6)',
-      lineWidth: 1,
-      lineStyle: LineStyle.Dashed,
-    });
+      pivotSeries.setData(timeRange.map(t => ({ ...t, value: pivot })));
+      r1Series.setData(timeRange.map(t => ({ ...t, value: r1 })));
+      r2Series.setData(timeRange.map(t => ({ ...t, value: r2 })));
+      s1Series.setData(timeRange.map(t => ({ ...t, value: s1 })));
+      s2Series.setData(timeRange.map(t => ({ ...t, value: s2 })));
+    }
 
     // Add volume series
     const volumeSeries = chart.addHistogramSeries({
@@ -175,35 +207,6 @@ export function AdvancedPriceChart({ symbol, data, indicators, onTimeRangeChange
       value: d.volume,
       color: d.close >= d.open ? '#26a69a50' : '#ef535050',
     })));
-
-    // Set Bollinger Bands data
-    const bbData = data.map(d => ({
-      time: d.time as Time,
-      value: indicators.bollingerBands.upper,
-    }));
-    upperBandSeries.setData(bbData);
-
-    const middleBBData = data.map(d => ({
-      time: d.time as Time,
-      value: indicators.bollingerBands.middle,
-    }));
-    middleBandSeries.setData(middleBBData);
-
-    const lowerBBData = data.map(d => ({
-      time: d.time as Time,
-      value: indicators.bollingerBands.lower,
-    }));
-    lowerBandSeries.setData(lowerBBData);
-
-    // Set Pivot Points data
-    const { pivot, r1, r2, s1, s2 } = indicators.pivotPoints;
-    const timeRange = data.map(d => ({ time: d.time as Time }));
-
-    pivotSeries.setData(timeRange.map(t => ({ ...t, value: pivot })));
-    r1Series.setData(timeRange.map(t => ({ ...t, value: r1 })));
-    r2Series.setData(timeRange.map(t => ({ ...t, value: r2 })));
-    s1Series.setData(timeRange.map(t => ({ ...t, value: s1 })));
-    s2Series.setData(timeRange.map(t => ({ ...t, value: s2 })));
 
     // Add legends
     const legend = document.createElement('div');
