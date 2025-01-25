@@ -160,13 +160,13 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         </div>
 
         <div className="grid grid-cols-[1fr,300px] gap-4">
-          <ResizablePanelGroup direction="vertical" className="h-[600px]">
-            <ResizablePanel defaultSize={80} minSize={30}>
+          <ResizablePanelGroup direction="vertical" className="h-[700px]">
+            <ResizablePanel defaultSize={60} minSize={40}>
               <div className="h-full bg-[#111] rounded-lg p-4">
                 <div ref={chartContainerRef} className="h-full w-full" />
               </div>
             </ResizablePanel>
-            <ResizablePanel defaultSize={20} minSize={10}>
+            <ResizablePanel defaultSize={40} minSize={30}>
               <div className="h-full bg-[#111] rounded-lg p-4 overflow-hidden">
                 <h3 className="text-sm font-semibold mb-2">Recent Trades</h3>
                 <div className="space-y-2 overflow-y-auto h-[calc(100%-2rem)]">
