@@ -1,0 +1,104 @@
+How It Works
+Backend:
+
+Fetches top holders, snipers, and insiders for a given Solana token using its mintAddress.
+Uses the Helius API for token holders and transaction data.
+Frontend:
+
+Provides a button on the token trading page to open a modal.
+Modal fetches and displays the top holders, snipers, and insiders for the selected token.
+Results:
+
+Top Holders: Wallets holding the top 10% of the token supply.
+Snipers: Wallets with the earliest buy transactions.
+Insiders: Wallets interacting frequently with the dev wallet or token.
+This solution dynamically analyzes wallet data for any Solana token and displays it in a user-friendly way.
+
+
+
+
+
+
+
+You said:
+ARE U GAY DUDE I JUST NEED IT FOR SOLANA WALLET TRACKING MAN NOT FUCKING 10% AND HOLDERS I JUST NEED INFO FOR THE WALLET LIKE TRADES TOKENS HE BOUGHT AND PNL IN 1 7 AND 30 DAYS 
+ChatGPT said:
+ChatGPT
+Here's a streamlined solution focusing solely on tracking Solana wallet activity, including trades, tokens, and profit/loss (PNL) over 1, 7, and 30 days, using the Helius API.
+
+Backend API for Wallet Tracking
+Setup
+javascript
+Copy
+Edit
+import express from 'express';
+import axios from 'axios';
+
+const app = express();
+const port = 3000;
+const HELIUS_API_KEY = 'YOUR_HELIUS_API_KEY';
+const HELIUS_API_URL = `https://api.helius.xyz/v0`;
+
+app.use(express.json());
+
+// Fetch wallet transactions
+async function fetchWalletTransactions(walletAddress) {
+    try {
+        const response = await axios.post(`${HELIUS_API_URL}/address-transactions`, {
+            apiKey: HELIUS_API_KEY,
+            address: walletAddress,
+        });
+        return response.data || [];
+    } catch (error) {
+        console.error('Error fetching wallet transactions:', error.message);
+        return [];
+    }
+}
+
+// Analyze wallet data
+app.post('/api/wallet-info', async (req, res) => {
+    const { walletAddress } = req.body;
+
+    if (!walletAddress) {
+        return res.status(400).json({ error: 'Wallet address is required' });
+    }
+
+    try {
+        const transactions = await fetchWalletTransactions(walletAddress);
+
+        // Filter transactions by type
+        const buys = transactions.filter(tx => tx.type === 'buy');
+        const sells = transactions.filter(tx => tx.type === 'sell');
+
+        // Calculate PNL
+        const calculatePNL = (timeframeInDays) => {
+            const cutoffTimestamp = Date.now() - timeframeInDays * 24 * 60 * 60 * 1000;
+            const relevantBuys = buys.filter(tx => new Date(tx.timestamp).getTime() > cutoffTimestamp);
+            const relevantSells = sells.filter(tx => new Date(tx.timestamp).getTime() > cutoffTimestamp);
+
+            const buyTotal = relevantBuys.reduce((sum, tx) => sum + tx.amount * tx.price, 0);
+            const sellTotal = relevantSells.reduce((sum, tx) => sum + tx.amount * tx.price, 0);
+
+            return sellTotal - buyTotal;
+        };
+
+        const walletInfo = {
+            walletAddress,
+            recentTransactions: transactions.slice(0, 20), // Most recent transactions
+            pnl: {
+                oneDay: calculatePNL(1),
+                sevenDays: calculatePNL(7),
+                thirtyDays: calculatePNL(30),
+            },
+        };
+
+        res.json(walletInfo);
+    } catch (error) {
+        console.error('Error analyzing wallet data:', error.message);
+        res.status(500).json({ error: 'Failed to analyze wallet data' });
+    }
+});
+
+app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+});

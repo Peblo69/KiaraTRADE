@@ -72,7 +72,7 @@ export default function WalletTrackingPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const { toast } = useToast();
 
-  const { data: walletData, isLoading } = useQuery<WalletData>({
+  const { data: walletData, isLoading, error } = useQuery<WalletData>({
     queryKey: [`/api/wallet/${selectedWallet}`],
     enabled: !!selectedWallet,
   });
@@ -98,6 +98,11 @@ export default function WalletTrackingPage() {
 
     setTrackedWallets([...trackedWallets, walletAddress]);
     setWalletAddress("");
+
+    toast({
+      title: "Success",
+      description: "Wallet added successfully",
+    });
   };
 
   const handleCreateAlert = (type: Alert['type']) => {
@@ -110,6 +115,14 @@ export default function WalletTrackingPage() {
     };
     setAlerts([...alerts, newAlert]);
   };
+
+  if (error) {
+    toast({
+      title: "Error",
+      description: "Failed to fetch wallet data. Please try again.",
+      variant: "destructive",
+    });
+  }
 
   return (
     <div className="container mx-auto p-6 min-h-screen bg-gradient-to-b from-gray-900 to-black">
@@ -126,6 +139,7 @@ export default function WalletTrackingPage() {
       </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        {/* Add Wallet Card */}
         <Card className="p-6 bg-gray-800/50 border-gray-700">
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
             <Wallet className="w-5 h-5" />
@@ -133,7 +147,7 @@ export default function WalletTrackingPage() {
           </h2>
           <div className="flex gap-2">
             <Input
-              placeholder="Enter wallet address"
+              placeholder="Enter Solana wallet address"
               value={walletAddress}
               onChange={(e) => setWalletAddress(e.target.value)}
               className="flex-1"
@@ -145,21 +159,35 @@ export default function WalletTrackingPage() {
           </div>
         </Card>
 
+        {/* Portfolio Overview Card */}
         <Card className="p-6 bg-gray-800/50 border-gray-700">
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
             <Activity className="w-5 h-5" />
             Portfolio Overview
           </h2>
-          {selectedWallet && walletData ? (
+          {isLoading && selectedWallet ? (
+            <div className="animate-pulse space-y-4">
+              <div className="h-4 bg-gray-700 rounded w-3/4"></div>
+              <div className="h-4 bg-gray-700 rounded w-1/2"></div>
+            </div>
+          ) : selectedWallet && walletData ? (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">Total Balance</span>
-                <span className="text-xl font-semibold">${walletData.balance.toFixed(2)}</span>
+                <span className="text-xl font-semibold">
+                  ${walletData.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">24h PNL</span>
                 <span className={`text-lg ${walletData.pnl.daily >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {walletData.pnl.daily >= 0 ? '+' : ''}{walletData.pnl.daily.toFixed(2)}%
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">7d PNL</span>
+                <span className={`text-lg ${walletData.pnl.weekly >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {walletData.pnl.weekly >= 0 ? '+' : ''}{walletData.pnl.weekly.toFixed(2)}%
                 </span>
               </div>
             </div>
@@ -168,6 +196,7 @@ export default function WalletTrackingPage() {
           )}
         </Card>
 
+        {/* Alerts Card */}
         <Card className="p-6 bg-gray-800/50 border-gray-700">
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
             <Bell className="w-5 h-5" />
@@ -252,12 +281,13 @@ export default function WalletTrackingPage() {
         </Card>
       </div>
 
-      <Card className="p-6 bg-gray-800/50 border-gray-700">
+      {/* Tracked Wallets */}
+      <Card className="p-6 bg-gray-800/50 border-gray-700 mb-8">
         <h2 className="text-xl font-semibold mb-4">Tracked Wallets</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {trackedWallets.map((wallet) => (
-            <Card 
-              key={wallet} 
+            <Card
+              key={wallet}
               className={`p-4 bg-gray-700/50 cursor-pointer transition-colors hover:bg-gray-600/50 ${
                 selectedWallet === wallet ? 'ring-2 ring-purple-500' : ''
               }`}
@@ -271,7 +301,7 @@ export default function WalletTrackingPage() {
                   {selectedWallet === wallet && walletData && (
                     <div className="mt-2 space-y-1">
                       <p className="text-sm text-gray-400">
-                        Balance: ${walletData.balance.toFixed(2)}
+                        Balance: ${walletData.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                       <p className="text-sm text-gray-400">
                         Tokens: {walletData.tokens.length}
@@ -286,36 +316,54 @@ export default function WalletTrackingPage() {
         </div>
       </Card>
 
+      {/* Wallet Details Section */}
       {selectedWallet && walletData && (
-        <div className="mt-8 space-y-6">
+        <div className="space-y-6">
+          {/* Token Holdings */}
           <Card className="p-6 bg-gray-800/50 border-gray-700">
             <h3 className="text-xl font-semibold mb-4">Token Holdings</h3>
             <div className="space-y-4">
               {walletData.tokens.map((token) => (
-                <div key={token.mint} className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  key={token.mint}
+                  className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors"
+                >
                   <div className="flex items-center gap-3">
                     <CryptoIcon symbol={token.symbol} size="sm" />
                     <div>
                       <p className="font-medium">{token.symbol}</p>
-                      <p className="text-sm text-gray-400">{token.amount.toFixed(4)} tokens</p>
+                      <p className="text-sm text-gray-400">
+                        {token.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} tokens
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium">${token.value.toFixed(2)}</p>
+                    <p className="font-medium">
+                      ${token.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
                     <p className={`text-sm ${token.pnl24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {token.pnl24h >= 0 ? '+' : ''}{token.pnl24h.toFixed(2)}%
                     </p>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </Card>
 
+          {/* Recent Transactions */}
           <Card className="p-6 bg-gray-800/50 border-gray-700">
             <h3 className="text-xl font-semibold mb-4">Recent Transactions</h3>
             <div className="space-y-4">
-              {walletData.transactions.map((tx) => (
-                <div key={tx.signature} className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
+              {walletData.transactions.map((tx, index) => (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  key={tx.signature}
+                  className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors"
+                >
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-full ${
                       tx.type === 'buy' ? 'bg-green-500/20 text-green-400' :
@@ -325,19 +373,26 @@ export default function WalletTrackingPage() {
                       <ArrowUpDown className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="font-medium">{tx.tokenSymbol}</p>
+                      <p className="font-medium">
+                        {tx.tokenSymbol}
+                        <span className="ml-2 text-sm text-gray-400">
+                          ({tx.type.charAt(0).toUpperCase() + tx.type.slice(1)})
+                        </span>
+                      </p>
                       <p className="text-sm text-gray-400">
                         {new Date(tx.timestamp).toLocaleString()}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium">${tx.value.toFixed(2)}</p>
+                    <p className="font-medium">
+                      ${tx.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
                     <p className="text-sm text-gray-400">
-                      {tx.amount.toFixed(4)} tokens
+                      {tx.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} tokens
                     </p>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </Card>

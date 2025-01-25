@@ -1,0 +1,86 @@
+Frontend: Display Wallet Data
+Wallet Info Component
+tsx
+Copy
+Edit
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+const WalletInfo = ({ walletAddress }) => {
+    const [walletData, setWalletData] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const fetchWalletData = async () => {
+        setLoading(true);
+        setError('');
+
+        try {
+            const response = await axios.post('/api/wallet-info', { walletAddress });
+            setWalletData(response.data);
+        } catch (err) {
+            setError('Failed to fetch wallet data.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (walletAddress) fetchWalletData();
+    }, [walletAddress]);
+
+    if (loading) return <div>Loading...</div>;
+    if (error) return <div>{error}</div>;
+
+    return (
+        <div className="wallet-info">
+            <h3>Wallet: {walletData.walletAddress}</h3>
+            <h4>Profit/Loss:</h4>
+            <ul>
+                <li>1 Day: {walletData.pnl.oneDay} USD</li>
+                <li>7 Days: {walletData.pnl.sevenDays} USD</li>
+                <li>30 Days: {walletData.pnl.thirtyDays} USD</li>
+            </ul>
+
+            <h4>Recent Transactions:</h4>
+            <ul>
+                {walletData.recentTransactions.map((tx, idx) => (
+                    <li key={idx}>
+                        {tx.type.toUpperCase()} - {tx.amount} tokens at ${tx.price} each
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+};
+
+export default WalletInfo;
+Add Button to Display Wallet Info
+Add a button to your chart or wallet overview page to fetch wallet-specific data:
+
+tsx
+Copy
+Edit
+import { useState } from 'react';
+import WalletInfo from './WalletInfo';
+
+const WalletTracker = () => {
+    const [walletAddress, setWalletAddress] = useState('');
+    const [showInfo, setShowInfo] = useState(false);
+
+    return (
+        <div>
+            <input
+                type="text"
+                placeholder="Enter wallet address"
+                value={walletAddress}
+                onChange={(e) => setWalletAddress(e.target.value)}
+            />
+            <button onClick={() => setShowInfo(true)}>Track Wallet</button>
+
+            {showInfo && walletAddress && <WalletInfo walletAddress={walletAddress} />}
+        </div>
+    );
+};
+
+export default WalletTracker;
