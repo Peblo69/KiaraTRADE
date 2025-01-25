@@ -107,35 +107,41 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
     const generateCandles = () => {
       const candles: Candle[] = [];
-      let prevPrice = token.marketCapSol * solPrice;
+      let prevPrice = 0;
       let lastTimestamp = 0;
       let offset = 0;
 
-      // Sort trades by timestamp ascending
       const sortedTrades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
 
-      sortedTrades.forEach(trade => {
-        const currentPrice = trade.marketCapSol * solPrice;
-        let tradeTime = Math.floor(trade.timestamp / 1000);
+      sortedTrades.forEach((trade, index) => {
+        let fillPriceSol = 0;
+        if (trade.tokenAmount > 0) {
+          fillPriceSol = trade.solAmount / trade.tokenAmount;
+        }
+        const fillPriceUsd = fillPriceSol * solPrice;
+        const currentPrice = showUsd ? fillPriceUsd : fillPriceSol;
 
-        // Add offset for trades in the same second
+        if (index === 0) {
+          prevPrice = currentPrice;
+        }
+
+        let tradeTime = Math.floor(trade.timestamp / 1000);
         if (tradeTime === lastTimestamp) {
           offset += 1;
         } else {
           offset = 0;
           lastTimestamp = tradeTime;
         }
-
-        // Add millisecond offset to ensure unique timestamps
         tradeTime = tradeTime + (offset * 0.001);
 
+        const isBuy = trade.txType === 'buy';
         const candle: Candle = {
           time: tradeTime,
-          open: trade.txType === 'buy' ? prevPrice : currentPrice,
-          close: trade.txType === 'buy' ? currentPrice : prevPrice,
+          open: prevPrice,
+          close: currentPrice,
           high: Math.max(prevPrice, currentPrice),
           low: Math.min(prevPrice, currentPrice),
-          color: trade.txType === 'buy' ? '#22c55e' : '#ef4444'
+          color: isBuy ? '#22c55e' : '#ef4444'
         };
 
         candles.push(candle);
@@ -172,7 +178,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       resizeObserverRef.current = resizeObserver;
     }
 
-  }, [token?.recentTrades, cleanupChart, solPrice]);
+  }, [token?.recentTrades, cleanupChart, solPrice, showUsd]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -181,7 +187,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       isMountedRef.current = false;
       cleanupChart();
     };
-  }, [token?.recentTrades, initializeChart, cleanupChart]);
+  }, [token?.recentTrades, initializeChart, cleanupChart, showUsd]);
 
   const formatPrice = (value: number) => {
     if (!value || isNaN(value)) return showUsd ? '$0.00' : '0 SOL';
