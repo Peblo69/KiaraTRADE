@@ -68,27 +68,41 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     set((state) => {
       const newToken = mapTokenData(tokenData);
 
-      // Always set devWallet if it's a creation event
-      if (tokenData.txType === 'create' && tokenData.traderPublicKey) {
-        console.log('[PumpPortal] New token created:', tokenData.mint);
-        console.log('[PumpPortal] Setting dev wallet:', tokenData.traderPublicKey, 'for token:', tokenData.mint);
-        newToken.devWallet = tokenData.traderPublicKey;
+      // Track dev wallet from creation event
+      if (tokenData.txType === 'create') {
+        console.log('[PumpPortal] New token detected:', tokenData.mint);
+        if (tokenData.traderPublicKey) {
+          console.log('[PumpPortal] Setting creator wallet:', tokenData.traderPublicKey);
+          newToken.devWallet = tokenData.traderPublicKey;
+        }
       }
 
       const existingTokenIndex = state.tokens.findIndex(t => t.address === newToken.address);
       const isViewed = state.activeTokenView === newToken.address;
 
+      // Update existing token while preserving dev wallet
       if (existingTokenIndex >= 0) {
-        const updatedTokens = state.tokens.map((t, i) => 
-          i === existingTokenIndex ? { ...t, ...newToken, devWallet: t.devWallet || newToken.devWallet } : t
-        );
+        const updatedTokens = state.tokens.map((t, i) => {
+          if (i === existingTokenIndex) {
+            // Keep existing devWallet if present, otherwise use new one
+            return { 
+              ...t, 
+              ...newToken,
+              devWallet: t.devWallet || newToken.devWallet 
+            };
+          }
+          return t;
+        });
 
         if (isViewed) {
           return {
             tokens: updatedTokens,
             viewedTokens: {
               ...state.viewedTokens,
-              [newToken.address]: { ...newToken, devWallet: state.viewedTokens[newToken.address]?.devWallet || newToken.devWallet }
+              [newToken.address]: { 
+                ...newToken,
+                devWallet: state.viewedTokens[newToken.address]?.devWallet || newToken.devWallet
+              }
             },
             lastUpdate: Date.now()
           };
@@ -97,6 +111,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         return { tokens: updatedTokens, lastUpdate: Date.now() };
       }
 
+      // Add new token
       const updatedTokens = [newToken, ...state.tokens]
         .filter((t, i) => i < MAX_TOKENS_IN_LIST || t.address === state.activeTokenView);
 
@@ -130,12 +145,19 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       };
 
       // Get existing token to preserve devWallet
-      const existingToken = state.viewedTokens[address] || state.tokens.find(t => t.address === address);
+      const existingToken = state.viewedTokens[address] || 
+                          state.tokens.find(t => t.address === address);
+
+      if (!existingToken) return state;
 
       const updateToken = (token: PumpPortalToken): PumpPortalToken => {
-        // Log dev wallet interaction
-        if (token.devWallet === tradeData.traderPublicKey) {
-          console.log('[PumpPortal] Dev wallet trade:', tradeData.txType, 'for token:', address);
+        // Check if this is a dev wallet transaction
+        if (token.devWallet && token.devWallet === tradeData.traderPublicKey) {
+          console.log('[PumpPortal] Dev wallet activity detected:', {
+            token: address,
+            type: tradeData.txType,
+            wallet: tradeData.traderPublicKey
+          });
         }
 
         return {
@@ -155,7 +177,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         lastUpdate: Date.now()
       };
 
-      if (isViewed && existingToken) {
+      if (isViewed) {
         updates.viewedTokens = {
           ...state.viewedTokens,
           [address]: updateToken(existingToken)
@@ -215,7 +237,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   }
 }));
 
-function mapTokenData(data: any): PumpPortalToken {
+export function mapTokenData(data: any): PumpPortalToken {
   return {
     symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
     name: data.name || `Token ${data.mint?.slice(0, 8)}`,
