@@ -60,7 +60,7 @@ export default function Navbar() {
                   Price Predictions
                 </Button>
               </Link>
-              <Link href="/portfolio">
+              <Link href="/wallet-tracking">
                 <Button 
                   variant="outline" 
                   className="text-purple-400 hover:text-purple-300 flex items-center gap-2"
