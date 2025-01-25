@@ -1,0 +1,91 @@
+Fix Your Existing “generateCandles” Logic
+Right now, your code calculates:
+
+ts
+Copy
+Edit
+const currentPrice = trade.marketCapSol * solPrice;
+That’s giving you the entire market cap in USD (or SOL). Plotting market cap as if it were a “price” can look nonsensical for a candlestick chart. Typically, for each trade, you want the fill price (the price paid per token). For a buy or sell:
+
+fillPrice (SOL/token)
+=
+solAmount
+tokenAmount
+fillPrice (SOL/token)= 
+tokenAmount
+solAmount
+​
+ 
+(if your tokenAmount is already in single-token units). Then multiply by solPrice if you want it in USD.
+
+Below is a modified version of your initializeChart() with the core change in generateCandles():
+
+diff
+Copy
+Edit
+const generateCandles = () => {
+  const candles: Candle[] = [];
+- let prevPrice = token.marketCapSol * solPrice; // old code
++ let prevPrice = 0; // We'll set this after the first trade
+
+  let lastTimestamp = 0;
+  let offset = 0;
+
+  // Sort trades by ascending timestamp
+  const sortedTrades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
+
+  sortedTrades.forEach((trade, index) => {
+    // 1) Convert the trade to a fill price in SOL or USD
+    //    If tokenAmount is the "count of tokens" in decimal, do:
+    let fillPriceSol = 0;
+    if (trade.tokenAmount > 0) {
+      fillPriceSol = trade.solAmount / trade.tokenAmount;
+    }
+    // If you want the chart in USD, do:
+    const fillPriceUsd = fillPriceSol * solPrice;
+
+    // 2) Decide which you want to chart: SOL price or USD price:
+    const currentPrice = fillPriceUsd; // or fillPriceSol
+
+    // For the first trade, if `prevPrice` is 0, set it = currentPrice
+    if (index === 0) {
+      prevPrice = currentPrice;
+    }
+
+    // 3) Manage timestamps
+    let tradeTime = Math.floor(trade.timestamp / 1000); // seconds
+    if (tradeTime === lastTimestamp) {
+      offset += 1;
+    } else {
+      offset = 0;
+      lastTimestamp = tradeTime;
+    }
+    // shift a bit if multiple trades in the same second
+    tradeTime = tradeTime + offset * 0.001;
+
+    // 4) Build the candle
+    const isBuy = trade.txType === 'buy';
+    const candle: Candle = {
+      time: tradeTime,
+      open: prevPrice,
+      close: currentPrice,
+      high: Math.max(prevPrice, currentPrice),
+      low: Math.min(prevPrice, currentPrice),
+      color: isBuy ? '#22c55e' : '#ef4444',
+    };
+
+    candles.push(candle);
+
+    // update prevPrice for next iteration
+    prevPrice = currentPrice;
+  });
+
+  return candles;
+};
+What changed:
+
+We removed references to marketCapSol * solPrice as the “price.”
+We compute a “fillPrice” from solAmount / tokenAmount.
+If you want to chart in USD, multiply by solPrice.
+Result: The candlesticks reflect the trade fill prices over time, which should produce a typical ascending/descending pattern rather than giant random jumps from total market cap changes.
+
