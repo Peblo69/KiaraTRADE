@@ -13,24 +13,6 @@ interface TokenChartProps {
   onBack: () => void;
 }
 
-const TOKEN_DECIMALS = 9;
-
-type TimeInterval = {
-  label: string;
-  seconds: number;
-};
-
-const TIME_INTERVALS: TimeInterval[] = [
-  { label: '1s', seconds: 1 },
-  { label: '5s', seconds: 5 },
-  { label: '15s', seconds: 15 },
-  { label: '30s', seconds: 30 },
-  { label: '1m', seconds: 60 },
-  { label: '15m', seconds: 900 },
-  { label: '30m', seconds: 1800 },
-  { label: '1h', seconds: 3600 },
-];
-
 interface Candle {
   time: number;
   open: number;
@@ -48,7 +30,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const lastViewRangeRef = useRef<{ from: number; to: number } | null>(null);
   const [showUsd, setShowUsd] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [selectedInterval, setSelectedInterval] = useState<TimeInterval>(TIME_INTERVALS[0]); 
+
   const token = usePumpPortalStore(
     useCallback(state => state.tokens.find(t => t.address === tokenAddress), [tokenAddress])
   );
@@ -134,8 +116,8 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     chartRef.current = chart;
 
     const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#22c55e',      
-      downColor: '#ef4444',    
+      upColor: '#22c55e',
+      downColor: '#ef4444',
       borderUpColor: '#22c55e',
       borderDownColor: '#ef4444',
       wickUpColor: '#22c55e',
@@ -143,38 +125,31 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     });
 
     const generateCandles = () => {
-      const candles = new Map<number, Candle>();
-      let lastClose = token.marketCapSol * solPrice;
+      const candles: Candle[] = [];
+      let prevPrice = token.marketCapSol * solPrice;
 
-      token.recentTrades.forEach(trade => {
-        const timestamp = Math.floor(trade.timestamp / 1000);
-        const interval = selectedInterval.seconds;
-        const candleTime = Math.floor(timestamp / interval) * interval;
+      // Sort trades by timestamp in ascending order
+      const sortedTrades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
 
-        const mcap = trade.marketCapSol * solPrice;
-        const existing = candles.get(candleTime);
+      sortedTrades.forEach(trade => {
+        const currentPrice = trade.marketCapSol * solPrice;
 
-        if (!existing) {
-          candles.set(candleTime, {
-            time: candleTime,
-            open: lastClose,
-            high: Math.max(lastClose, mcap),
-            low: Math.min(lastClose, mcap),
-            close: mcap,
-            color: trade.txType === 'buy' ? '#22c55e' : '#ef4444'
-          });
-        } else {
-          existing.high = Math.max(existing.high, mcap);
-          existing.low = Math.min(existing.low, mcap);
-          existing.close = mcap;
-          existing.color = trade.txType === 'buy' ? '#22c55e' : '#ef4444';
-        }
+        // For buys: start from prev price, go up to current
+        // For sells: start from current price, go down to prev
+        const candle: Candle = {
+          time: Math.floor(trade.timestamp / 1000),
+          open: trade.txType === 'buy' ? prevPrice : currentPrice,
+          close: trade.txType === 'buy' ? currentPrice : prevPrice,
+          high: Math.max(prevPrice, currentPrice),
+          low: Math.min(prevPrice, currentPrice),
+          color: trade.txType === 'buy' ? '#22c55e' : '#ef4444'
+        };
 
-        lastClose = mcap;
+        candles.push(candle);
+        prevPrice = currentPrice;
       });
 
-      return Array.from(candles.values())
-        .sort((a, b) => a.time - b.time);
+      return candles;
     };
 
     const candles = generateCandles();
@@ -204,13 +179,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       resizeObserverRef.current = resizeObserver;
     }
 
-  }, [token?.recentTrades, cleanupChart, selectedInterval, solPrice]);
-
-  const handleIntervalChange = useCallback((interval: TimeInterval) => {
-    setSelectedInterval(interval);
-    cleanupChart();
-    setTimeout(initializeChart, 0);
-  }, [cleanupChart, initializeChart]);
+  }, [token?.recentTrades, cleanupChart, solPrice]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -306,19 +275,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         <div className="grid grid-cols-[1fr,300px] gap-4">
           <div className="space-y-4">
             <div className="h-[500px] bg-[#111] rounded-lg">
-              <div className="flex items-center gap-2 p-2 border-b border-gray-800">
-                {TIME_INTERVALS.map((interval) => (
-                  <Button
-                    key={interval.label}
-                    variant={selectedInterval === interval ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() => handleIntervalChange(interval)}
-                    className="text-xs"
-                  >
-                    {interval.label}
-                  </Button>
-                ))}
-              </div>
               <div className="p-4">
                 <div ref={chartContainerRef} className="h-[450px]" />
               </div>
@@ -352,7 +308,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                       key={trade.signature || idx}
                       className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
                         isDevWallet ?
-                          isDevBuying ? 'text-amber-400' : 'text-orange-500' : 
+                          isDevBuying ? 'text-amber-400' : 'text-orange-500' :
                           trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
                       }`}
                     >
