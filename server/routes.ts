@@ -9,6 +9,8 @@ import { generateAIResponse } from './services/ai';
 import axios from 'axios';
 import { getTokenImage } from './image-worker';
 import { pricePredictionService } from './services/price-prediction';
+import { cryptoService } from './services/crypto'; // Import the crypto service
+
 
 const CACHE_DURATION = 30000; // 30 seconds cache
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
@@ -472,6 +474,23 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Chat error:', error);
       res.status(500).json({ error: error.message || 'Failed to process chat request' });
+    }
+  });
+
+  // Add market context endpoint
+  app.get('/api/market-context/:symbol', async (req, res) => {
+    try {
+      const symbol = req.params.symbol;
+      console.log(`[Routes] Getting market context for ${symbol}`);
+
+      const context = await cryptoService.getMarketContext(symbol);
+      res.json(context);
+    } catch (error: any) {
+      console.error('[Routes] Market context error:', error);
+      res.status(500).json({
+        error: 'Failed to get market context',
+        details: error.message
+      });
     }
   });
 

@@ -12,6 +12,38 @@ interface PriceData {
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
 const CACHE_DURATION = 60000; // 1 minute cache
 
+interface MarketOverview {
+  total_coins: number;
+  total_exchanges: number;
+  market_cap: {
+    value: number;
+    change_24h: number;
+  };
+  volume_24h: number;
+  btc_dominance: number;
+  eth_dominance: number;
+  gas_price: number;
+}
+
+interface MarketContext {
+  correlations: Array<{
+    token: string;
+    correlation: number;
+  }>;
+  volumeAnalysis: {
+    current: number;
+    average: number;
+    trend: 'up' | 'down';
+    unusualActivity: boolean;
+  };
+  marketDepth: {
+    buyPressure: number;
+    sellPressure: number;
+    strongestSupport: number;
+    strongestResistance: number;
+  };
+}
+
 class CryptoService {
   private cache: Map<string, PriceData> = new Map();
   private marketOverviewCache: {
@@ -155,19 +187,165 @@ class CryptoService {
       lastUpdated: Array.from(this.cache.values()).map(v => v.lastUpdated)
     };
   }
-}
 
-interface MarketOverview {
-  total_coins: number;
-  total_exchanges: number;
-  market_cap: {
-    value: number;
-    change_24h: number;
-  };
-  volume_24h: number;
-  btc_dominance: number;
-  eth_dominance: number;
-  gas_price: number;
+  private calculateCorrelation(prices1: number[], prices2: number[]): number {
+    const n = Math.min(prices1.length, prices2.length);
+    if (n < 2) return 0;
+
+    const returns1 = prices1.slice(0, n - 1).map((p, i) => (prices1[i + 1] - p) / p);
+    const returns2 = prices2.slice(0, n - 1).map((p, i) => (prices2[i + 1] - p) / p);
+
+    const avg1 = returns1.reduce((a, b) => a + b, 0) / returns1.length;
+    const avg2 = returns2.reduce((a, b) => a + b, 0) / returns2.length;
+
+    const cov = returns1.reduce((sum, r1, i) =>
+      sum + (r1 - avg1) * (returns2[i] - avg2), 0) / returns1.length;
+
+    const std1 = Math.sqrt(returns1.reduce((sum, r) =>
+      sum + Math.pow(r - avg1, 2), 0) / returns1.length);
+    const std2 = Math.sqrt(returns2.reduce((sum, r) =>
+      sum + Math.pow(r - avg2, 2), 0) / returns2.length);
+
+    return cov / (std1 * std2);
+  }
+
+  private analyzeVolume(volumes: number[]): {
+    current: number;
+    average: number;
+    trend: 'up' | 'down';
+    unusualActivity: boolean;
+  } {
+    const current = volumes[volumes.length - 1];
+    const average = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+    const trend = current > volumes[volumes.length - 2] ? 'up' : 'down';
+
+    // Calculate volume standard deviation
+    const std = Math.sqrt(
+      volumes.reduce((sum, vol) =>
+        sum + Math.pow(vol - average, 2), 0) / volumes.length
+    );
+
+    // Volume is unusual if it's more than 2 standard deviations from the mean
+    const unusualActivity = Math.abs(current - average) > 2 * std;
+
+    return {
+      current,
+      average,
+      trend,
+      unusualActivity
+    };
+  }
+
+  private calculateMarketDepth(
+    prices: number[],
+    volumes: number[]
+  ): {
+    buyPressure: number;
+    sellPressure: number;
+    strongestSupport: number;
+    strongestResistance: number;
+  } {
+    const currentPrice = prices[prices.length - 1];
+
+    // Calculate volume-weighted price levels
+    const priceVolumes = prices.map((price, i) => ({
+      price,
+      volume: volumes[i]
+    }));
+
+    // Group by price ranges and sum volumes
+    const ranges = new Map<number, number>();
+    const rangeSize = (Math.max(...prices) - Math.min(...prices)) / 20;
+
+    priceVolumes.forEach(({ price, volume }) => {
+      const range = Math.floor(price / rangeSize) * rangeSize;
+      ranges.set(range, (ranges.get(range) || 0) + volume);
+    });
+
+    // Find support and resistance levels
+    const levels = Array.from(ranges.entries())
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5);
+
+    const supports = levels
+      .map(([price]) => price)
+      .filter(price => price < currentPrice);
+    const resistances = levels
+      .map(([price]) => price)
+      .filter(price => price > currentPrice);
+
+    // Calculate buy/sell pressure based on recent volume
+    const recentVolumes = volumes.slice(-10);
+    const recentPrices = prices.slice(-10);
+
+    let buyVolume = 0;
+    let sellVolume = 0;
+
+    recentPrices.forEach((price, i) => {
+      if (i === 0) return;
+      const priceChange = price - recentPrices[i - 1];
+      if (priceChange > 0) {
+        buyVolume += recentVolumes[i];
+      } else {
+        sellVolume += recentVolumes[i];
+      }
+    });
+
+    const totalVolume = buyVolume + sellVolume;
+    const buyPressure = (buyVolume / totalVolume) * 100;
+    const sellPressure = (sellVolume / totalVolume) * 100;
+
+    return {
+      buyPressure,
+      sellPressure,
+      strongestSupport: supports[0] || currentPrice * 0.95,
+      strongestResistance: resistances[0] || currentPrice * 1.05
+    };
+  }
+
+  async getMarketContext(symbol: string): Promise<MarketContext> {
+    try {
+      // Get data for the main token
+      const mainData = await this.getPriceData(symbol);
+      if (!mainData) throw new Error(`No data available for ${symbol}`);
+
+      // Get correlation with major tokens
+      const correlationTokens = ['BTC-USDT', 'ETH-USDT'];
+      const correlations = await Promise.all(
+        correlationTokens.map(async (token) => {
+          if (token === symbol) return null;
+          const tokenData = await this.getPriceData(token);
+          if (!tokenData) return null;
+
+          return {
+            token: token.replace('-USDT', ''),
+            correlation: this.calculateCorrelation(
+              mainData.historicalPrices,
+              tokenData.historicalPrices
+            )
+          };
+        })
+      );
+
+      // Analyze volume
+      const volumeAnalysis = this.analyzeVolume(mainData.historicalVolumes);
+
+      // Calculate market depth
+      const marketDepth = this.calculateMarketDepth(
+        mainData.historicalPrices,
+        mainData.historicalVolumes
+      );
+
+      return {
+        correlations: correlations.filter(Boolean) as Array<{ token: string; correlation: number }>,
+        volumeAnalysis,
+        marketDepth
+      };
+    } catch (error) {
+      console.error('Error getting market context:', error);
+      throw error;
+    }
+  }
 }
 
 export const cryptoService = new CryptoService();

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import { Progress } from "@/components/ui/progress";
 import { ArrowUpIcon, ArrowDownIcon, LineChart, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +15,7 @@ import {
 import type { PredictionResult } from "../../../server/types/prediction";
 import { AdvancedPriceChart } from "@/components/AdvancedPriceChart";
 import { TechnicalAnalysis } from "@/components/TechnicalAnalysis";
+import { MarketContext } from "@/components/MarketContext";
 
 interface ChartData {
   [key: string]: {
@@ -29,21 +30,45 @@ interface ChartData {
   };
 }
 
+interface MarketContextData {
+  correlations: Array<{
+    token: string;
+    correlation: number;
+  }>;
+  volumeAnalysis: {
+    current: number;
+    average: number;
+    trend: 'up' | 'down';
+    unusualActivity: boolean;
+  };
+  marketDepth: {
+    buyPressure: number;
+    sellPressure: number;
+    strongestSupport: number;
+    strongestResistance: number;
+  };
+}
+
 export default function PredictionsPage() {
   const { toast } = useToast();
   const [selectedTokens] = useState(['BTC-USDT', 'ETH-USDT', 'SOL-USDT']);
   const [selectedTimeframe, setSelectedTimeframe] = useState('1h');
 
-  // Fetch predictions and chart data
   const { data: predictions, isLoading } = useQuery<Record<string, PredictionResult>>({
     queryKey: ['/api/predictions'],
-    refetchInterval: 30000, // Increased frequency to 30 seconds
+    refetchInterval: 30000,
   });
 
-  // Fetch OHLCV data for charts
   const { data: chartData } = useQuery<ChartData>({
     queryKey: ['/api/klines', selectedTimeframe],
-    refetchInterval: 30000, // Increased frequency to 30 seconds
+    refetchInterval: 30000,
+  });
+
+  const marketContextQueries = useQueries({
+    queries: selectedTokens.map(token => ({
+      queryKey: [`/api/market-context/${token}`],
+      refetchInterval: 30000,
+    }))
   });
 
   function getConfidenceColor(confidence: number) {
@@ -128,9 +153,10 @@ export default function PredictionsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {selectedTokens.map(token => {
+        {selectedTokens.map((token, index) => {
           const prediction = predictions?.[token];
           const tokenChartData = chartData?.[token]?.klines || [];
+          const marketContext = marketContextQueries[index].data as MarketContextData;
 
           if (!prediction || !tokenChartData.length) {
             return (
@@ -161,7 +187,7 @@ export default function PredictionsPage() {
                     </div>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-sm ${
-                    prediction.sentiment === 'bullish' 
+                    prediction.sentiment === 'bullish'
                       ? 'bg-green-500/20 text-green-300 border border-green-500/30'
                       : 'bg-red-500/20 text-red-300 border border-red-500/30'
                   }`}>
@@ -176,6 +202,15 @@ export default function PredictionsPage() {
                     indicators={prediction.indicators}
                   />
                 </div>
+
+                {marketContext && (
+                  <MarketContext
+                    symbol={token}
+                    correlations={marketContext.correlations}
+                    volumeAnalysis={marketContext.volumeAnalysis}
+                    marketDepth={marketContext.marketDepth}
+                  />
+                )}
 
                 <TechnicalAnalysis
                   symbol={token}
@@ -193,8 +228,8 @@ export default function PredictionsPage() {
                     <span className="text-sm text-gray-400">Signal Strength</span>
                     <span className="text-sm text-gray-300">{(prediction.confidence * 100).toFixed(1)}%</span>
                   </div>
-                  <Progress 
-                    value={prediction.confidence * 100} 
+                  <Progress
+                    value={prediction.confidence * 100}
                     className="bg-gray-700 h-2"
                     indicatorClassName={getConfidenceColor(prediction.confidence)}
                   />
