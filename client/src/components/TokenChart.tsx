@@ -19,11 +19,8 @@ interface TokenTrade {
   price: number;
 }
 
-type TimeFrame = '1s' | '5s' | '15s' | '30s' | '1m' | '15m' | '30m' | '1h';
-
 export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const [timeFrame, setTimeFrame] = useState<TimeFrame>('1m');
   const token = usePumpPortalStore(state => 
     state.tokens.find(t => t.address === tokenAddress)
   );
@@ -44,18 +41,7 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
 
     // Create candles from trades
     const candleMap = new Map();
-    const CANDLE_INTERVALS: Record<TimeFrame, number> = {
-      '1s': 1000,
-      '5s': 5000,
-      '15s': 15000,
-      '30s': 30000,
-      '1m': 60000,
-      '15m': 15 * 60000,
-      '30m': 30 * 60000,
-      '1h': 60 * 60000,
-    };
-
-    const CANDLE_INTERVAL = CANDLE_INTERVALS[timeFrame];
+    const CANDLE_INTERVAL = 60000; // 1 minute candles
 
     trades.forEach(trade => {
       const candleTime = Math.floor(trade.timestamp / CANDLE_INTERVAL) * CANDLE_INTERVAL;
@@ -133,7 +119,7 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
       chart.remove();
       resizeObserver.disconnect();
     };
-  }, [token?.recentTrades, timeFrame]);
+  }, [token?.recentTrades]);
 
   if (!token) return null;
 
@@ -200,25 +186,8 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
         <div className="grid grid-cols-[1fr,300px] gap-4">
           <ResizablePanelGroup direction="vertical" className="h-[600px]">
             <ResizablePanel defaultSize={80} minSize={30}>
-              <div className="h-full bg-[#111] rounded-lg overflow-hidden">
-                <div className="p-2 border-b border-white/10">
-                  <div className="flex gap-1">
-                    {(['1s', '5s', '15s', '30s', '1m', '15m', '30m', '1h'] as TimeFrame[]).map((tf) => (
-                      <Button
-                        key={tf}
-                        variant={timeFrame === tf ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => setTimeFrame(tf)}
-                        className="text-xs px-2 py-1"
-                      >
-                        {tf}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                <div className="p-4 h-[calc(100%-40px)]">
-                  <div ref={chartContainerRef} className="h-full w-full" />
-                </div>
+              <div className="h-full bg-[#111] rounded-lg p-4">
+                <div ref={chartContainerRef} className="h-full w-full" />
               </div>
             </ResizablePanel>
             <ResizablePanel defaultSize={20} minSize={10}>
