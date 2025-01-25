@@ -13,6 +13,7 @@ import KiaraStageI from "@/pages/kiara-stage-i";
 import About from "@/pages/about";
 import Landing from "@/pages/landing";
 import CryptoNews from "@/pages/crypto-news";
+import Predictions from "@/pages/predictions";
 import { WalletContextProvider } from "@/lib/wallet";
 import MarketDataBar from "@/components/MarketDataBar";
 import Navbar from "@/components/Navbar";
@@ -44,6 +45,7 @@ function Router() {
           <Route path="/kiara-stage-i" component={KiaraStageI} />
           <Route path="/about" component={About} />
           <Route path="/pumpfun-vision" component={PumpFunVision} />
+          <Route path="/predictions" component={Predictions} />
           <Route component={NotFound} />
         </Switch>
       </main>
