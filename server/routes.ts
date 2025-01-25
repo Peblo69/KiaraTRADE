@@ -48,12 +48,13 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import axios from 'axios';
 
+// Constants setup
 if (!process.env.HELIUS_API_KEY) {
   throw new Error("HELIUS_API_KEY must be set in environment variables");
 }
 
-// Updated Helius API base URL
-const HELIUS_API_BASE = 'https://api.helius.xyz/v0';
+// Updated Helius API base URL and endpoint for RPC
+const HELIUS_RPC_URL = `https://api.helius.xyz/v0/rpc?api-key=${process.env.HELIUS_API_KEY}`;
 
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
@@ -517,13 +518,13 @@ export function registerRoutes(app: Express): Server {
       }
 
       console.log(`[DEBUG] Starting wallet data fetch for address: ${address}`);
-      console.log(`[DEBUG] Using Helius API base: ${HELIUS_API_BASE}`);
+      console.log(`[DEBUG] Using Helius API base: ${HELIUS_RPC_URL}`);
       console.log(`[DEBUG] API Key exists: ${!!process.env.HELIUS_API_KEY}`);
 
       // Portfolio request config
       const portfolioConfig = {
         method: 'post',
-        url: `${HELIUS_API_BASE}?api-key=${process.env.HELIUS_API_KEY}`,
+        url: HELIUS_RPC_URL,
         headers: { 
           'Content-Type': 'application/json'
         },
@@ -574,7 +575,7 @@ export function registerRoutes(app: Express): Server {
       // Transaction request config
       const txConfig = {
         method: 'post',
-        url: `${HELIUS_API_BASE}?api-key=${process.env.HELIUS_API_KEY}`,
+        url: HELIUS_RPC_URL,
         headers: { 
           'Content-Type': 'application/json'
         },
@@ -688,7 +689,7 @@ export function registerRoutes(app: Express): Server {
       console.log(`[Routes] Getting token analytics for ${mint}`);
 
       // Get token holders
-      const holdersResponse = await axios.post(`${HELIUS_API_BASE}?api-key=${process.env.HELIUS_API_KEY}`, {
+      const holdersResponse = await axios.post(`${HELIUS_RPC_URL}`, {
         jsonrpc: '2.0',
         id: 'holders-request',
         method: 'searchAssets',
@@ -719,7 +720,7 @@ export function registerRoutes(app: Express): Server {
       const topHolders = sortedHolders.slice(0, topHoldersCount);
 
       // Get token creation transaction
-      const mintTxResponse = await axios.post(`${HELIUS_API_BASE}?api-key=${process.env.HELIUS_API_KEY}`, {
+      const mintTxResponse = await axios.post(`${HELIUS_RPC_URL}`, {
         jsonrpc: '2.0',
         id: 'mint-tx-request',
         method: 'searchAssets',
@@ -737,7 +738,7 @@ export function registerRoutes(app: Express): Server {
       const sniperWindow = 1000 * 60 * 5; // 5 minutes after creation
 
       // Get early transactions (snipers)
-      const sniperTxResponse = await axios.post(`${HELIUS_API_BASE}?api-key=${process.env.HELIUS_API_KEY}`, {
+      const sniperTxResponse = await axios.post(`${HELIUS_RPC_URL}`, {
         jsonrpc: '2.0',
         id: 'sniper-tx-request',
         method: 'getAssetTransfers',
@@ -760,7 +761,7 @@ export function registerRoutes(app: Express): Server {
         }));
 
       // Get dev wallet interactions
-      const devResponse = await axios.post(`${HELIUS_API_BASE}?api-key=${process.env.HELIUS_API_KEY}`, {
+      const devResponse = await axios.post(`${HELIUS_RPC_URL}`, {
         jsonrpc: '2.0',
         id: 'dev-tx-request',
         method: 'getAssetTransfers',
