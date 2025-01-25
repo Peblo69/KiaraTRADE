@@ -71,15 +71,29 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const tradeAmount = Number(trade.solAmount || 0);
     const isBuy = trade.txType === 'buy';
 
-    // Process trades into OHLC data
+    // Process trade data with proper bonding curve calculations
     const vTokens = Number(trade.vTokensInBondingCurve || 0);
     const vSol = Number(trade.vSolInBondingCurve || 0);
     const marketCapSol = Number(trade.marketCapSol || 0);
+    const tradeAmount = Number(trade.solAmount || 0);
+    const liquidity = vSol;
 
-    // Calculate price using bonding curve data with proper precision
+    // Calculate base price from bonding curve
     const tokenPrice = vTokens > 0 ? Number((vSol / vTokens).toFixed(12)) : 0;
-    const tokenPriceUsd = Number((tokenPrice * state.solPrice).toFixed(12));
-    const marketCapUsd = Number((Number(marketCapSol || 0) * state.solPrice).toFixed(2));
+
+    // Calculate price impact based on trade size relative to liquidity
+    const IMPACT_FACTOR = 0.005; // 0.5% impact factor
+    const priceImpact = liquidity > 0 ? 
+        Math.min((Math.abs(tradeAmount) / liquidity) * IMPACT_FACTOR, 0.01) : 0;
+
+    // Apply price impact based on trade direction
+    const adjustedTokenPrice = isBuy ? 
+        tokenPrice * (1 + priceImpact) :
+        tokenPrice * (1 - priceImpact);
+
+    // Calculate USD values with proper precision
+    const tokenPriceUsd = Number((adjustedTokenPrice * state.solPrice).toFixed(12));
+    const marketCapUsd = Number((marketCapSol * state.solPrice).toFixed(2));
     const tradeVolume = Number((Math.abs(tradeAmount) * state.solPrice).toFixed(2));
 
     // Validate wallet addresses
