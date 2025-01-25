@@ -308,7 +308,35 @@ export function initializePumpPortalWebSocket() {
     ws.onmessage = async (event) => {
       try {
         const { type, data } = JSON.parse(event.data);
-        console.log('[PumpPortal] Raw data:', { type, data });  // Log raw data
+        
+        // Detailed token logging
+        if (type === 'newToken') {
+          console.log('[PumpPortal] New Token Details:', {
+            name: data.name,
+            symbol: data.symbol,
+            mint: data.mint,
+            initialBuy: data.initialBuy,
+            bondingCurveKey: data.bondingCurveKey,
+            vTokensInBondingCurve: data.vTokensInBondingCurve,
+            vSolInBondingCurve: data.vSolInBondingCurve,
+            marketCapSol: data.marketCapSol,
+            solAmount: data.solAmount,
+            imageLink: data.imageLink,
+            uri: data.uri
+          });
+        }
+        else if (type === 'trade') {
+          console.log('[PumpPortal] Trade Details:', {
+            mint: data.mint,
+            txType: data.txType,
+            tokenAmount: data.tokenAmount,
+            solAmount: data.solAmount,
+            bondingCurveKey: data.bondingCurveKey,
+            vTokensInBondingCurve: data.vTokensInBondingCurve, 
+            vSolInBondingCurve: data.vSolInBondingCurve,
+            marketCapSol: data.marketCapSol
+          });
+        }
 
         switch (type) {
           case 'newToken': {
