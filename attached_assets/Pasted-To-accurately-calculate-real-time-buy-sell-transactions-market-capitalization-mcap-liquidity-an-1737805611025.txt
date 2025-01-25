@@ -1,0 +1,1071 @@
+To accurately calculate real-time buy/sell transactions, market capitalization (mcap), liquidity, and other related metrics for tokens on your PumpFunVision platform, it's essential to establish a robust calculation foundation. Below is a comprehensive guide outlining the necessary calculations, along with code snippets to help you implement them effectively.
+
+1. Determining Buy/Sell Transactions
+Objective: Identify whether a transaction is a buy or a sell based on changes in SOL and token balances.
+
+Approach:
+
+Buy Transaction: Occurs when a user spends SOL to acquire tokens.
+
+SOL Balance: Decreases (negative change).
+Token Balance: Increases (positive change).
+Sell Transaction: Occurs when a user sells tokens to receive SOL.
+
+SOL Balance: Increases (positive change).
+Token Balance: Decreases (negative change).
+Calculation Steps:
+
+Extract Pre and Post Balances:
+
+SOL: preBalanceSol, postBalanceSol
+Token: preBalanceToken, postBalanceToken
+Calculate Changes:
+
+SOL Change: solAmount = postBalanceSol - preBalanceSol
+Token Change: tokenAmount = postBalanceToken - preBalanceToken
+Determine Transaction Type:
+
+Buy: solAmount < 0 and tokenAmount > 0
+Sell: solAmount > 0 and tokenAmount < 0
+Invalid/Other: Any other combination (can be ignored or handled separately)
+Code Implementation:
+
+typescript
+Copy
+interface TransactionDetails {
+  signature: string;
+  preBalanceSol: number;
+  postBalanceSol: number;
+  preBalanceToken: number;
+  postBalanceToken: number;
+  timestamp: number;
+}
+
+interface Trade {
+  signature: string;
+  timestamp: number;
+  solAmount: number;
+  tokenAmount: number;
+  priceSolPerToken: number;
+  priceUsdPerToken: number;
+  type: 'buy' | 'sell';
+  buyer: string;
+  seller: string;
+}
+
+function determineTradeType(details: TransactionDetails, solPriceUsd: number): Trade | null {
+  const solAmount = details.postBalanceSol - details.preBalanceSol;
+  const tokenAmount = details.postBalanceToken - details.preBalanceToken;
+
+  let type: 'buy' | 'sell' | null = null;
+
+  if (solAmount < 0 && tokenAmount > 0) {
+    type = 'buy';
+  } else if (solAmount > 0 && tokenAmount < 0) {
+    type = 'sell';
+  } else {
+    // Invalid or non-trade transaction
+    return null;
+  }
+
+  const priceSolPerToken = Math.abs(solAmount) / Math.abs(tokenAmount);
+  const priceUsdPerToken = priceSolPerToken * solPriceUsd;
+
+  // Placeholder for buyer and seller addresses
+  const buyer = type === 'buy' ? 'buyerPublicKey' : 'null';
+  const seller = type === 'sell' ? 'sellerPublicKey' : 'null';
+
+  return {
+    signature: details.signature,
+    timestamp: details.timestamp,
+    solAmount: Math.abs(solAmount),
+    tokenAmount: Math.abs(tokenAmount),
+    priceSolPerToken,
+    priceUsdPerToken,
+    type,
+    buyer,
+    seller
+  };
+}
+Explanation:
+
+The determineTradeType function takes in transaction details and the current SOL price in USD.
+It calculates the changes in SOL and token balances.
+Determines the transaction type based on the sign of the changes.
+Calculates the price per token in SOL and USD.
+Returns a Trade object if it's a valid buy/sell transaction; otherwise, returns null.
+2. Calculating Market Capitalization (Market Cap)
+Objective: Compute the total market value of a token.
+
+Formula:
+
+Market Cap (USD): totalSupply * priceUsdPerToken
+Code Implementation:
+
+typescript
+Copy
+interface TokenData {
+  address: string;
+  name: string;
+  symbol: string;
+  totalSupply: number; // Total number of tokens in circulation
+  priceUsdPerToken: number;
+  // ... other properties
+}
+
+function calculateMarketCap(token: TokenData): number {
+  return token.totalSupply * token.priceUsdPerToken;
+}
+Explanation:
+
+Multiply the total supply of the token by its current price in USD to get the market cap.
+3. Calculating Liquidity
+Objective: Measure the ease with which a token can be bought or sold without affecting its price.
+
+Approach:
+
+Liquidity (USD): solInLiquidity * solPriceUsd + tokenInLiquidity * priceUsdPerToken
+Code Implementation:
+
+typescript
+Copy
+interface LiquidityData {
+  solInLiquidity: number; // Amount of SOL in the liquidity pool
+  tokenInLiquidity: number; // Amount of Token in the liquidity pool
+}
+
+function calculateLiquidity(liquidity: LiquidityData, solPriceUsd: number, priceUsdPerToken: number): number {
+  return (liquidity.solInLiquidity * solPriceUsd) + (liquidity.tokenInLiquidity * priceUsdPerToken);
+}
+Explanation:
+
+Sum the value of SOL and tokens in the liquidity pool, both converted to USD.
+4. Updating Token Prices in Real-Time
+Objective: Adjust token prices based on incoming buy/sell transactions to reflect real-time market conditions.
+
+Approach:
+
+Price Adjustment Logic:
+Buy Impact: Buying increases demand, potentially increasing the price.
+Sell Impact: Selling increases supply, potentially decreasing the price.
+Impact Factor: Determines how much a trade affects the price, based on liquidity.
+Formula:
+
+Impact: min((tradeVolume / liquidity) * impactFactor, maxImpact)
+New Price:
+Buy: currentPrice * (1 + impact)
+Sell: currentPrice * (1 - impact)
+Code Implementation:
+
+typescript
+Copy
+const IMPACT_FACTOR = 0.005; // 0.5%
+const MAX_IMPACT = 0.01; // 1%
+
+function adjustPrice(currentPrice: number, tradeVolume: number, liquidity: number, type: 'buy' | 'sell'): number {
+  const impact = Math.min((tradeVolume / liquidity) * IMPACT_FACTOR, MAX_IMPACT);
+  return type === 'buy' ? currentPrice * (1 + impact) : currentPrice * (1 - impact);
+}
+Explanation:
+
+The adjustPrice function calculates the impact of a trade on the token's price.
+It ensures that the impact does not exceed the defined MAX_IMPACT.
+Adjusts the price up for buys and down for sells accordingly.
+5. Integrating Calculations into Your Stores
+Objective: Ensure that your state management stores correctly handle and update all relevant metrics based on incoming transactions.
+
+Approach:
+
+Unified Token Store (unified-token-store.ts):
+
+Manages token metadata, market cap, liquidity, and transaction history.
+Pump Portal WebSocket Store (pump-portal-websocket.ts):
+
+Manages PumpPortal-specific state, such as recent trades and liquidity changes.
+Code Integration:
+
+Updating the Unified Token Store:
+
+typescript
+Copy
+// unified-token-store.ts
+
+interface TokenData {
+  // ... existing properties
+  totalSupply: number;
+  priceUsdPerToken: number;
+  marketCapUsd: number;
+  liquidityUsd: number;
+  // ... other properties
+}
+
+interface Trade {
+  // ... existing properties
+  priceUsdPerToken: number;
+  // ... other properties
+}
+
+interface UnifiedTokenState {
+  tokens: TokenData[];
+  transactions: Record<string, Transaction[]>;
+  isConnected: boolean;
+  connectionError: string | null;
+  addToken: (token: TokenData) => void;
+  updateToken: (address: string, updates: Partial<TokenData>) => void;
+  addTransaction: (tokenAddress: string, transaction: Transaction) => void;
+  setConnected: (status: boolean) => void;
+  setError: (error: string | null) => void;
+  getToken: (address: string) => TokenData | undefined;
+  getTransactions: (address: string) => Transaction[];
+  setActiveToken: (address: string) => void;
+  activeToken?: string;
+}
+
+export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
+  tokens: [],
+  transactions: {},
+  isConnected: false,
+  connectionError: null,
+
+  addToken: (token) => set(state => {
+    if (!token?.address) return state;
+    token.lastUpdated = Date.now();
+
+    const existingToken = state.tokens.find(t => t.address === token.address);
+    if (existingToken) {
+      // Update existing token
+      return {
+        tokens: state.tokens.map(t => t.address === token.address ? { ...t, ...token, lastUpdated: Date.now() } : t)
+      };
+    }
+
+    // Add new token
+    return {
+      tokens: [...state.tokens, { ...token, marketCapUsd: calculateMarketCap(token), liquidityUsd: calculateLiquidity(/* provide liquidity data */) }].slice(0, 100)
+    };
+  }),
+
+  updateToken: (address, updates) => set(state => {
+    const tokenIndex = state.tokens.findIndex(token => token.address === address);
+    if (tokenIndex === -1) return state;
+
+    const currentToken = state.tokens[tokenIndex];
+    const updatedToken = { ...currentToken, ...updates, lastUpdated: Date.now() };
+
+    // Recalculate Market Cap and Liquidity if price changes
+    if (updates.priceUsdPerToken !== undefined) {
+      updatedToken.marketCapUsd = calculateMarketCap(updatedToken);
+      updatedToken.liquidityUsd = calculateLiquidity({
+        solInLiquidity: /* fetch sol liquidity */,
+        tokenInLiquidity: /* fetch token liquidity */
+      }, updatedToken.priceUsdPerToken, updatedToken.priceUsdPerToken);
+    }
+
+    const updatedTokens = [...state.tokens];
+    updatedTokens[tokenIndex] = updatedToken;
+
+    return { tokens: updatedTokens };
+  }),
+
+  addTransaction: (tokenAddress, transaction) => set(state => {
+    const existingTransactions = state.transactions[tokenAddress] || [];
+
+    // Prevent duplicate transactions
+    const isDuplicate = existingTransactions.some(tx => 
+      tx.signature === transaction.signature ||
+      (Math.abs(tx.timestamp - transaction.timestamp) < 1000 && 
+       tx.solAmount === transaction.solAmount && 
+       tx.type === transaction.type)
+    );
+
+    if (isDuplicate) return state;
+
+    // Add new transaction
+    const updatedTransactions = [transaction, ...existingTransactions].slice(0, 500);
+
+    return {
+      transactions: {
+        ...state.transactions,
+        [tokenAddress]: updatedTransactions
+      }
+    };
+  }),
+
+  // ... other methods
+}));
+Handling Trades in Pump Portal WebSocket Store:
+
+typescript
+Copy
+// pump-portal-websocket.ts
+
+interface PumpPortalStore {
+  tokens: PumpPortalToken[];
+  isConnected: boolean;
+  solPrice: number;
+  addToken: (token: PumpPortalToken) => void;
+  updateToken: (address: string, updates: Partial<PumpPortalToken>) => void;
+  addTradeToHistory: (address: string, trade: Trade) => void;
+  setConnected: (connected: boolean) => void;
+  setSolPrice: (price: number) => void;
+}
+
+export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
+  tokens: [],
+  isConnected: false,
+  solPrice: 0,
+  addToken: (token) => set(state => ({
+    tokens: [token, ...state.tokens].slice(0, 50),
+  })),
+  updateToken: (address, updates) => set(state => ({
+    tokens: state.tokens.map(token => token.address === address ? { ...token, ...updates } : token)
+  })),
+  addTradeToHistory: (address, trade) => {
+    const state = get();
+    const token = state.tokens.find(t => t.address === address);
+    if (!token || !state.solPrice) return;
+
+    const tradeVolume = trade.solAmount * state.solPrice;
+    const impact = Math.min((tradeVolume / (token.liquidityUsd || 1)) * 0.005, 0.01);
+    const newPrice = adjustPrice(token.priceUsdPerToken, tradeVolume, token.liquidityUsd, trade.type);
+
+    // Update token metrics
+    set(state => ({
+      tokens: state.tokens.map(t => {
+        if (t.address === address) {
+          return {
+            ...t,
+            priceUsdPerToken: newPrice,
+            marketCapUsd: calculateMarketCap({ ...t, priceUsdPerToken: newPrice }),
+            liquidityUsd: t.liquidityUsd + (trade.type === 'buy' ? tradeVolume : -tradeVolume),
+            volume: t.volume + tradeVolume,
+            volume24h: t.volume24h + tradeVolume, // Adjust based on time window
+            trades: t.trades + 1,
+            // ... other updates
+          };
+        }
+        return t;
+      })
+    }));
+  },
+  setConnected: (connected) => set({ isConnected: connected }),
+  setSolPrice: (price) => {
+    if (price > 0) {
+      set({ solPrice: price });
+    }
+  },
+}));
+Explanation:
+
+Unified Token Store:
+
+addToken: Adds a new token and calculates its initial market cap and liquidity.
+updateToken: Updates token data and recalculates market cap and liquidity if the price changes.
+addTransaction: Adds a new transaction, ensuring no duplicates, and maintains a history of transactions.
+Pump Portal Store:
+
+addTradeToHistory: Processes incoming trades, adjusts the token price based on the trade impact, and updates relevant metrics like market cap and liquidity.
+6. Improving WebSocket Manager Integration
+Objective: Ensure that the server-side WebSocket manager correctly handles data from Helius and PumpPortal, processes it, and broadcasts it to subscribed clients.
+
+Approach:
+
+Integrate Helius and PumpPortal APIs within the WebSocket Manager.
+Process incoming data and determine which clients should receive updates based on their subscriptions.
+Code Enhancements:
+
+Enhance WebSocketManager to Handle Specific Data Sources:
+
+typescript
+Copy
+// server/services/websocket.ts
+
+import { Server as HttpServer } from 'http';
+import { WebSocket, WebSocketServer } from 'ws';
+import { useUnifiedTokenStore } from '../../client/src/lib/unified-token-store';
+import { usePumpPortalStore } from '../../client/src/lib/pump-portal-websocket';
+import { Connection, PublicKey } from '@solana/web3.js';
+
+// Constants
+const HELIUS_API_KEY = 'YOUR_HELIUS_API_KEY';
+const HELIUS_WS_URL = `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+
+export class WebSocketManager {
+  private wss: WebSocketServer | null = null;
+  private clients: Set<WebSocket> = new Set();
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private heliusConnection: Connection;
+
+  constructor() {
+    this.heliusConnection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
+  }
+
+  initialize(server: HttpServer) {
+    if (this.wss) {
+      console.log('[WebSocket Manager] WebSocket server already initialized');
+      return;
+    }
+
+    this.wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+
+    server.on('upgrade', (request, socket, head) => {
+      if (request.headers['sec-websocket-protocol']?.includes('vite-hmr')) {
+        console.log('[WebSocket] Skipping vite-hmr connection');
+        return;
+      }
+
+      if (!this.wss) return;
+
+      this.wss.handleUpgrade(request, socket, head, (ws) => {
+        if (this.clients.has(ws)) {
+          console.log('[WebSocket] Connection already exists');
+          return;
+        }
+        this.wss!.emit('connection', ws, request);
+      });
+    });
+
+    this.wss.on('connection', (ws: WebSocket) => {
+      console.log('[WebSocket Manager] New client connected');
+      ws.isAlive = true;
+      this.clients.add(ws);
+
+      ws.on('pong', () => {
+        ws.isAlive = true;
+      });
+
+      ws.on('message', (data) => {
+        try {
+          const message = JSON.parse(data.toString());
+          if (message.type === 'ping') {
+            this.sendToClient(ws, { type: 'pong' });
+          }
+          // Handle subscription messages
+          if (message.type === 'subscribe') {
+            const { tokenAddress } = message;
+            this.subscribeToToken(tokenAddress);
+          }
+        } catch (error) {
+          console.error('[WebSocket Manager] Error processing message:', error);
+        }
+      });
+
+      ws.on('close', () => {
+        console.log('[WebSocket Manager] Client disconnected');
+        this.clients.delete(ws);
+      });
+
+      ws.on('error', (error) => {
+        console.error('[WebSocket Manager] Client error:', error);
+        this.clients.delete(ws);
+      });
+
+      this.sendToClient(ws, {
+        type: 'connection_status',
+        status: 'connected'
+      });
+    });
+
+    this.heartbeatInterval = setInterval(() => {
+      Array.from(this.clients).forEach(client => {
+        if (client.isAlive === false) {
+          this.clients.delete(client);
+          client.terminate();
+          return;
+        }
+        client.isAlive = false;
+        client.ping();
+      });
+    }, 30000);
+
+    this.wss.on('close', () => {
+      if (this.heartbeatInterval) {
+        clearInterval(this.heartbeatInterval);
+        this.heartbeatInterval = null;
+      }
+    });
+
+    console.log('[WebSocket Manager] WebSocket server initialized');
+
+    // Set up Helius account subscriptions
+    this.setupHeliusSubscriptions();
+  }
+
+  private sendToClient(client: WebSocket, data: any) {
+    if (client.readyState === WebSocket.OPEN) {
+      try {
+        client.send(JSON.stringify(data));
+      } catch (error) {
+        console.error('[WebSocket Manager] Error sending to client:', error);
+        this.clients.delete(client);
+      }
+    }
+  }
+
+  broadcast(data: any) {
+    if (!this.wss) {
+      console.warn('[WebSocket Manager] Cannot broadcast, server not initialized');
+      return;
+    }
+
+    const message = JSON.stringify(data);
+    Array.from(this.clients).forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        try {
+          client.send(message);
+        } catch (error) {
+          console.error('[WebSocket Manager] Error broadcasting to client:', error);
+          this.clients.delete(client);
+        }
+      }
+    });
+  }
+
+  getConnectedClientsCount(): number {
+    return this.clients.size;
+  }
+
+  private subscribeToToken(tokenAddress: string) {
+    try {
+      const publicKey = new PublicKey(tokenAddress);
+      this.heliusConnection.onAccountChange(publicKey, (info, context) => {
+        const processedData = this.processHeliusData(info);
+        this.broadcast({ type: 'trade', data: processedData });
+      });
+      console.log(`[WebSocket Manager] Subscribed to Token: ${tokenAddress}`);
+    } catch (error) {
+      console.error(`[WebSocket Manager] Invalid token address: ${tokenAddress}`, error);
+    }
+  }
+
+  private processHeliusData(info: any): any {
+    // Process the Helius account change data to extract trade details
+    // This will depend on the structure of the Helius data
+    // Example:
+    const signature = info.signature;
+    const preBalances = info.preTokenBalances || [];
+    const postBalances = info.postTokenBalances || [];
+
+    if (preBalances.length === 0 || postBalances.length === 0) return null;
+
+    const preAmount = preBalances[0]?.uiTokenAmount.uiAmount || 0;
+    const postAmount = postBalances[0]?.uiTokenAmount.uiAmount || 0;
+
+    const solTransfers = info.preBalances.map((pre: number, i: number) => {
+      const post = info.postBalances[i];
+      return (post - pre) / 1e9; // Convert lamports to SOL
+    });
+
+    const solAmount = Math.abs(Math.max(...solTransfers.filter((t: number) => t !== 0)));
+    const tokenAmount = Math.abs(postAmount - preAmount);
+    const price = solAmount / tokenAmount;
+    const isBuy = postAmount > preAmount;
+
+    const wallets = info.accountKeys.map((key: any) => key.toString());
+    const buyer = isBuy ? wallets[0] : wallets[1];
+    const seller = isBuy ? wallets[1] : wallets[0];
+
+    return {
+      signature,
+      timestamp: Date.now(),
+      tokenAddress: info.accountId,
+      solAmount,
+      tokenAmount,
+      price,
+      priceUsd: price * usePumpPortalStore.getState().solPrice,
+      type: isBuy ? 'buy' : 'sell',
+      buyer,
+      seller
+    };
+  }
+
+  private setupHeliusSubscriptions() {
+    // Initialize subscriptions based on existing tokens in the store
+    const tokens = useUnifiedTokenStore.getState().tokens;
+    tokens.forEach(token => {
+      this.subscribeToToken(token.address);
+    });
+  }
+}
+
+export const wsManager = new WebSocketManager();
+Explanation:
+
+Subscription Handling:
+
+Clients can send a subscribe message with a tokenAddress to subscribe to specific token updates.
+The WebSocketManager subscribes to account changes for these tokens via the Helius API.
+Data Processing:
+
+The processHeliusData method extracts necessary details from the Helius account change data.
+It determines the transaction type, calculates amounts, and prepares the data to be broadcasted.
+Broadcasting:
+
+Processed trade data is broadcasted to all connected clients who are subscribed to the relevant tokens.
+Initial Subscriptions:
+
+Upon initialization, the manager subscribes to tokens already present in the unified token store.
+7. Enhancing Error Handling and Logging
+Objective: Improve visibility into system operations and facilitate easier debugging.
+
+Approach:
+
+Comprehensive Logging:
+
+Log key events such as connections, disconnections, subscriptions, and data processing steps.
+Log errors with sufficient context to identify issues quickly.
+Global Error Handlers:
+
+Capture unhandled promise rejections and uncaught exceptions to prevent the server from crashing unexpectedly.
+Code Enhancements:
+
+Enhanced Logging in WebSocket Manager:
+
+typescript
+Copy
+// Inside WebSocketManager methods
+
+this.wss.on('connection', (ws: WebSocket) => {
+  console.log('[WebSocket Manager] New client connected');
+  // ... existing code
+
+  ws.on('message', (data) => {
+    try {
+      const message = JSON.parse(data.toString());
+      console.log('[WebSocket Manager] Received message:', message);
+      // ... existing code
+    } catch (error) {
+      console.error('[WebSocket Manager] Error processing message:', error);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('[WebSocket Manager] Client disconnected');
+    // ... existing code
+  });
+
+  ws.on('error', (error) => {
+    console.error('[WebSocket Manager] Client error:', error);
+    // ... existing code
+  });
+});
+
+private processHeliusData(info: any): any {
+  console.log('[WebSocket Manager] Processing Helius data:', info);
+  // ... existing code
+  console.log('[WebSocket Manager] Processed trade:', processedData);
+  return processedData;
+}
+Global Error Handlers in Server Entry Point:
+
+typescript
+Copy
+// server/index.ts
+
+// ... existing imports and setup
+
+async function startServer() {
+  try {
+    // ... existing startup logic
+
+    // Global error handlers
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+      // Optionally, send a notification or perform cleanup
+    });
+
+    process.on('uncaughtException', (error) => {
+      console.error('Uncaught Exception thrown:', error);
+      // Optionally, perform cleanup and shutdown
+      process.exit(1);
+    });
+
+    // ... existing startup logic
+  } catch (error) {
+    console.error(`Server startup error: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+}
+
+// Start the server
+startServer().catch(error => {
+  console.error(`Failed to start server: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+});
+Explanation:
+
+Logging:
+
+Logs are added at every critical step to track the flow of data and client interactions.
+Errors are logged with context to facilitate debugging.
+Error Handlers:
+
+unhandledRejection and uncaughtException handlers ensure that unexpected errors are logged, and the server can shut down gracefully if needed.
+8. Efficient Subscription Management
+Objective: Prevent duplicate subscriptions and ensure that all necessary tokens are subscribed to, especially after reconnections.
+
+Approach:
+
+Track Subscribed Tokens:
+
+Maintain a set of currently subscribed tokens to prevent duplicate subscriptions.
+Re-subscribe on Reconnection:
+
+Upon WebSocket reconnection, re-subscribe to all previously subscribed tokens.
+Code Enhancements:
+
+Track Subscribed Tokens in WebSocket Manager:
+
+typescript
+Copy
+// server/services/websocket.ts
+
+export class WebSocketManager {
+  // ... existing properties
+  private subscribedTokens: Set<string> = new Set();
+
+  // ... existing methods
+
+  private subscribeToToken(tokenAddress: string) {
+    if (this.subscribedTokens.has(tokenAddress)) {
+      console.log(`[WebSocket Manager] Already subscribed to Token: ${tokenAddress}`);
+      return;
+    }
+
+    try {
+      const publicKey = new PublicKey(tokenAddress);
+      this.heliusConnection.onAccountChange(publicKey, (info, context) => {
+        const processedData = this.processHeliusData(info);
+        if (processedData) {
+          this.broadcast({ type: 'trade', data: processedData });
+        }
+      });
+      this.subscribedTokens.add(tokenAddress);
+      console.log(`[WebSocket Manager] Subscribed to Token: ${tokenAddress}`);
+    } catch (error) {
+      console.error(`[WebSocket Manager] Invalid token address: ${tokenAddress}`, error);
+    }
+  }
+
+  private setupHeliusSubscriptions() {
+    const tokens = useUnifiedTokenStore.getState().tokens;
+    tokens.forEach(token => {
+      this.subscribeToToken(token.address);
+    });
+  }
+
+  // Re-subscribe logic can be added here if necessary
+}
+Handle Re-subscription on Reconnection:
+
+Ensure that after a WebSocket reconnection, the manager re-subscribes to all tokens in the subscribedTokens set.
+
+typescript
+Copy
+// server/services/websocket.ts
+
+ws.onopen = () => {
+  console.log('[WebSocket Manager] Connected');
+  useHeliusStore.getState().setConnected(true);
+  reconnectAttempts = 0;
+
+  // Re-subscribe to all tokens
+  this.subscribedTokens.forEach(tokenAddress => {
+    this.subscribeToToken(tokenAddress);
+    console.log(`[WebSocket Manager] Re-subscribed to Token: ${tokenAddress}`);
+  });
+};
+Explanation:
+
+Set Tracking: Uses a Set to keep track of subscribed tokens, ensuring each token is only subscribed once.
+Re-subscription: Upon reconnection, iterates through the subscribedTokens set to re-subscribe, maintaining continuity in data streaming.
+9. Data Normalization and Consistency
+Objective: Ensure that data from different sources (Helius and PumpPortal) is normalized before being stored and displayed to maintain consistency.
+
+Approach:
+
+Define Standard Data Structures:
+Establish consistent interfaces for trades, tokens, and other data entities.
+Normalize Incoming Data:
+Process and transform data from Helius and PumpPortal to fit the standard structures before storing.
+Code Implementation:
+
+Define Standard Interfaces:
+
+typescript
+Copy
+// client/src/lib/types.ts
+
+export interface Trade {
+  signature: string;
+  timestamp: number;
+  solAmount: number;
+  tokenAmount: number;
+  priceSolPerToken: number;
+  priceUsdPerToken: number;
+  type: 'buy' | 'sell';
+  buyer: string;
+  seller: string;
+}
+
+export interface TokenData {
+  address: string;
+  name: string;
+  symbol: string;
+  totalSupply: number;
+  priceUsdPerToken: number;
+  marketCapUsd: number;
+  liquidityUsd: number;
+  // ... other properties
+}
+Normalize Helius Data:
+
+typescript
+Copy
+// server/services/websocket.ts
+
+private processHeliusData(info: any): Trade | null {
+  // Extract necessary details
+  const signature = info.signature;
+  const preBalances = info.preTokenBalances || [];
+  const postBalances = info.postTokenBalances || [];
+
+  if (preBalances.length === 0 || postBalances.length === 0) return null;
+
+  const preAmount = preBalances[0]?.uiTokenAmount.uiAmount || 0;
+  const postAmount = postBalances[0]?.uiTokenAmount.uiAmount || 0;
+
+  const solTransfers = info.preBalances.map((pre: number, i: number) => {
+    const post = info.postBalances[i];
+    return (post - pre) / 1e9; // Convert lamports to SOL
+  });
+
+  const solAmount = Math.abs(Math.max(...solTransfers.filter((t: number) => t !== 0)));
+  const tokenAmount = Math.abs(postAmount - preAmount);
+  const price = solAmount / tokenAmount;
+  const isBuy = postAmount > preAmount;
+
+  const wallets = info.accountKeys.map((key: any) => key.toString());
+  const buyer = isBuy ? wallets[0] : wallets[1];
+  const seller = isBuy ? wallets[1] : wallets[0];
+
+  const solPriceUsd = usePumpPortalStore.getState().solPrice || 0;
+
+  return {
+    signature,
+    timestamp: Date.now(),
+    solAmount,
+    tokenAmount,
+    priceSolPerToken: price,
+    priceUsdPerToken: price * solPriceUsd,
+    type: isBuy ? 'buy' : 'sell',
+    buyer,
+    seller
+  };
+}
+Normalize PumpPortal Data:
+
+typescript
+Copy
+// pump-portal-websocket.ts
+
+export function mapPumpPortalData(data: any): PumpPortalToken {
+  // Existing mapping logic...
+
+  return {
+    // ... existing mappings
+    recentTrades: [{
+      signature: data.signature,
+      timestamp: data.timestamp,
+      solAmount: data.solAmount,
+      tokenAmount: data.tokenAmount,
+      priceSolPerToken: data.price,
+      priceUsdPerToken: data.priceUsd,
+      type: data.type,
+      buyer: data.buyer,
+      seller: data.seller
+    }],
+    // ... other mappings
+  };
+}
+Explanation:
+
+Consistent Interfaces: By defining standard interfaces (Trade, TokenData), you ensure that all data conforms to a consistent structure.
+Normalization Functions: Functions like processHeliusData and mapPumpPortalData transform incoming data to fit these interfaces, facilitating easier handling in your stores and frontend components.
+10. Ensuring Frontend Component Reactivity
+Objective: Make sure that frontend components like TransactionHistory correctly subscribe to state changes and re-render in real-time as data updates.
+
+Approach:
+
+Use State Selectors:
+
+Ensure components subscribe to the exact slices of state they need.
+Implement Reactivity:
+
+Use hooks like useEffect and state variables to trigger re-renders based on time or data changes.
+Code Implementation:
+
+Update TransactionHistory.tsx for Reactivity:
+
+typescript
+Copy
+// client/src/components/TransactionHistory.tsx
+
+import { FC, useEffect, useState } from 'react';
+import { useUnifiedTokenStore } from '@/lib/unified-token-store';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { ExternalLink } from 'lucide-react';
+
+interface TransactionHistoryProps {
+  tokenAddress: string;
+}
+
+const formatAddress = (address: string): string => {
+  if (!address) return '';
+  return `${address.slice(0, 4)}...${address.slice(-4)}`;
+};
+
+const formatTimeAgo = (timestamp: number, currentTime: number): string => {
+  const seconds = Math.floor((currentTime - timestamp) / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+};
+
+const TransactionHistory: FC<TransactionHistoryProps> = ({ tokenAddress }) => {
+  const transactions = useUnifiedTokenStore(state => state.getTransactions(tokenAddress));
+  const solPrice = usePumpPortalStore(state => state.solPrice);
+  const isConnected = useUnifiedTokenStore(state => state.isConnected);
+
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000); // Update every second
+
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!isConnected) {
+    return <div className="mt-4 text-center text-gray-500">Connecting...</div>;
+  }
+
+  if (!transactions?.length) {
+    return <div className="mt-4 text-center text-gray-500">No recent transactions.</div>;
+  }
+
+  return (
+    <div className="mt-4 border-t border-gray-800 pt-4">
+      <h4 className="text-sm text-gray-400 mb-3">Recent Transactions</h4>
+      <div className="space-y-2">
+        {transactions.map((tx) => {
+          const timeAgo = formatTimeAgo(tx.timestamp, currentTime);
+          const buyerAddress = formatAddress(tx.buyer);
+          const sellerAddress = formatAddress(tx.seller);
+          const usdAmount = tx.solAmount * (solPrice || 0);
+          const date = new Date(tx.timestamp);
+          const timeString = date.toLocaleTimeString();
+
+          return (
+            <div key={tx.signature} className="flex flex-col p-3 bg-gray-900/50 rounded-lg text-sm">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded ${tx.type === 'buy' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                    {tx.type === 'buy' ? 'Buy' : 'Sell'}
+                  </span>
+                  <span className="text-gray-400 text-xs">{timeString}</span>
+                  <span className="text-gray-500 text-xs">({timeAgo})</span>
+                </div>
+                <a
+                  href={`https://solscan.io/tx/${tx.signature}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-blue-400 transition-colors"
+                >
+                  <ExternalLink size={14} />
+                </a>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-400 text-xs">From:</span>
+                    <a
+                      href={`https://solscan.io/account/${tx.seller}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-300 hover:text-blue-400 transition-colors"
+                    >
+                      {sellerAddress}
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-400 text-xs">To:</span>
+                    <a
+                      href={`https://solscan.io/account/${tx.buyer}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-300 hover:text-blue-400 transition-colors"
+                    >
+                      {buyerAddress}
+                    </a>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-white">{tx.solAmount.toFixed(4)} SOL</span>
+                  <span className="text-gray-400 text-xs">${usdAmount.toFixed(6)}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export default TransactionHistory;
+Explanation:
+
+State Selectors:
+
+Subscribes to transactions, solPrice, and isConnected from the respective stores.
+Real-Time Time Ago Updates:
+
+Utilizes useEffect with a setInterval to update the current time every second, ensuring that the "time ago" display is real-time.
+Conditional Rendering:
+
+Displays connection status, no transactions message, or the list of transactions based on the current state.
+Reactivity:
+
+By subscribing to the store's state slices, the component re-renders automatically when relevant data changes.
+11. Final Checklist and Best Practices
+To Ensure Accurate and Real-Time Data:
+
+Single Source of Truth:
+
+Consolidate data handling within unified stores to prevent discrepancies.
+Avoid Duplicate WebSocket Connections:
+
+Ensure that each data source (Helius, PumpPortal) has only one active connection.
+Comprehensive Error Handling:
+
+Capture and log all possible errors to facilitate debugging.
+Efficient State Management:
+
+Use state selectors wisely to subscribe only to necessary data slices, enhancing performance.
+Data Validation:
+
+Validate incoming data before processing to prevent incorrect calculations.
+Consistent Data Structures:
+
+Maintain uniform data formats across different sources to simplify processing and rendering.
+Scalability Considerations:
+
+Design your stores and WebSocket manager to handle increasing numbers of tokens and transactions without performance degradation.
+Security Measures:
+
+Secure your WebSocket connections and validate all incoming data to prevent malicious activities.
+Conclusion
+By implementing the above calculation foundations and integrating them meticulously into your WebSocket managers and state stores, you can achieve accurate and real-time tracking of buy/sell transactions, market capitalization, liquidity, and other vital metrics on your PumpFunVision platform. Ensure thorough testing at each stage to validate the correctness of your implementations.

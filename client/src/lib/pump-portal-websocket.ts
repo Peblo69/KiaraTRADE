@@ -2,8 +2,7 @@ import { create } from 'zustand';
 import { preloadTokenImages } from './token-metadata';
 import axios from 'axios';
 
-// Constants
-const TOTAL_SUPPLY = 1_000_000_000;
+// Constants 
 const SOL_PRICE_UPDATE_INTERVAL = 10000;
 const MAX_TRADES_PER_TOKEN = 100;
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
@@ -322,11 +321,12 @@ export function mapPumpPortalData(data: any): PumpPortalToken {
     solAmount,
     traderPublicKey,
     imageLink,
+    vTokensInBondingCurve
   } = data;
 
   const solPrice = usePumpPortalStore.getState().solPrice || 0;
   //Corrected Price Calculation
-  const priceSol = vSolInBondingCurve > 0 ? Number(vSolInBondingCurve) / Number(data.vTokensInBondingCurve) : 0;
+  const priceSol = vTokensInBondingCurve > 0 ? Number(vSolInBondingCurve) / Number(vTokensInBondingCurve) : 0;
   const priceUsd = priceSol * solPrice;
   const marketCapUsd = Number(marketCapSol || 0) * solPrice;
   const liquidityUsd = Number(vSolInBondingCurve || 0) * solPrice;
