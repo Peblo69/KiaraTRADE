@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { ArrowLeft, DollarSign, Coins } from "lucide-react";
-import { createChart, IChartApi } from 'lightweight-charts';
+import { createChart, IChartApi, CandlestickData } from 'lightweight-charts';
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -15,6 +15,16 @@ interface TokenChartProps {
 }
 
 const TOKEN_DECIMALS = 9;
+const CANDLE_PERIOD = 15; // 15 seconds per candle
+const VISIBLE_CANDLES = 50; // Number of candles to show
+
+interface Candle {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
 
 // Memoized chart component to prevent unnecessary re-renders
 const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) => {
@@ -25,6 +35,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const lastRenderTimeRef = useRef<number>(Date.now());
   const [showUsd, setShowUsd] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [currentCandle, setCurrentCandle] = useState<Candle | null>(null);
 
   // Prevent unnecessary re-renders with useCallback for store selectors
   const token = usePumpPortalStore(
@@ -34,24 +45,31 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const solPrice = usePumpPortalStore(state => state.solPrice);
   const isConnected = usePumpPortalStore(state => state.isConnected);
 
-  // Component state debugging
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      if (isMountedRef.current) {
-        console.log('[TokenChart] Health check', {
-          timestamp: new Date().toISOString(),
-          hasChart: !!chartRef.current,
-          hasToken: !!token,
-          tradesCount: token?.recentTrades?.length,
-          containerWidth: chartContainerRef.current?.clientWidth,
-          containerHeight: chartContainerRef.current?.clientHeight,
-          isConnected
-        });
-      }
-    }, 5000);
+  const processTradeIntoCandle = useCallback((trade: any, currentCandle: Candle | null): Candle => {
+    const tokenAmount = trade.tokenAmount / (10 ** TOKEN_DECIMALS);
+    const price = tokenAmount > 0 ? trade.solAmount / tokenAmount : 0;
+    const timestamp = Math.floor(trade.timestamp / 1000);
+    const candleStartTime = Math.floor(timestamp / CANDLE_PERIOD) * CANDLE_PERIOD;
 
-    return () => clearInterval(intervalId);
-  }, [token, isConnected]);
+    if (!currentCandle || currentCandle.time !== candleStartTime) {
+      // Start new candle
+      return {
+        time: candleStartTime,
+        open: price,
+        high: price,
+        low: price,
+        close: price
+      };
+    }
+
+    // Update existing candle
+    return {
+      ...currentCandle,
+      high: Math.max(currentCandle.high, price),
+      low: Math.min(currentCandle.low, price),
+      close: price
+    };
+  }, []);
 
   const cleanupChart = useCallback(() => {
     try {
@@ -90,38 +108,77 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         height: chartContainerRef.current.clientHeight,
         timeScale: {
           timeVisible: true,
-          secondsVisible: false,
+          secondsVisible: true,
           borderColor: '#333333',
+          fixLeftEdge: true,
+          fixRightEdge: true,
+          rightOffset: 10,
         },
       });
 
       chartRef.current = chart;
 
-      const lineSeries = chart.addLineSeries({
-        color: '#22c55e',
-        lineWidth: 2,
-        priceFormat: {
-          type: 'price',
-          precision: 9,
-          minMove: 0.000000001,
-        },
+      const candleSeries = chart.addCandlestickSeries({
+        upColor: '#22c55e',
+        downColor: '#ef4444',
+        borderUpColor: '#22c55e',
+        borderDownColor: '#ef4444',
+        wickUpColor: '#22c55e',
+        wickDownColor: '#ef4444',
       });
 
-      const trades = token.recentTrades
-        .map((trade, index) => {
-          const tokenAmount = trade.tokenAmount / (10 ** TOKEN_DECIMALS);
-          const fillPrice = tokenAmount > 0 ? trade.solAmount / tokenAmount : 0;
-          return {
-            time: Math.floor(trade.timestamp / 1000) + (index * 0.001),
-            value: fillPrice,
-          };
-        })
-        .filter(trade => !isNaN(trade.value) && trade.value > 0)
-        .sort((a, b) => a.time - b.time);
+      // Process trades into candles
+      const candles: Candle[] = [];
+      let currentCandle: Candle | null = null;
 
-      if (trades.length > 0) {
-        lineSeries.setData(trades);
+      token.recentTrades.forEach(trade => {
+        currentCandle = processTradeIntoCandle(trade, currentCandle);
+        if (currentCandle) {
+          const existingCandleIndex = candles.findIndex(c => c.time === currentCandle!.time);
+          if (existingCandleIndex >= 0) {
+            candles[existingCandleIndex] = currentCandle;
+          } else {
+            candles.push(currentCandle);
+          }
+        }
+      });
+
+      if (candles.length > 0) {
+        // Sort candles by time and take last VISIBLE_CANDLES
+        const sortedCandles = candles
+          .sort((a, b) => a.time - b.time)
+          .slice(-VISIBLE_CANDLES);
+
+        candleSeries.setData(sortedCandles);
+
+        // Auto-zoom to fit the data
+        const priceRange = sortedCandles.reduce(
+          (acc, candle) => ({
+            min: Math.min(acc.min, candle.low),
+            max: Math.max(acc.max, candle.high),
+          }),
+          { min: Infinity, max: -Infinity }
+        );
+
+        const padding = (priceRange.max - priceRange.min) * 0.2;
+        candleSeries.applyOptions({
+          priceFormat: {
+            type: 'price',
+            precision: 9,
+            minMove: 0.000000001,
+          },
+        });
+
         chart.timeScale().fitContent();
+        candleSeries.applyOptions({
+          priceRange: {
+            minValue: priceRange.min - padding,
+            maxValue: priceRange.max + padding,
+          },
+        });
+
+        // Update current candle reference
+        setCurrentCandle(sortedCandles[sortedCandles.length - 1]);
       }
 
       const resizeObserver = new ResizeObserver(entries => {
@@ -148,7 +205,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       console.error('[TokenChart] Initialization error:', err);
       setError(err as Error);
     }
-  }, [token?.recentTrades, cleanupChart]);
+  }, [token?.recentTrades, cleanupChart, processTradeIntoCandle]);
 
   // Chart lifecycle management
   useEffect(() => {
@@ -162,45 +219,31 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
     setupChart();
 
-    // Periodic health checks
-    const healthCheckInterval = setInterval(() => {
-      if (!isMountedRef.current) return;
+    // Periodic health checks and updates
+    const updateInterval = setInterval(() => {
+      if (!isMountedRef.current || !token?.recentTrades?.length) return;
 
-      // Verify chart container
-      if (!chartContainerRef.current || 
-          chartContainerRef.current.clientWidth === 0 || 
-          chartContainerRef.current.clientHeight === 0) {
-        console.log('[TokenChart] Container issue detected, reinitializing');
-        cleanupChart();
-        setupChart();
-        return;
+      const lastTrade = token.recentTrades[0];
+      if (lastTrade) {
+        const newCandle = processTradeIntoCandle(lastTrade, currentCandle);
+        if (newCandle && (!currentCandle || newCandle.time !== currentCandle.time)) {
+          setCurrentCandle(newCandle);
+          if (chartRef.current) {
+            const candleSeries = chartRef.current.series()[0];
+            candleSeries.update(newCandle);
+          }
+        }
       }
-
-      // Verify chart instance
-      if (!chartRef.current) {
-        console.log('[TokenChart] Missing chart instance, reinitializing');
-        setupChart();
-        return;
-      }
-
-      // Update chart if needed
-      try {
-        chartRef.current.timeScale().fitContent();
-      } catch (err) {
-        console.error('[TokenChart] Chart update error:', err);
-        cleanupChart();
-        setupChart();
-      }
-    }, 5000);
+    }, 1000);
 
     return () => {
       isMountedRef.current = false;
       cleanupChart();
-      clearInterval(healthCheckInterval);
+      clearInterval(updateInterval);
     };
-  }, [token?.recentTrades, initializeChart, cleanupChart]);
+  }, [token?.recentTrades, initializeChart, cleanupChart, processTradeIntoCandle, currentCandle]);
 
-  // Format helpers
+  // Rest of the component remains unchanged
   const formatAddress = (address: string) => 
     address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '';
 
@@ -298,7 +341,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           <ResizablePanelGroup direction="vertical" className="h-[calc(100vh-200px)]">
             <ResizablePanel defaultSize={40} minSize={30}>
               <div className="h-full bg-[#111] rounded-lg p-4">
-                <div ref={chartContainerRef} className="h-full w-full" />
+                <div ref={chartContainerRef} className="h-full w-full ml-auto" style={{ width: '70%' }} />
               </div>
             </ResizablePanel>
             <ResizablePanel defaultSize={60} minSize={40}>
@@ -336,6 +379,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
             </ResizablePanel>
           </ResizablePanelGroup>
 
+          {/* Trading panel remains unchanged */}
           <div className="space-y-4">
             <Card className="bg-[#111] border-none p-4">
               <Tabs defaultValue="market" className="w-full">
