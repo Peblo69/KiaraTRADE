@@ -71,22 +71,23 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const tradeAmount = Number(trade.solAmount || 0);
     const isBuy = trade.txType === 'buy';
 
-    // Calculate price using bonding curve data
+    // Process trades into OHLC data
     const vTokens = Number(trade.vTokensInBondingCurve || 0);
     const vSol = Number(trade.vSolInBondingCurve || 0);
     const marketCapSol = Number(trade.marketCapSol || 0);
 
-    // Price per token in SOL
+    // Calculate price using bonding curve data
     const tokenPrice = vTokens > 0 ? vSol / vTokens : 0;
     const tokenPriceUsd = tokenPrice * state.solPrice;
     const marketCapUsd = marketCapSol * state.solPrice;
+    const tradeVolume = tradeAmount * state.solPrice;
 
     console.log('[Trade]', {
       type: isBuy ? 'buy' : 'sell',
       price: tokenPrice,
       priceUsd: tokenPriceUsd,
       amount: tradeAmount,
-      volume: tradeAmount * state.solPrice,
+      volume: tradeVolume,
       solPrice: state.solPrice,
       tokenAmount: trade.tokenAmount,
       vTokens,
@@ -118,7 +119,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           priceUsd: tokenPriceUsd,
           marketCap: marketCapUsd,
           liquidity: vSol * state.solPrice,
-          volume: t.volume + (tradeAmount * state.solPrice),
+          volume: t.volume + tradeVolume,
           volume24h: trades24h.reduce((sum, t) => sum + (t.amount * t.priceUsd), 0),
           trades: t.trades + 1,
           trades24h: trades24h.length,
