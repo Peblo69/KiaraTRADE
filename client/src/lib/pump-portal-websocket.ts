@@ -10,19 +10,6 @@ const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${win
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
-export interface TimeWindowStats {
-  startTime: number;
-  endTime: number;
-  openPrice: number;
-  closePrice: number;
-  highPrice: number;
-  lowPrice: number;
-  volume: number;
-  trades: number;
-  buys: number;
-  sells: number;
-}
-
 export interface TokenTrade {
   signature: string;
   timestamp: number;
@@ -39,10 +26,9 @@ export interface PumpPortalToken {
   name: string;
   address: string;
   price: number;
+  priceUsd: number;
   marketCap: number;
   liquidity: number;
-  liquidityChange: number;
-  l1Liquidity: number;
   volume: number;
   volume24h: number;
   trades: number;
@@ -50,18 +36,8 @@ export interface PumpPortalToken {
   buys24h: number;
   sells24h: number;
   walletCount: number;
-  timestamp: number;
-  timeWindows: Record<string, TimeWindowStats>;
   recentTrades: TokenTrade[];
-  status: TokenStatus;
   imageLink?: string;
-}
-
-interface TokenStatus {
-  mad: boolean;
-  fad: boolean;
-  lb: boolean;
-  tri: boolean;
 }
 
 interface PumpPortalStore {
@@ -93,15 +69,18 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     if (!token || !state.solPrice) return;
 
     const now = Date.now();
-    const tradeVolume = Number(trade.solAmount || 0) * state.solPrice;
+    const tradeAmount = Number(trade.solAmount || 0);
     const isBuy = trade.txType === 'buy';
+    const tradePrice = Number(trade.price || 0);
+    const tradePriceUsd = tradePrice * state.solPrice;
+    const tradeVolume = tradeAmount * tradePriceUsd;
 
     const newTrade: TokenTrade = {
       signature: trade.signature,
       timestamp: now,
-      price: Number(trade.price) || 0,
-      priceUsd: (Number(trade.price) || 0) * state.solPrice,
-      amount: Number(trade.solAmount) || 0,
+      price: tradePrice,
+      priceUsd: tradePriceUsd,
+      amount: tradeAmount,
       type: isBuy ? 'buy' : 'sell',
       buyer: isBuy ? trade.traderPublicKey : trade.counterpartyPublicKey,
       seller: isBuy ? trade.counterpartyPublicKey : trade.traderPublicKey
@@ -115,8 +94,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       tokens: state.tokens.map(t =>
         t.address === address ? {
           ...t,
-          price: newTrade.price,
-          marketCap: newTrade.price * TOTAL_SUPPLY,
+          price: tradePrice,
+          priceUsd: tradePriceUsd,
+          marketCap: tradePriceUsd * TOTAL_SUPPLY,
           liquidity: t.liquidity + (isBuy ? tradeVolume : -tradeVolume),
           volume: t.volume + tradeVolume,
           volume24h: trades24h.reduce((sum, t) => sum + (t.amount * t.priceUsd), 0),
@@ -174,6 +154,21 @@ export function initializePumpPortalWebSocket() {
     console.log('[PumpPortal] Initializing WebSocket...');
     ws = new WebSocket(WS_URL);
     const store = usePumpPortalStore.getState();
+
+    // Initialize SOL price updates
+    fetchSolanaPrice()
+      .then(price => {
+        store.setSolPrice(price);
+        solPriceInterval = setInterval(async () => {
+          try {
+            const price = await fetchSolanaPrice();
+            store.setSolPrice(price);
+          } catch (error) {
+            console.error('[PumpPortal] Failed to update SOL price:', error);
+          }
+        }, SOL_PRICE_UPDATE_INTERVAL);
+      })
+      .catch(console.error);
 
     ws.onopen = () => {
       console.log('[PumpPortal] WebSocket connected');
@@ -253,7 +248,6 @@ export function mapPumpPortalData(data: any): PumpPortalToken {
     mint,
     vSolInBondingCurve,
     marketCapSol,
-    bondingCurveKey,
     name,
     symbol,
     solAmount,
@@ -262,21 +256,21 @@ export function mapPumpPortalData(data: any): PumpPortalToken {
   } = data;
 
   const solPrice = usePumpPortalStore.getState().solPrice || 0;
+  const priceSol = (Number(marketCapSol || 0)) / TOTAL_SUPPLY;
+  const priceUsd = priceSol * solPrice;
   const marketCapUsd = Number(marketCapSol || 0) * solPrice;
   const liquidityUsd = Number(vSolInBondingCurve || 0) * solPrice;
   const volumeUsd = Number(solAmount || 0) * solPrice;
-  const priceUsd = marketCapUsd / TOTAL_SUPPLY || 0;
 
   const now = Date.now();
   return {
     symbol: symbol || mint?.slice(0, 6) || 'Unknown',
     name: name || `Token ${mint?.slice(0, 8)}`,
     address: mint || '',
-    price: priceUsd,
+    price: priceSol,
+    priceUsd: priceUsd,
     marketCap: marketCapUsd,
     liquidity: liquidityUsd,
-    liquidityChange: 0,
-    l1Liquidity: liquidityUsd,
     volume: volumeUsd,
     volume24h: volumeUsd,
     trades: 1,
@@ -284,37 +278,16 @@ export function mapPumpPortalData(data: any): PumpPortalToken {
     buys24h: 1,
     sells24h: 0,
     walletCount: 1,
-    timestamp: now,
-    timeWindows: {
-      '1m': {
-        startTime: now - 60000,
-        endTime: now,
-        openPrice: priceUsd,
-        closePrice: priceUsd,
-        highPrice: priceUsd,
-        lowPrice: priceUsd,
-        volume: volumeUsd,
-        trades: 1,
-        buys: 1,
-        sells: 0
-      }
-    },
     recentTrades: [{
       signature: '', 
       timestamp: now,
-      price: priceUsd,
+      price: priceSol,
       priceUsd: priceUsd,
-      amount: volumeUsd,
+      amount: Number(solAmount || 0),
       type: 'buy',
       buyer: traderPublicKey,
       seller: '' 
     }],
-    status: {
-      mad: false,
-      fad: false,
-      lb: Boolean(bondingCurveKey),
-      tri: false
-    },
     imageLink: imageLink || 'https://via.placeholder.com/150',
   };
 }

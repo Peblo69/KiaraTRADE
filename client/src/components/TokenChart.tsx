@@ -22,13 +22,11 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   useEffect(() => {
     if (!chartContainerRef.current || !token?.recentTrades) return;
 
-    console.log('Trade data:', token.recentTrades);
-
     // Process trades into consistent time-ordered data points
     const trades = token.recentTrades
       .map(trade => ({
         timestamp: Math.floor(trade.timestamp / 1000) * 1000,
-        price: Number(trade.price) || 0,
+        price: trade.price || 0,
       }))
       .filter(trade => !isNaN(trade.price) && trade.price > 0)
       .sort((a, b) => a.timestamp - b.timestamp);
@@ -71,7 +69,7 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         horzLines: { color: '#1a1a1a' },
       },
       width: chartContainerRef.current.clientWidth,
-      height: chartContainerRef.current.clientHeight,
+      height: chartContainerRef.clientHeight,
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
@@ -126,10 +124,14 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     return new Date(timestamp).toLocaleTimeString();
   };
 
-  const formatPrice = (price: number | string | undefined) => {
-    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-    if (!numPrice || isNaN(numPrice)) return '$0.00';
-    return `$${numPrice.toFixed(8)}`;
+  const formatSolPrice = (price: number) => {
+    if (!price || isNaN(price)) return '0.00 SOL';
+    return `${price.toFixed(8)} SOL`;
+  };
+
+  const formatUsdPrice = (price: number) => {
+    if (!price || isNaN(price)) return '$0.00';
+    return `$${price.toFixed(2)}`;
   };
 
   return (
@@ -158,21 +160,23 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
             />
             <div>
               <h2 className="text-2xl font-bold">{token.symbol}</h2>
-              <div className="text-sm text-gray-400">{formatPrice(token.price)}</div>
+              <div className="text-sm text-gray-400">
+                {formatSolPrice(token.price)} ({formatUsdPrice(token.priceUsd)})
+              </div>
             </div>
           </div>
           <div className="flex gap-3">
             <div className="text-right">
               <div className="text-sm text-gray-400">Market Cap</div>
-              <div className="font-bold">${token.marketCap?.toFixed(2) || '0.00'}</div>
+              <div className="font-bold">{formatUsdPrice(token.marketCap)}</div>
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Liquidity</div>
-              <div className="font-bold">${token.liquidity?.toFixed(2) || '0.00'}</div>
+              <div className="font-bold">{formatUsdPrice(token.liquidity)}</div>
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Volume (24h)</div>
-              <div className="font-bold">${token.volume?.toFixed(2) || '0.00'}</div>
+              <div className="font-bold">{formatUsdPrice(token.volume24h)}</div>
             </div>
           </div>
         </div>
@@ -200,9 +204,9 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                         <span>{formatAddress(trade.type === 'buy' ? trade.buyer : trade.seller)}</span>
                       </div>
                       <div className="text-right">
-                        <div>{formatPrice(trade.price)}</div>
+                        <div>{formatSolPrice(trade.price)}</div>
                         <div className="text-xs text-gray-500">
-                          {formatPrice(trade.priceUsd)}
+                          {formatUsdPrice(trade.priceUsd)}
                         </div>
                       </div>
                     </div>
