@@ -1,0 +1,255 @@
+Below is a guide (and example updated code) to help pinpoint and fix the issue of always seeing the same tiny price (e.g. 0.0000007 SOL) for every trade. The most common root causes are:
+
+Incorrectly Interpreting Raw On-Chain Amounts
+
+If your token is using 6, 8, or 9 decimals, then the raw integer in trade.tokenAmount may need to be converted by dividing by 
+1
+0
+decimals
+10 
+decimals
+ .
+Similarly, vTokensInBondingCurve might be the total supply (in raw integer form) sitting in the bonding curve, which also needs dividing by token decimals.
+Recomputing a Single “Bonding Curve Price” Instead of Using the Actual Trade Price
+
+Your code calculates
+ts
+Copy
+Edit
+const tokenPrice = vTokens > 0 
+    ? Number((vSol / vTokens).toFixed(12)) 
+    : 0;
+If vSol and vTokens from the server are not updating after each trade, you will see the same ratio over and over.
+If you want to show the actual trade price that the user paid (or received), you need to use the actual SOL amount and the actual token amount from the trade event itself:
+ts
+Copy
+Edit
+const actualTradePrice = solAmount / tokenAmount;
+(…adjusted for decimals.)
+Applying a “Price Impact” Factor That Doesn’t Match Real On-Chain Math
+
+The snippet
+ts
+Copy
+Edit
+const IMPACT_FACTOR = 0.005; // 0.5%
+const priceImpact = (tradeAmount / liquidity) * IMPACT_FACTOR;
+...
+const adjustedTokenPrice = isBuy 
+    ? tokenPrice * (1 + priceImpact) 
+    : tokenPrice * (1 - priceImpact);
+might give unexpected results if you are mixing actual bond-curve updates with a separate “impact factor.”
+Mismatched Field Names
+
+Double check that the server is sending you trade.solAmount, trade.tokenAmount, trade.vSolInBondingCurve, etc. in the same format and units you expect.
+Sometimes trade.solAmount is the total SOL spent, sometimes it’s the difference in vSolInBondingCurve, or it might be in lamports (1 SOL = 1e9 lamports).
+Steps to Fix
+Use the Actual Trade Amounts for Price
+If your backend sends the true amounts per trade (e.g. solAmount, tokenAmount), rely on those to get a correct per-token price for that individual buy/sell.
+
+Convert Token Amounts Using Decimals
+
+If your token has 9 decimals, you likely need:
+ts
+Copy
+Edit
+const rawTokenAmount = Number(trade.tokenAmount || 0);
+const decimals = 9; // Or fetch from your token metadata
+const userTokenAmount = rawTokenAmount / 10 ** decimals;
+
+const solAmount = Number(trade.solAmount || 0); 
+// If solAmount is in lamports, convert similarly: solAmount / 1e9
+Then
+ts
+Copy
+Edit
+const tradePriceSOL = userTokenAmount 
+    ? (solAmount / userTokenAmount) 
+    : 0;
+const tradePriceUSD = tradePriceSOL * state.solPrice;
+Only Use Bonding-Curve Fields if They Are Up-to-Date
+
+If your server is sending the new vSolInBondingCurve and vTokensInBondingCurve after each trade, then you can compute the new “global” price from the ratio. But if the server rarely updates them or only sends initial values, you’ll see repeated results.
+Decide if you want to show the “latest global price” from vSol / vTokens or the “actual trade fill price” from trade.solAmount / trade.tokenAmount. Often, for user-facing UIs, the actual fill price is more informative.
+Remove or Tweak the Hard-coded IMPACT_FACTOR
+
+If your on-chain logic already accounts for price slippage in the bonding-curve math, artificially adding a 0.5% or 1% price impact in the front-end can produce bizarre results.
+If you really want to show an “expected slippage” or “impact,” compute it from the difference between the old and new ratio, or from solAmount / liquidity.
+Keep an Eye on Rounding
+
+Use fewer calls to toFixed(...) unless you explicitly want rounding. Doing Number(...toFixed(12)) repeatedly can cause repeated rounding down to near-zero for small trades.
+Instead, store full-precision in the store, and format only when displaying.
+Example Revised addTradeToHistory Snippet
+Below is a possible revision of your addTradeToHistory method that:
+
+Uses the actual trade data (trade.solAmount and trade.tokenAmount) for the trade price.
+Converts token amounts if you have decimals.
+Optionally updates a global bonding-curve price from vSolInBondingCurve / vTokensInBondingCurve, but only if you trust those fields are the updated post-trade values from your server.
+ts
+Copy
+Edit
+addTradeToHistory: (address, trade) => {
+  const state = get();
+  const token = state.tokens.find(t => t.address === address);
+  if (!token || !state.solPrice) return;
+
+  const now = Date.now();
+  // True amount of SOL used in this trade
+  // (Assuming 'trade.solAmount' is already in SOL, not lamports)
+  const solAmount = Number(trade.solAmount || 0);
+
+  // True amount of tokens bought/sold in this trade
+  // If your token uses 9 decimals and you're receiving raw integer, do:
+  // const rawTokenAmount = Number(trade.tokenAmount || 0);
+  // const decimals = 9; // or from metadata
+  // const userTokenAmount = rawTokenAmount / 10**decimals;
+  const userTokenAmount = Number(trade.tokenAmount || 0); // if server sends it pre-decimal
+
+  const isBuy = trade.txType === 'buy';
+
+  // Actual trade price per token in SOL
+  // (the fill price that the user actually paid)
+  let actualTradePriceSol = 0;
+  if (userTokenAmount > 0) {
+    actualTradePriceSol = solAmount / userTokenAmount;
+  }
+
+  const actualTradePriceUsd = actualTradePriceSol * state.solPrice;
+
+  // -- Optionally compute or update the global "bonding-curve price" from your backend:
+  const vTokens = Number(trade.vTokensInBondingCurve || 0);
+  const vSol = Number(trade.vSolInBondingCurve || 0);
+  // If vTokens is also raw integer, do the same decimal conversion
+
+  // This "global price" might be the post-trade ratio:
+  const globalBondingCurvePriceSol = vTokens > 0 ? (vSol / vTokens) : 0;
+  const globalBondingCurvePriceUsd = globalBondingCurvePriceSol * state.solPrice;
+
+  // Market cap in SOL or USD if the backend provides it
+  const marketCapSol = Number(trade.marketCapSol || 0);
+  const marketCapUsd = marketCapSol * state.solPrice;
+
+  // Validate buyer & seller addresses
+  const buyerAddress = isBuy ? trade.traderPublicKey : trade.counterpartyPublicKey;
+  const sellerAddress = isBuy ? trade.counterpartyPublicKey : trade.traderPublicKey;
+  const isValidSolanaAddress = (addr?: string) =>
+    addr?.length === 44 || addr?.length === 43;
+
+  if (!isValidSolanaAddress(buyerAddress) && !isValidSolanaAddress(sellerAddress)) {
+    console.warn('[PumpPortal] Invalid wallet addresses:', { buyerAddress, sellerAddress });
+    return;
+  }
+
+  console.log('[Trade]', {
+    isBuy,
+    solAmount,
+    userTokenAmount,
+    actualTradePriceSol,
+    actualTradePriceUsd,
+    vSol,
+    vTokens,
+    globalBondingCurvePriceSol,
+    globalBondingCurvePriceUsd
+  });
+
+  // Build the new trade record
+  const newTrade: TokenTrade = {
+    signature: trade.signature,
+    timestamp: now,
+    // *Use the actual fill price*, so the user sees what each trade cost
+    price: actualTradePriceSol,
+    priceUsd: actualTradePriceUsd,
+    amount: Math.abs(solAmount),
+    type: isBuy ? 'buy' : 'sell',
+    buyer: buyerAddress,
+    seller: sellerAddress,
+  };
+
+  // Limit to 100 most recent trades
+  const recentTrades = [newTrade, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN);
+
+  // Recompute 24h stats
+  const last24h = now - 24 * 60 * 60 * 1000;
+  const trades24h = recentTrades.filter(t => t.timestamp > last24h);
+
+  // For 24h volume in USD, sum up (trade SOL amount * SOL price)
+  const volume24hUsd = trades24h.reduce(
+    (sum, t) => sum + (t.amount * t.priceUsd / (t.price > 0 ? t.price : 1)), 
+    0
+  );
+  // Or if you want the sum of (SOL spent) in USD:
+  // const volume24hUsd = trades24h.reduce((sum, t) => sum + t.amount * state.solPrice, 0);
+
+  // Combine old volume + this trade’s volume in USD
+  const tradeVolumeUsd = solAmount * state.solPrice;
+  const newCumulativeVolume = (token.volume || 0) + tradeVolumeUsd;
+
+  set((state) => ({
+    tokens: state.tokens.map(t => {
+      if (t.address !== address) return t;
+      return {
+        ...t,
+        // OPTIONAL: If you want to *display* the global bonding-curve price:
+        price: globalBondingCurvePriceSol,
+        priceUsd: globalBondingCurvePriceUsd,
+
+        // Or if you want to keep the displayed price as the *latest trade fill price*:
+        // price: actualTradePriceSol,
+        // priceUsd: actualTradePriceUsd,
+
+        marketCap: marketCapUsd,
+        liquidity: vSol * state.solPrice, // if that is your definition of “liquidity”
+        volume: newCumulativeVolume,
+        volume24h: volume24hUsd,
+        trades: t.trades + 1,
+        trades24h: trades24h.length,
+        buys24h: trades24h.filter(x => x.type === 'buy').length,
+        sells24h: trades24h.filter(x => x.type === 'sell').length,
+        recentTrades,
+        walletCount: new Set([
+          ...recentTrades.map(x => x.buyer),
+          ...recentTrades.map(x => x.seller),
+        ]).size,
+      };
+    }),
+  }));
+},
+Key Improvements:
+We use solAmount / userTokenAmount for the actual per-token price in SOL.
+We convert raw token amounts to decimals properly if needed.
+We do not force a “price impact” factor artificially (you can remove or rework that portion).
+We allow the “global bonding-curve price” from vSol / vTokens to be used only if those fields are indeed updated and accurate.
+We store the real fill price in each trade record’s price field, so the UI can show what the buyer actually paid.
+Confirm the Server Data
+Lastly, make sure your backend WebSocket is indeed sending up-to-date fields. Typical AMM or bonding-curve updates might look like:
+
+json
+Copy
+Edit
+{
+  "mint": "So11111111111111111111111111111111111111112",
+  "vSolInBondingCurve": 10.123456789,
+  "vTokensInBondingCurve": 5000000000, 
+  "marketCapSol": 100, 
+  "txType": "buy",
+  "solAmount": 0.1,
+  "tokenAmount": 1000000,
+  "traderPublicKey": "...",
+  "counterpartyPublicKey": "...",
+  ...
+}
+If vTokensInBondingCurve is raw (e.g. 5000000000) while your token has 6 decimals, it means there are 
+5000000000
+/
+1
+0
+6
+=
+5000
+5000000000/10 
+6
+ =5000 tokens in the curve.
+If your front-end always does vSolInBondingCurve / (vTokensInBondingCurve / 10^6), the ratio could remain stable if vSolInBondingCurve and vTokensInBondingCurve are not being updated for small trades.
+By using the transaction’s own (solAmount / tokenAmount) for the fill price, you will see the correct, varied trade prices even if the pool ratio barely changes.
+
+With these adjustments, you should get precise and varied buy/sell prices that match each individual transaction rather than repeated tiny numbers.
