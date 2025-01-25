@@ -1,0 +1,53 @@
+[PumpPortal] Trade Details: 
+Object {mint: "47tkfEBzd28Tu1tomcELKjVdHcaggPGCrUCmoTWUpump", txType: "buy", tokenAmount: 732322.630357, solAmount: 0.020640819, bondingCurveKey: "DEZHR5KCvfuxZiqekKa9KnD6qG9EBBhDte5NDzxA1r2V", …}
+bondingCurveKey: "DEZHR5KCvfuxZiqekKa9KnD6qG9EBBhDte5NDzxA1r2V"
+marketCapSol: 28.204738582856606
+mint: "47tkfEBzd28Tu1tomcELKjVdHcaggPGCrUCmoTWUpump"
+solAmount: 0.020640819
+tokenAmount: 732322.630357
+txType: "buy"
+vSolInBondingCurve: 30.131553809622133
+vTokensInBondingCurve: 1068315301.739286
+[[Prototype]]: Object
+constructor: ƒ Object()
+hasOwnProperty: ƒ hasOwnProperty()
+isPrototypeOf: ƒ isPrototypeOf()
+propertyIsEnumerable: ƒ propertyIsEnumerable()
+toLocaleString: ƒ toLocaleString()
+toString: ƒ toString()
+valueOf: ƒ valueOf()
+__defineGetter__: ƒ __defineGetter__()
+__defineSetter__: ƒ __defineSetter__()
+__lookupGetter__: ƒ __lookupGetter__()
+__lookupSetter__: ƒ __lookupSetter__()
+__proto__: Object
+get __proto__: ƒ get __proto__()
+set __proto__: ƒ set __proto__()
+[PumpPortal] Trade Details: 
+Object {mint: "EHs6ASmM262k7bfUx24Paqe1TieeNJJgoveGGLNayzKP", txType: "buy", tokenAmount: 3583782.871972, solAmount: 0.129189018, bondingCurveKey: "9ZB6WG5nhrNhK5Rp7ZToA811YkpN5TbEGpViAfhwSox5", …}
+bondingCurveKey: "9ZB6WG5nhrNhK5Rp7ZToA811YkpN5TbEGpViAfhwSox5"
+marketCapSol: 36.18519860378461
+mint: "EHs6ASmM262k7bfUx24Paqe1TieeNJJgoveGGLNayzKP"
+solAmount: 0.129189018
+tokenAmount: 3583782.871972
+txType: "buy"
+vSolInBondingCurve: 34.12918901843152
+vTokensInBondingCurve: 943180923.010381
+[[Prototype]]: Object
+[Trade Debug] 
+Object {solAmount: 0.129189018, userTokenAmount: 0.003583782871972, fillPriceSol: 36.0482268639542, fillPriceUsd: 9026.476006734132, bondingCurvePriceSol: 3.618519860378461e-8, …}
+[PumpPortal] Trade Details: 
+Object {mint: "EHs6ASmM262k7bfUx24Paqe1TieeNJJgoveGGLNayzKP", txType: "buy", tokenAmount: 2735925.290403, solAmount: 0.099288009, bondingCurveKey: "9ZB6WG5nhrNhK5Rp7ZToA811YkpN5TbEGpViAfhwSox5", …}
+[Trade Debug] 
+Object {solAmount: 0.099288009, userTokenAmount: 0.002735925290403, fillPriceSol: 36.29046792625501, fillPriceUsd: 9087.133168734255, bondingCurvePriceSol: 3.6396043479834345e-8, …}
+[PumpPortal] Trade Details: 
+Object {mint: "EHs6ASmM262k7bfUx24Paqe1TieeNJJgoveGGLNayzKP", txType: "buy", tokenAmount: 1392.29899, solAmount: 0.000050674, bondingCurveKey: "9ZB6WG5nhrNhK5Rp7ZToA811YkpN5TbEGpViAfhwSox5", …}
+[Trade Debug] 
+Object {solAmount: 0.000050674, userTokenAmount: 0.00000139229899, fillPriceSol: 36.39591809227701, fillPriceUsd: 9113.537890306163, bondingCurvePriceSol: 3.639615124644958e-8, …}
+[PumpPortal] Trade Details: 
+Object {mint: "EHs6ASmM262k7bfUx24Paqe1TieeNJJgoveGGLNayzKP", txType: "buy", tokenAmount: 269236.539773, solAmount: 0.00980198, bondingCurveKey: "9ZB6WG5nhrNhK5Rp7ZToA811YkpN5TbEGpViAfhwSox5", …}
+[Trade Debug] 
+Object {solAmount: 0.00980198, userTokenAmount: 0.000269236539773, fillPriceSol: 36.40657396750193, fillPriceUsd: 9116.206121462483, bondingCurvePriceSol: 3.6416999670392026e-8, …}
+[PumpPortal] New Token Details: 
+Object {name: "Frenchie Fart Factory Costume", symbol: "FFFC", mint: "3E7jKAstp1FfLDTeAkWSmzJbr538K9JyhVzPeNTFpump", initialBuy: 7105960.2649, bondingCurveKey: "4fAKik31mvotKyLa5i7Ds4tHUPDnf2ew7NUeHcsynhzk", …}
+[Token Metadata] Preloading images for 1 tokens

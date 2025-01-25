@@ -5,7 +5,6 @@ import axios from 'axios';
 
 // Constants
 const TOKEN_DECIMALS = 9; // Solana tokens use 9 decimals
-const TOTAL_SUPPLY = 1_000_000_000; // Fixed supply for PumpFun tokens
 const SOL_PRICE_UPDATE_INTERVAL = 10_000;  // 10 seconds
 const MAX_TRADES_PER_TOKEN = 100;
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
@@ -70,7 +69,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   isConnected: false,
   solPrice: 0,
 
-  addToken: (token) =>
+  addToken: (token) => 
     set((state) => ({
       tokens: [token, ...state.tokens].slice(0, 50),
     })),
@@ -87,50 +86,50 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const token = state.tokens.find((t) => t.address === address);
     if (!token || !state.solPrice) return;
 
-    const rawVTokens = Number(trade.vTokensInBondingCurve || 0);
-    const rawVSol = Number(trade.vSolInBondingCurve || 0);
-    const marketCapSol = Number(trade.marketCapSol || 0);
-
-    // Get token amount in whole tokens (not raw)
+    // Process raw token amounts (PumpPortal sends tokenAmount with 9 decimals)
     const rawTokenAmount = Number(trade.tokenAmount || 0);
     const tokenAmount = rawTokenAmount / (10 ** TOKEN_DECIMALS);
 
     // Get SOL amount (already in SOL)
     const solAmount = Number(trade.solAmount || 0);
 
-    // Calculate price from actual trade
-    const fillPriceSol = tokenAmount > 0 ? solAmount / tokenAmount : 0;
-    const fillPriceUsd = fillPriceSol * state.solPrice;
+    // Calculate actual trade price (SOL per token)
+    const tradePriceSol = tokenAmount > 0 ? solAmount / tokenAmount : 0;
+    const tradePriceUsd = tradePriceSol * state.solPrice;
+
+    // Get bonding curve data
+    const rawVTokens = Number(trade.vTokensInBondingCurve || 0);
+    const rawVSol = Number(trade.vSolInBondingCurve || 0);
+    const realVTokens = rawVTokens / (10 ** TOKEN_DECIMALS);
 
     // Calculate bonding curve price
-    const bondingCurvePriceSol = rawVTokens > 0 ? rawVSol / rawVTokens : 0;
+    const bcPriceSol = realVTokens > 0 ? rawVSol / realVTokens : 0;
+    const bcPriceUsd = bcPriceSol * state.solPrice;
 
-    // Use market cap from server
+    // Use market cap from server if provided, otherwise calculate
+    const marketCapSol = Number(trade.marketCapSol || 0);
     const marketCapUsd = marketCapSol * state.solPrice;
 
-    // Calculate liquidity in USD
+    // Calculate liquidity in USD (total SOL in bonding curve)
     const liquidityUsd = rawVSol * state.solPrice;
-
-    // Calculate trade volume in USD
-    const tradeVolumeUsd = solAmount * state.solPrice;
 
     console.log('[Trade Debug]', {
       solAmount,
       tokenAmount,
-      fillPriceSol,
-      fillPriceUsd,
-      bondingCurvePriceSol,
+      tradePriceSol,
+      tradePriceUsd,
+      bcPriceSol,
+      bcPriceUsd,
       marketCapUsd,
       liquidityUsd,
-      tradeVolumeUsd,
     });
 
     // Create trade record
     const newTrade: TokenTrade = {
       signature: trade.signature,
       timestamp: Date.now(),
-      price: fillPriceSol,
-      priceUsd: fillPriceUsd,
+      price: tradePriceSol,     // Use actual trade price
+      priceUsd: tradePriceUsd,
       amount: tokenAmount,
       solAmount,
       type: trade.txType === 'buy' ? 'buy' : 'sell',
@@ -138,10 +137,8 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       seller: trade.txType === 'buy' ? trade.counterpartyPublicKey : trade.traderPublicKey,
     };
 
-    // Get recent trades
+    // Get recent trades and calculate 24h stats
     const recentTrades = [newTrade, ...token.recentTrades].slice(0, MAX_TRADES_PER_TOKEN);
-
-    // Calculate 24h metrics
     const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
     const trades24h = recentTrades.filter((tr) => tr.timestamp > cutoff24h);
 
@@ -152,19 +149,18 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
         return {
           ...t,
-          // Use fill price as current price
-          price: fillPriceSol,
-          priceUsd: fillPriceUsd,
+          price: bcPriceSol,       // Use bonding curve price as "current" price
+          priceUsd: bcPriceUsd,
           marketCap: marketCapUsd,
           liquidity: liquidityUsd,
-          volume: t.volume + tradeVolumeUsd,
+          volume: t.volume + (solAmount * state.solPrice), // Add trade volume
           volume24h: trades24h.reduce((sum, tr) => sum + (tr.solAmount * state.solPrice), 0),
           trades: t.trades + 1,
           trades24h: trades24h.length,
           buys24h: trades24h.filter((x) => x.type === 'buy').length,
           sells24h: trades24h.filter((x) => x.type === 'sell').length,
           recentTrades,
-          // Store bonding curve data
+          // Store bonding curve state
           vSolInBondingCurve: rawVSol,
           vTokensInBondingCurve: rawVTokens,
           walletCount: new Set(recentTrades.flatMap((x) => [x.buyer, x.seller])).size,
