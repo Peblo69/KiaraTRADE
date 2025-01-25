@@ -1,11 +1,11 @@
-import { FC, useEffect, useRef, useState, useCallback, memo } from 'react';
+import { FC, useEffect, useRef, useState, useCallback, memo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { ArrowLeft, DollarSign, Coins } from "lucide-react";
-import { createChart, IChartApi, CandlestickData } from 'lightweight-charts';
+import { createChart, IChartApi } from 'lightweight-charts';
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -32,14 +32,6 @@ const TIME_INTERVALS: TimeInterval[] = [
   { label: '1h', seconds: 3600 },
 ];
 
-interface Candle {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-}
-
 // Memoized chart component to prevent unnecessary re-renders
 const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -48,7 +40,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const isMountedRef = useRef(true);
   const [showUsd, setShowUsd] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [currentCandle, setCurrentCandle] = useState<Candle | null>(null);
   const [selectedInterval, setSelectedInterval] = useState<TimeInterval>(TIME_INTERVALS[2]); // Default to 15s
 
   const token = usePumpPortalStore(
@@ -56,41 +47,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   );
 
   const solPrice = usePumpPortalStore(state => state.solPrice);
-
-  // Convert SOL amount to market cap
-  const calculateMarketCap = useCallback((solAmount: number) => {
-    if (!solAmount || !solPrice) return 0;
-    return solAmount * solPrice;
-  }, [solPrice]);
-
-  const processTradeIntoCandle = useCallback((trade: any): Candle => {
-    const marketCap = calculateMarketCap(trade.marketCapSol);
-    const timestamp = Math.floor(trade.timestamp / 1000);
-    const candleStartTime = Math.floor(timestamp / selectedInterval.seconds) * selectedInterval.seconds;
-
-    // Find existing candle for this time period or create new one
-    const existingCandle = currentCandle?.time === candleStartTime ? currentCandle : null;
-
-    if (!existingCandle) {
-      // Start new candle from previous close or current market cap
-      const startValue = currentCandle ? currentCandle.close : marketCap;
-      return {
-        time: candleStartTime,
-        open: startValue,
-        high: Math.max(startValue, marketCap),
-        low: Math.min(startValue, marketCap),
-        close: marketCap
-      };
-    }
-
-    // Update existing candle preserving continuous movement
-    return {
-      ...existingCandle,
-      high: Math.max(existingCandle.high, marketCap),
-      low: Math.min(existingCandle.low, marketCap),
-      close: marketCap
-    };
-  }, [currentCandle, selectedInterval, calculateMarketCap]);
 
   const cleanupChart = useCallback(() => {
     if (resizeObserverRef.current && chartContainerRef.current) {
@@ -126,13 +82,14 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           top: 0.1,
           bottom: 0.1,
         },
+        mode: 1, // Logarithmic scale for better range display
         autoScale: true,
       },
       timeScale: {
         timeVisible: true,
         secondsVisible: true,
         borderColor: '#333333',
-        rightOffset: 15,
+        rightOffset: 12,
         barSpacing: 12,
         lockVisibleTimeRangeOnResize: true,
         rightBarStaysOnScroll: true,
@@ -158,51 +115,32 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
     chartRef.current = chart;
 
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderUpColor: '#26a69a',
-      borderDownColor: '#ef5350',
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
+    const lineSeries = chart.addLineSeries({
+      color: '#22c55e',
+      lineWidth: 2,
       priceFormat: {
         type: 'price',
-        precision: 4,
-        minMove: 0.0001,
+        precision: 9,
+        minMove: 0.000000001,
       },
     });
 
-    // Process trades into candles
-    const candles = new Map<number, Candle>();
-
-    token.recentTrades.forEach(trade => {
-      const candle = processTradeIntoCandle(trade);
-      const existing = candles.get(candle.time);
-
-      if (!existing) {
-        candles.set(candle.time, candle);
-      } else {
-        candles.set(candle.time, {
-          ...existing,
-          high: Math.max(existing.high, candle.high),
-          low: Math.min(existing.low, candle.low),
-          close: candle.close,
-        });
-      }
-    });
-
-    const sortedCandles = Array.from(candles.values())
+    // Using original trade data processing
+    const trades = token.recentTrades
+      .map((trade, index) => ({
+        time: Math.floor(trade.timestamp / 1000) + (index * 0.001),
+        value: trade.marketCapSol,
+      }))
+      .filter(trade => !isNaN(trade.value) && trade.value > 0)
       .sort((a, b) => a.time - b.time);
 
-    if (sortedCandles.length > 0) {
-      candlestickSeries.setData(sortedCandles);
-      setCurrentCandle(sortedCandles[sortedCandles.length - 1]);
+    if (trades.length > 0) {
+      lineSeries.setData(trades);
+      chart.timeScale().fitContent();
     }
 
-    // Handle resize
     const resizeObserver = new ResizeObserver(entries => {
       if (!chartRef.current || !isMountedRef.current) return;
-
       const { width, height } = entries[0].contentRect;
       requestAnimationFrame(() => {
         if (chartRef.current && isMountedRef.current) {
@@ -216,48 +154,29 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       resizeObserverRef.current = resizeObserver;
     }
 
-  }, [token?.recentTrades, cleanupChart, processTradeIntoCandle]);
+  }, [token?.recentTrades, cleanupChart]);
 
   // Handle interval change
   const handleIntervalChange = useCallback((interval: TimeInterval) => {
     setSelectedInterval(interval);
     cleanupChart();
-    setTimeout(initializeChart, 0); // Re-initialize with new interval
+    setTimeout(initializeChart, 0);
   }, [cleanupChart, initializeChart]);
 
-  // Chart lifecycle and updates
   useEffect(() => {
     isMountedRef.current = true;
     initializeChart();
 
-    const updateInterval = setInterval(() => {
-      if (!token?.recentTrades?.length || !chartRef.current) return;
-
-      const latestTrade = token.recentTrades[0];
-      if (latestTrade) {
-        const newCandle = processTradeIntoCandle(latestTrade);
-
-        if (chartRef.current) {
-          const series = chartRef.current.series()[0];
-          if (currentCandle?.time !== newCandle.time) {
-            series.update(newCandle);
-            setCurrentCandle(newCandle);
-          }
-        }
-      }
-    }, 1000);
-
     return () => {
       isMountedRef.current = false;
       cleanupChart();
-      clearInterval(updateInterval);
     };
-  }, [token?.recentTrades, initializeChart, cleanupChart, processTradeIntoCandle]);
+  }, [token?.recentTrades, initializeChart, cleanupChart]);
 
   const formatPrice = (value: number) => {
     if (!value || isNaN(value)) return showUsd ? '$0.00' : '0 SOL';
     return showUsd 
-      ? `$${(value).toFixed(2)}`
+      ? `$${(value * solPrice).toFixed(2)}`
       : `${value.toFixed(9)} SOL`;
   };
 
@@ -268,11 +187,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     new Date(timestamp).toLocaleTimeString();
 
   if (!token) return null;
-
-  // Calculate current price from bonding curve
-  const currentPrice = token.vTokensInBondingCurve > 0
-    ? token.vSolInBondingCurve / (token.vTokensInBondingCurve / (10 ** TOKEN_DECIMALS))
-    : 0;
 
   if (error) {
     return (
@@ -328,7 +242,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           <div className="flex gap-6">
             <div className="text-right">
               <div className="text-sm text-gray-400">Price</div>
-              <div className="font-bold">{formatPrice(currentPrice)}</div>
+              <div className="font-bold">{formatPrice(token.marketCapSol)}</div>
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Liquidity</div>
