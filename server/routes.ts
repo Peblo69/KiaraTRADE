@@ -11,7 +11,7 @@ export function registerRoutes(app: Express): Server {
   const wss = new WebSocketServer({ server: httpServer });
 
   // Connect to PumpPortal
-  const pumpPortalWs = new WebSocket('wss://api.pumpfun.com/v1/ws');
+  const pumpPortalWs = new WebSocket('wss://pump.fun/v1/ws');
 
   // Forward PumpPortal messages to all clients
   pumpPortalWs.on('message', (data) => {
