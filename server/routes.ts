@@ -52,7 +52,8 @@ if (!process.env.HELIUS_API_KEY) {
   throw new Error("HELIUS_API_KEY must be set in environment variables");
 }
 
-const HELIUS_API_BASE = 'https://api-devnet.helius.xyz/v0';
+// Updated Helius API base URL for v2
+const HELIUS_API_BASE = 'https://mainnet.helius-rpc.com/v0';
 
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
@@ -517,79 +518,113 @@ export function registerRoutes(app: Express): Server {
 
       console.log(`[Routes] Fetching data for wallet: ${address}`);
 
-      // Get token balances
-      const response = await axios.get(`${HELIUS_API_BASE}/token-balances`, {
+      // Get portfolio using enhanced API
+      const portfolioResponse = await axios.post(HELIUS_API_BASE, {
+        jsonrpc: '2.0',
+        id: 'my-id',
+        method: 'getPortfolio',
         params: {
-          'api-key': process.env.HELIUS_API_KEY,
-          address: address,
+          ownerAddress: address,
+          options: {
+            tokens: true,
+            nfts: false,
+            portionSize: 20
+          }
+        }
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': process.env.HELIUS_API_KEY
         }
       });
 
-      console.log('[Routes] Token balance response:', response.data);
+      console.log('[Routes] Portfolio response:', portfolioResponse.data);
 
-      const tokens = (response.data?.tokens || []).map((token: any) => ({
-        mint: token.mint,
+      if (!portfolioResponse.data?.result) {
+        throw new Error('Invalid portfolio response from Helius API');
+      }
+
+      const portfolio = portfolioResponse.data.result;
+
+      // Map tokens to our format
+      const tokens = (portfolio.tokens || []).map((token: any) => ({
+        mint: token.tokenAddress,
         amount: token.amount,
         symbol: token.symbol || 'Unknown',
         price: token.price || 0,
-        value: token.amount * (token.price || 0),
+        value: token.value || 0,
         pnl24h: token.priceChange24h || 0
       }));
 
       // Calculate total balance
-      const balance = tokens.reduce((acc: number, token: any) => acc + token.value, 0);
+      const balance = portfolio.value || 0;
 
-      // Get transactions
-      const txResponse = await axios.get(`${HELIUS_API_BASE}/addresses/${address}/transactions`, {
+      // Get transactions using parsedTransactions endpoint
+      const txResponse = await axios.post(HELIUS_API_BASE, {
+        jsonrpc: '2.0',
+        id: 'my-id',
+        method: 'getParsedTransactions',
         params: {
-          'api-key': process.env.HELIUS_API_KEY,
-          limit: 20,
+          address,
+          numResults: 20
+        }
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': process.env.HELIUS_API_KEY
         }
       });
 
       console.log('[Routes] Transaction response:', txResponse.data);
 
-      const transactions = (txResponse.data?.data || []).map((tx: any) => {
+      if (!txResponse.data?.result) {
+        throw new Error('Invalid transaction response from Helius API');
+      }
+
+      const transactions = txResponse.data.result.map((tx: any) => {
+        const transfer = tx.tokenTransfers?.[0];
         let type: 'buy' | 'sell' | 'transfer' = 'transfer';
-        if (tx.type === 'TOKEN_TRANSFER') {
-          type = tx.sourceAddress === address ? 'sell' : 'buy';
+
+        if (transfer) {
+          type = transfer.fromUserAccount === address ? 'sell' : 'buy';
         }
 
         return {
           signature: tx.signature,
           type,
-          tokenSymbol: tx.tokenSymbol || 'SOL',
-          amount: tx.amount || 0,
-          price: tx.price || 0,
-          timestamp: tx.timestamp,
-          value: (tx.amount || 0) * (tx.price || 0)
+          tokenSymbol: transfer?.symbol || 'SOL',
+          amount: transfer?.tokenAmount || 0,
+          price: transfer?.price || 0,
+          timestamp: tx.timestamp * 1000,
+          value: (transfer?.tokenAmount || 0) * (transfer?.price || 0)
         };
       });
 
       // Calculate PNL
       const now = Date.now();
-      const dailyTransactions = transactions.filter(tx => 
-        tx.timestamp > now - 24 * 60 * 60 * 1000
-      );
-      const weeklyTransactions = transactions.filter(tx => 
-        tx.timestamp > now - 7 * 24 * 60 * 60 * 1000
-      );
+      const oneDayAgo = now - 24 * 60 * 60 * 1000;
+      const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+      const dailyTxs = transactions.filter(tx => tx.timestamp > oneDayAgo);
+      const weeklyTxs = transactions.filter(tx => tx.timestamp > oneWeekAgo);
 
       const calculatePNL = (txs: any[]) => {
         const buys = txs.filter(tx => tx.type === 'buy')
           .reduce((sum, tx) => sum + tx.value, 0);
         const sells = txs.filter(tx => tx.type === 'sell')
           .reduce((sum, tx) => sum + tx.value, 0);
-        return ((sells - buys) / buys * 100) || 0;
+
+        if (buys === 0) return 0;
+        return ((sells - buys) / buys * 100);
       };
 
       const pnl = {
-        daily: calculatePNL(dailyTransactions),
-        weekly: calculatePNL(weeklyTransactions),
-        monthly: 0 // Requires historical price data
+        daily: calculatePNL(dailyTxs),
+        weekly: calculatePNL(weeklyTxs),
+        monthly: 0 // Would need historical data
       };
 
-      console.log(`[Routes] Successfully fetched wallet data for ${address}`);
+      console.log(`[Routes] Successfully compiled wallet data for ${address}`);
 
       res.json({
         address,
@@ -598,11 +633,17 @@ export function registerRoutes(app: Express): Server {
         transactions,
         pnl
       });
+
     } catch (error: any) {
-      console.error('[Routes] Wallet data error:', error.response?.data || error);
-      res.status(500).json({
+      console.error('[Routes] Wallet data error:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+
+      res.status(error.response?.status || 500).json({
         error: 'Failed to fetch wallet data',
-        details: error.message
+        details: error.response?.data || error.message
       });
     }
   });
