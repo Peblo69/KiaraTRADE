@@ -147,20 +147,30 @@ async function processTransaction(signature: string, tokenAddress: string) {
       return (post - pre) / 1e9; // Convert lamports to SOL
     });
     
-    const price = Math.abs(Math.max(...solTransfers)) / deltaAmount;
+    const solAmount = Math.abs(Math.max(...solTransfers));
+    const price = solAmount / deltaAmount;
     const isBuy = postAmount > preAmount;
     
     const store = useHeliusStore.getState();
+    const solPrice = usePumpPortalStore.getState().solPrice || 0;
+    
     store.addTrade(tokenAddress, {
       signature,
       timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
       tokenAddress,
       amount: deltaAmount,
       price: price,
-      priceUsd: price * (store.solPrice || 0),
+      priceUsd: price * solPrice,
       buyer: isBuy ? tx.transaction.message.accountKeys[0].toString() : tx.transaction.message.accountKeys[1].toString(),
       seller: !isBuy ? tx.transaction.message.accountKeys[0].toString() : tx.transaction.message.accountKeys[1].toString(),
       type: isBuy ? 'buy' : 'sell'
+    });
+
+    // Update token price in unified store
+    useUnifiedTokenStore.getState().updateToken(tokenAddress, {
+      price: price,
+      priceUsd: price * solPrice,
+      lastTradeTime: Date.now()
     });
   } catch (error) {
     console.error('[Helius] Process transaction error:', error);

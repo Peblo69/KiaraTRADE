@@ -307,7 +307,7 @@ export function initializePumpPortalWebSocket() {
       console.log('[PumpPortal] WebSocket connected');
       store.setConnected(true);
       reconnectAttempts = 0;
-      
+
       // Set up keep-alive ping
       const pingInterval = setInterval(() => {
         if (ws?.readyState === WebSocket.OPEN) {
