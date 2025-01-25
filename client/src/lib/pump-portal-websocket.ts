@@ -72,16 +72,20 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     if (!token || !state.solPrice) return;
 
     const now = Date.now();
+    // Convert amounts (handle both lamports and SOL)
     const solAmount = Number(trade.solAmount || 0);
     const rawTokenAmount = Number(trade.tokenAmount || 0);
     const userTokenAmount = rawTokenAmount / Math.pow(10, TOKEN_DECIMALS);
 
     const isBuy = trade.txType === 'buy';
+    
+    // Calculate actual trade price from amounts
+    const actualTradePriceSol = userTokenAmount > 0 ? solAmount / userTokenAmount : 0;
+    const actualTradePriceUsd = actualTradePriceSol * state.solPrice;
+
+    // Store bonding curve data for reference
     const vTokens = Number(trade.vTokensInBondingCurve || 0) / Math.pow(10, TOKEN_DECIMALS);
     const vSol = Number(trade.vSolInBondingCurve || 0);
-
-    const actualTradePriceSol = vTokens > 0 ? vSol / vTokens : 0;
-    const actualTradePriceUsd = actualTradePriceSol * state.solPrice;
     const marketCapSol = Number(trade.marketCapSol || 0);
     const liquidity = vSol;
     const tradeVolume = Math.abs(solAmount) * state.solPrice;
