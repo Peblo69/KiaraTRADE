@@ -137,23 +137,29 @@ async function processTransaction(signature: string, tokenAddress: string) {
 
     if (preAmount === postAmount) return;
 
-    const isBuy = postAmount > preAmount;
-    const store = useHeliusStore.getState();
-    const amount = Math.abs(postAmount - preAmount);
+    const preTokenAccount = preBalances[0];
+    const postTokenAccount = postBalances[0];
     
-    // Get wallet addresses
-    const wallets = tx.transaction.message.accountKeys.map(key => key.toString());
-    const [buyer, seller] = isBuy ? [wallets[0], wallets[1]] : [wallets[1], wallets[0]];
-
+    // Calculate actual price and determine trade type
+    const deltaAmount = Math.abs(postAmount - preAmount);
+    const solTransfers = tx.meta.preBalances.map((pre, i) => {
+      const post = tx.meta.postBalances[i];
+      return (post - pre) / 1e9; // Convert lamports to SOL
+    });
+    
+    const price = Math.abs(Math.max(...solTransfers)) / deltaAmount;
+    const isBuy = postAmount > preAmount;
+    
+    const store = useHeliusStore.getState();
     store.addTrade(tokenAddress, {
       signature,
       timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
       tokenAddress,
-      amount,
-      price: amount > 0 ? preAmount / amount : 0,
-      priceUsd: 0,
-      buyer,
-      seller,
+      amount: deltaAmount,
+      price: price,
+      priceUsd: price * (store.solPrice || 0),
+      buyer: isBuy ? tx.transaction.message.accountKeys[0].toString() : tx.transaction.message.accountKeys[1].toString(),
+      seller: !isBuy ? tx.transaction.message.accountKeys[0].toString() : tx.transaction.message.accountKeys[1].toString(),
       type: isBuy ? 'buy' : 'sell'
     });
   } catch (error) {
