@@ -371,13 +371,17 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                     (trade.counterpartyPublicKey === devWallet && trade.txType === 'buy')
                   );
 
+                  const tradeColor = trade.txType === 'buy' ? 'text-green-500' : 'text-red-500';
+                  const tradeBg = trade.txType === 'buy' ? 'bg-green-500/10' : 'bg-red-500/10';
+
                   return (
                     <div
                       key={trade.signature || idx}
-                      className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
+                      className={`flex items-center justify-between p-2 rounded text-sm ${
                         isDevWallet ?
-                          isDevBuying ? 'bg-amber-400/10 text-amber-400' : 'bg-orange-500/10 text-orange-500' : // Enhanced DEV indicators
-                          trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
+                          isDevBuying ? 'bg-amber-400/20 text-amber-400 border border-amber-400' : 
+                          'bg-orange-500/20 text-orange-500 border border-orange-500' :
+                          `${tradeBg} ${tradeColor}`
                       }`}
                     >
                       <div className="flex items-center gap-2">
