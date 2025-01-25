@@ -6,7 +6,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { ArrowLeft, DollarSign, Coins } from "lucide-react";
 import { createChart, IChartApi } from 'lightweight-charts';
-import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ErrorBoundary } from './ErrorBoundary';
 
 interface TokenChartProps {
@@ -32,6 +31,14 @@ const TIME_INTERVALS: TimeInterval[] = [
   { label: '1h', seconds: 3600 },
 ];
 
+interface Candle {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
 // Memoized chart component to prevent unnecessary re-renders
 const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -40,7 +47,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const isMountedRef = useRef(true);
   const [showUsd, setShowUsd] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [selectedInterval, setSelectedInterval] = useState<TimeInterval>(TIME_INTERVALS[2]); // Default to 15s
+  const [selectedInterval, setSelectedInterval] = useState<TimeInterval>(TIME_INTERVALS[0]); // Default to 1s
 
   const token = usePumpPortalStore(
     useCallback(state => state.tokens.find(t => t.address === tokenAddress), [tokenAddress])
@@ -82,7 +89,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           top: 0.1,
           bottom: 0.1,
         },
-        mode: 1, // Logarithmic scale for better range display
+        mode: 1,
         autoScale: true,
       },
       timeScale: {
@@ -115,27 +122,50 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
     chartRef.current = chart;
 
-    const lineSeries = chart.addLineSeries({
-      color: '#22c55e',
-      lineWidth: 2,
-      priceFormat: {
-        type: 'price',
-        precision: 9,
-        minMove: 0.000000001,
-      },
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: '#22c55e',
+      downColor: '#ef4444',
+      borderUpColor: '#22c55e',
+      borderDownColor: '#ef4444',
+      wickUpColor: '#22c55e',
+      wickDownColor: '#ef4444',
     });
 
-    // Using original trade data processing
-    const trades = token.recentTrades
-      .map((trade, index) => ({
-        time: Math.floor(trade.timestamp / 1000) + (index * 0.001),
-        value: trade.marketCapSol,
-      }))
-      .filter(trade => !isNaN(trade.value) && trade.value > 0)
-      .sort((a, b) => a.time - b.time);
+    // Process trades into candles
+    const generateCandles = () => {
+      const candles = new Map<number, Candle>();
 
-    if (trades.length > 0) {
-      lineSeries.setData(trades);
+      token.recentTrades.forEach(trade => {
+        const timestamp = Math.floor(trade.timestamp / 1000);
+        const interval = selectedInterval.seconds;
+        const candleTime = Math.floor(timestamp / interval) * interval;
+
+        const mcap = trade.marketCapSol;
+        const existing = candles.get(candleTime);
+
+        if (!existing) {
+          candles.set(candleTime, {
+            time: candleTime,
+            open: mcap,
+            high: mcap,
+            low: mcap,
+            close: mcap,
+          });
+        } else {
+          existing.high = Math.max(existing.high, mcap);
+          existing.low = Math.min(existing.low, mcap);
+          existing.close = mcap;
+        }
+      });
+
+      return Array.from(candles.values())
+        .sort((a, b) => a.time - b.time);
+    };
+
+    const candles = generateCandles();
+
+    if (candles.length > 0) {
+      candlestickSeries.setData(candles);
       chart.timeScale().fitContent();
     }
 
@@ -154,7 +184,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       resizeObserverRef.current = resizeObserver;
     }
 
-  }, [token?.recentTrades, cleanupChart]);
+  }, [token?.recentTrades, cleanupChart, selectedInterval]);
 
   // Handle interval change
   const handleIntervalChange = useCallback((interval: TimeInterval) => {
