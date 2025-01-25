@@ -68,8 +68,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     set((state) => {
       const newToken = mapTokenData(tokenData);
 
-      // If it's a creation event, set devWallet
-      if (tokenData.txType === 'create') {
+      // Always set devWallet if it's a creation event
+      if (tokenData.txType === 'create' && tokenData.traderPublicKey) {
+        console.log('[PumpPortal] New token created:', tokenData.mint);
         console.log('[PumpPortal] Setting dev wallet:', tokenData.traderPublicKey, 'for token:', tokenData.mint);
         newToken.devWallet = tokenData.traderPublicKey;
       }
@@ -133,8 +134,8 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
       const updateToken = (token: PumpPortalToken): PumpPortalToken => {
         // Log dev wallet interaction
-        if (token.devWallet === newTrade.traderPublicKey) {
-          console.log('[PumpPortal] Dev wallet trade:', newTrade.txType, 'for token:', address);
+        if (token.devWallet === tradeData.traderPublicKey) {
+          console.log('[PumpPortal] Dev wallet trade:', tradeData.txType, 'for token:', address);
         }
 
         return {
