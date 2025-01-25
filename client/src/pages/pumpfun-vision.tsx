@@ -83,12 +83,16 @@ const TokenListContent: FC = () => {
   const isConnected = usePumpPortalStore(useCallback(state => state.isConnected, []));
   const lastUpdate = usePumpPortalStore(useCallback(state => state.lastUpdate, []));
   const addToViewedTokens = usePumpPortalStore(useCallback(state => state.addToViewedTokens, []));
+  const setActiveTokenView = usePumpPortalStore(useCallback(state => state.setActiveTokenView, []));
   const getToken = usePumpPortalStore(useCallback(state => state.getToken, []));
 
   // Reset selection on unmount
   useEffect(() => {
-    return () => setSelectedToken(null);
-  }, []);
+    return () => {
+      setSelectedToken(null);
+      setActiveTokenView(null);
+    };
+  }, [setActiveTokenView]);
 
   // Monitor connection health
   useEffect(() => {
@@ -104,15 +108,24 @@ const TokenListContent: FC = () => {
 
   // Handle token selection
   const handleTokenSelect = useCallback((address: string) => {
+    console.log('[PumpFunVision] Selecting token:', address);
     addToViewedTokens(address); // Add to viewed tokens cache
+    setActiveTokenView(address); // Mark as active view
     setSelectedToken(address);
-  }, [addToViewedTokens]);
+  }, [addToViewedTokens, setActiveTokenView]);
+
+  // Handle back navigation
+  const handleBack = useCallback(() => {
+    console.log('[PumpFunVision] Navigating back from token view');
+    setSelectedToken(null);
+    setActiveTokenView(null);
+  }, [setActiveTokenView]);
 
   if (selectedToken) {
     const token = getToken(selectedToken);
     if (!token) {
       console.error('[PumpFunVision] Selected token not found:', selectedToken);
-      setSelectedToken(null);
+      handleBack();
       return null;
     }
 
@@ -125,7 +138,7 @@ const TokenListContent: FC = () => {
         <ErrorBoundary>
           <TokenChart 
             tokenAddress={selectedToken} 
-            onBack={() => setSelectedToken(null)}
+            onBack={handleBack}
           />
         </ErrorBoundary>
       </Suspense>
