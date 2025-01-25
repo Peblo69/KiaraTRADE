@@ -76,22 +76,21 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const vSol = Number(trade.vSolInBondingCurve || 0);
     const marketCapSol = Number(trade.marketCapSol || 0);
 
-    // Calculate price using bonding curve data
-    // Calculate price using weighted average of bonding curve
-    const tokenPrice = vTokens > 0 ? (vSol / vTokens) : 0;
-    const tokenPriceUsd = tokenPrice * state.solPrice;
-    const marketCapUsd = Number(marketCapSol || 0) * state.solPrice;
-    const tradeVolume = Math.abs(tradeAmount) * state.solPrice;
-    
+    // Calculate price using bonding curve data with proper precision
+    const tokenPrice = vTokens > 0 ? Number((vSol / vTokens).toFixed(12)) : 0;
+    const tokenPriceUsd = Number((tokenPrice * state.solPrice).toFixed(12));
+    const marketCapUsd = Number((Number(marketCapSol || 0) * state.solPrice).toFixed(2));
+    const tradeVolume = Number((Math.abs(tradeAmount) * state.solPrice).toFixed(2));
+
     // Validate wallet addresses
     const buyerAddress = isBuy ? trade.traderPublicKey : trade.counterpartyPublicKey;
     const sellerAddress = isBuy ? trade.counterpartyPublicKey : trade.traderPublicKey;
-    
+
     // Ensure valid Solana wallet addresses (Base58 check)
     const isValidSolanaAddress = (address?: string) => {
       return address?.length === 44 || address?.length === 43;
     };
-    
+
     if (!isValidSolanaAddress(buyerAddress) && !isValidSolanaAddress(sellerAddress)) {
       console.warn('[PumpPortal] Invalid wallet addresses in trade:', {buyerAddress, sellerAddress});
       return;
