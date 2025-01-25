@@ -57,6 +57,12 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
   const solPrice = usePumpPortalStore(state => state.solPrice);
 
+  // Get DEV wallet (first buyer)
+  const devWallet = token?.recentTrades?.length ? 
+    token.recentTrades.reduce((earliest, trade) => 
+      trade.timestamp < earliest.timestamp ? trade : earliest
+    ).traderPublicKey : null;
+
   const cleanupChart = useCallback(() => {
     if (resizeObserverRef.current && chartContainerRef.current) {
       resizeObserverRef.current.disconnect();
@@ -160,6 +166,11 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         const mcap = trade.marketCapSol * solPrice; // Convert to USD
         const existing = candles.get(candleTime);
 
+        // Set candle color based on trade type and if it's from DEV wallet
+        const isDevTrade = trade.traderPublicKey === devWallet;
+        const candleColor = isDevTrade ? '#fbbf24' : // Yellow for DEV
+          trade.txType === 'buy' ? '#22c55e' : '#ef4444'; // Green for buy, Red for sell
+
         if (!existing) {
           candles.set(candleTime, {
             time: candleTime,
@@ -167,14 +178,14 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
             high: Math.max(lastClose, mcap),
             low: Math.min(lastClose, mcap),
             close: mcap,
-            color: trade.txType === 'buy' ? '#22c55e' : '#ef4444'
+            color: candleColor
           });
         } else {
           existing.high = Math.max(existing.high, mcap);
           existing.low = Math.min(existing.low, mcap);
           existing.close = mcap;
           // Color based on the last trade in the candle
-          existing.color = trade.txType === 'buy' ? '#22c55e' : '#ef4444';
+          existing.color = candleColor;
         }
 
         lastClose = mcap;
@@ -213,7 +224,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       resizeObserverRef.current = resizeObserver;
     }
 
-  }, [token?.recentTrades, cleanupChart, selectedInterval, solPrice]);
+  }, [token?.recentTrades, cleanupChart, selectedInterval, solPrice, devWallet]);
 
   // Handle interval change
   const handleIntervalChange = useCallback((interval: TimeInterval) => {
@@ -349,22 +360,29 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
               </div>
 
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                {token.recentTrades?.map((trade, idx) => (
-                  <div
-                    key={trade.signature || idx}
-                    className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
-                      trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span>{formatTimestamp(trade.timestamp)}</span>
-                      <span>{formatAddress(trade.traderPublicKey)}</span>
+                {token.recentTrades?.map((trade, idx) => {
+                  const isDevWallet = trade.traderPublicKey === devWallet;
+                  return (
+                    <div
+                      key={trade.signature || idx}
+                      className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
+                        isDevWallet ? 'text-amber-400' : // Yellow for DEV
+                        trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{formatTimestamp(trade.timestamp)}</span>
+                        <span>
+                          {formatAddress(trade.traderPublicKey)}
+                          {isDevWallet && <span className="ml-1 text-xs bg-amber-400/20 text-amber-400 px-1 rounded">DEV</span>}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        {formatPrice(trade.solAmount * solPrice)} {/* Updated to use USD */}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      {formatPrice(trade.solAmount * solPrice)} {/* Updated to use USD */}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
