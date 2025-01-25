@@ -37,7 +37,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const [error, setError] = useState<Error | null>(null);
   const [currentCandle, setCurrentCandle] = useState<Candle | null>(null);
 
-  // Prevent unnecessary re-renders with useCallback for store selectors
   const token = usePumpPortalStore(
     useCallback(state => state.tokens.find(t => t.address === tokenAddress), [tokenAddress])
   );
@@ -45,14 +44,16 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const solPrice = usePumpPortalStore(state => state.solPrice);
   const isConnected = usePumpPortalStore(state => state.isConnected);
 
-  const processTradeIntoCandle = useCallback((trade: any, currentCandle: Candle | null): Candle => {
+  const processTradeIntoCandle = useCallback((trade: any): Candle => {
     const tokenAmount = trade.tokenAmount / (10 ** TOKEN_DECIMALS);
     const price = tokenAmount > 0 ? trade.solAmount / tokenAmount : 0;
     const timestamp = Math.floor(trade.timestamp / 1000);
     const candleStartTime = Math.floor(timestamp / CANDLE_PERIOD) * CANDLE_PERIOD;
 
-    if (!currentCandle || currentCandle.time !== candleStartTime) {
-      // Start new candle
+    // Find existing candle for this time period or create new one
+    const existingCandle = currentCandle?.time === candleStartTime ? currentCandle : null;
+
+    if (!existingCandle) {
       return {
         time: candleStartTime,
         open: price,
@@ -62,175 +63,163 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       };
     }
 
-    // Update existing candle
     return {
-      ...currentCandle,
-      high: Math.max(currentCandle.high, price),
-      low: Math.min(currentCandle.low, price),
-      close: price
+      ...existingCandle,
+      high: Math.max(existingCandle.high, price),
+      low: Math.min(existingCandle.low, price),
+      close: price // Latest price becomes close
     };
-  }, []);
+  }, [currentCandle]);
 
   const cleanupChart = useCallback(() => {
-    try {
-      if (resizeObserverRef.current && chartContainerRef.current) {
-        resizeObserverRef.current.disconnect();
-        resizeObserverRef.current = null;
-      }
+    if (resizeObserverRef.current && chartContainerRef.current) {
+      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current = null;
+    }
 
-      if (chartRef.current) {
-        chartRef.current.remove();
-        chartRef.current = null;
-      }
-    } catch (err) {
-      console.error('[TokenChart] Cleanup error:', err);
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
     }
   }, []);
 
   const initializeChart = useCallback(() => {
-    if (!chartContainerRef.current || !token?.recentTrades?.length || !isMountedRef.current) {
-      return;
+    if (!chartContainerRef.current || !token?.recentTrades?.length) return;
+
+    cleanupChart();
+
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { color: '#000000' },
+        textColor: '#666666',
+      },
+      grid: {
+        vertLines: { color: '#1a1a1a' },
+        horzLines: { color: '#1a1a1a' },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: chartContainerRef.current.clientHeight,
+      rightPriceScale: {
+        borderColor: '#333333',
+      },
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: true,
+        borderColor: '#333333',
+        rightOffset: 12,
+        barSpacing: 12,
+        fixLeftEdge: true,
+        lockVisibleTimeRangeOnResize: true,
+      },
+    });
+
+    chartRef.current = chart;
+
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderUpColor: '#26a69a',
+      borderDownColor: '#ef5350',
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+    });
+
+    // Process trades into candles
+    const candles = new Map<number, Candle>();
+
+    token.recentTrades.forEach(trade => {
+      const candle = processTradeIntoCandle(trade);
+      const existing = candles.get(candle.time);
+
+      if (!existing) {
+        candles.set(candle.time, candle);
+      } else {
+        candles.set(candle.time, {
+          ...existing,
+          high: Math.max(existing.high, candle.high),
+          low: Math.min(existing.low, candle.low),
+          close: candle.close,
+        });
+      }
+    });
+
+    const sortedCandles = Array.from(candles.values())
+      .sort((a, b) => a.time - b.time)
+      .slice(-VISIBLE_CANDLES);
+
+    if (sortedCandles.length > 0) {
+      candlestickSeries.setData(sortedCandles);
+
+      // Calculate price range for auto-scaling
+      const priceRange = sortedCandles.reduce(
+        (acc, candle) => ({
+          min: Math.min(acc.min, candle.low),
+          max: Math.max(acc.max, candle.high),
+        }),
+        { min: Infinity, max: -Infinity }
+      );
+
+      // Add padding to price range
+      const padding = (priceRange.max - priceRange.min) * 0.2;
+      candlestickSeries.applyOptions({
+        priceFormat: {
+          type: 'price',
+          precision: 9,
+          minMove: 0.000000001,
+        },
+      });
+
+      // Set visible range
+      chart.timeScale().setVisibleLogicalRange({
+        from: Math.max(0, sortedCandles.length - VISIBLE_CANDLES),
+        to: sortedCandles.length + 5,
+      });
+
+      // Update current candle
+      setCurrentCandle(sortedCandles[sortedCandles.length - 1]);
     }
 
-    try {
-      cleanupChart();
+    // Handle resize
+    const resizeObserver = new ResizeObserver(entries => {
+      if (!chartRef.current || !isMountedRef.current) return;
 
-      const chart = createChart(chartContainerRef.current, {
-        layout: {
-          background: { color: '#000000' },
-          textColor: '#666666',
-        },
-        grid: {
-          vertLines: { color: '#1a1a1a' },
-          horzLines: { color: '#1a1a1a' },
-        },
-        width: chartContainerRef.current.clientWidth,
-        height: chartContainerRef.current.clientHeight,
-        timeScale: {
-          timeVisible: true,
-          secondsVisible: true,
-          borderColor: '#333333',
-          fixLeftEdge: true,
-          fixRightEdge: true,
-          rightOffset: 10,
-        },
-      });
+      const { width, height } = entries[0].contentRect;
+      const now = Date.now();
 
-      chartRef.current = chart;
-
-      const candleSeries = chart.addCandlestickSeries({
-        upColor: '#22c55e',
-        downColor: '#ef4444',
-        borderUpColor: '#22c55e',
-        borderDownColor: '#ef4444',
-        wickUpColor: '#22c55e',
-        wickDownColor: '#ef4444',
-      });
-
-      // Process trades into candles
-      const candles: Candle[] = [];
-      let currentCandle: Candle | null = null;
-
-      token.recentTrades.forEach(trade => {
-        currentCandle = processTradeIntoCandle(trade, currentCandle);
-        if (currentCandle) {
-          const existingCandleIndex = candles.findIndex(c => c.time === currentCandle!.time);
-          if (existingCandleIndex >= 0) {
-            candles[existingCandleIndex] = currentCandle;
-          } else {
-            candles.push(currentCandle);
+      if (now - lastRenderTimeRef.current > 100) {
+        lastRenderTimeRef.current = now;
+        requestAnimationFrame(() => {
+          if (chartRef.current && isMountedRef.current) {
+            chartRef.current.applyOptions({ width, height });
           }
-        }
-      });
-
-      if (candles.length > 0) {
-        // Sort candles by time and take last VISIBLE_CANDLES
-        const sortedCandles = candles
-          .sort((a, b) => a.time - b.time)
-          .slice(-VISIBLE_CANDLES);
-
-        candleSeries.setData(sortedCandles);
-
-        // Auto-zoom to fit the data
-        const priceRange = sortedCandles.reduce(
-          (acc, candle) => ({
-            min: Math.min(acc.min, candle.low),
-            max: Math.max(acc.max, candle.high),
-          }),
-          { min: Infinity, max: -Infinity }
-        );
-
-        const padding = (priceRange.max - priceRange.min) * 0.2;
-        candleSeries.applyOptions({
-          priceFormat: {
-            type: 'price',
-            precision: 9,
-            minMove: 0.000000001,
-          },
         });
-
-        chart.timeScale().fitContent();
-        candleSeries.applyOptions({
-          priceRange: {
-            minValue: priceRange.min - padding,
-            maxValue: priceRange.max + padding,
-          },
-        });
-
-        // Update current candle reference
-        setCurrentCandle(sortedCandles[sortedCandles.length - 1]);
       }
+    });
 
-      const resizeObserver = new ResizeObserver(entries => {
-        if (!chartRef.current || !isMountedRef.current) return;
-        const { width, height } = entries[0].contentRect;
-
-        const now = Date.now();
-        if (now - lastRenderTimeRef.current > 100) {
-          lastRenderTimeRef.current = now;
-          requestAnimationFrame(() => {
-            if (chartRef.current && isMountedRef.current) {
-              chartRef.current.applyOptions({ width, height });
-            }
-          });
-        }
-      });
-
-      if (chartContainerRef.current) {
-        resizeObserver.observe(chartContainerRef.current);
-        resizeObserverRef.current = resizeObserver;
-      }
-
-    } catch (err) {
-      console.error('[TokenChart] Initialization error:', err);
-      setError(err as Error);
+    if (chartContainerRef.current) {
+      resizeObserver.observe(chartContainerRef.current);
+      resizeObserverRef.current = resizeObserver;
     }
+
   }, [token?.recentTrades, cleanupChart, processTradeIntoCandle]);
 
-  // Chart lifecycle management
+  // Chart lifecycle and updates
   useEffect(() => {
     isMountedRef.current = true;
+    initializeChart();
 
-    const setupChart = () => {
-      if (!chartRef.current && isMountedRef.current) {
-        initializeChart();
-      }
-    };
-
-    setupChart();
-
-    // Periodic health checks and updates
     const updateInterval = setInterval(() => {
-      if (!isMountedRef.current || !token?.recentTrades?.length) return;
+      if (!token?.recentTrades?.length || !chartRef.current) return;
 
-      const lastTrade = token.recentTrades[0];
-      if (lastTrade) {
-        const newCandle = processTradeIntoCandle(lastTrade, currentCandle);
-        if (newCandle && (!currentCandle || newCandle.time !== currentCandle.time)) {
-          setCurrentCandle(newCandle);
-          if (chartRef.current) {
-            const candleSeries = chartRef.current.series()[0];
-            candleSeries.update(newCandle);
+      const latestTrade = token.recentTrades[0];
+      if (latestTrade) {
+        const newCandle = processTradeIntoCandle(latestTrade);
+
+        if (chartRef.current) {
+          const series = chartRef.current.series()[0];
+          if (currentCandle?.time !== newCandle.time) {
+            series.update(newCandle);
+            setCurrentCandle(newCandle);
           }
         }
       }
@@ -241,49 +230,41 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       cleanupChart();
       clearInterval(updateInterval);
     };
-  }, [token?.recentTrades, initializeChart, cleanupChart, processTradeIntoCandle, currentCandle]);
+  }, [token?.recentTrades, initializeChart, cleanupChart, processTradeIntoCandle]);
 
-  // Rest of the component remains unchanged
+  const formatPrice = (value: number) => {
+    if (!value || isNaN(value)) return showUsd ? '$0.00' : '0 SOL';
+    return showUsd 
+      ? `$${(value * solPrice).toFixed(2)}`
+      : `${value.toFixed(9)} SOL`;
+  };
+
   const formatAddress = (address: string) => 
     address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '';
 
   const formatTimestamp = (timestamp: number) => 
     new Date(timestamp).toLocaleTimeString();
 
-  const formatAmount = (solAmount: number, showUsd: boolean) => {
-    if (!solAmount || isNaN(solAmount)) return showUsd ? '$0.00' : '0 SOL';
-    return showUsd 
-      ? `$${(solAmount * solPrice).toFixed(2)}`
-      : `${solAmount.toFixed(9)} SOL`;
-  };
-
-  const getTraderAddress = (trade: any) => 
-    trade.txType === 'buy' ? trade.traderPublicKey : trade.counterpartyPublicKey;
-
   if (!token) return null;
 
-  // Calculate bonding curve price
-  const bondingCurvePrice = (() => {
-    try {
-      const vTokens = token.vTokensInBondingCurve / (10 ** TOKEN_DECIMALS);
-      if (vTokens <= 0) return 0;
-      return token.vSolInBondingCurve / vTokens;
-    } catch (err) {
-      console.error('[TokenChart] Price calculation error:', err);
-      return 0;
-    }
-  })();
+  // Calculate current price from bonding curve
+  const currentPrice = token.vTokensInBondingCurve > 0
+    ? token.vSolInBondingCurve / (token.vTokensInBondingCurve / (10 ** TOKEN_DECIMALS))
+    : 0;
 
   if (error) {
     return (
-      <div className="p-4 bg-black/90 text-white">
-        <h3>Chart Error</h3>
-        <p>{error.message}</p>
-        <Button onClick={() => {
-          setError(null);
-          cleanupChart();
-          initializeChart();
-        }}>
+      <div className="p-4 bg-black/90 text-white rounded-lg">
+        <h3 className="text-lg font-semibold mb-2">Chart Error</h3>
+        <p className="text-sm text-gray-400">{error.message}</p>
+        <Button 
+          onClick={() => {
+            setError(null);
+            cleanupChart();
+            initializeChart();
+          }}
+          className="mt-4"
+        >
           Retry
         </Button>
       </div>
@@ -321,65 +302,63 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
               </div>
             </div>
           </div>
-          <div className="flex gap-3">
+
+          <div className="flex gap-6">
             <div className="text-right">
-              <div className="text-sm text-gray-400">Current Price (BC)</div>
-              <div className="font-bold">{formatAmount(bondingCurvePrice, showUsd)}</div>
+              <div className="text-sm text-gray-400">Price</div>
+              <div className="font-bold">{formatPrice(currentPrice)}</div>
             </div>
             <div className="text-right">
-              <div className="text-sm text-gray-400">SOL in Pool</div>
-              <div className="font-bold">{formatAmount(token.vSolInBondingCurve, showUsd)}</div>
+              <div className="text-sm text-gray-400">Liquidity</div>
+              <div className="font-bold">{formatPrice(token.vSolInBondingCurve)}</div>
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Market Cap</div>
-              <div className="font-bold">{formatAmount(token.marketCapSol, showUsd)}</div>
+              <div className="font-bold">{formatPrice(token.marketCapSol)}</div>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-[1fr,300px] gap-4">
-          <ResizablePanelGroup direction="vertical" className="h-[calc(100vh-200px)]">
-            <ResizablePanel defaultSize={40} minSize={30}>
-              <div className="h-full bg-[#111] rounded-lg p-4">
-                <div ref={chartContainerRef} className="h-full w-full ml-auto" style={{ width: '70%' }} />
-              </div>
-            </ResizablePanel>
-            <ResizablePanel defaultSize={60} minSize={40}>
-              <div className="h-full bg-[#111] rounded-lg p-4 overflow-hidden">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-sm font-semibold">Recent Trades</h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowUsd(!showUsd)}
-                    className="text-xs"
-                  >
-                    {showUsd ? <DollarSign className="h-4 w-4" /> : <Coins className="h-4 w-4" />}
-                  </Button>
-                </div>
-                <div className="space-y-2 overflow-y-auto h-[calc(100%-2rem)]">
-                  {token.recentTrades?.map((trade, idx) => (
-                    <div
-                      key={trade.signature || idx}
-                      className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
-                        trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{formatTimestamp(trade.timestamp)}</span>
-                        <span>{formatAddress(getTraderAddress(trade))}</span>
-                      </div>
-                      <div className="text-right">
-                        {formatAmount(trade.solAmount, showUsd)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </ResizablePanel>
-          </ResizablePanelGroup>
+          <div className="space-y-4">
+            <div className="h-[500px] bg-[#111] rounded-lg p-4">
+              <div ref={chartContainerRef} className="h-full" />
+            </div>
 
-          {/* Trading panel remains unchanged */}
+            <div className="bg-[#111] rounded-lg p-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-sm font-semibold">Recent Trades</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowUsd(!showUsd)}
+                  className="text-xs"
+                >
+                  {showUsd ? <DollarSign className="h-4 w-4" /> : <Coins className="h-4 w-4" />}
+                </Button>
+              </div>
+
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {token.recentTrades?.map((trade, idx) => (
+                  <div
+                    key={trade.signature || idx}
+                    className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
+                      trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span>{formatTimestamp(trade.timestamp)}</span>
+                      <span>{formatAddress(trade.traderPublicKey)}</span>
+                    </div>
+                    <div className="text-right">
+                      {formatPrice(trade.solAmount)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-4">
             <Card className="bg-[#111] border-none p-4">
               <Tabs defaultValue="market" className="w-full">
@@ -388,43 +367,43 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                   <TabsTrigger value="limit">Limit</TabsTrigger>
                   <TabsTrigger value="dca">DCA</TabsTrigger>
                 </TabsList>
+
+                <div className="space-y-4">
+                  <div>
+                    <div className="text-sm text-gray-400 mb-2">Amount (SOL)</div>
+                    <div className="grid grid-cols-4 gap-2">
+                      <Button variant="outline" size="sm">0.01</Button>
+                      <Button variant="outline" size="sm">0.02</Button>
+                      <Button variant="outline" size="sm">0.5</Button>
+                      <Button variant="outline" size="sm">1</Button>
+                    </div>
+                  </div>
+
+                  <Input 
+                    type="number" 
+                    placeholder="Enter SOL amount..." 
+                    className="bg-black border-gray-800" 
+                  />
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
+                    <Button variant="destructive">Sell</Button>
+                  </div>
+
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Funds</Button>
+
+                  <div className="grid grid-cols-2 text-sm">
+                    <div>
+                      <div className="text-gray-400">Liquidity</div>
+                      <div>{formatPrice(token.vSolInBondingCurve)}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Market Cap</div>
+                      <div>{formatPrice(token.marketCapSol)}</div>
+                    </div>
+                  </div>
+                </div>
               </Tabs>
-
-              <div className="space-y-4">
-                <div>
-                  <div className="text-sm text-gray-400 mb-2">Amount (SOL)</div>
-                  <div className="grid grid-cols-4 gap-2">
-                    <Button variant="outline" size="sm">0.01</Button>
-                    <Button variant="outline" size="sm">0.02</Button>
-                    <Button variant="outline" size="sm">0.5</Button>
-                    <Button variant="outline" size="sm">1</Button>
-                  </div>
-                </div>
-
-                <Input 
-                  type="number" 
-                  placeholder="Enter SOL amount..." 
-                  className="bg-black border-gray-800" 
-                />
-
-                <div className="grid grid-cols-2 gap-2">
-                  <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
-                  <Button variant="destructive">Sell</Button>
-                </div>
-
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Funds</Button>
-
-                <div className="grid grid-cols-2 text-sm">
-                  <div>
-                    <div className="text-gray-400">SOL in Pool</div>
-                    <div>{formatAmount(token.vSolInBondingCurve, showUsd)}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-400">Market Cap</div>
-                    <div>{formatAmount(token.marketCapSol, showUsd)}</div>
-                  </div>
-                </div>
-              </div>
             </Card>
           </div>
         </div>
@@ -433,7 +412,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   );
 });
 
-// Wrap the chart content with error boundary
+// Wrap with error boundary
 const TokenChart: FC<TokenChartProps> = (props) => {
   return (
     <ErrorBoundary>
