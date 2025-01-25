@@ -71,27 +71,36 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const now = Date.now();
     const tradeAmount = Number(trade.solAmount || 0);
     const isBuy = trade.txType === 'buy';
-    // Calculate price as solAmount/tokenAmount
-    const tokenAmount = Number(trade.tokenAmount || 0);
-    const tradePrice = tokenAmount > 0 ? tradeAmount / tokenAmount : 0;
-    const tradePriceUsd = tradePrice * state.solPrice;
-    const tradeVolume = tradeAmount * state.solPrice;
+
+    // Calculate price using bonding curve data
+    const vTokens = Number(trade.vTokensInBondingCurve || 0);
+    const vSol = Number(trade.vSolInBondingCurve || 0);
+    const marketCapSol = Number(trade.marketCapSol || 0);
+
+    // Price per token in SOL
+    const tokenPrice = vTokens > 0 ? vSol / vTokens : 0;
+    const tokenPriceUsd = tokenPrice * state.solPrice;
+    const marketCapUsd = marketCapSol * state.solPrice;
 
     console.log('[Trade]', {
       type: isBuy ? 'buy' : 'sell',
-      price: tradePrice,
-      priceUsd: tradePriceUsd,
+      price: tokenPrice,
+      priceUsd: tokenPriceUsd,
       amount: tradeAmount,
-      volume: tradeVolume,
+      volume: tradeAmount * state.solPrice,
       solPrice: state.solPrice,
-      tokenAmount: trade.tokenAmount
+      tokenAmount: trade.tokenAmount,
+      vTokens,
+      vSol,
+      marketCapSol,
+      marketCapUsd
     });
 
     const newTrade: TokenTrade = {
       signature: trade.signature,
       timestamp: now,
-      price: tradePrice,
-      priceUsd: tradePriceUsd,
+      price: tokenPrice,
+      priceUsd: tokenPriceUsd,
       amount: tradeAmount,
       type: isBuy ? 'buy' : 'sell',
       buyer: isBuy ? trade.traderPublicKey : trade.counterpartyPublicKey,
@@ -106,11 +115,11 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       tokens: state.tokens.map(t =>
         t.address === address ? {
           ...t,
-          price: tradePrice,
-          priceUsd: tradePriceUsd,
-          marketCap: tradePriceUsd * TOTAL_SUPPLY,
-          liquidity: t.liquidity + (isBuy ? tradeVolume : -tradeVolume),
-          volume: t.volume + tradeVolume,
+          price: tokenPrice,
+          priceUsd: tokenPriceUsd,
+          marketCap: marketCapUsd,
+          liquidity: vSol * state.solPrice,
+          volume: t.volume + (tradeAmount * state.solPrice),
           volume24h: trades24h.reduce((sum, t) => sum + (t.amount * t.priceUsd), 0),
           trades: t.trades + 1,
           trades24h: trades24h.length,
@@ -316,7 +325,8 @@ export function mapPumpPortalData(data: any): PumpPortalToken {
   } = data;
 
   const solPrice = usePumpPortalStore.getState().solPrice || 0;
-  const priceSol = Number(marketCapSol || 0) / TOTAL_SUPPLY;
+  //Corrected Price Calculation
+  const priceSol = vSolInBondingCurve > 0 ? Number(vSolInBondingCurve) / Number(data.vTokensInBondingCurve) : 0;
   const priceUsd = priceSol * solPrice;
   const marketCapUsd = Number(marketCapSol || 0) * solPrice;
   const liquidityUsd = Number(vSolInBondingCurve || 0) * solPrice;
@@ -348,14 +358,14 @@ export function mapPumpPortalData(data: any): PumpPortalToken {
     sells24h: 0,
     walletCount: 1,
     recentTrades: [{
-      signature: '', 
+      signature: '',
       timestamp: now,
       price: priceSol,
       priceUsd: priceUsd,
       amount: Number(solAmount || 0),
       type: 'buy',
       buyer: traderPublicKey,
-      seller: '' 
+      seller: ''
     }],
     imageLink: imageLink || 'https://via.placeholder.com/150',
   };

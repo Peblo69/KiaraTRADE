@@ -1,0 +1,41 @@
+[Token Metadata] Failed to load image for token: Wave 
+Event {isTrusted: true}
+
+[PumpPortal] Received message: trade 
+Object {signature: "3Rw2WgQopb6J4tFbo99ukwZzKk1PcZPpi3npjAahU8iEdAMYRX9VnxAuMSMYF7RSnokRm2DXqfkyjMmAkeBVnq37", mint: "8TZc3GXSgFpMrGCVPBC6YDyiicFxTKxh2gutv5s7pump", traderPublicKey: "N6LV7QqBTUotcckucy6mgsPctGcXt8Pq6xrdWf91EvS", txType: "buy", tokenAmount: 105243.540558, …}
+[Trade] 
+Object {type: "buy", price: 9.407684260245449e-8, priceUsd: 0.00002341948919745502, amount: 0.00990098, volume: 2.4647499612, …}
+[Token Metadata] Failed to load image for token: STRO 
+Event {isTrusted: true}
+
+[PumpPortal] Received message: newToken 
+Object {signature: "5JQxxX8BPLxfcnd5LLsdzTVdxB7v1QSwk2B15BTnoK8Jz5EvogAZoee89bck22TA8r43bQSSFmTSs6fuD1UMc4P6", mint: "8t75hRpqgVRadcfWoAGDrvNDKjc4KzDvYAdt8KdFpump", traderPublicKey: "3jcS88ij8bk8mVDx8Ug18w6ynJYPXf6DFyi2QpRchGRA", txType: "create", initialBuy: 67062499.999999, …}
+[Token Data] 
+Object {symbol: "Inner2.0Ai", priceSol: 3.1811121466293816e-8, priceUsd: 0.000007919060577819182, marketCapUsd: 7919.060577819182, liquidityUsd: 7966.079999999992, …}
+liquidityUsd: 7966.079999999992
+marketCapUsd: 7919.060577819182
+priceSol: 3.1811121466293816e-8
+priceUsd: 0.000007919060577819182
+symbol: "Inner2.0Ai"
+volumeUsd: 497.88
+[[Prototype]]: Object
+[Token Metadata] Preloading images for 1 tokens
+[Token Metadata] Resolved image URL for Inner2.0Ai : https://via.placeholder.com/150
+[Token Metadata] Failed to load image for token: Inner2.0Ai 
+Event {isTrusted: true}
+
+[PumpPortal] Received message: trade 
+Object {signature: "4ndaJieJ3sF43KBjtT3TYqndomCAkFu4UXg4a9xHMXeSCs4S1x2DZi74XdDUBhdwksj5DcLa66KShZskw3QNDrJw", mint: "FEkifHvfRhSwbictbFLhfUB8bG8ecoLYCP7dvQ1Xpump", traderPublicKey: "o7RY6P2vQMuGSu1TrLM81weuzgDjaCRTXYRaXJwWcvc", txType: "buy", tokenAmount: 46803907.717279, …}
+bondingCurveKey: "HmZjZrT4agq32DEZQhp1uqaUbWLbviJEptmRZxEEDYxp"
+marketCapSol: 30.995295712863992
+mint: "FEkifHvfRhSwbictbFLhfUB8bG8ecoLYCP7dvQ1Xpump"
+newTokenBalance: 46803907.717279
+pool: "pump"
+signature: "4ndaJieJ3sF43KBjtT3TYqndomCAkFu4UXg4a9xHMXeSCs4S1x2DZi74XdDUBhdwksj5DcLa66KShZskw3QNDrJw"
+solAmount: 1.387
+tokenAmount: 46803907.717279
+traderPublicKey: "o7RY6P2vQMuGSu1TrLM81weuzgDjaCRTXYRaXJwWcvc"
+txType: "buy"
+vSolInBondingCurve: 31.586999999953967
+vTokensInBondingCurve: 1019090132.017821
+[[Prototype]]: Object
