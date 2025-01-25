@@ -1,0 +1,566 @@
+1. Duplicate WebSocket Clients on the Frontend
+Issue: Both unified-websocket.ts and helius-websocket.ts are establishing separate WebSocket connections to the Helius API, leading to redundant data processing and unnecessary resource usage.
+
+Solution: Consolidate the WebSocket connections by removing unified-websocket.ts and ensuring that helius-websocket.ts handles all Helius-related communications.
+
+Code Changes:
+
+Delete client/src/lib/unified-websocket.ts:
+
+Remove the entire unified-websocket.ts file to eliminate duplicate connections.
+
+Update client/src/lib/helius-websocket.ts:
+
+Ensure that helius-websocket.ts includes all necessary functionalities previously handled by unified-websocket.ts.
+
+typescript
+Copy
+// Remove any redundant code that was present in unified-websocket.ts
+// and ensure helius-websocket.ts handles all required functionalities.
+// No additional code changes needed here if functionalities are already covered.
+2. Undefined Variable deltaAmount
+Issue: In the processTransaction function within helius-websocket.ts, deltaAmount is used but never defined, resulting in incorrect trade data.
+
+Solution: Replace deltaAmount with the correctly calculated tokenAmount.
+
+Code Changes:
+
+Locate and Replace deltaAmount with tokenAmount in client/src/lib/helius-websocket.ts:
+
+typescript
+Copy
+// Before:
+amount: deltaAmount,
+
+// After:
+amount: tokenAmount,
+typescript
+Copy
+// Updated processTransaction function snippet
+store.addTrade(tokenAddress, {
+  signature,
+  timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
+  tokenAddress,
+  amount: tokenAmount, // Corrected here
+  price: price,
+  priceUsd: price * solPrice,
+  buyer: isBuy ? tx.transaction.message.accountKeys[0].toString() : tx.transaction.message.accountKeys[1].toString(),
+  seller: !isBuy ? tx.transaction.message.accountKeys[0].toString() : tx.transaction.message.accountKeys[1].toString(),
+  type: isBuy ? 'buy' : 'sell'
+});
+3. Inconsistent Handling of Trade Types
+Issue: The differentiation between 'buy' and 'sell' transactions might not be consistently handled, leading to incorrect transaction types being displayed.
+
+Solution: Ensure that the logic accurately determines the transaction type and correctly assigns buyer and seller addresses.
+
+Code Changes:
+
+Verify and Update Trade Type Logic in client/src/lib/helius-websocket.ts:
+
+typescript
+Copy
+// Ensure isBuy is correctly determined
+const isBuy = postAmount > preAmount;
+
+// Assign buyer and seller based on isBuy
+const buyer = isBuy ? wallets[0] : wallets[1];
+const seller = isBuy ? wallets[1] : wallets[0];
+Ensure Consistent Transaction Type Assignment:
+
+typescript
+Copy
+// Assign the correct type
+type: isBuy ? 'buy' : 'sell'
+Optional: Add Logging for Verification
+
+typescript
+Copy
+console.log(`Transaction Type: ${isBuy ? 'Buy' : 'Sell'}, Buyer: ${buyer}, Seller: ${seller}`);
+4. Incomplete Wallet Information
+Issue: Transactions are displaying without complete wallet information, possibly due to incorrect extraction or assignment of buyer and seller addresses.
+
+Solution: Ensure that buyer and seller addresses are correctly extracted and assigned from the transaction data.
+
+Code Changes:
+
+Enhance Wallet Extraction and Logging in client/src/lib/helius-websocket.ts:
+
+typescript
+Copy
+// Extract wallet addresses
+const wallets = tx.transaction.message.accountKeys.map(key => key.toString());
+
+// Add logging for debugging
+console.log('Extracted Wallets:', wallets);
+
+// Assign buyer and seller
+const buyer = isBuy ? wallets[0] : wallets[1];
+const seller = isBuy ? wallets[1] : wallets[0];
+
+console.log(`Buyer: ${buyer}, Seller: ${seller}`);
+Ensure Correct Indexing Based on Transaction Structure:
+
+If the transaction structure varies, adjust the indices accordingly. For example, if wallets[0] is always the sender and wallets[1] the receiver:
+
+typescript
+Copy
+const buyer = isBuy ? wallets[1] : wallets[0];
+const seller = isBuy ? wallets[0] : wallets[1];
+Adjust the logic based on actual transaction data patterns.
+
+5. Multiple State Stores Handling Overlapping Data
+Issue: Both unified-token-store.ts and pump-portal-websocket.ts manage token data, leading to overlapping responsibilities and potential state inconsistencies.
+
+Solution: Clearly define the responsibilities of each store. Consider merging them if their functionalities overlap or ensure they handle distinct aspects of the data.
+
+Code Changes:
+
+Option 1: Merge Stores
+
+Combine unified-token-store.ts and pump-portal-websocket.ts into a single unified-token-store.ts that handles all token-related data.
+
+typescript
+Copy
+// Example merged store structure
+interface UnifiedTokenState {
+  tokens: TokenData[];
+  trades: Record<string, TokenTrade[]>;
+  transactions: Record<string, Transaction[]>;
+  isConnected: boolean;
+  connectionError: string | null;
+  addToken: (token: TokenData) => void;
+  updateToken: (address: string, updates: Partial<TokenData>) => void;
+  addTrade: (tokenAddress: string, trade: TokenTrade) => void;
+  addTransaction: (tokenAddress: string, transaction: Transaction) => void;
+  setConnected: (status: boolean) => void;
+  setError: (error: string | null) => void;
+  getToken: (address: string) => TokenData | undefined;
+  getTrades: (address: string) => TokenTrade[];
+  getTransactions: (address: string) => Transaction[];
+  setActiveToken: (address: string) => void;
+  activeToken?: string;
+}
+
+export const useUnifiedTokenStore = create<UnifiedTokenState>()((set, get) => ({
+  // Combined state and methods
+  // ...
+}));
+Option 2: Separate Responsibilities
+
+Ensure that each store handles distinct data aspects without overlap. For instance, unified-token-store.ts manages token metadata, while pump-portal-websocket.ts manages trade-specific data.
+
+typescript
+Copy
+// unified-token-store.ts
+interface UnifiedTokenState {
+  tokens: TokenData[];
+  transactions: Record<string, Transaction[]>;
+  // Methods related to token metadata
+}
+
+// pump-portal-websocket.ts
+interface PumpPortalStore {
+  trades: Record<string, TokenTrade[]>;
+  // Methods related to trades
+}
+Ensure that there's no overlap in the data each store manages.
+
+6. WebSocket Manager Not Handling Specific Data Sources
+Issue: The WebSocketManager in server/services/websocket.ts handles generic client connections but doesn't explicitly manage data from Helius or PumpPortal.
+
+Solution: Enhance the WebSocketManager to integrate with Helius and PumpPortal APIs, process their data, and broadcast to subscribed clients.
+
+Code Changes:
+
+Integrate Helius and PumpPortal Connections into WebSocketManager:
+
+typescript
+Copy
+// server/services/websocket.ts
+
+import { Connection } from '@solana/web3.js';
+import { useUnifiedTokenStore } from '../../client/src/lib/unified-token-store';
+import { usePumpPortalStore } from '../../client/src/lib/pump-portal-websocket';
+// Import necessary modules for Helius and PumpPortal APIs
+
+export class WebSocketManager {
+  // Existing properties...
+
+  // Add connections to Helius and PumpPortal
+  private heliusConnection: Connection;
+  // Initialize PumpPortal connection as needed
+
+  initialize(server: HttpServer) {
+    // Existing initialization...
+
+    // Initialize Helius connection
+    this.heliusConnection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
+
+    // Set up listeners for Helius data
+    this.heliusConnection.onAccountChange(new PublicKey('YOUR_TOKEN_ADDRESS'), (info, context) => {
+      // Process account changes and broadcast to clients
+      this.broadcast({ type: 'accountUpdate', data: info });
+    });
+
+    // Similarly, set up PumpPortal data listeners
+    // ...
+  }
+
+  // Existing methods...
+}
+Broadcast Processed Data to Clients:
+
+Ensure that data received from Helius and PumpPortal is processed and broadcasted to relevant subscribed clients.
+
+typescript
+Copy
+// Example broadcasting within a data listener
+this.heliusConnection.onAccountChange(new PublicKey(tokenAddress), (info, context) => {
+  const processedData = this.processHeliusData(info);
+  this.broadcast({ type: 'trade', data: processedData });
+});
+
+// Similarly for PumpPortal
+Remove Frontend Direct Connections:
+
+With the server handling data aggregation, frontend clients no longer need to connect directly to Helius or PumpPortal. Ensure that all data is received through the central WebSocket server.
+
+7. Error Handling and Logging
+Issue: Error logging may not be comprehensive enough to trace all potential issues in real-time data processing.
+
+Solution: Implement more detailed logging around critical operations like transaction processing and state updates.
+
+Code Changes:
+
+Enhance Logging in helius-websocket.ts:
+
+typescript
+Copy
+ws.onmessage = async (event) => {
+  try {
+    const data = JSON.parse(event.data);
+    if (data.method === 'accountNotification') {
+      const signature = data.params.result.signature;
+      const tokenAddress = data.params.result.accountId;
+      console.log(`[HeliusWebSocket] Received accountNotification for Token: ${tokenAddress}, Signature: ${signature}`);
+      await processTransaction(signature, tokenAddress);
+    }
+  } catch (error) {
+    console.error('[HeliusWebSocket] Failed to parse message:', error, event.data);
+  }
+};
+
+async function processTransaction(signature: string, tokenAddress: string) {
+  try {
+    // Existing processing logic...
+    console.log(`[HeliusWebSocket] Processing transaction: ${signature} for Token: ${tokenAddress}`);
+    // After successful processing
+    console.log(`[HeliusWebSocket] Successfully processed transaction: ${signature}`);
+  } catch (error) {
+    console.error('[HeliusWebSocket] Process transaction error:', error);
+  }
+}
+Enhance Logging in pump-portal-websocket.ts:
+
+typescript
+Copy
+wsPump.onmessage = async (event) => {
+  try {
+    const { type, data } = JSON.parse(event.data);
+    console.log(`[PumpPortalWebSocket] Received message type: ${type}`);
+    switch (type) {
+      case 'newToken':
+        // Existing logic...
+        console.log(`[PumpPortalWebSocket] New token received: ${data.mint}`);
+        break;
+      case 'trade':
+        // Existing logic...
+        console.log(`[PumpPortalWebSocket] Trade received for Token: ${data.mint}`);
+        break;
+      default:
+        console.warn('[PumpPortalWebSocket] Unknown message type:', type);
+    }
+  } catch (error) {
+    console.error('[PumpPortalWebSocket] Failed to parse message:', error, event.data);
+  }
+};
+Add Global Error Handlers:
+
+typescript
+Copy
+// In server/index.ts
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception thrown:', error);
+  process.exit(1);
+});
+8. Subscription Management
+Issue: Subscribing to token updates might not be efficiently managed, leading to missed or duplicate subscriptions.
+
+Solution: Ensure that subscriptions are only made once per token and that any reconnection logic re-subscribes to existing tokens.
+
+Code Changes:
+
+Update subscribeToToken in helius-websocket.ts:
+
+typescript
+Copy
+subscribeToToken: (tokenAddress: string) => {
+  const store = useHeliusStore.getState();
+  if (!store.subscribedTokens.has(tokenAddress) && ws?.readyState === WebSocket.OPEN) {
+    subscribeToTokenUpdates(tokenAddress);
+    store.subscribedTokens.add(tokenAddress);
+    console.log(`[HeliusWebSocket] Subscribed to Token: ${tokenAddress}`);
+  } else {
+    console.log(`[HeliusWebSocket] Already subscribed to Token: ${tokenAddress}`);
+  }
+}
+Handle Re-subscription on Reconnection:
+
+Modify the onopen event to re-subscribe to all previously subscribed tokens.
+
+typescript
+Copy
+ws.onopen = () => {
+  console.log('[HeliusWebSocket] Connected');
+  useHeliusStore.getState().setConnected(true);
+  reconnectAttempts = 0;
+
+  // Re-subscribe to all tokens
+  const subscribedTokens = useHeliusStore.getState().subscribedTokens;
+  subscribedTokens.forEach(tokenAddress => {
+    subscribeToTokenUpdates(tokenAddress);
+    console.log(`[HeliusWebSocket] Re-subscribed to Token: ${tokenAddress}`);
+  });
+};
+9. Data Normalization and Consistency
+Issue: Data from different sources may not be normalized before being stored or displayed, leading to inconsistencies.
+
+Solution: Standardize the data structure across all sources before storing it in the state.
+
+Code Changes:
+
+Ensure Consistent Data Structure in mapPumpPortalData and processTransaction:
+
+typescript
+Copy
+// In pump-portal-websocket.ts
+export function mapPumpPortalData(data: any): PumpPortalToken {
+  // Existing mapping logic...
+
+  return {
+    // Ensure all fields are consistently named and structured
+    symbol: symbol || mint?.slice(0, 6) || 'Unknown',
+    name: name || `Token ${mint?.slice(0, 8)}`,
+    address: mint || '',
+    price: priceUsd,
+    marketCap: marketCapUsd,
+    liquidity: liquidityUsd,
+    // ... other fields
+    recentTrades: [{
+      timestamp: now,
+      price: priceUsd,
+      volume: volumeUsd,
+      isBuy: true,
+      wallet: traderPublicKey
+    }],
+    // ...
+  };
+}
+
+// In helius-websocket.ts's processTransaction
+store.addTrade(tokenAddress, {
+  signature,
+  timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
+  tokenAddress,
+  amount: tokenAmount,
+  price: price,
+  priceUsd: price * solPrice,
+  buyer: buyer,
+  seller: seller,
+  type: isBuy ? 'buy' : 'sell'
+});
+
+// Ensure that all required fields are present and consistently named
+Optional: Create a Utility Function for Data Normalization:
+
+typescript
+Copy
+// client/src/lib/data-normalizer.ts
+export function normalizeTradeData(data: any): TokenTrade {
+  return {
+    signature: data.signature,
+    timestamp: data.timestamp,
+    tokenAddress: data.tokenAddress,
+    amount: data.amount,
+    price: data.price,
+    priceUsd: data.priceUsd,
+    buyer: data.buyer,
+    seller: data.seller,
+    type: data.type
+  };
+}
+Use this function in both helius-websocket.ts and pump-portal-websocket.ts to ensure consistency.
+
+10. Frontend Component Rendering
+Issue: The TransactionHistory component may not be correctly reacting to state changes or may have rendering issues that prevent real-time updates.
+
+Solution: Verify that the component subscribes to the correct parts of the state and re-renders appropriately upon state changes.
+
+Code Changes:
+
+Ensure Proper Subscription in TransactionHistory.tsx:
+
+typescript
+Copy
+// client/src/components/TransactionHistory.tsx
+
+import { FC, useEffect, useState } from 'react';
+import { useUnifiedTokenStore } from '@/lib/unified-token-store';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { ExternalLink } from 'lucide-react';
+
+interface TransactionHistoryProps {
+  tokenAddress: string;
+}
+
+const TransactionHistory: FC<TransactionHistoryProps> = ({ tokenAddress }) => {
+  const transactions = useUnifiedTokenStore(state => state.getTransactions(tokenAddress));
+  const solPrice = usePumpPortalStore(state => state.solPrice);
+  const isConnected = useUnifiedTokenStore(state => state.isConnected);
+
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000); // Update every second
+
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!isConnected) {
+    return <div className="mt-4 text-center text-gray-500">Connecting...</div>;
+  }
+
+  if (!transactions?.length) {
+    return <div className="mt-4 text-center text-gray-500">No recent transactions.</div>;
+  }
+
+  return (
+    <div className="mt-4 border-t border-gray-800 pt-4">
+      <h4 className="text-sm text-gray-400 mb-3">Recent Transactions</h4>
+      <div className="space-y-2">
+        {transactions.map((tx) => {
+          const timeAgo = formatTimeAgo(tx.timestamp, currentTime);
+          const buyerAddress = formatAddress(tx.buyer);
+          const sellerAddress = formatAddress(tx.seller);
+          const usdAmount = tx.solAmount * (solPrice || 0);
+          const date = new Date(tx.timestamp);
+          const timeString = date.toLocaleTimeString();
+
+          return (
+            <div key={tx.signature} className="flex flex-col p-3 bg-gray-900/50 rounded-lg text-sm">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded ${tx.type === 'buy' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                    {tx.type === 'buy' ? 'Buy' : 'Sell'}
+                  </span>
+                  <span className="text-gray-400 text-xs">{timeString}</span>
+                  <span className="text-gray-500 text-xs">({timeAgo})</span>
+                </div>
+                <a
+                  href={`https://solscan.io/tx/${tx.signature}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-blue-400 transition-colors"
+                >
+                  <ExternalLink size={14} />
+                </a>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-400 text-xs">From:</span>
+                    <a
+                      href={`https://solscan.io/account/${tx.seller}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-300 hover:text-blue-400 transition-colors"
+                    >
+                      {sellerAddress}
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-400 text-xs">To:</span>
+                    <a
+                      href={`https://solscan.io/account/${tx.buyer}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-300 hover:text-blue-400 transition-colors"
+                    >
+                      {buyerAddress}
+                    </a>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-white">{tx.solAmount.toFixed(4)} SOL</span>
+                  <span className="text-gray-400 text-xs">${usdAmount.toFixed(6)}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// Updated formatTimeAgo to accept currentTime for real-time updates
+const formatTimeAgo = (timestamp: number, currentTime: number): string => {
+  const seconds = Math.floor((currentTime - timestamp) / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+};
+
+export default TransactionHistory;
+Ensure Store Updates Trigger Re-renders:
+
+Verify that addTransaction in unified-token-store.ts correctly updates the state to trigger re-renders.
+
+typescript
+Copy
+// unified-token-store.ts
+
+addTransaction: (tokenAddress, transaction) => set(state => {
+  const existingTransactions = state.transactions[tokenAddress] || [];
+
+  // Enhanced duplicate check
+  const isDuplicate = existingTransactions.some(tx => 
+    tx.signature === transaction.signature ||
+    (Math.abs(tx.timestamp - transaction.timestamp) < 1000 && 
+     tx.solAmount === transaction.solAmount && 
+     tx.type === transaction.type)
+  );
+
+  if (isDuplicate) return state;
+
+  // Keep more history and sort by timestamp
+  const maxTrades = 500;
+  const updatedTrades = [transaction, ...existingTransactions]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, maxTrades);
+
+  return {
+    transactions: {
+      ...state.transactions,
+      [tokenAddress]: updatedTrades
+    }
+  };
+}),
+By implementing these targeted code changes, you should be able to resolve the issues related to real-time buy/sell data display on your PumpFunVision page. Ensure to test each change thoroughly to verify that the issues are addressed effectively.

@@ -1,4 +1,4 @@
-import { FC, useEffect, useRef, useState } from 'react';
+import { FC, useEffect, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,13 +13,7 @@ interface TokenChartProps {
   onBack: () => void;
 }
 
-interface TokenTrade {
-  signature: string;
-  timestamp: number;
-  price: number;
-}
-
-export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
+export const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const token = usePumpPortalStore(state => 
     state.tokens.find(t => t.address === tokenAddress)
@@ -197,14 +191,19 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
                   {token.recentTrades?.map((trade, idx) => (
                     <div
                       key={trade.signature || idx}
-                      className="flex items-center justify-between p-2 rounded bg-black/20 text-sm"
+                      className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
+                        trade.type === 'buy' ? 'text-green-500' : 'text-red-500'
+                      }`}
                     >
                       <div className="flex items-center gap-2">
                         <span>{formatTimestamp(trade.timestamp)}</span>
-                        <span>{trade.signature ? formatAddress(trade.signature) : 'Unknown'}</span>
+                        <span>{formatAddress(trade.type === 'buy' ? trade.buyer : trade.seller)}</span>
                       </div>
                       <div className="text-right">
                         <div>{formatPrice(trade.price)}</div>
+                        <div className="text-xs text-gray-500">
+                          {formatPrice(trade.priceUsd)}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -264,6 +263,6 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
       </div>
     </div>
   );
-}
+};
 
 export default TokenChart;

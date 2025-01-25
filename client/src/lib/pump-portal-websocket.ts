@@ -6,7 +6,7 @@ import axios from 'axios';
 const TOTAL_SUPPLY = 1_000_000_000;
 const SOL_PRICE_UPDATE_INTERVAL = 10000;
 const MAX_TRADES_PER_TOKEN = 100;
-const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`; // Dynamic protocol selection
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
@@ -21,6 +21,17 @@ export interface TimeWindowStats {
   trades: number;
   buys: number;
   sells: number;
+}
+
+export interface TokenTrade {
+  signature: string;
+  timestamp: number;
+  price: number;
+  priceUsd: number;
+  amount: number;
+  type: 'buy' | 'sell';
+  buyer: string;
+  seller: string;
 }
 
 export interface PumpPortalToken {
@@ -51,14 +62,6 @@ interface TokenStatus {
   fad: boolean;
   lb: boolean;
   tri: boolean;
-}
-
-interface TokenTrade {
-  timestamp: number;
-  price: number;
-  volume: number;
-  isBuy: boolean;
-  wallet: string;
 }
 
 interface PumpPortalStore {
@@ -93,15 +96,15 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const tradeVolume = Number(trade.solAmount || 0) * state.solPrice;
     const isBuy = trade.txType === 'buy';
 
-    const impact = Math.min((tradeVolume / (token.liquidity || 1)) * 0.005, 0.01);
-    const newPrice = (token.price || 0) * (isBuy ? (1 + impact) : (1 - impact));
-
-    const newTrade = {
+    const newTrade: TokenTrade = {
+      signature: trade.signature,
       timestamp: now,
-      price: newPrice,
-      volume: tradeVolume,
-      isBuy,
-      wallet: trade.traderPublicKey
+      price: Number(trade.price) || 0,
+      priceUsd: (Number(trade.price) || 0) * state.solPrice,
+      amount: Number(trade.solAmount) || 0,
+      type: isBuy ? 'buy' : 'sell',
+      buyer: isBuy ? trade.traderPublicKey : trade.counterpartyPublicKey,
+      seller: isBuy ? trade.counterpartyPublicKey : trade.traderPublicKey
     };
 
     const recentTrades = [newTrade, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN);
@@ -112,17 +115,17 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       tokens: state.tokens.map(t =>
         t.address === address ? {
           ...t,
-          price: newPrice,
-          marketCap: newPrice * TOTAL_SUPPLY,
+          price: newTrade.price,
+          marketCap: newTrade.price * TOTAL_SUPPLY,
           liquidity: t.liquidity + (isBuy ? tradeVolume : -tradeVolume),
           volume: t.volume + tradeVolume,
-          volume24h: trades24h.reduce((sum, t) => sum + t.volume, 0),
+          volume24h: trades24h.reduce((sum, t) => sum + (t.amount * t.priceUsd), 0),
           trades: t.trades + 1,
           trades24h: trades24h.length,
-          buys24h: trades24h.filter(t => t.isBuy).length,
-          sells24h: trades24h.filter(t => !t.isBuy).length,
+          buys24h: trades24h.filter(t => t.type === 'buy').length,
+          sells24h: trades24h.filter(t => t.type === 'sell').length,
           recentTrades,
-          walletCount: new Set(recentTrades.map(trade => trade.wallet)).size
+          walletCount: new Set([...recentTrades.map(t => t.buyer), ...recentTrades.map(t => t.seller)]).size
         } : t
       )
     }));
@@ -134,6 +137,116 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     }
   },
 }));
+
+// WebSocket connection management
+let ws: WebSocket | null = null;
+let reconnectTimeout: NodeJS.Timeout | null = null;
+let reconnectAttempts = 0;
+let solPriceInterval: NodeJS.Timeout | null = null;
+
+export function initializePumpPortalWebSocket() {
+  if (typeof window === 'undefined') return;
+
+  const cleanup = () => {
+    if (ws) {
+      try {
+        ws.close();
+      } catch (e) {
+        console.error('[PumpPortal] Error closing WebSocket:', e);
+      }
+      ws = null;
+    }
+
+    if (solPriceInterval) {
+      clearInterval(solPriceInterval);
+      solPriceInterval = null;
+    }
+
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout);
+      reconnectTimeout = null;
+    }
+  };
+
+  cleanup();
+
+  try {
+    console.log('[PumpPortal] Initializing WebSocket...');
+    ws = new WebSocket(WS_URL);
+    const store = usePumpPortalStore.getState();
+
+    ws.onopen = () => {
+      console.log('[PumpPortal] WebSocket connected');
+      store.setConnected(true);
+      reconnectAttempts = 0;
+    };
+
+    ws.onmessage = async (event) => {
+      try {
+        const { type, data } = JSON.parse(event.data);
+
+        switch (type) {
+          case 'newToken': {
+            const token = mapPumpPortalData(data);
+            store.addToken(token);
+            if (token.imageLink) {
+              preloadTokenImages([{
+                imageLink: token.imageLink,
+                symbol: token.symbol
+              }]);
+            }
+            ws?.send(JSON.stringify({
+              method: "subscribeTokenTrade",
+              keys: [token.address]
+            }));
+            break;
+          }
+
+          case 'trade':
+            store.addTradeToHistory(data.mint, data);
+            break;
+
+          default:
+            console.warn('[PumpPortal] Unknown message type:', type);
+        }
+      } catch (error) {
+        console.error('[PumpPortal] Failed to parse message:', error);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('[PumpPortal] WebSocket disconnected');
+      store.setConnected(false);
+      cleanup();
+
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+        reconnectTimeout = setTimeout(initializePumpPortalWebSocket,
+          RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts));
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('[PumpPortal] WebSocket error:', error);
+      store.setConnected(false);
+    };
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', cleanup);
+
+  } catch (error) {
+    console.error('[PumpPortal] Failed to initialize WebSocket:', error);
+    const store = usePumpPortalStore.getState();
+    store.setConnected(false);
+
+    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      reconnectAttempts++;
+      reconnectTimeout = setTimeout(initializePumpPortalWebSocket,
+        RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts));
+    }
+  }
+}
 
 export function mapPumpPortalData(data: any): PumpPortalToken {
   const {
@@ -187,11 +300,14 @@ export function mapPumpPortalData(data: any): PumpPortalToken {
       }
     },
     recentTrades: [{
+      signature: '', 
       timestamp: now,
       price: priceUsd,
-      volume: volumeUsd,
-      isBuy: true,
-      wallet: traderPublicKey
+      priceUsd: priceUsd,
+      amount: volumeUsd,
+      type: 'buy',
+      buyer: traderPublicKey,
+      seller: '' 
     }],
     status: {
       mad: false,
@@ -202,12 +318,6 @@ export function mapPumpPortalData(data: any): PumpPortalToken {
     imageLink: imageLink || 'https://via.placeholder.com/150',
   };
 }
-
-// WebSocket connection management
-let ws: WebSocket | null = null;
-let reconnectTimeout: NodeJS.Timeout | null = null;
-let reconnectAttempts = 0;
-let solPriceInterval: NodeJS.Timeout | null = null;
 
 const API_ENDPOINTS = [
   {
@@ -254,130 +364,6 @@ const fetchSolanaPrice = async (retries = 3): Promise<number> => {
   console.warn('[PumpPortal] Using fallback SOL price after all attempts failed');
   return 100;
 };
-
-export function initializePumpPortalWebSocket() {
-  if (typeof window === 'undefined') return;
-
-  const cleanup = () => {
-    if (ws) {
-      try {
-        ws.close();
-      } catch (e) {
-        console.error('[PumpPortal] Error closing WebSocket:', e);
-      }
-      ws = null;
-    }
-
-    if (solPriceInterval) {
-      clearInterval(solPriceInterval);
-      solPriceInterval = null;
-    }
-
-    if (reconnectTimeout) {
-      clearTimeout(reconnectTimeout);
-      reconnectTimeout = null;
-    }
-  };
-
-  cleanup();
-
-  const store = usePumpPortalStore.getState();
-
-  // Initialize SOL price updates
-  fetchSolanaPrice()
-    .then(price => {
-      store.setSolPrice(price);
-      solPriceInterval = setInterval(async () => {
-        try {
-          const price = await fetchSolanaPrice();
-          store.setSolPrice(price);
-        } catch (error) {
-          console.error('[PumpPortal] Failed to update SOL price:', error);
-        }
-      }, SOL_PRICE_UPDATE_INTERVAL);
-    })
-    .catch(console.error);
-
-  try {
-    console.log('[PumpPortal] Initializing WebSocket...');
-    ws = new WebSocket(WS_URL);
-
-    ws.onopen = () => {
-      console.log('[PumpPortal] WebSocket connected');
-      store.setConnected(true);
-      reconnectAttempts = 0;
-    };
-
-    ws.onmessage = async (event) => {
-      try {
-        const { type, data } = JSON.parse(event.data);
-
-        switch (type) {
-          case 'newToken':
-            try {
-              const token = mapPumpPortalData(data);
-              store.addToken(token);
-
-              if (token.imageLink) {
-                preloadTokenImages([{
-                  imageLink: token.imageLink,
-                  symbol: token.symbol
-                }]);
-              }
-              // Subscribe to trades for the new token
-              ws?.send(JSON.stringify({
-                method: "subscribeTokenTrade",
-                keys: [token.address]
-              }));
-            } catch (err) {
-              console.error('[PumpPortal] Failed to process token:', err);
-            }
-            break;
-
-          case 'trade':
-            store.addTradeToHistory(data.mint, data);
-            break;
-
-          default:
-            console.warn('[PumpPortal] Unknown message type:', type);
-        }
-      } catch (error) {
-        console.error('[PumpPortal] Failed to parse message:', error, event.data);
-      }
-    };
-
-    ws.onclose = (event) => {
-      console.log('[PumpPortal] WebSocket disconnected', event);
-      store.setConnected(false);
-      cleanup();
-
-      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-        reconnectAttempts++;
-        console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-        reconnectTimeout = setTimeout(initializePumpPortalWebSocket,
-          RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts));
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error('[PumpPortal] WebSocket error:', error);
-      store.setConnected(false);
-    };
-
-    // Cleanup on page unload
-    window.addEventListener('beforeunload', cleanup);
-
-  } catch (error) {
-    console.error('[PumpPortal] Failed to initialize WebSocket:', error);
-    store.setConnected(false);
-
-    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      reconnectAttempts++;
-      reconnectTimeout = setTimeout(initializePumpPortalWebSocket,
-        RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts));
-    }
-  }
-}
 
 // Initialize WebSocket connection
 initializePumpPortalWebSocket();
