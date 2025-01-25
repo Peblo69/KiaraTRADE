@@ -80,14 +80,14 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const rawTokenAmount = Number(trade.tokenAmount || 0);
     const userTokenAmount = rawTokenAmount / Math.pow(10, TOKEN_DECIMALS);
 
-    // 3) Calculate per-trade fill price
-    const actualTradePriceSol = userTokenAmount > 0 ? solAmount / userTokenAmount : 0;
+    // Calculate actual trade prices
+    const actualTradePriceSol = userTokenAmount > 0 ? Math.abs(solAmount) / userTokenAmount : 0;
     const actualTradePriceUsd = actualTradePriceSol * state.solPrice;
-
-    // 4) Get bonding curve data for reference
-    const rawVTokens = Number(trade.vTokensInBondingCurve || 0);
-    const vTokens = rawVTokens / Math.pow(10, TOKEN_DECIMALS);
+    
+    // Get market data
     const vSol = Number(trade.vSolInBondingCurve || 0);
+    const vTokens = Number(trade.vTokensInBondingCurve || 0) / Math.pow(10, TOKEN_DECIMALS);
+    const bondingCurvePriceSol = vTokens > 0 ? vSol / vTokens : 0;
     const marketCapSol = Number(trade.marketCapSol || 0);
     const liquidity = vSol;
     const tradeVolume = Math.abs(solAmount) * state.solPrice;
