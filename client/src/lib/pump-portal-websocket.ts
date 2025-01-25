@@ -308,7 +308,7 @@ export function initializePumpPortalWebSocket() {
     ws.onmessage = async (event) => {
       try {
         const { type, data } = JSON.parse(event.data);
-        // console.log('[PumpPortal] Received message:', type, data);
+        console.log('[PumpPortal] Raw data:', { type, data });  // Log raw data
 
         switch (type) {
           case 'newToken': {
