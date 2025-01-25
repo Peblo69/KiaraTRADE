@@ -92,8 +92,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const actualTradePriceUsd = actualTradePriceSol * state.solPrice;
 
     // Process bonding curve data
-    const vTokens = Number(trade.vTokensInBondingCurve || 0) / Math.pow(10, TOKEN_DECIMALS);
-    const vSol = Number(trade.vSolInBondingCurve || 0);
     const marketCapSol = Number(trade.marketCapSol || 0);
     const liquidity = vSol;
 
