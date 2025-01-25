@@ -128,6 +128,14 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
   const bondingCurvePrice = getBondingCurvePrice();
 
+  const getTraderAddress = (trade: any) => {
+    if (trade.txType === 'buy') {
+      return trade.traderPublicKey;
+    } else {
+      return trade.counterpartyPublicKey || trade.traderPublicKey;
+    }
+  };
+
   return (
     <div className="flex-1 h-screen bg-black text-white">
       <div className="absolute top-4 left-4 z-10">
@@ -177,12 +185,12 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
         <div className="grid grid-cols-[1fr,300px] gap-4">
           <ResizablePanelGroup direction="vertical" className="h-[700px]">
-            <ResizablePanel defaultSize={60} minSize={40}>
+            <ResizablePanel defaultSize={40} minSize={30}>
               <div className="h-full bg-[#111] rounded-lg p-4">
                 <div ref={chartContainerRef} className="h-full w-full" />
               </div>
             </ResizablePanel>
-            <ResizablePanel defaultSize={40} minSize={30}>
+            <ResizablePanel defaultSize={60} minSize={40}>
               <div className="h-full bg-[#111] rounded-lg p-4 overflow-hidden">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="text-sm font-semibold">Recent Trades</h3>
@@ -206,7 +214,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                       <div className="flex items-center gap-2">
                         <span>{formatTimestamp(trade.timestamp)}</span>
                         <span>
-                          {formatAddress(trade.txType === 'buy' ? trade.traderPublicKey : trade.counterpartyPublicKey)}
+                          {formatAddress(getTraderAddress(trade))}
                         </span>
                       </div>
                       <div className="text-right">
