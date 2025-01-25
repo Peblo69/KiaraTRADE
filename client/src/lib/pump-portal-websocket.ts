@@ -9,12 +9,15 @@ const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${win
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
+// We assume your tokens use 9 decimals:
+const TOKEN_DECIMALS = 9;
+
 export interface TokenTrade {
   signature: string;
   timestamp: number;
-  price: number;
-  priceUsd: number;
-  amount: number;
+  price: number;     // price per token in SOL
+  priceUsd: number;  // price per token in USD
+  amount: number;    // how many SOL were exchanged (always positive)
   type: 'buy' | 'sell';
   buyer: string;
   seller: string;
@@ -24,17 +27,21 @@ export interface PumpPortalToken {
   symbol: string;
   name: string;
   address: string;
-  price: number;
-  priceUsd: number;
-  marketCap: number;
-  liquidity: number;
-  volume: number;
-  volume24h: number;
-  trades: number;
+
+  // Current displayed price (we'll store the *latest fill price* in SOL & USD)
+  price: number;     // SOL per token
+  priceUsd: number;  // USD per token
+
+  marketCap: number; // in USD
+  liquidity: number; // in USD
+  volume: number;    // cumulative volume in USD
+  volume24h: number; // 24h volume in USD
+  trades: number;    // total number of trades
   trades24h: number;
   buys24h: number;
   sells24h: number;
   walletCount: number;
+
   recentTrades: TokenTrade[];
   imageLink?: string;
 }
@@ -54,9 +61,11 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
   isConnected: false,
   solPrice: 0,
-  addToken: (token) => set((state) => ({
-    tokens: [token, ...state.tokens].slice(0, 50),
-  })),
+
+  addToken: (token) =>
+    set((state) => ({
+      tokens: [token, ...state.tokens].slice(0, 50),
+    })),
   updateToken: (address, updates) => set((state) => ({
     tokens: state.tokens.map((token) =>
       token.address === address ? { ...token, ...updates } : token
@@ -72,8 +81,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     
     // Handle token decimals properly (assuming 9 decimals)
     const rawTokenAmount = Number(trade.tokenAmount || 0);
-    const decimals = 9;
-    const userTokenAmount = rawTokenAmount / Math.pow(10, decimals);
+    const userTokenAmount = rawTokenAmount / Math.pow(10, TOKEN_DECIMALS);
     
     const isBuy = trade.txType === 'buy';
 
@@ -82,7 +90,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const actualTradePriceUsd = actualTradePriceSol * state.solPrice;
 
     // Process bonding curve data
-    const vTokens = Number(trade.vTokensInBondingCurve || 0) / Math.pow(10, decimals);
+    const vTokens = Number(trade.vTokensInBondingCurve || 0) / Math.pow(10, TOKEN_DECIMALS);
     const vSol = Number(trade.vSolInBondingCurve || 0);
     const marketCapSol = Number(trade.marketCapSol || 0);
     const liquidity = vSol;
