@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { ArrowLeft } from "lucide-react";
-import { createChart, ColorType } from 'lightweight-charts';
+import { createChart } from 'lightweight-charts';
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
 interface TokenChartProps {
@@ -22,45 +22,16 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   useEffect(() => {
     if (!chartContainerRef.current || !token?.recentTrades) return;
 
-    // Convert trades to OHLC data
+    // Convert trades to chart data
     const trades = token.recentTrades
       .map(trade => ({
-        timestamp: trade.timestamp,
-        price: trade.price,
-        type: trade.type,
+        time: Math.floor(trade.timestamp / 1000),
+        value: trade.solAmount / trade.tokenAmount, // Raw price calculation
       }))
-      .filter(trade => !isNaN(trade.price) && trade.price > 0)
-      .sort((a, b) => a.timestamp - b.timestamp);
-
-    if (trades.length === 0) return;
-
-    // Group trades into 1-minute candles
-    const candleMap = new Map();
-    const MINUTE = 60 * 1000;
-
-    trades.forEach(trade => {
-      const candleTime = Math.floor(trade.timestamp / MINUTE) * MINUTE;
-
-      if (!candleMap.has(candleTime)) {
-        candleMap.set(candleTime, {
-          time: candleTime / 1000,
-          open: trade.price,
-          high: trade.price,
-          low: trade.price,
-          close: trade.price
-        });
-      } else {
-        const candle = candleMap.get(candleTime);
-        candle.high = Math.max(candle.high, trade.price);
-        candle.low = Math.min(candle.low, trade.price);
-        candle.close = trade.price;
-      }
-    });
-
-    const candleData = Array.from(candleMap.values())
+      .filter(trade => !isNaN(trade.value) && trade.value > 0)
       .sort((a, b) => a.time - b.time);
 
-    if (candleData.length === 0) return;
+    if (trades.length === 0) return;
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
@@ -80,27 +51,20 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       },
     });
 
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#22c55e',
-      downColor: '#ef4444',
-      borderVisible: false,
-      wickUpColor: '#22c55e',
-      wickDownColor: '#ef4444',
+    const lineSeries = chart.addLineSeries({
+      color: '#22c55e',
+      lineWidth: 2,
       priceFormat: {
         type: 'price',
-        precision: 8,
-        minMove: 0.00000001,
+        precision: 9,
+        minMove: 0.000000001,
       },
     });
 
-    candlestickSeries.setData(candleData);
+    lineSeries.setData(trades);
 
-    const timeRange = {
-      from: candleData[0].time - 300,
-      to: candleData[candleData.length - 1].time + 300
-    };
-
-    chart.timeScale().setVisibleRange(timeRange);
+    // Set visible range
+    chart.timeScale().fitContent();
 
     const resizeObserver = new ResizeObserver(entries => {
       const { width, height } = entries[0].contentRect;
@@ -128,14 +92,14 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     return new Date(timestamp).toLocaleTimeString();
   };
 
-  const formatSolPrice = (price: number) => {
-    if (!price || isNaN(price)) return '0.00000000 SOL';
-    return `${price.toFixed(8)} SOL`;
+  const formatSolAmount = (amount: number) => {
+    if (!amount || isNaN(amount)) return '0 SOL';
+    return `${amount.toFixed(9)} SOL`;
   };
 
-  const formatUsdPrice = (price: number) => {
-    if (!price || isNaN(price)) return '$0.00000000';
-    return `$${price.toFixed(8)}`;
+  const formatTokenAmount = (amount: number) => {
+    if (!amount || isNaN(amount)) return '0';
+    return amount.toLocaleString(undefined, {maximumFractionDigits: 9});
   };
 
   return (
@@ -165,22 +129,18 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
             <div>
               <h2 className="text-2xl font-bold">{token.symbol}</h2>
               <div className="text-sm text-gray-400">
-                {formatSolPrice(token.price)} ({formatUsdPrice(token.priceUsd)})
+                {formatAddress(token.address)}
               </div>
             </div>
           </div>
           <div className="flex gap-3">
             <div className="text-right">
-              <div className="text-sm text-gray-400">Market Cap</div>
-              <div className="font-bold">{formatUsdPrice(token.marketCap)}</div>
+              <div className="text-sm text-gray-400">SOL in Pool</div>
+              <div className="font-bold">{formatSolAmount(token.vSolInBondingCurve)}</div>
             </div>
             <div className="text-right">
-              <div className="text-sm text-gray-400">Liquidity</div>
-              <div className="font-bold">{formatUsdPrice(token.liquidity)}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-gray-400">Volume (24h)</div>
-              <div className="font-bold">{formatUsdPrice(token.volume24h)}</div>
+              <div className="text-sm text-gray-400">Market Cap SOL</div>
+              <div className="font-bold">{formatSolAmount(token.marketCapSol)}</div>
             </div>
           </div>
         </div>
@@ -200,19 +160,19 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                     <div
                       key={trade.signature || idx}
                       className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
-                        trade.type === 'buy' ? 'text-green-500' : 'text-red-500'
+                        trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
                       }`}
                     >
                       <div className="flex items-center gap-2">
                         <span>{formatTimestamp(trade.timestamp)}</span>
                         <span>
-                          {formatAddress(trade.type === 'buy' ? trade.buyer : trade.seller)}
+                          {formatAddress(trade.txType === 'buy' ? trade.traderPublicKey : trade.counterpartyPublicKey)}
                         </span>
                       </div>
                       <div className="text-right">
-                        <div>{formatSolPrice(trade.price)}</div>
+                        <div>{formatSolAmount(trade.solAmount)}</div>
                         <div className="text-xs text-gray-500">
-                          {formatUsdPrice(trade.priceUsd)}
+                          {formatTokenAmount(trade.tokenAmount)} tokens
                         </div>
                       </div>
                     </div>
@@ -234,7 +194,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
               <div className="space-y-4">
                 <div>
-                  <div className="text-sm text-gray-400 mb-2">Amount</div>
+                  <div className="text-sm text-gray-400 mb-2">Amount (SOL)</div>
                   <div className="grid grid-cols-4 gap-2">
                     <Button variant="outline" size="sm">0.01</Button>
                     <Button variant="outline" size="sm">0.02</Button>
@@ -243,7 +203,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                   </div>
                 </div>
 
-                <Input type="number" placeholder="Enter amount..." className="bg-black border-gray-800" />
+                <Input type="number" placeholder="Enter SOL amount..." className="bg-black border-gray-800" />
 
                 <div className="grid grid-cols-2 gap-2">
                   <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
@@ -252,18 +212,14 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
                 <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Funds</Button>
 
-                <div className="grid grid-cols-3 text-sm">
+                <div className="grid grid-cols-2 text-sm">
                   <div>
-                    <div className="text-gray-400">Invested</div>
-                    <div>$0.00</div>
+                    <div className="text-gray-400">Tokens in Pool</div>
+                    <div>{formatTokenAmount(token.vTokensInBondingCurve)}</div>
                   </div>
                   <div>
-                    <div className="text-gray-400">Sold</div>
-                    <div>$0.00</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-400">P/L</div>
-                    <div className="text-red-500">-0%</div>
+                    <div className="text-gray-400">SOL in Pool</div>
+                    <div>{formatSolAmount(token.vSolInBondingCurve)}</div>
                   </div>
                 </div>
               </div>
