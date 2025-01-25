@@ -5,21 +5,21 @@ import { Loader2 } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import TokenChart from "@/components/TokenChart";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface TokenRowProps {
   token: any;
   onClick: () => void;
 }
 
-// Memoize token row to prevent unnecessary re-renders
-const TokenRow: FC<TokenRowProps> = ({ token, onClick }) => {
+const TokenCard: FC<TokenRowProps> = ({ token, onClick }) => {
   return (
     <Card 
       className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
       onClick={onClick}
     >
-      <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
-        <div className="flex items-center gap-3">
+      <div className="p-4">
+        <div className="flex items-center gap-3 mb-4">
           <img
             src={token.imageLink || 'https://via.placeholder.com/150'}
             alt={`${token.symbol} logo`}
@@ -31,24 +31,41 @@ const TokenRow: FC<TokenRowProps> = ({ token, onClick }) => {
           />
           <div>
             <div className="font-medium group-hover:text-purple-400 transition-colors">
-              {token.name}
+              {token.symbol}
             </div>
             <div className="text-sm text-muted-foreground">
-              {token.symbol}
+              {token.name}
             </div>
           </div>
         </div>
-        <div className="text-right font-medium">
-          {formatPrice(token.price)}
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <div className="text-sm text-muted-foreground">Price</div>
+            <div className="font-medium">{formatPrice(token.price)}</div>
+          </div>
+          <div>
+            <div className="text-sm text-muted-foreground">Market Cap</div>
+            <div className="font-medium">{formatMarketCap(token.marketCap)}</div>
+          </div>
+          <div>
+            <div className="text-sm text-muted-foreground">Liquidity</div>
+            <div className="font-medium">{formatMarketCap(token.liquidity)}</div>
+          </div>
+          <div>
+            <div className="text-sm text-muted-foreground">Volume</div>
+            <div className="font-medium">{formatMarketCap(token.volume)}</div>
+          </div>
         </div>
-        <div className="text-right">
-          {formatMarketCap(token.marketCap)}
-        </div>
-        <div className="text-right">
-          {formatMarketCap(token.liquidity)}
-        </div>
-        <div className="text-right">
-          {formatMarketCap(token.volume)}
+
+        <div className="mt-4">
+          <Tabs defaultValue="market" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="market">Market</TabsTrigger>
+              <TabsTrigger value="limit">Limit</TabsTrigger>
+              <TabsTrigger value="dca">DCA</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       </div>
     </Card>
@@ -152,35 +169,25 @@ const TokenListContent: FC = () => {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 px-4 py-2 text-sm text-muted-foreground">
-            <div>Token</div>
-            <div className="text-right">Price</div>
-            <div className="text-right">Market Cap</div>
-            <div className="text-right">Liquidity</div>
-            <div className="text-right">Volume</div>
+        {!isConnected ? (
+          <div className="flex items-center justify-center h-40">
+            <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
           </div>
-
-          {!isConnected ? (
-            <div className="flex items-center justify-center h-40">
-              <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
-            </div>
-          ) : tokens.length > 0 ? (
-            <div className="space-y-2">
-              {tokens.map((token) => (
-                <TokenRow
-                  key={token.address}
-                  token={token}
-                  onClick={() => handleTokenSelect(token.address)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-40">
-              <p className="text-muted-foreground">Waiting for new tokens...</p>
-            </div>
-          )}
-        </div>
+        ) : tokens.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {tokens.map((token) => (
+              <TokenCard
+                key={token.address}
+                token={token}
+                onClick={() => handleTokenSelect(token.address)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-40">
+            <p className="text-muted-foreground">Waiting for new tokens...</p>
+          </div>
+        )}
       </div>
     </div>
   );
