@@ -1,0 +1,116 @@
+Revised addTradeToHistory Example
+Below is a minimal fix showing how you can compute:
+
+Actual fill price from (solAmount / userTokenAmount).
+Keep “bonding-curve ratio” if you want to update the “global price.”
+ts
+Copy
+Edit
+addTradeToHistory: (address, trade) => {
+  const state = get();
+  const token = state.tokens.find(t => t.address === address);
+  if (!token || !state.solPrice) return;
+
+  const now = Date.now();
+
+  // 1) Identify how many SOL were spent in this trade
+  //    (If your backend sends lamports, convert them -> SOL).
+  const solAmount = Number(trade.solAmount || 0);
+
+  // 2) Token amount with decimals
+  const rawTokenAmount = Number(trade.tokenAmount || 0);
+  const userTokenAmount = rawTokenAmount / Math.pow(10, TOKEN_DECIMALS);
+
+  // 3) Per-trade fill price
+  const actualTradePriceSol = userTokenAmount > 0
+    ? solAmount / userTokenAmount
+    : 0;
+  const actualTradePriceUsd = actualTradePriceSol * state.solPrice;
+
+  // 4) Bonding curve data if you still want the global ratio
+  const rawVTokens = Number(trade.vTokensInBondingCurve || 0);
+  const vTokens = rawVTokens / Math.pow(10, TOKEN_DECIMALS);
+  const vSol = Number(trade.vSolInBondingCurve || 0);
+  const bondingCurvePriceSol = vTokens > 0 ? (vSol / vTokens) : 0;
+  const bondingCurvePriceUsd = bondingCurvePriceSol * state.solPrice;
+
+  // 5) Market cap & liquidity
+  const marketCapSol = Number(trade.marketCapSol || 0);
+  const marketCapUsd = marketCapSol * state.solPrice;
+  const liquidityUsd = vSol * state.solPrice;
+
+  // 6) Build new trade object
+  const isBuy = trade.txType === 'buy';
+  const buyerAddress = isBuy ? trade.traderPublicKey : trade.counterpartyPublicKey;
+  const sellerAddress = isBuy ? trade.counterpartyPublicKey : trade.traderPublicKey;
+
+  const newTrade: TokenTrade = {
+    signature: trade.signature,
+    timestamp: now,
+    // Use the actual fill price for user clarity:
+    price: actualTradePriceSol,
+    priceUsd: actualTradePriceUsd,
+    amount: Math.abs(solAmount),
+    type: isBuy ? 'buy' : 'sell',
+    buyer: buyerAddress,
+    seller: sellerAddress,
+  };
+
+  // 7) Insert into recent trades, limit 100
+  const recentTrades = [newTrade, ...token.recentTrades].slice(0, MAX_TRADES_PER_TOKEN);
+
+  // 8) Recompute 24h stats
+  const last24h = now - 24 * 60 * 60 * 1000;
+  const trades24h = recentTrades.filter(tr => tr.timestamp > last24h);
+
+  // 9) 24h volume => SOL side (approx) or historical
+  const volume24hUsd = trades24h.reduce(
+    (sum, tr) => sum + (tr.amount * state.solPrice), // approximate real-time
+    0
+  );
+
+  // 10) Add this trade’s volume in USD
+  const tradeVolumeUsd = solAmount * state.solPrice;
+  const newCumulativeVolumeUsd = token.volume + tradeVolumeUsd;
+
+  // 11) Update the token in store
+  set((storeState) => ({
+    tokens: storeState.tokens.map((t) => {
+      if (t.address !== address) return t;
+
+      return {
+        ...t,
+        // Decide which price you want to display as the "current price"
+        // Option A: show actual fill price from the last trade
+        price: actualTradePriceSol,
+        priceUsd: actualTradePriceUsd,
+        // Option B: show global bonding-curve ratio
+        // price: bondingCurvePriceSol,
+        // priceUsd: bondingCurvePriceUsd,
+
+        marketCap: marketCapUsd,
+        liquidity: liquidityUsd,
+
+        volume: newCumulativeVolumeUsd,
+        volume24h: volume24hUsd,
+
+        trades: t.trades + 1,
+        trades24h: trades24h.length,
+        buys24h: trades24h.filter(x => x.type === 'buy').length,
+        sells24h: trades24h.filter(x => x.type === 'sell').length,
+
+        recentTrades,
+        walletCount: new Set([
+          ...recentTrades.map(x => x.buyer),
+          ...recentTrades.map(x => x.seller),
+        ]).size,
+      };
+    }),
+  }));
+},
+Now each trade’s price is the actual SOL per token that the user really paid/sold for.
+
+Conclusion
+Yes, something is “wrong” in your current snippet if you want to display actual trade fill prices.
+You’re using vSol / vTokens for actualTradePriceSol instead of (solAmount / userTokenAmount).
+Simply replace that line, and you’ll see varying per-trade prices that match each user’s buy or sell.
