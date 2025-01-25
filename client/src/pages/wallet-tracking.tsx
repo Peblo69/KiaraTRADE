@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -77,6 +77,17 @@ export default function WalletTrackingPage() {
     enabled: !!selectedWallet,
   });
 
+  // Handle error toast in useEffect to prevent render loops
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch wallet data. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [error, toast]);
+
   const handleAddWallet = () => {
     if (!walletAddress) {
       toast({
@@ -96,7 +107,7 @@ export default function WalletTrackingPage() {
       return;
     }
 
-    setTrackedWallets([...trackedWallets, walletAddress]);
+    setTrackedWallets(prev => [...prev, walletAddress]);
     setWalletAddress("");
 
     toast({
@@ -113,16 +124,14 @@ export default function WalletTrackingPage() {
       value: 0,
       enabled: true,
     };
-    setAlerts([...alerts, newAlert]);
+    setAlerts(prev => [...prev, newAlert]);
   };
 
-  if (error) {
-    toast({
-      title: "Error",
-      description: "Failed to fetch wallet data. Please try again.",
-      variant: "destructive",
-    });
-  }
+  const handleSelectWallet = (address: string) => {
+    setSelectedWallet(currentSelected => 
+      currentSelected === address ? null : address
+    );
+  };
 
   return (
     <div className="container mx-auto p-6 min-h-screen bg-gradient-to-b from-gray-900 to-black">
@@ -244,10 +253,9 @@ export default function WalletTrackingPage() {
                     <Select
                       value={alert.condition}
                       onValueChange={(value: any) => {
-                        const updatedAlerts = alerts.map(a =>
-                          a.id === alert.id ? { ...a, condition: value } : a
+                        setAlerts(prev => 
+                          prev.map(a => a.id === alert.id ? { ...a, condition: value } : a)
                         );
-                        setAlerts(updatedAlerts);
                       }}
                     >
                       <SelectTrigger className="w-[180px]">
@@ -266,10 +274,11 @@ export default function WalletTrackingPage() {
                       type="number"
                       value={alert.value}
                       onChange={(e) => {
-                        const updatedAlerts = alerts.map(a =>
-                          a.id === alert.id ? { ...a, value: parseFloat(e.target.value) } : a
+                        setAlerts(prev =>
+                          prev.map(a => 
+                            a.id === alert.id ? { ...a, value: parseFloat(e.target.value) } : a
+                          )
                         );
-                        setAlerts(updatedAlerts);
                       }}
                       className="w-24"
                     />
@@ -291,7 +300,7 @@ export default function WalletTrackingPage() {
               className={`p-4 bg-gray-700/50 cursor-pointer transition-colors hover:bg-gray-600/50 ${
                 selectedWallet === wallet ? 'ring-2 ring-purple-500' : ''
               }`}
-              onClick={() => setSelectedWallet(wallet)}
+              onClick={() => handleSelectWallet(wallet)}
             >
               <div className="flex justify-between items-center">
                 <div>
