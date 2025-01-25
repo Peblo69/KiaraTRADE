@@ -1,6 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
 
+// Extend WebSocket type to include isAlive property
 declare module 'ws' {
   interface WebSocket {
     isAlive: boolean;

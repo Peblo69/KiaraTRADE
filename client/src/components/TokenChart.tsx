@@ -3,40 +3,41 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useUnifiedTokenStore } from "@/lib/unified-token-store";
+import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { ArrowLeft } from "lucide-react";
 import { createChart } from 'lightweight-charts';
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletButton } from "./wallet/WalletButton";
 
 interface TokenChartProps {
   tokenAddress: string;
   onBack: () => void;
 }
 
+interface TokenTrade {
+  signature: string;
+  timestamp: number;
+  price: number;
+}
+
 type TimeFrame = '1s' | '5s' | '15s' | '30s' | '1m' | '15m' | '30m' | '1h';
 
-const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
+export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('1m');
-  const [amount, setAmount] = useState<string>("");
-  const [orderType, setOrderType] = useState<"market" | "limit" | "dca">("market");
-  const wallet = useWallet();
-
-  // Use unified store instead of pump portal store
-  const token = useUnifiedTokenStore(state => state.getToken(tokenAddress));
-  const trades = useUnifiedTokenStore(state => state.getTransactions(tokenAddress));
-  const solPrice = useUnifiedTokenStore(state => state.solPrice);
+  const token = usePumpPortalStore(state => 
+    state.tokens.find(t => t.address === tokenAddress)
+  );
 
   useEffect(() => {
-    if (!chartContainerRef.current || !trades?.length) return;
+    if (!chartContainerRef.current || !token?.recentTrades) return;
+
+    console.log('Trade data:', token.recentTrades);
 
     // Process trades into consistent time-ordered data points
-    const processedTrades = trades
+    const trades = token.recentTrades
       .map(trade => ({
         timestamp: Math.floor(trade.timestamp / 1000) * 1000,
-        price: trade.price || 0,
+        price: Number(trade.price) || 0,
       }))
       .filter(trade => !isNaN(trade.price) && trade.price > 0)
       .sort((a, b) => a.timestamp - b.timestamp);
@@ -56,7 +57,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
     const CANDLE_INTERVAL = CANDLE_INTERVALS[timeFrame];
 
-    processedTrades.forEach(trade => {
+    trades.forEach(trade => {
       const candleTime = Math.floor(trade.timestamp / CANDLE_INTERVAL) * CANDLE_INTERVAL;
 
       if (!candleMap.has(candleTime)) {
@@ -110,7 +111,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
     // Set visible range with padding
     const timeRange = {
-      from: candleData[0].time,
+      from: candleData[0].time - 300,
       to: candleData[candleData.length - 1].time + 300
     };
 
@@ -132,24 +133,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       chart.remove();
       resizeObserver.disconnect();
     };
-  }, [trades, timeFrame]);
-
-  const handleTrade = async (isBuy: boolean) => {
-    if (!wallet.connected) {
-      return;
-    }
-
-    if (!amount || isNaN(Number(amount))) {
-      return;
-    }
-
-    try {
-      // Implement trade logic here
-      console.log(`${isBuy ? 'Buying' : 'Selling'} ${amount} ${token?.symbol}`);
-    } catch (error) {
-      console.error("Trade failed:", error);
-    }
-  };
+  }, [token?.recentTrades, timeFrame]);
 
   if (!token) return null;
 
@@ -162,14 +146,10 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     return new Date(timestamp).toLocaleTimeString();
   };
 
-  const formatPrice = (price: number | undefined) => {
-    if (!price || isNaN(price)) return '$0.00';
-    return `$${price.toFixed(8)}`;
-  };
-
-  const formatPriceUSD = (price: number | undefined) => {
-    if (!price || isNaN(price)) return '$0.00';
-    return `$${(price * (solPrice || 0)).toFixed(2)}`;
+  const formatPrice = (price: number | string | undefined) => {
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+    if (!numPrice || isNaN(numPrice)) return '$0.00';
+    return `$${numPrice.toFixed(8)}`;
   };
 
   return (
@@ -208,18 +188,18 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Liquidity</div>
-              <div className="font-bold">${token.liquidityUsd?.toFixed(2) || '0.00'}</div>
+              <div className="font-bold">${token.liquidity?.toFixed(2) || '0.00'}</div>
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Volume (24h)</div>
-              <div className="font-bold">${token.volume24h?.toFixed(2) || '0.00'}</div>
+              <div className="font-bold">${token.volume?.toFixed(2) || '0.00'}</div>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-[1fr,300px] gap-4">
-          <ResizablePanelGroup direction="vertical" className="h-[calc(100vh-200px)]">
-            <ResizablePanel defaultSize={70}>
+          <ResizablePanelGroup direction="vertical" className="h-[600px]">
+            <ResizablePanel defaultSize={80} minSize={30}>
               <div className="h-full bg-[#111] rounded-lg overflow-hidden">
                 <div className="p-2 border-b border-white/10">
                   <div className="flex gap-1">
@@ -241,28 +221,21 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                 </div>
               </div>
             </ResizablePanel>
-            <ResizablePanel defaultSize={30}>
+            <ResizablePanel defaultSize={20} minSize={10}>
               <div className="h-full bg-[#111] rounded-lg p-4 overflow-hidden">
                 <h3 className="text-sm font-semibold mb-2">Recent Trades</h3>
                 <div className="space-y-2 overflow-y-auto h-[calc(100%-2rem)]">
-                  {trades?.map((trade, idx) => (
+                  {token.recentTrades?.map((trade, idx) => (
                     <div
                       key={trade.signature || idx}
-                      className={`flex items-center justify-between p-2 rounded ${
-                        trade.type === 'buy' ? 'bg-green-500/10' : 'bg-red-500/10'
-                      }`}
+                      className="flex items-center justify-between p-2 rounded bg-black/20 text-sm"
                     >
                       <div className="flex items-center gap-2">
                         <span>{formatTimestamp(trade.timestamp)}</span>
-                        <span className={trade.type === 'buy' ? 'text-green-400' : 'text-red-400'}>
-                          {trade.type.toUpperCase()}
-                        </span>
+                        <span>{trade.signature ? formatAddress(trade.signature) : 'Unknown'}</span>
                       </div>
                       <div className="text-right">
                         <div>{formatPrice(trade.price)}</div>
-                        <div className="text-xs text-gray-500">
-                          {formatPriceUSD(trade.price)}
-                        </div>
                       </div>
                     </div>
                   ))}
@@ -273,7 +246,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
           <div className="space-y-4">
             <Card className="bg-[#111] border-none p-4">
-              <Tabs value={orderType} onValueChange={(v) => setOrderType(v as any)}>
+              <Tabs defaultValue="market" className="w-full">
                 <TabsList className="grid grid-cols-3 mb-4">
                   <TabsTrigger value="market">Market</TabsTrigger>
                   <TabsTrigger value="limit">Limit</TabsTrigger>
@@ -285,45 +258,36 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                 <div>
                   <div className="text-sm text-gray-400 mb-2">Amount</div>
                   <div className="grid grid-cols-4 gap-2">
-                    {['0.01', '0.02', '0.5', '1'].map((amt) => (
-                      <Button 
-                        key={amt}
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setAmount(amt)}
-                      >
-                        {amt}
-                      </Button>
-                    ))}
+                    <Button variant="outline" size="sm">0.01</Button>
+                    <Button variant="outline" size="sm">0.02</Button>
+                    <Button variant="outline" size="sm">0.5</Button>
+                    <Button variant="outline" size="sm">1</Button>
                   </div>
                 </div>
 
-                <Input 
-                  type="number" 
-                  placeholder="Enter amount..." 
-                  className="bg-black border-gray-800"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
+                <Input type="number" placeholder="Enter amount..." className="bg-black border-gray-800" />
 
-                {!wallet.connected ? (
-                  <WalletButton />
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button 
-                      className="bg-green-600 hover:bg-green-700"
-                      onClick={() => handleTrade(true)}
-                    >
-                      Buy
-                    </Button>
-                    <Button 
-                      variant="destructive"
-                      onClick={() => handleTrade(false)}
-                    >
-                      Sell
-                    </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
+                  <Button variant="destructive">Sell</Button>
+                </div>
+
+                <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Funds</Button>
+
+                <div className="grid grid-cols-3 text-sm">
+                  <div>
+                    <div className="text-gray-400">Invested</div>
+                    <div>$0.00</div>
                   </div>
-                )}
+                  <div>
+                    <div className="text-gray-400">Sold</div>
+                    <div>$0.00</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400">P/L</div>
+                    <div className="text-red-500">-0%</div>
+                  </div>
+                </div>
               </div>
             </Card>
           </div>
@@ -331,6 +295,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       </div>
     </div>
   );
-};
+}
 
 export default TokenChart;

@@ -1,21 +1,18 @@
 import { useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast"
-import { useUnifiedTokenStore } from "@/lib/unified-token-store";
+import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 
 export function NewTokenAlert() {
   const { toast } = useToast();
-  const tokens = useUnifiedTokenStore((state) => state.tokens);
-  const solPrice = useUnifiedTokenStore((state) => state.solPrice);
+  const tokens = usePumpPortalStore((state) => state.tokens);
 
   useEffect(() => {
     const handleNewToken = () => {
       if (tokens.length > 0) {
         const latestToken = tokens[0];
-        const priceUsd = (latestToken.price || 0) * (solPrice || 0);
-
         toast({
           title: "New Token Created! 🚀",
-          description: `${latestToken.name} (${latestToken.symbol})\nPrice: $${priceUsd.toFixed(8)}\nMarket Cap: $${(latestToken.marketCap || 0).toFixed(2)}`,
+          description: `${latestToken.name} (${latestToken.symbol})\nPrice: $${latestToken.price.toFixed(8)}\nMarket Cap: $${latestToken.marketCap.toFixed(2)}`,
           duration: 5000,
         });
       }
@@ -23,7 +20,7 @@ export function NewTokenAlert() {
 
     // Subscribe to tokens array changes
     handleNewToken();
-  }, [tokens.length, solPrice]); // Run when tokens array length or SOL price changes
+  }, [tokens.length]); // Only run when tokens array length changes
 
   return null;
 }
