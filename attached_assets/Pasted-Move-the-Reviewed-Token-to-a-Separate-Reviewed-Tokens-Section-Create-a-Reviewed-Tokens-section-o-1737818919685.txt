@@ -1,0 +1,57 @@
+Move the Reviewed Token to a Separate "Reviewed Tokens" Section
+Create a "Reviewed Tokens" section on the page where currently reviewed tokens are always displayed.
+When a user clicks to review a token, move it to this separate section.
+Steps:
+
+Add a reviewedTokens state.
+When a token is being reviewed, move it from the main list to the reviewed section.
+Ensure the main list only displays non-reviewed tokens.
+typescript
+Copy
+Edit
+export const usePumpFunStore = create<PumpFunStore>((set, get) => ({
+  tokens: {},       // Regular tokens
+  reviewedTokens: {}, // Tokens actively being reviewed
+  solPrice: 0,
+
+  reviewToken: (address) => {
+    const store = get();
+    if (store.tokens[address]) {
+      set((state) => ({
+        reviewedTokens: {
+          ...state.reviewedTokens,
+          [address]: state.tokens[address],
+        },
+        tokens: Object.fromEntries(
+          Object.entries(state.tokens).filter(([key]) => key !== address)
+        ),
+      }));
+    }
+  },
+
+  closeReview: (address) => {
+    const store = get();
+    if (store.reviewedTokens[address]) {
+      set((state) => ({
+        tokens: {
+          ...state.tokens,
+          [address]: state.reviewedTokens[address],
+        },
+        reviewedTokens: Object.fromEntries(
+          Object.entries(state.reviewedTokens).filter(([key]) => key !== address)
+        ),
+      }));
+    }
+  },
+
+  // Other methods...
+}));
+Reviewed Tokens Section: Display tokens from reviewedTokens in a persistent section on the page.
+Main List: The tokens list behaves as before, excluding tokens being reviewed.
+3. Use a Virtualized List for Display
+Instead of limiting the token list to 50, use a virtualized list (e.g., React Virtual or react-window) to display only visible tokens.
+Tokens that aren’t visible on-screen don’t consume memory or DOM elements, so you can handle far more than 50 tokens efficiently.
+Steps:
+
+Render the list with virtualization to keep performance high.
+Ensure that a token being reviewed is "locked" in place while being viewed, regardless of new tokens being added.
