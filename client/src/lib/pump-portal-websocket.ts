@@ -78,15 +78,17 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
     const now = Date.now();
     const solAmount = Number(trade.solAmount || 0);
-    
-    // Handle token decimals properly (assuming 9 decimals)
     const rawTokenAmount = Number(trade.tokenAmount || 0);
     const userTokenAmount = rawTokenAmount / Math.pow(10, TOKEN_DECIMALS);
     
     const isBuy = trade.txType === 'buy';
 
-    // Calculate actual trade price from the transaction amounts
-    let actualTradePriceSol = userTokenAmount > 0 ? solAmount / userTokenAmount : 0;
+    // Calculate price using bonding curve data for more accuracy
+    const vTokens = Number(trade.vTokensInBondingCurve || 0) / Math.pow(10, TOKEN_DECIMALS);
+    const vSol = Number(trade.vSolInBondingCurve || 0);
+    
+    // Calculate actual trade price using bonding curve ratio
+    const actualTradePriceSol = vTokens > 0 ? vSol / vTokens : 0;
     const actualTradePriceUsd = actualTradePriceSol * state.solPrice;
 
     // Process bonding curve data
