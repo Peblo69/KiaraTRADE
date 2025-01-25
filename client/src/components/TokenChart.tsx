@@ -13,6 +13,8 @@ interface TokenChartProps {
   onBack: () => void;
 }
 
+const TOKEN_DECIMALS = 9; // Solana uses 9 decimals
+
 const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const token = usePumpPortalStore(state => 
@@ -22,12 +24,18 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   useEffect(() => {
     if (!chartContainerRef.current || !token?.recentTrades) return;
 
-    // Convert trades to chart data
+    // Convert trades to chart data with proper price calculation
     const trades = token.recentTrades
-      .map(trade => ({
-        time: Math.floor(trade.timestamp / 1000),
-        value: trade.solAmount / trade.tokenAmount, // Raw price calculation
-      }))
+      .map(trade => {
+        // Calculate raw SOL/token price
+        const tokenAmount = trade.tokenAmount / (10 ** TOKEN_DECIMALS);
+        const fillPrice = tokenAmount > 0 ? trade.solAmount / tokenAmount : 0;
+
+        return {
+          time: Math.floor(trade.timestamp / 1000),
+          value: fillPrice, // Plot actual price per token in SOL
+        };
+      })
       .filter(trade => !isNaN(trade.value) && trade.value > 0)
       .sort((a, b) => a.time - b.time);
 
@@ -62,8 +70,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     });
 
     lineSeries.setData(trades);
-
-    // Set visible range
     chart.timeScale().fitContent();
 
     const resizeObserver = new ResizeObserver(entries => {
@@ -99,8 +105,18 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
   const formatTokenAmount = (amount: number) => {
     if (!amount || isNaN(amount)) return '0';
-    return amount.toLocaleString(undefined, {maximumFractionDigits: 9});
+    const realAmount = amount / (10 ** TOKEN_DECIMALS);
+    return realAmount.toLocaleString(undefined, {maximumFractionDigits: 9});
   };
+
+  // Calculate current bonding curve price
+  const getBondingCurvePrice = () => {
+    const vTokens = token.vTokensInBondingCurve / (10 ** TOKEN_DECIMALS);
+    if (vTokens <= 0) return 0;
+    return token.vSolInBondingCurve / vTokens;
+  };
+
+  const bondingCurvePrice = getBondingCurvePrice();
 
   return (
     <div className="flex-1 h-screen bg-black text-white">
@@ -135,6 +151,10 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
           </div>
           <div className="flex gap-3">
             <div className="text-right">
+              <div className="text-sm text-gray-400">Current Price (BC)</div>
+              <div className="font-bold">{formatSolAmount(bondingCurvePrice)}</div>
+            </div>
+            <div className="text-right">
               <div className="text-sm text-gray-400">SOL in Pool</div>
               <div className="font-bold">{formatSolAmount(token.vSolInBondingCurve)}</div>
             </div>
@@ -156,27 +176,33 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
               <div className="h-full bg-[#111] rounded-lg p-4 overflow-hidden">
                 <h3 className="text-sm font-semibold mb-2">Recent Trades</h3>
                 <div className="space-y-2 overflow-y-auto h-[calc(100%-2rem)]">
-                  {token.recentTrades?.map((trade, idx) => (
-                    <div
-                      key={trade.signature || idx}
-                      className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
-                        trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{formatTimestamp(trade.timestamp)}</span>
-                        <span>
-                          {formatAddress(trade.txType === 'buy' ? trade.traderPublicKey : trade.counterpartyPublicKey)}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <div>{formatSolAmount(trade.solAmount)}</div>
-                        <div className="text-xs text-gray-500">
-                          {formatTokenAmount(trade.tokenAmount)} tokens
+                  {token.recentTrades?.map((trade, idx) => {
+                    // Calculate fill price for each trade
+                    const tokenAmount = trade.tokenAmount / (10 ** TOKEN_DECIMALS);
+                    const fillPrice = tokenAmount > 0 ? trade.solAmount / tokenAmount : 0;
+
+                    return (
+                      <div
+                        key={trade.signature || idx}
+                        className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
+                          trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>{formatTimestamp(trade.timestamp)}</span>
+                          <span>
+                            {formatAddress(trade.txType === 'buy' ? trade.traderPublicKey : trade.counterpartyPublicKey)}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <div>{formatSolAmount(fillPrice)} per token</div>
+                          <div className="text-xs text-gray-500">
+                            {formatTokenAmount(trade.tokenAmount)} tokens for {formatSolAmount(trade.solAmount)}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </ResizablePanel>
