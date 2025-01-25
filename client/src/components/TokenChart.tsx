@@ -4,31 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { ArrowLeft, DollarSign, Coins, ChartPie } from "lucide-react";
+import { ArrowLeft, DollarSign, Coins, Info } from "lucide-react";
 import { createChart, IChartApi } from 'lightweight-charts';
 import { ErrorBoundary } from './ErrorBoundary';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useQuery } from "@tanstack/react-query";
 
 interface TokenChartProps {
   tokenAddress: string;
   onBack: () => void;
-}
-
-interface Candle {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  color?: string;
 }
 
 interface TokenAnalytics {
@@ -42,15 +30,10 @@ interface TokenAnalytics {
     timestamp: number;
     amount: number;
   }>;
-  insiders: Array<{
-    address: string;
-    interactions: number;
-  }>;
   analytics: {
     totalHolders: number;
     averageBalance: number;
     sniperCount: number;
-    insiderCount: number;
   };
 }
 
@@ -260,9 +243,12 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     );
   }
 
+  const formatBalance = (balance: number) =>
+    balance.toLocaleString(undefined, { maximumFractionDigits: 2 });
+
   return (
     <div className="flex-1 h-screen bg-black text-white">
-      <div className="absolute top-4 left-4 z-10 flex items-center gap-4">
+      <div className="absolute top-4 left-4 z-10">
         <Button
           variant="ghost"
           className="text-white hover:bg-white/10"
@@ -271,139 +257,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
-
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button
-              variant="outline"
-              className="bg-purple-500/20 border-purple-500/50 hover:bg-purple-500/30"
-              onClick={() => setShowAnalytics(true)}
-            >
-              <ChartPie className="h-4 w-4 mr-2" />
-              Analytics
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl bg-black/95 text-white border-purple-500/20">
-            <DialogHeader>
-              <DialogTitle>Token Analytics</DialogTitle>
-              <DialogDescription>
-                Advanced analytics and holder information
-              </DialogDescription>
-            </DialogHeader>
-
-            {isLoadingAnalytics ? (
-              <div className="flex items-center justify-center p-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-purple-500"></div>
-              </div>
-            ) : analytics ? (
-              <div className="space-y-6">
-                {/* Overview Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-purple-500/10 rounded-lg p-4">
-                    <div className="text-sm text-gray-400">Total Holders</div>
-                    <div className="text-xl font-bold">{analytics.analytics.totalHolders}</div>
-                  </div>
-                  <div className="bg-purple-500/10 rounded-lg p-4">
-                    <div className="text-sm text-gray-400">Avg Balance</div>
-                    <div className="text-xl font-bold">{analytics.analytics.averageBalance.toFixed(2)}</div>
-                  </div>
-                  <div className="bg-purple-500/10 rounded-lg p-4">
-                    <div className="text-sm text-gray-400">Snipers</div>
-                    <div className="text-xl font-bold">{analytics.analytics.sniperCount}</div>
-                  </div>
-                  <div className="bg-purple-500/10 rounded-lg p-4">
-                    <div className="text-sm text-gray-400">Insiders</div>
-                    <div className="text-xl font-bold">{analytics.analytics.insiderCount}</div>
-                  </div>
-                </div>
-
-                {/* Top Holders */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Top Holders</h3>
-                  <div className="space-y-2">
-                    {analytics.topHolders.map((holder, idx) => (
-                      <div
-                        key={holder.address}
-                        className="flex items-center justify-between p-2 bg-purple-500/5 rounded-lg hover:bg-purple-500/10 transition-colors"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-purple-400">#{idx + 1}</span>
-                          <a
-                            href={`https://solscan.io/account/${holder.address}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-400 hover:underline"
-                          >
-                            {formatAddress(holder.address)}
-                          </a>
-                        </div>
-                        <div className="text-right">
-                          <div>{formatPercentage(holder.percentage)}</div>
-                          <div className="text-sm text-gray-400">{holder.balance.toFixed(2)} tokens</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Snipers */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Early Buyers (Snipers)</h3>
-                  <div className="space-y-2">
-                    {analytics.snipers.map((sniper) => (
-                      <div
-                        key={sniper.address}
-                        className="flex items-center justify-between p-2 bg-amber-500/5 rounded-lg hover:bg-amber-500/10 transition-colors"
-                      >
-                        <a
-                          href={`https://solscan.io/account/${sniper.address}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-400 hover:underline"
-                        >
-                          {formatAddress(sniper.address)}
-                        </a>
-                        <div className="text-right">
-                          <div>{sniper.amount.toFixed(2)} tokens</div>
-                          <div className="text-sm text-gray-400">{formatTimestamp(sniper.timestamp)}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Insiders */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Insider Activity</h3>
-                  <div className="space-y-2">
-                    {analytics.insiders.map((insider) => (
-                      <div
-                        key={insider.address}
-                        className="flex items-center justify-between p-2 bg-orange-500/5 rounded-lg hover:bg-orange-500/10 transition-colors"
-                      >
-                        <a
-                          href={`https://solscan.io/account/${insider.address}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-400 hover:underline"
-                        >
-                          {formatAddress(insider.address)}
-                        </a>
-                        <div>
-                          <div>{insider.interactions} interactions</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-400">
-                Failed to load analytics data
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
       </div>
 
       <div className="p-4">
@@ -425,7 +278,82 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
             </div>
           </div>
 
-          <div className="flex gap-6">
+          <div className="flex gap-6 items-center">
+            {/* Analytics Info Button */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  className="hover:bg-purple-500/20"
+                  onClick={() => setShowAnalytics(true)}
+                >
+                  <Info className="h-4 w-4 text-purple-400" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 bg-black/95 border-purple-500/20 text-white">
+                {isLoadingAnalytics ? (
+                  <div className="flex items-center justify-center p-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-purple-500"></div>
+                  </div>
+                ) : analytics ? (
+                  <div className="space-y-4">
+                    {/* Top Holders */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-purple-400 mb-2">Top 10% Holders 👑</h3>
+                      <div className="space-y-2">
+                        {analytics.topHolders.slice(0, 5).map((holder) => (
+                          <div key={holder.address} className="flex justify-between text-sm">
+                            <a
+                              href={`https://solscan.io/account/${holder.address}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:underline"
+                            >
+                              {formatAddress(holder.address)}
+                            </a>
+                            <span>{formatBalance(holder.balance)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Snipers */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-amber-400 mb-2">Early Snipers 🎯</h3>
+                      <div className="space-y-2">
+                        {analytics.snipers.slice(0, 5).map((sniper) => (
+                          <div key={sniper.address} className="flex justify-between text-sm">
+                            <a
+                              href={`https://solscan.io/account/${sniper.address}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:underline"
+                            >
+                              {formatAddress(sniper.address)}
+                            </a>
+                            <span>{formatBalance(sniper.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Summary */}
+                    <div className="pt-2 border-t border-purple-500/20">
+                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
+                        <div>Total Holders: {analytics.analytics.totalHolders}</div>
+                        <div>Avg Balance: {formatBalance(analytics.analytics.averageBalance)}</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 text-sm text-gray-400">
+                    Failed to load analytics data
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+
             <div className="text-right">
               <div className="text-sm text-gray-400">Price</div>
               <div className="font-bold">{formatPrice(token.marketCapSol * solPrice)}</div>
@@ -566,3 +494,11 @@ const TokenChart: FC<TokenChartProps> = (props) => {
 };
 
 export default TokenChart;
+interface Candle {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  color?: string;
+}
