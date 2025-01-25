@@ -7,6 +7,8 @@ import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { ArrowLeft } from "lucide-react";
 import { createChart } from 'lightweight-charts';
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletButton } from "./wallet/WalletButton";
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -21,17 +23,18 @@ interface TokenTrade {
 
 type TimeFrame = '1s' | '5s' | '15s' | '30s' | '1m' | '15m' | '30m' | '1h';
 
-export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
+const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('1m');
+  const [amount, setAmount] = useState<string>("");
+  const [orderType, setOrderType] = useState<"market" | "limit" | "dca">("market");
+  const wallet = useWallet();
   const token = usePumpPortalStore(state => 
     state.tokens.find(t => t.address === tokenAddress)
   );
 
   useEffect(() => {
     if (!chartContainerRef.current || !token?.recentTrades) return;
-
-    console.log('Trade data:', token.recentTrades);
 
     // Process trades into consistent time-ordered data points
     const trades = token.recentTrades
@@ -134,6 +137,25 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
       resizeObserver.disconnect();
     };
   }, [token?.recentTrades, timeFrame]);
+
+  const handleTrade = async (isBuy: boolean) => {
+    if (!wallet.connected) {
+      // Show connect wallet message
+      return;
+    }
+
+    if (!amount || isNaN(Number(amount))) {
+      // Show invalid amount error
+      return;
+    }
+
+    try {
+      // Implement trade logic here
+      console.log(`${isBuy ? 'Buying' : 'Selling'} ${amount} ${token?.symbol}`);
+    } catch (error) {
+      console.error("Trade failed:", error);
+    }
+  };
 
   if (!token) return null;
 
@@ -246,7 +268,7 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
 
           <div className="space-y-4">
             <Card className="bg-[#111] border-none p-4">
-              <Tabs defaultValue="market" className="w-full">
+              <Tabs value={orderType} onValueChange={(v) => setOrderType(v as any)}>
                 <TabsList className="grid grid-cols-3 mb-4">
                   <TabsTrigger value="market">Market</TabsTrigger>
                   <TabsTrigger value="limit">Limit</TabsTrigger>
@@ -258,36 +280,70 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
                 <div>
                   <div className="text-sm text-gray-400 mb-2">Amount</div>
                   <div className="grid grid-cols-4 gap-2">
-                    <Button variant="outline" size="sm">0.01</Button>
-                    <Button variant="outline" size="sm">0.02</Button>
-                    <Button variant="outline" size="sm">0.5</Button>
-                    <Button variant="outline" size="sm">1</Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setAmount("0.01")}
+                    >
+                      0.01
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setAmount("0.02")}
+                    >
+                      0.02
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setAmount("0.5")}
+                    >
+                      0.5
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setAmount("1")}
+                    >
+                      1
+                    </Button>
                   </div>
                 </div>
 
-                <Input type="number" placeholder="Enter amount..." className="bg-black border-gray-800" />
+                <Input 
+                  type="number" 
+                  placeholder="Enter amount..." 
+                  className="bg-black border-gray-800"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
 
-                <div className="grid grid-cols-2 gap-2">
-                  <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
-                  <Button variant="destructive">Sell</Button>
-                </div>
+                {!wallet.connected ? (
+                  <WalletButton className="w-full" />
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button 
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => handleTrade(true)}
+                    >
+                      Buy
+                    </Button>
+                    <Button 
+                      variant="destructive"
+                      onClick={() => handleTrade(false)}
+                    >
+                      Sell
+                    </Button>
+                  </div>
+                )}
 
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Funds</Button>
-
-                <div className="grid grid-cols-3 text-sm">
-                  <div>
-                    <div className="text-gray-400">Invested</div>
-                    <div>$0.00</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-400">Sold</div>
-                    <div>$0.00</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-400">P/L</div>
-                    <div className="text-red-500">-0%</div>
-                  </div>
-                </div>
+                <Button 
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  onClick={onBack}
+                >
+                  Back to List
+                </Button>
               </div>
             </Card>
           </div>
@@ -323,6 +379,6 @@ export function TokenChart({ tokenAddress, onBack }: TokenChartProps) {
       </div>
     </div>
   );
-}
+};
 
 export default TokenChart;
