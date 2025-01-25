@@ -86,6 +86,18 @@ export default function PredictionsPage() {
     }).format(price);
   }
 
+  function formatPredictionTime(timestamp: number) {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  function calculatePriceChange(current: number, predicted: number) {
+    return ((predicted - current) / current) * 100;
+  }
+
   return (
     <div className="container mx-auto p-6 min-h-screen bg-gradient-to-b from-gray-900 to-black">
       <div className="mb-8 flex justify-between items-center">
@@ -173,26 +185,48 @@ export default function PredictionsPage() {
             );
           }
 
+          const expectedPrice = prediction.sentiment === 'bullish'
+            ? prediction.predictedPriceRange.high
+            : prediction.predictedPriceRange.low;
+          const priceChange = calculatePriceChange(prediction.currentPrice, expectedPrice);
+
           return (
             <div key={token} className="space-y-6">
               <Card className="p-6 bg-gray-800/50 border-gray-700 backdrop-blur-sm hover:border-purple-500/30 transition-all duration-300">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center border border-purple-500/30">
                       <LineChart className="w-5 h-5 text-purple-400" />
                     </div>
                     <div>
                       <h3 className="text-xl font-bold text-white">{token}</h3>
-                      <p className="text-sm text-gray-400">Advanced Analysis</p>
+                      <p className="text-sm text-gray-400">Current: {formatPrice(prediction.currentPrice)}</p>
                     </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-sm ${
-                    prediction.sentiment === 'bullish'
-                      ? 'bg-green-500/20 text-green-300 border border-green-500/30'
-                      : 'bg-red-500/20 text-red-300 border border-red-500/30'
-                  }`}>
-                    {prediction.sentiment === 'bullish' ? 'Bullish' : 'Bearish'}
-                  </span>
+
+                  <div className="text-right">
+                    <div className="flex items-center justify-end gap-2 mb-1">
+                      <span className="text-sm text-gray-400">24h Prediction:</span>
+                      <span className={`text-sm font-semibold ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {formatPrice(expectedPrice)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <span className={`px-2 py-0.5 rounded-full text-xs ${
+                        prediction.sentiment === 'bullish'
+                          ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+                          : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                      }`}>
+                        {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {(prediction.confidence * 100).toFixed(0)}% confidence
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      Updated: {formatPredictionTime(prediction.timestamp)}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-6">
