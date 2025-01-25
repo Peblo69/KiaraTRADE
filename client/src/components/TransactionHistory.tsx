@@ -1,5 +1,7 @@
+
 import { FC } from 'react';
 import { useUnifiedTokenStore } from '@/lib/unified-token-store';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { ExternalLink } from 'lucide-react';
 
 interface TransactionHistoryProps {
@@ -11,7 +13,7 @@ const formatAddress = (address: string): string => {
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
 };
 
-const formatTime = (timestamp: number): string => {
+const formatTimeAgo = (timestamp: number): string => {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
   if (seconds < 60) return `${seconds}s ago`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
@@ -32,22 +34,22 @@ const TransactionHistory: FC<TransactionHistoryProps> = ({ tokenAddress }) => {
       <h4 className="text-sm text-gray-400 mb-3">Recent Transactions</h4>
       <div className="space-y-2">
         {transactions.map((tx) => {
-          const timeAgo = formatTime(tx.timestamp);
+          const timeAgo = formatTimeAgo(tx.timestamp);
           const buyerAddress = formatAddress(tx.buyer);
           const sellerAddress = formatAddress(tx.seller);
           const usdAmount = tx.solAmount * (solPrice || 0);
+          const date = new Date(tx.timestamp);
+          const timeString = date.toLocaleTimeString();
 
           return (
-            <div 
-              key={tx.signature} 
-              className="flex flex-col p-3 bg-gray-900/50 rounded-lg text-sm"
-            >
+            <div key={tx.signature} className="flex flex-col p-3 bg-gray-900/50 rounded-lg text-sm">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-0.5 rounded ${tx.type === 'buy' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                     {tx.type === 'buy' ? 'Buy' : 'Sell'}
                   </span>
-                  <span className="text-gray-500 text-xs">{timeAgo}</span>
+                  <span className="text-gray-400 text-xs">{timeString}</span>
+                  <span className="text-gray-500 text-xs">({timeAgo})</span>
                 </div>
                 <a
                   href={`https://solscan.io/tx/${tx.signature}`}
@@ -85,7 +87,7 @@ const TransactionHistory: FC<TransactionHistoryProps> = ({ tokenAddress }) => {
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <span className="text-white">{tx.solAmount.toFixed(4)} SOL</span>
-                  <span className="text-gray-400 text-xs">${usdAmount.toFixed(2)}</span>
+                  <span className="text-gray-400 text-xs">${usdAmount.toFixed(6)}</span>
                 </div>
               </div>
             </div>
