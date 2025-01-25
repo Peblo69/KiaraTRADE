@@ -72,19 +72,20 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     if (!token || !state.solPrice) return;
 
     const now = Date.now();
-    
-    // 1) Calculate SOL amount spent in trade
-    const solAmount = Number(trade.solAmount || 0);
-    
-    // 2) Calculate actual token amount with decimals
-    const rawTokenAmount = Number(trade.tokenAmount || 0);
-    const userTokenAmount = rawTokenAmount / Math.pow(10, TOKEN_DECIMALS);
 
-    // Calculate actual trade prices
-    const actualTradePriceSol = userTokenAmount > 0 ? Math.abs(solAmount) / userTokenAmount : 0;
+    // Get the raw amounts from trade
+    const solAmount = Number(trade.solAmount || 0);
+    const tokenAmount = Number(trade.tokenAmount || 0);
+    const userTokenAmount = tokenAmount / Math.pow(10, TOKEN_DECIMALS);
+
+    // For buys: solAmount is what was paid, for sells: it's what was received
+    const displayAmount = Math.abs(solAmount);
+
+    // Calculate per-token price (SOL spent or received / tokens traded)
+    const actualTradePriceSol = userTokenAmount > 0 ? displayAmount / userTokenAmount : 0;
     const actualTradePriceUsd = actualTradePriceSol * state.solPrice;
-    
-    // Get market data
+
+    // Get bonding curve data
     const vSol = Number(trade.vSolInBondingCurve || 0);
     const vTokens = Number(trade.vTokensInBondingCurve || 0) / Math.pow(10, TOKEN_DECIMALS);
     const bondingCurvePriceSol = vTokens > 0 ? vSol / vTokens : 0;
