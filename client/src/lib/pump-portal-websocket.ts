@@ -87,9 +87,13 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const buyerAddress = isBuy ? trade.traderPublicKey : trade.counterpartyPublicKey;
     const sellerAddress = isBuy ? trade.counterpartyPublicKey : trade.traderPublicKey;
     
-    // Ensure valid wallet addresses
-    if (!buyerAddress?.startsWith('') || !sellerAddress?.startsWith('')) {
-      console.warn('[PumpPortal] Invalid wallet address in trade');
+    // Ensure valid Solana wallet addresses (Base58 check)
+    const isValidSolanaAddress = (address?: string) => {
+      return address?.length === 44 || address?.length === 43;
+    };
+    
+    if (!isValidSolanaAddress(buyerAddress) && !isValidSolanaAddress(sellerAddress)) {
+      console.warn('[PumpPortal] Invalid wallet addresses in trade:', {buyerAddress, sellerAddress});
       return;
     }
 
