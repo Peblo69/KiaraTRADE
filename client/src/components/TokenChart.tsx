@@ -13,7 +13,7 @@ interface TokenChartProps {
   onBack: () => void;
 }
 
-export const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
+const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const token = usePumpPortalStore(state => 
     state.tokens.find(t => t.address === tokenAddress)
@@ -22,10 +22,11 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   useEffect(() => {
     if (!chartContainerRef.current || !token?.recentTrades) return;
 
-    // Process trades into candlestick data
+    // Process trades into candlestick data with unique timestamps
     const trades = token.recentTrades
-      .map(trade => ({
-        time: Math.floor(trade.timestamp / 1000),
+      .map((trade, index) => ({
+        // Add microseconds to ensure unique timestamps
+        time: Math.floor(trade.timestamp / 1000) + (index * 0.001),
         value: trade.price,
         color: trade.type === 'buy' ? '#22c55e' : '#ef4444'
       }))
