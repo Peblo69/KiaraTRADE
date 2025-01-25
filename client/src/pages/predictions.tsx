@@ -16,6 +16,8 @@ import type { PredictionResult } from "../../../server/types/prediction";
 import { AdvancedPriceChart } from "@/components/AdvancedPriceChart";
 import { TechnicalAnalysis } from "@/components/TechnicalAnalysis";
 import { MarketContext } from "@/components/MarketContext";
+import { motion } from "framer-motion";
+import CryptoIcon from "@/components/CryptoIcon";
 
 interface ChartData {
   [key: string]: {
@@ -100,7 +102,12 @@ export default function PredictionsPage() {
 
   return (
     <div className="container mx-auto p-6 min-h-screen bg-gradient-to-b from-gray-900 to-black">
-      <div className="mb-8 flex justify-between items-center">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="mb-8 flex justify-between items-center"
+      >
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Advanced Price Predictions</h1>
           <p className="text-gray-400">
@@ -162,7 +169,7 @@ export default function PredictionsPage() {
             </DialogHeader>
           </DialogContent>
         </Dialog>
-      </div>
+      </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {selectedTokens.map((token, index) => {
@@ -172,16 +179,23 @@ export default function PredictionsPage() {
 
           if (!prediction || !tokenChartData.length) {
             return (
-              <Card key={token} className="p-6 bg-gray-800/50 border-gray-700">
-                <div className="animate-pulse space-y-4">
-                  <div className="h-4 bg-gray-700 rounded w-3/4"></div>
-                  <div className="h-8 bg-gray-700 rounded"></div>
-                  <div className="space-y-2">
-                    <div className="h-4 bg-gray-700 rounded"></div>
-                    <div className="h-4 bg-gray-700 rounded w-5/6"></div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3, delay: index * 0.1 }}
+                key={token}
+              >
+                <Card className="p-6 bg-gray-800/50 border-gray-700">
+                  <div className="animate-pulse space-y-4">
+                    <div className="h-4 bg-gray-700 rounded w-3/4"></div>
+                    <div className="h-8 bg-gray-700 rounded"></div>
+                    <div className="space-y-2">
+                      <div className="h-4 bg-gray-700 rounded"></div>
+                      <div className="h-4 bg-gray-700 rounded w-5/6"></div>
+                    </div>
                   </div>
-                </div>
-              </Card>
+                </Card>
+              </motion.div>
             );
           }
 
@@ -191,13 +205,26 @@ export default function PredictionsPage() {
           const priceChange = calculatePriceChange(prediction.currentPrice, expectedPrice);
 
           return (
-            <div key={token} className="space-y-6">
-              <Card className="p-6 bg-gray-800/50 border-gray-700 backdrop-blur-sm hover:border-purple-500/30 transition-all duration-300">
+            <motion.div
+              key={token}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, delay: index * 0.1 }}
+              className="space-y-6"
+            >
+              <Card className="p-6 bg-gray-800/50 border-gray-700 backdrop-blur-sm hover:border-purple-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center border border-purple-500/30">
-                      <LineChart className="w-5 h-5 text-purple-400" />
-                    </div>
+                    <motion.div
+                      whileHover={{ scale: 1.1 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <CryptoIcon
+                        symbol={token}
+                        size="lg"
+                        className="bg-gradient-to-br from-purple-500/20 to-blue-500/20 p-1 border border-purple-500/30"
+                      />
+                    </motion.div>
                     <div>
                       <h3 className="text-xl font-bold text-white">{token}</h3>
                       <p className="text-sm text-gray-400">Current: {formatPrice(prediction.currentPrice)}</p>
@@ -212,13 +239,18 @@ export default function PredictionsPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-end gap-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs ${
-                        prediction.sentiment === 'bullish'
-                          ? 'bg-green-500/20 text-green-300 border border-green-500/30'
-                          : 'bg-red-500/20 text-red-300 border border-red-500/30'
-                      }`}>
+                      <motion.span
+                        initial={{ scale: 0.9 }}
+                        animate={{ scale: 1 }}
+                        transition={{ duration: 0.2 }}
+                        className={`px-2 py-0.5 rounded-full text-xs ${
+                          prediction.sentiment === 'bullish'
+                            ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+                            : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                        }`}
+                      >
                         {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
-                      </span>
+                      </motion.span>
                       <span className="text-xs text-gray-500">
                         {(prediction.confidence * 100).toFixed(0)}% confidence
                       </span>
@@ -293,7 +325,7 @@ export default function PredictionsPage() {
                   )}
                 </div>
               </Card>
-            </div>
+            </motion.div>
           );
         })}
       </div>
