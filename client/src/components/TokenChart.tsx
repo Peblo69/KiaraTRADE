@@ -15,8 +15,22 @@ interface TokenChartProps {
 }
 
 const TOKEN_DECIMALS = 9;
-const CANDLE_PERIOD = 15; // 15 seconds per candle
-const VISIBLE_CANDLES = 50; // Number of candles to show
+
+type TimeInterval = {
+  label: string;
+  seconds: number;
+};
+
+const TIME_INTERVALS: TimeInterval[] = [
+  { label: '1s', seconds: 1 },
+  { label: '5s', seconds: 5 },
+  { label: '15s', seconds: 15 },
+  { label: '30s', seconds: 30 },
+  { label: '1m', seconds: 60 },
+  { label: '15m', seconds: 900 },
+  { label: '30m', seconds: 1800 },
+  { label: '1h', seconds: 3600 },
+];
 
 interface Candle {
   time: number;
@@ -32,23 +46,27 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const chartRef = useRef<IChartApi | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const isMountedRef = useRef(true);
-  const lastRenderTimeRef = useRef<number>(Date.now());
   const [showUsd, setShowUsd] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [currentCandle, setCurrentCandle] = useState<Candle | null>(null);
+  const [selectedInterval, setSelectedInterval] = useState<TimeInterval>(TIME_INTERVALS[2]); // Default to 15s
 
   const token = usePumpPortalStore(
     useCallback(state => state.tokens.find(t => t.address === tokenAddress), [tokenAddress])
   );
 
   const solPrice = usePumpPortalStore(state => state.solPrice);
-  const isConnected = usePumpPortalStore(state => state.isConnected);
+
+  // Convert SOL amount to market cap
+  const calculateMarketCap = useCallback((solAmount: number) => {
+    if (!solAmount || !solPrice) return 0;
+    return solAmount * solPrice;
+  }, [solPrice]);
 
   const processTradeIntoCandle = useCallback((trade: any): Candle => {
-    const tokenAmount = trade.tokenAmount / (10 ** TOKEN_DECIMALS);
-    const price = tokenAmount > 0 ? trade.solAmount / tokenAmount : 0;
+    const marketCap = calculateMarketCap(trade.marketCapSol);
     const timestamp = Math.floor(trade.timestamp / 1000);
-    const candleStartTime = Math.floor(timestamp / CANDLE_PERIOD) * CANDLE_PERIOD;
+    const candleStartTime = Math.floor(timestamp / selectedInterval.seconds) * selectedInterval.seconds;
 
     // Find existing candle for this time period or create new one
     const existingCandle = currentCandle?.time === candleStartTime ? currentCandle : null;
@@ -56,20 +74,20 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     if (!existingCandle) {
       return {
         time: candleStartTime,
-        open: price,
-        high: price,
-        low: price,
-        close: price
+        open: marketCap,
+        high: marketCap,
+        low: marketCap,
+        close: marketCap
       };
     }
 
     return {
       ...existingCandle,
-      high: Math.max(existingCandle.high, price),
-      low: Math.min(existingCandle.low, price),
-      close: price // Latest price becomes close
+      high: Math.max(existingCandle.high, marketCap),
+      low: Math.min(existingCandle.low, marketCap),
+      close: marketCap
     };
-  }, [currentCandle]);
+  }, [currentCandle, selectedInterval, calculateMarketCap]);
 
   const cleanupChart = useCallback(() => {
     if (resizeObserverRef.current && chartContainerRef.current) {
@@ -101,15 +119,29 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       height: chartContainerRef.current.clientHeight,
       rightPriceScale: {
         borderColor: '#333333',
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.1,
+        },
       },
       timeScale: {
         timeVisible: true,
         secondsVisible: true,
         borderColor: '#333333',
-        rightOffset: 12,
+        rightOffset: 15,
         barSpacing: 12,
-        fixLeftEdge: true,
+        fixLeftEdge: false,
+        fixRightEdge: true,
         lockVisibleTimeRangeOnResize: true,
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true,
       },
     });
 
@@ -144,8 +176,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     });
 
     const sortedCandles = Array.from(candles.values())
-      .sort((a, b) => a.time - b.time)
-      .slice(-VISIBLE_CANDLES);
+      .sort((a, b) => a.time - b.time);
 
     if (sortedCandles.length > 0) {
       candlestickSeries.setData(sortedCandles);
@@ -164,14 +195,14 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       candlestickSeries.applyOptions({
         priceFormat: {
           type: 'price',
-          precision: 9,
-          minMove: 0.000000001,
+          precision: 2,
+          minMove: 0.01,
         },
       });
 
-      // Set visible range
+      // Set visible range to show latest candles
       chart.timeScale().setVisibleLogicalRange({
-        from: Math.max(0, sortedCandles.length - VISIBLE_CANDLES),
+        from: Math.max(0, sortedCandles.length - 50),
         to: sortedCandles.length + 5,
       });
 
@@ -184,16 +215,11 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       if (!chartRef.current || !isMountedRef.current) return;
 
       const { width, height } = entries[0].contentRect;
-      const now = Date.now();
-
-      if (now - lastRenderTimeRef.current > 100) {
-        lastRenderTimeRef.current = now;
-        requestAnimationFrame(() => {
-          if (chartRef.current && isMountedRef.current) {
-            chartRef.current.applyOptions({ width, height });
-          }
-        });
-      }
+      requestAnimationFrame(() => {
+        if (chartRef.current && isMountedRef.current) {
+          chartRef.current.applyOptions({ width, height });
+        }
+      });
     });
 
     if (chartContainerRef.current) {
@@ -202,6 +228,13 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     }
 
   }, [token?.recentTrades, cleanupChart, processTradeIntoCandle]);
+
+  // Handle interval change
+  const handleIntervalChange = useCallback((interval: TimeInterval) => {
+    setSelectedInterval(interval);
+    cleanupChart();
+    setTimeout(initializeChart, 0); // Re-initialize with new interval
+  }, [cleanupChart, initializeChart]);
 
   // Chart lifecycle and updates
   useEffect(() => {
@@ -235,7 +268,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const formatPrice = (value: number) => {
     if (!value || isNaN(value)) return showUsd ? '$0.00' : '0 SOL';
     return showUsd 
-      ? `$${(value * solPrice).toFixed(2)}`
+      ? `$${(value).toFixed(2)}`
       : `${value.toFixed(9)} SOL`;
   };
 
@@ -321,8 +354,23 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
         <div className="grid grid-cols-[1fr,300px] gap-4">
           <div className="space-y-4">
-            <div className="h-[500px] bg-[#111] rounded-lg p-4">
-              <div ref={chartContainerRef} className="h-full" />
+            <div className="h-[500px] bg-[#111] rounded-lg">
+              <div className="flex items-center gap-2 p-2 border-b border-gray-800">
+                {TIME_INTERVALS.map((interval) => (
+                  <Button
+                    key={interval.label}
+                    variant={selectedInterval === interval ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => handleIntervalChange(interval)}
+                    className="text-xs"
+                  >
+                    {interval.label}
+                  </Button>
+                ))}
+              </div>
+              <div className="p-4">
+                <div ref={chartContainerRef} className="h-[450px]" />
+              </div>
             </div>
 
             <div className="bg-[#111] rounded-lg p-4">
