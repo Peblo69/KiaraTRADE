@@ -1,10 +1,21 @@
+interface CacheData<T> {
+  data: T | null;
+  timestamp: number;
+}
+
+interface Cache {
+  prices: CacheData<any>;
+  stats24h: CacheData<any>;
+  trending: CacheData<any>;
+  news: CacheData<any>;
+}
+
 import { db } from "@db";
 import { coinImages, coinMappings } from "@db/schema";
 import { eq } from "drizzle-orm";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { wsManager } from './services/websocket';
-import { initializePumpPortalWebSocket } from './pumpportal';
 import { generateAIResponse } from './services/ai';
 import axios from 'axios';
 import { getTokenImage } from './image-worker';
@@ -34,7 +45,7 @@ axios.interceptors.request.use(async (config) => {
 });
 
 // Cache structure for API data
-const cache = {
+const cache: Cache = {
   prices: { data: null, timestamp: 0 },
   stats24h: { data: null, timestamp: 0 },
   trending: { data: null, timestamp: 0 },
@@ -44,11 +55,9 @@ const cache = {
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
-  // Initialize WebSocket manager - this will handle all WebSocket connections
+  // Initialize WebSocket manager
   wsManager.initialize(httpServer);
 
-  // Initialize PumpPortal WebSocket
-  initializePumpPortalWebSocket();
 
   // Add crypto news endpoint
   app.get('/api/crypto-news', async (req, res) => {

@@ -4,12 +4,21 @@ import { Card } from "@/components/ui/card";
 import { useUnifiedTokenStore } from "@/lib/unified-token-store";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { getTokenImage } from "@/lib/token-metadata";
 import { formatPrice, formatMarketCap } from "@/lib/utils";
 import TokenChart from "@/components/TokenChart";
 
-const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) => {
+interface TokenData {
+  name: string;
+  symbol: string;
+  imageLink?: string;
+  price: number;
+  marketCap: number;
+  liquidity: number;
+  volume: number;
+  address: string;
+}
+
+const TokenRow: FC<{ token: TokenData; onClick: () => void }> = ({ token, onClick }) => {
   return (
     <Card 
       className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
@@ -53,8 +62,8 @@ const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) =
 
 const PumpFunVision: FC = () => {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
-  const tokens = usePumpPortalStore((state) => state.tokens);
-  const isConnected = usePumpPortalStore((state) => state.isConnected);
+  const tokens = useUnifiedTokenStore((state) => state.tokens);
+  const isConnected = useUnifiedTokenStore((state) => state.isConnected);
 
   if (selectedToken) {
     return (

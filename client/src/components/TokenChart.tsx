@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
+import { useUnifiedTokenStore } from "@/lib/unified-token-store";
 import { ArrowLeft } from "lucide-react";
 import { createChart } from 'lightweight-charts';
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -15,12 +15,6 @@ interface TokenChartProps {
   onBack: () => void;
 }
 
-interface TokenTrade {
-  signature: string;
-  timestamp: number;
-  price: number;
-}
-
 type TimeFrame = '1s' | '5s' | '15s' | '30s' | '1m' | '15m' | '30m' | '1h';
 
 const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
@@ -29,18 +23,20 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   const [amount, setAmount] = useState<string>("");
   const [orderType, setOrderType] = useState<"market" | "limit" | "dca">("market");
   const wallet = useWallet();
-  const token = usePumpPortalStore(state => 
-    state.tokens.find(t => t.address === tokenAddress)
-  );
+
+  // Use unified store instead of pump portal store
+  const token = useUnifiedTokenStore(state => state.getToken(tokenAddress));
+  const trades = useUnifiedTokenStore(state => state.getTransactions(tokenAddress));
+  const solPrice = useUnifiedTokenStore(state => state.solPrice);
 
   useEffect(() => {
-    if (!chartContainerRef.current || !token?.recentTrades) return;
+    if (!chartContainerRef.current || !trades?.length) return;
 
     // Process trades into consistent time-ordered data points
-    const trades = token.recentTrades
+    const processedTrades = trades
       .map(trade => ({
         timestamp: Math.floor(trade.timestamp / 1000) * 1000,
-        price: Number(trade.price) || 0,
+        price: trade.price || 0,
       }))
       .filter(trade => !isNaN(trade.price) && trade.price > 0)
       .sort((a, b) => a.timestamp - b.timestamp);
@@ -60,7 +56,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
     const CANDLE_INTERVAL = CANDLE_INTERVALS[timeFrame];
 
-    trades.forEach(trade => {
+    processedTrades.forEach(trade => {
       const candleTime = Math.floor(trade.timestamp / CANDLE_INTERVAL) * CANDLE_INTERVAL;
 
       if (!candleMap.has(candleTime)) {
@@ -114,7 +110,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
     // Set visible range with padding
     const timeRange = {
-      from: candleData[0].time - 300,
+      from: candleData[0].time,
       to: candleData[candleData.length - 1].time + 300
     };
 
@@ -136,16 +132,14 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       chart.remove();
       resizeObserver.disconnect();
     };
-  }, [token?.recentTrades, timeFrame]);
+  }, [trades, timeFrame]);
 
   const handleTrade = async (isBuy: boolean) => {
     if (!wallet.connected) {
-      // Show connect wallet message
       return;
     }
 
     if (!amount || isNaN(Number(amount))) {
-      // Show invalid amount error
       return;
     }
 
@@ -168,10 +162,14 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     return new Date(timestamp).toLocaleTimeString();
   };
 
-  const formatPrice = (price: number | string | undefined) => {
-    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-    if (!numPrice || isNaN(numPrice)) return '$0.00';
-    return `$${numPrice.toFixed(8)}`;
+  const formatPrice = (price: number | undefined) => {
+    if (!price || isNaN(price)) return '$0.00';
+    return `$${price.toFixed(8)}`;
+  };
+
+  const formatPriceUSD = (price: number | undefined) => {
+    if (!price || isNaN(price)) return '$0.00';
+    return `$${(price * (solPrice || 0)).toFixed(2)}`;
   };
 
   return (
@@ -210,18 +208,18 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Liquidity</div>
-              <div className="font-bold">${token.liquidity?.toFixed(2) || '0.00'}</div>
+              <div className="font-bold">${token.liquidityUsd?.toFixed(2) || '0.00'}</div>
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Volume (24h)</div>
-              <div className="font-bold">${token.volume?.toFixed(2) || '0.00'}</div>
+              <div className="font-bold">${token.volume24h?.toFixed(2) || '0.00'}</div>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-[1fr,300px] gap-4">
-          <ResizablePanelGroup direction="vertical" className="h-[600px]">
-            <ResizablePanel defaultSize={80} minSize={30}>
+          <ResizablePanelGroup direction="vertical" className="h-[calc(100vh-200px)]">
+            <ResizablePanel defaultSize={70}>
               <div className="h-full bg-[#111] rounded-lg overflow-hidden">
                 <div className="p-2 border-b border-white/10">
                   <div className="flex gap-1">
@@ -243,21 +241,28 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                 </div>
               </div>
             </ResizablePanel>
-            <ResizablePanel defaultSize={20} minSize={10}>
+            <ResizablePanel defaultSize={30}>
               <div className="h-full bg-[#111] rounded-lg p-4 overflow-hidden">
                 <h3 className="text-sm font-semibold mb-2">Recent Trades</h3>
                 <div className="space-y-2 overflow-y-auto h-[calc(100%-2rem)]">
-                  {token.recentTrades?.map((trade, idx) => (
+                  {trades?.map((trade, idx) => (
                     <div
                       key={trade.signature || idx}
-                      className="flex items-center justify-between p-2 rounded bg-black/20 text-sm"
+                      className={`flex items-center justify-between p-2 rounded ${
+                        trade.type === 'buy' ? 'bg-green-500/10' : 'bg-red-500/10'
+                      }`}
                     >
                       <div className="flex items-center gap-2">
                         <span>{formatTimestamp(trade.timestamp)}</span>
-                        <span>{trade.signature ? formatAddress(trade.signature) : 'Unknown'}</span>
+                        <span className={trade.type === 'buy' ? 'text-green-400' : 'text-red-400'}>
+                          {trade.type.toUpperCase()}
+                        </span>
                       </div>
                       <div className="text-right">
                         <div>{formatPrice(trade.price)}</div>
+                        <div className="text-xs text-gray-500">
+                          {formatPriceUSD(trade.price)}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -280,34 +285,16 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                 <div>
                   <div className="text-sm text-gray-400 mb-2">Amount</div>
                   <div className="grid grid-cols-4 gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setAmount("0.01")}
-                    >
-                      0.01
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setAmount("0.02")}
-                    >
-                      0.02
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setAmount("0.5")}
-                    >
-                      0.5
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setAmount("1")}
-                    >
-                      1
-                    </Button>
+                    {['0.01', '0.02', '0.5', '1'].map((amt) => (
+                      <Button 
+                        key={amt}
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setAmount(amt)}
+                      >
+                        {amt}
+                      </Button>
+                    ))}
                   </div>
                 </div>
 
@@ -320,7 +307,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                 />
 
                 {!wallet.connected ? (
-                  <WalletButton className="w-full" />
+                  <WalletButton />
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
                     <Button 
@@ -337,43 +324,8 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                     </Button>
                   </div>
                 )}
-
-                <Button 
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                  onClick={onBack}
-                >
-                  Back to List
-                </Button>
               </div>
             </Card>
-          </div>
-
-          {/* Real-time trades panel */}
-          <div className="mt-4 bg-[#111] rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-3">Real-time Trades</h3>
-            <div className="grid grid-cols-4 text-sm text-gray-400 mb-2">
-              <div>Time</div>
-              <div>Type</div>
-              <div>Price</div>
-              <div>Amount</div>
-            </div>
-            <div className="space-y-2 max-h-[200px] overflow-y-auto">
-              {token.recentTrades?.map((trade, idx) => (
-                <div 
-                  key={trade.signature || idx}
-                  className={`grid grid-cols-4 text-sm p-2 rounded ${
-                    trade.type === 'buy' ? 'bg-green-500/10' : 'bg-red-500/10'
-                  }`}
-                >
-                  <div>{new Date(trade.timestamp).toLocaleTimeString()}</div>
-                  <div className={trade.type === 'buy' ? 'text-green-400' : 'text-red-400'}>
-                    {trade.type === 'buy' ? 'Buy' : 'Sell'}
-                  </div>
-                  <div>{formatPrice(trade.price)}</div>
-                  <div>{trade.amount?.toFixed(4)}</div>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </div>
