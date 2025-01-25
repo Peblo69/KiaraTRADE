@@ -142,8 +142,8 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     chartRef.current = chart;
 
     const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#22c55e',      // Green for buys
-      downColor: '#ef4444',    // Red for sells
+      upColor: '#22c55e',      // Green for price increase
+      downColor: '#ef4444',    // Red for price decrease
       borderUpColor: '#22c55e',
       borderDownColor: '#ef4444',
       wickUpColor: '#22c55e',
@@ -163,11 +163,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         const mcap = trade.marketCapSol * solPrice; // Convert to USD
         const existing = candles.get(candleTime);
 
-        // Set candle color based on trade type and if it's from DEV wallet
-        const isDevTrade = trade.traderPublicKey === devWallet;
-        const candleColor = isDevTrade ? '#fbbf24' : // Yellow for DEV
-          trade.txType === 'buy' ? '#22c55e' : '#ef4444'; // Green for buy, Red for sell
-
         if (!existing) {
           candles.set(candleTime, {
             time: candleTime,
@@ -175,14 +170,15 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
             high: Math.max(lastClose, mcap),
             low: Math.min(lastClose, mcap),
             close: mcap,
-            color: candleColor
+            // Color based on price movement, not trade type
+            color: mcap >= lastClose ? '#22c55e' : '#ef4444'
           });
         } else {
           existing.high = Math.max(existing.high, mcap);
           existing.low = Math.min(existing.low, mcap);
           existing.close = mcap;
-          // Color based on the last trade in the candle
-          existing.color = candleColor;
+          // Color based on close vs open, not trade type
+          existing.color = existing.close >= existing.open ? '#22c55e' : '#ef4444';
         }
 
         lastClose = mcap;
