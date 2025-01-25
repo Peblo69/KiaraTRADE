@@ -25,10 +25,18 @@ const ProjectPage: FC = () => {
         >
           <Card className="p-8 bg-gray-800/50 border-purple-800/20 backdrop-blur-sm">
             <div className="aspect-video rounded-lg overflow-hidden bg-black/50">
-              {/* Video content will be added here */}
-              <div className="w-full h-full flex items-center justify-center text-gray-500">
-                Video content coming soon
-              </div>
+              {/* Video player container ready for MP4/WebM/Ogg formats */}
+              <video 
+                className="w-full h-full object-cover"
+                controls
+                playsInline
+                preload="metadata"
+              >
+                {/* Video source will be added here */}
+                <p className="text-gray-500 flex items-center justify-center h-full">
+                  Upload a video file (MP4, WebM, or Ogg format)
+                </p>
+              </video>
             </div>
 
             <div className="mt-6">
