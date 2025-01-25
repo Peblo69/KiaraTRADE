@@ -205,10 +205,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           top: 0.1,
           bottom: 0.1,
         },
-      });
-
-      // Force the price range to show 7K to 9K initially
-      candlestickSeries.priceScale().setRange({
         minValue: 7000,
         maxValue: 9000,
       });
