@@ -125,15 +125,15 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
     console.log('[Trade]', {
       type: isBuy ? 'buy' : 'sell', 
-      price: tokenPrice,
-      priceUsd: tokenPriceUsd,
-      amount: Math.abs(tradeAmount),
+      price: actualTradePriceSol,
+      priceUsd: actualTradePriceUsd,
+      amount: Math.abs(solAmount),
       volume: tradeVolume,
       solPrice: state.solPrice,
-      tokenAmount: Number(trade.tokenAmount || 0),
-      vTokens: Number(vTokens || 0),
-      vSol: Number(vSol || 0),
-      marketCapSol: Number(marketCapSol || 0),
+      tokenAmount: userTokenAmount,
+      vTokens,
+      vSol,
+      marketCapSol,
       marketCapUsd
     });
 
