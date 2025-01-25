@@ -26,18 +26,24 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
     // Convert trades to chart data with proper price calculation
     const trades = token.recentTrades
-      .map(trade => {
+      .map((trade, index) => {
         // Calculate raw SOL/token price
         const tokenAmount = trade.tokenAmount / (10 ** TOKEN_DECIMALS);
         const fillPrice = tokenAmount > 0 ? trade.solAmount / tokenAmount : 0;
 
+        // Add millisecond offset to ensure unique timestamps
+        const timestamp = Math.floor(trade.timestamp / 1000);
         return {
-          time: Math.floor(trade.timestamp / 1000),
-          value: fillPrice, // Plot actual price per token in SOL
+          time: timestamp + (index * 0.001), // Add small offset to prevent duplicate timestamps
+          value: fillPrice,
         };
       })
       .filter(trade => !isNaN(trade.value) && trade.value > 0)
-      .sort((a, b) => a.time - b.time);
+      .sort((a, b) => {
+        // Ensure strict ascending order
+        if (a.time === b.time) return 0;
+        return a.time - b.time;
+      });
 
     if (trades.length === 0) return;
 
@@ -69,8 +75,11 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       },
     });
 
-    lineSeries.setData(trades);
-    chart.timeScale().fitContent();
+    // Ensure data is valid before setting
+    if (trades.length > 0 && trades.every(t => typeof t.time === 'number' && typeof t.value === 'number')) {
+      lineSeries.setData(trades);
+      chart.timeScale().fitContent();
+    }
 
     const resizeObserver = new ResizeObserver(entries => {
       const { width, height } = entries[0].contentRect;
