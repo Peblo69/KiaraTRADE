@@ -52,8 +52,8 @@ if (!process.env.HELIUS_API_KEY) {
   throw new Error("HELIUS_API_KEY must be set in environment variables");
 }
 
-// Updated Helius API base URL for v2
-const HELIUS_API_BASE = 'https://mainnet.helius-rpc.com/v0';
+// Updated Helius API base URL
+const HELIUS_API_BASE = 'https://api.helius.xyz/v0';
 
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
@@ -505,7 +505,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get wallet details, balance and tokens
+  // Wallet data endpoint with detailed logging
   app.get('/api/wallet/:address', async (req, res) => {
     try {
       const { address } = req.params;
@@ -516,29 +516,45 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      console.log(`[Routes] Fetching data for wallet: ${address}`);
+      console.log(`[DEBUG] Starting wallet data fetch for address: ${address}`);
+      console.log(`[DEBUG] Using Helius API base: ${HELIUS_API_BASE}`);
+      console.log(`[DEBUG] API Key exists: ${!!process.env.HELIUS_API_KEY}`);
 
-      // Get portfolio using enhanced API
-      const portfolioResponse = await axios.post(HELIUS_API_BASE, {
-        jsonrpc: '2.0',
-        id: 'my-id',
-        method: 'getPortfolio',
-        params: {
-          ownerAddress: address,
-          options: {
-            tokens: true,
-            nfts: false,
-            portionSize: 20
+      // Portfolio request config
+      const portfolioConfig = {
+        method: 'post',
+        url: HELIUS_API_BASE,
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        data: {
+          jsonrpc: '2.0',
+          id: 'portfolio-request',
+          method: 'getPortfolio',
+          params: {
+            ownerAddress: address,
+            options: {
+              tokens: true,
+              nfts: false,
+              portionSize: 20
+            }
           }
-        }
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
+        },
+        params: {
           'api-key': process.env.HELIUS_API_KEY
         }
-      });
+      };
 
-      console.log('[Routes] Portfolio response:', portfolioResponse.data);
+      console.log('[DEBUG] Portfolio request config:', JSON.stringify(portfolioConfig, null, 2));
+
+      const portfolioResponse = await axios(portfolioConfig);
+
+      console.log('[DEBUG] Portfolio API Response:', {
+        status: portfolioResponse.status,
+        statusText: portfolioResponse.statusText,
+        headers: portfolioResponse.headers,
+        data: portfolioResponse.data
+      });
 
       if (!portfolioResponse.data?.result) {
         throw new Error('Invalid portfolio response from Helius API');
@@ -559,23 +575,37 @@ export function registerRoutes(app: Express): Server {
       // Calculate total balance
       const balance = portfolio.value || 0;
 
-      // Get transactions using parsedTransactions endpoint
-      const txResponse = await axios.post(HELIUS_API_BASE, {
-        jsonrpc: '2.0',
-        id: 'my-id',
-        method: 'getParsedTransactions',
+      // Transaction request config
+      const txConfig = {
+        method: 'post',
+        url: HELIUS_API_BASE,
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        data: {
+          jsonrpc: '2.0',
+          id: 'tx-request',
+          method: 'getParsedTransactions',
+          params: {
+            address,
+            numResults: 20
+          }
+        },
         params: {
-          address,
-          numResults: 20
-        }
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
           'api-key': process.env.HELIUS_API_KEY
         }
-      });
+      };
 
-      console.log('[Routes] Transaction response:', txResponse.data);
+      console.log('[DEBUG] Transaction request config:', JSON.stringify(txConfig, null, 2));
+
+      const txResponse = await axios(txConfig);
+
+      console.log('[DEBUG] Transaction API Response:', {
+        status: txResponse.status,
+        statusText: txResponse.statusText,
+        headers: txResponse.headers,
+        data: txResponse.data
+      });
 
       if (!txResponse.data?.result) {
         throw new Error('Invalid transaction response from Helius API');
@@ -621,10 +651,16 @@ export function registerRoutes(app: Express): Server {
       const pnl = {
         daily: calculatePNL(dailyTxs),
         weekly: calculatePNL(weeklyTxs),
-        monthly: 0 // Would need historical data
+        monthly: 0
       };
 
-      console.log(`[Routes] Successfully compiled wallet data for ${address}`);
+      console.log('[DEBUG] Successfully compiled wallet data:', {
+        address,
+        tokenCount: tokens.length,
+        transactionCount: transactions.length,
+        balance,
+        pnl
+      });
 
       res.json({
         address,
@@ -635,10 +671,15 @@ export function registerRoutes(app: Express): Server {
       });
 
     } catch (error: any) {
-      console.error('[Routes] Wallet data error:', {
+      console.error('[DEBUG] Wallet data error:', {
         message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
+        stack: error.stack,
+        response: {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          headers: error.response?.headers
+        }
       });
 
       res.status(error.response?.status || 500).json({
