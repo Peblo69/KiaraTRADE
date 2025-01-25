@@ -30,7 +30,7 @@ export function AdvancedPriceChart({ symbol, data, indicators, onTimeRangeChange
     // Initialize chart
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
-      height: 600,
+      height: 400, // Reduced height from 600 to 400
       layout: {
         background: { color: 'rgb(19, 23, 34)' },
         textColor: '#d1d4dc',
