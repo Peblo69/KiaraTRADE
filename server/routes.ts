@@ -52,7 +52,7 @@ if (!process.env.HELIUS_API_KEY) {
   throw new Error("HELIUS_API_KEY must be set in environment variables");
 }
 
-const HELIUS_API_BASE = 'https://api.helius-rpc.com';
+const HELIUS_API_BASE = 'https://api-devnet.helius.xyz/v0';
 
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
@@ -509,11 +509,19 @@ export function registerRoutes(app: Express): Server {
     try {
       const { address } = req.params;
 
+      if (!address) {
+        return res.status(400).json({
+          error: 'Wallet address is required'
+        });
+      }
+
+      console.log(`[Routes] Fetching data for wallet: ${address}`);
+
       // Get balances using Helius API
-      const response = await axios.post(`${HELIUS_API_BASE}/${process.env.HELIUS_API_KEY}`, {
+      const response = await axios.post(`${HELIUS_API_BASE}/token-balances`, {
         jsonrpc: '2.0',
         id: 'balance-request',
-        method: 'getAssetsByOwner',
+        method: 'getTokenBalances',
         params: {
           ownerAddress: address,
           displayOptions: {
@@ -521,14 +529,23 @@ export function registerRoutes(app: Express): Server {
             showNativeBalance: true
           }
         }
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.HELIUS_API_KEY}`
+        }
       });
 
-      const tokens = response.data.result.items.map((token: any) => ({
-        mint: token.id,
-        amount: token.tokenInfo?.tokenAmount || 0,
+      if (!response.data || !response.data.result) {
+        throw new Error('Invalid response from Helius API');
+      }
+
+      const tokens = response.data.result.tokens.map((token: any) => ({
+        mint: token.mint,
+        amount: token.amount,
         symbol: token.symbol || 'Unknown',
         price: token.price || 0,
-        value: (token.tokenInfo?.tokenAmount || 0) * (token.price || 0),
+        value: token.amount * (token.price || 0),
         pnl24h: token.priceChange24h || 0
       }));
 
@@ -536,36 +553,63 @@ export function registerRoutes(app: Express): Server {
       const balance = tokens.reduce((acc: number, token: any) => acc + token.value, 0);
 
       // Get recent transactions
-      const txResponse = await axios.post(`${HELIUS_API_BASE}/${process.env.HELIUS_API_KEY}`, {
+      const txResponse = await axios.post(`${HELIUS_API_BASE}/addresses/${address}/transactions`, {
         jsonrpc: '2.0',
         id: 'tx-request',
-        method: 'getAddressHistory',
-        params: [address]
+        method: 'getTransactions',
+        params: {
+          limit: 20,
+          order: 'desc'
+        }
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.HELIUS_API_KEY}`
+        }
       });
+
+      if (!txResponse.data || !txResponse.data.result) {
+        throw new Error('Invalid transaction response from Helius API');
+      }
 
       const transactions = txResponse.data.result.map((tx: any) => {
         let type: 'buy' | 'sell' | 'transfer' = 'transfer';
-        if (tx.tokenTransfers?.[0]) {
-          type = tx.tokenTransfers[0].sender === address ? 'sell' : 'buy';
+        if (tx.type === 'TOKEN_TRANSFER') {
+          type = tx.sourceAddress === address ? 'sell' : 'buy';
         }
 
         return {
           signature: tx.signature,
           type,
-          tokenSymbol: tx.tokenTransfers?.[0]?.symbol || 'SOL',
-          amount: tx.tokenTransfers?.[0]?.tokenAmount || tx.nativeTransfers?.[0]?.amount || 0,
-          price: tx.tokenTransfers?.[0]?.price || 0,
+          tokenSymbol: tx.tokenSymbol || 'SOL',
+          amount: tx.amount || 0,
+          price: tx.price || 0,
           timestamp: tx.timestamp * 1000,
-          value: (tx.tokenTransfers?.[0]?.tokenAmount || 0) * (tx.tokenTransfers?.[0]?.price || 0)
+          value: (tx.amount || 0) * (tx.price || 0)
         };
       });
 
       // Calculate PNL
-      const pnl = {
-        daily: tokens.reduce((acc: number, token: any) => acc + token.pnl24h, 0),
-        weekly: 0, // Would need historical data
-        monthly: 0 // Would need historical data
+      const now = Date.now();
+      const oneDayAgo = now - 24 * 60 * 60 * 1000;
+      const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+      const dailyTransactions = transactions.filter(tx => tx.timestamp > oneDayAgo);
+      const weeklyTransactions = transactions.filter(tx => tx.timestamp > oneWeekAgo);
+
+      const calculatePNL = (txs: any[]) => {
+        const buys = txs.filter(tx => tx.type === 'buy').reduce((sum, tx) => sum + tx.value, 0);
+        const sells = txs.filter(tx => tx.type === 'sell').reduce((sum, tx) => sum + tx.value, 0);
+        return sells - buys;
       };
+
+      const pnl = {
+        daily: calculatePNL(dailyTransactions),
+        weekly: calculatePNL(weeklyTransactions),
+        monthly: 0 // Requires historical price data
+      };
+
+      console.log(`[Routes] Successfully fetched wallet data for ${address}`);
 
       res.json({
         address,
