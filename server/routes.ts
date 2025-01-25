@@ -517,30 +517,17 @@ export function registerRoutes(app: Express): Server {
 
       console.log(`[Routes] Fetching data for wallet: ${address}`);
 
-      // Get balances using Helius API
-      const response = await axios.post(`${HELIUS_API_BASE}/token-balances`, {
-        jsonrpc: '2.0',
-        id: 'balance-request',
-        method: 'getTokenBalances',
+      // Get token balances
+      const response = await axios.get(`${HELIUS_API_BASE}/token-balances`, {
         params: {
-          ownerAddress: address,
-          displayOptions: {
-            showFungible: true,
-            showNativeBalance: true
-          }
-        }
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.HELIUS_API_KEY}`
+          'api-key': process.env.HELIUS_API_KEY,
+          address: address,
         }
       });
 
-      if (!response.data || !response.data.result) {
-        throw new Error('Invalid response from Helius API');
-      }
+      console.log('[Routes] Token balance response:', response.data);
 
-      const tokens = response.data.result.tokens.map((token: any) => ({
+      const tokens = (response.data?.tokens || []).map((token: any) => ({
         mint: token.mint,
         amount: token.amount,
         symbol: token.symbol || 'Unknown',
@@ -552,27 +539,17 @@ export function registerRoutes(app: Express): Server {
       // Calculate total balance
       const balance = tokens.reduce((acc: number, token: any) => acc + token.value, 0);
 
-      // Get recent transactions
-      const txResponse = await axios.post(`${HELIUS_API_BASE}/addresses/${address}/transactions`, {
-        jsonrpc: '2.0',
-        id: 'tx-request',
-        method: 'getTransactions',
+      // Get transactions
+      const txResponse = await axios.get(`${HELIUS_API_BASE}/addresses/${address}/transactions`, {
         params: {
+          'api-key': process.env.HELIUS_API_KEY,
           limit: 20,
-          order: 'desc'
-        }
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.HELIUS_API_KEY}`
         }
       });
 
-      if (!txResponse.data || !txResponse.data.result) {
-        throw new Error('Invalid transaction response from Helius API');
-      }
+      console.log('[Routes] Transaction response:', txResponse.data);
 
-      const transactions = txResponse.data.result.map((tx: any) => {
+      const transactions = (txResponse.data?.data || []).map((tx: any) => {
         let type: 'buy' | 'sell' | 'transfer' = 'transfer';
         if (tx.type === 'TOKEN_TRANSFER') {
           type = tx.sourceAddress === address ? 'sell' : 'buy';
@@ -584,23 +561,26 @@ export function registerRoutes(app: Express): Server {
           tokenSymbol: tx.tokenSymbol || 'SOL',
           amount: tx.amount || 0,
           price: tx.price || 0,
-          timestamp: tx.timestamp * 1000,
+          timestamp: tx.timestamp,
           value: (tx.amount || 0) * (tx.price || 0)
         };
       });
 
       // Calculate PNL
       const now = Date.now();
-      const oneDayAgo = now - 24 * 60 * 60 * 1000;
-      const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
-
-      const dailyTransactions = transactions.filter(tx => tx.timestamp > oneDayAgo);
-      const weeklyTransactions = transactions.filter(tx => tx.timestamp > oneWeekAgo);
+      const dailyTransactions = transactions.filter(tx => 
+        tx.timestamp > now - 24 * 60 * 60 * 1000
+      );
+      const weeklyTransactions = transactions.filter(tx => 
+        tx.timestamp > now - 7 * 24 * 60 * 60 * 1000
+      );
 
       const calculatePNL = (txs: any[]) => {
-        const buys = txs.filter(tx => tx.type === 'buy').reduce((sum, tx) => sum + tx.value, 0);
-        const sells = txs.filter(tx => tx.type === 'sell').reduce((sum, tx) => sum + tx.value, 0);
-        return sells - buys;
+        const buys = txs.filter(tx => tx.type === 'buy')
+          .reduce((sum, tx) => sum + tx.value, 0);
+        const sells = txs.filter(tx => tx.type === 'sell')
+          .reduce((sum, tx) => sum + tx.value, 0);
+        return ((sells - buys) / buys * 100) || 0;
       };
 
       const pnl = {
@@ -619,7 +599,7 @@ export function registerRoutes(app: Express): Server {
         pnl
       });
     } catch (error: any) {
-      console.error('[Routes] Wallet data error:', error);
+      console.error('[Routes] Wallet data error:', error.response?.data || error);
       res.status(500).json({
         error: 'Failed to fetch wallet data',
         details: error.message
