@@ -134,6 +134,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     // Process trades into candles
     const generateCandles = () => {
       const candles = new Map<number, Candle>();
+      let lastClose = token.marketCapSol; // Start with current market cap
 
       token.recentTrades.forEach(trade => {
         const timestamp = Math.floor(trade.timestamp / 1000);
@@ -146,9 +147,9 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         if (!existing) {
           candles.set(candleTime, {
             time: candleTime,
-            open: mcap,
-            high: mcap,
-            low: mcap,
+            open: lastClose, // Use last close as open
+            high: Math.max(lastClose, mcap),
+            low: Math.min(lastClose, mcap),
             close: mcap,
           });
         } else {
@@ -156,6 +157,8 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           existing.low = Math.min(existing.low, mcap);
           existing.close = mcap;
         }
+
+        lastClose = mcap;
       });
 
       return Array.from(candles.values())
@@ -166,7 +169,11 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
     if (candles.length > 0) {
       candlestickSeries.setData(candles);
-      chart.timeScale().fitContent();
+
+      // Only fit content on initial load
+      if (!chartRef.current.timeScale().getVisibleLogicalRange()) {
+        chart.timeScale().fitContent();
+      }
     }
 
     const resizeObserver = new ResizeObserver(entries => {
