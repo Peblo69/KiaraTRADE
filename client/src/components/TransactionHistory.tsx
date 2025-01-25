@@ -1,7 +1,5 @@
-
 import { FC } from 'react';
 import { useUnifiedTokenStore } from '@/lib/unified-token-store';
-import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { ExternalLink } from 'lucide-react';
 
 interface TransactionHistoryProps {
@@ -23,7 +21,7 @@ const formatTimeAgo = (timestamp: number): string => {
 
 const TransactionHistory: FC<TransactionHistoryProps> = ({ tokenAddress }) => {
   const transactions = useUnifiedTokenStore(state => state.getTransactions(tokenAddress));
-  const solPrice = usePumpPortalStore(state => state.solPrice);
+  const solPrice = useUnifiedTokenStore(state => state.solPrice);
 
   if (!transactions?.length) {
     return null;
@@ -37,7 +35,7 @@ const TransactionHistory: FC<TransactionHistoryProps> = ({ tokenAddress }) => {
           const timeAgo = formatTimeAgo(tx.timestamp);
           const buyerAddress = formatAddress(tx.buyer);
           const sellerAddress = formatAddress(tx.seller);
-          const usdAmount = tx.solAmount * (solPrice || 0);
+          const usdAmount = tx.solAmount * solPrice;
           const date = new Date(tx.timestamp);
           const timeString = date.toLocaleTimeString();
 
