@@ -1,4 +1,4 @@
-import { FC, useState, useEffect, useCallback } from "react";
+import { FC, useState, useEffect, useCallback, Suspense } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
@@ -74,44 +74,46 @@ const formatMarketCap = (value: number) => {
   })}`;
 };
 
-const PumpFunVision: FC = () => {
+// Main token list content
+const TokenListContent: FC = () => {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
 
-  // Use refs to prevent unnecessary re-renders
+  // Use callbacks for store selectors to prevent unnecessary re-renders
   const tokens = usePumpPortalStore(useCallback(state => state.tokens, []));
   const isConnected = usePumpPortalStore(useCallback(state => state.isConnected, []));
+  const lastUpdate = usePumpPortalStore(useCallback(state => state.lastUpdate, []));
 
-  // Handle back navigation
-  const handleBack = useCallback(() => {
-    setSelectedToken(null);
+  // Reset selection on unmount
+  useEffect(() => {
+    return () => setSelectedToken(null);
   }, []);
 
-  // Clean up on unmount
+  // Monitor connection health
   useEffect(() => {
-    return () => {
-      // Clean up any subscriptions or side effects
-      setSelectedToken(null);
-    };
-  }, []);
+    const healthCheck = setInterval(() => {
+      const now = Date.now();
+      if (now - lastUpdate > 30000) {
+        window.location.reload();
+      }
+    }, 10000);
 
-  // Debug logs
-  useEffect(() => {
-    console.log('[PumpFunVision] Render state:', {
-      timestamp: new Date().toISOString(),
-      selectedToken,
-      tokensCount: tokens.length,
-      isConnected
-    });
-  }, [selectedToken, tokens.length, isConnected]);
+    return () => clearInterval(healthCheck);
+  }, [lastUpdate]);
 
   if (selectedToken) {
     return (
-      <ErrorBoundary>
-        <TokenChart 
-          tokenAddress={selectedToken} 
-          onBack={handleBack}
-        />
-      </ErrorBoundary>
+      <Suspense fallback={
+        <div className="flex items-center justify-center h-screen">
+          <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+        </div>
+      }>
+        <ErrorBoundary>
+          <TokenChart 
+            tokenAddress={selectedToken} 
+            onBack={() => setSelectedToken(null)}
+          />
+        </ErrorBoundary>
+      </Suspense>
     );
   }
 
@@ -158,6 +160,15 @@ const PumpFunVision: FC = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+// Wrap with error boundary
+const PumpFunVision: FC = () => {
+  return (
+    <ErrorBoundary>
+      <TokenListContent />
+    </ErrorBoundary>
   );
 };
 
