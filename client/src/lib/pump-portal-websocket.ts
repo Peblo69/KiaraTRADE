@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { preloadTokenImages } from './token-metadata';
 import axios from 'axios';
 
-// Constants
+// Constants 
 const MAX_TRADES_PER_TOKEN = 100;
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 const RECONNECT_DELAY = 5000;
@@ -17,8 +17,8 @@ export interface TokenTrade {
   txType: 'buy' | 'sell';
   tokenAmount: number;
   solAmount: number;
-  traderPublicKey: string;       // The user who initiated the tx
-  counterpartyPublicKey: string; // The other side of the trade
+  traderPublicKey: string;
+  counterpartyPublicKey: string;
   bondingCurveKey: string;
   vTokensInBondingCurve: number;
   vSolInBondingCurve: number;
@@ -34,7 +34,7 @@ export interface PumpPortalToken {
   vTokensInBondingCurve: number;
   vSolInBondingCurve: number;
   marketCapSol: number;
-  devWallet?: string; 
+  devWallet?: string;
   recentTrades: TokenTrade[];
 }
 
@@ -64,11 +64,11 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   lastUpdate: Date.now(),
   activeTokenView: null,
 
-  addToken: (tokenData) =>
+  addToken: (tokenData) => 
     set((state) => {
       const newToken = mapTokenData(tokenData);
 
-      // If txType === 'create', set devWallet from traderPublicKey
+      // Track dev wallet from creation event
       if (tokenData.txType === 'create') {
         console.log('[PumpPortal] New token detected:', tokenData.mint);
         if (tokenData.traderPublicKey) {
@@ -77,17 +77,18 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         }
       }
 
-      const existingTokenIndex = state.tokens.findIndex((t) => t.address === newToken.address);
+      const existingTokenIndex = state.tokens.findIndex(t => t.address === newToken.address);
       const isViewed = state.activeTokenView === newToken.address;
 
-      // If token already exists, update it (preserving devWallet if it exists)
+      // Update existing token while preserving dev wallet
       if (existingTokenIndex >= 0) {
         const updatedTokens = state.tokens.map((t, i) => {
           if (i === existingTokenIndex) {
-            return {
-              ...t,
+            // Keep existing devWallet if present, otherwise use new one
+            return { 
+              ...t, 
               ...newToken,
-              devWallet: t.devWallet || newToken.devWallet,
+              devWallet: t.devWallet || newToken.devWallet 
             };
           }
           return t;
@@ -98,36 +99,35 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
             tokens: updatedTokens,
             viewedTokens: {
               ...state.viewedTokens,
-              [newToken.address]: {
+              [newToken.address]: { 
                 ...newToken,
-                devWallet: state.viewedTokens[newToken.address]?.devWallet || newToken.devWallet,
-              },
+                devWallet: state.viewedTokens[newToken.address]?.devWallet || newToken.devWallet
+              }
             },
-            lastUpdate: Date.now(),
+            lastUpdate: Date.now()
           };
         }
 
         return { tokens: updatedTokens, lastUpdate: Date.now() };
       }
 
-      // If it's a genuinely new token, push to the front and limit to 50 tokens
-      const updatedTokens = [newToken, ...state.tokens].filter(
-        (t, i) => i < MAX_TOKENS_IN_LIST || t.address === state.activeTokenView
-      );
+      // Add new token
+      const updatedTokens = [newToken, ...state.tokens]
+        .filter((t, i) => i < MAX_TOKENS_IN_LIST || t.address === state.activeTokenView);
 
       return {
         tokens: updatedTokens,
         lastUpdate: Date.now(),
-        ...(isViewed && {
+        ...(isViewed && { 
           viewedTokens: {
             ...state.viewedTokens,
-            [newToken.address]: newToken,
-          },
-        }),
+            [newToken.address]: newToken
+          }
+        })
       };
     }),
 
-  addTradeToHistory: (address, tradeData) =>
+  addTradeToHistory: (address, tradeData) => 
     set((state) => {
       const newTrade: TokenTrade = {
         signature: tradeData.signature,
@@ -141,54 +141,39 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         bondingCurveKey: tradeData.bondingCurveKey,
         vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
         vSolInBondingCurve: tradeData.vSolInBondingCurve,
-        marketCapSol: tradeData.marketCapSol,
+        marketCapSol: tradeData.marketCapSol
       };
 
-      // Find existing token (either in viewedTokens or tokens list)
-      const existingToken =
-        state.viewedTokens[address] || state.tokens.find((t) => t.address === address);
+      // Get existing token
+      const existingToken = state.viewedTokens[address] || 
+                          state.tokens.find(t => t.address === address);
 
-      if (!existingToken) return state; // No token found, do nothing
+      if (!existingToken) return state;
 
       const updateToken = (token: PumpPortalToken): PumpPortalToken => {
         let updatedToken = { ...token };
 
-        // If devWallet not yet set, and this is the first trade (token.recentTrades.length === 0),
-        // and it's a 'buy', we assume the dev is the seller
-        if (
-          !updatedToken.devWallet &&
-          tradeData.txType === 'buy' &&
-          token.recentTrades.length === 0
-        ) {
+        // Set dev wallet from first buy if not already set
+        if (!token.devWallet && tradeData.txType === 'buy' && token.recentTrades.length === 0) {
           console.log('[PumpPortal] Setting dev wallet from first buy:', {
             token: address,
-            wallet: tradeData.counterpartyPublicKey, // The seller is presumably the dev
+            wallet: tradeData.counterpartyPublicKey // First seller is likely the dev
           });
           updatedToken.devWallet = tradeData.counterpartyPublicKey;
         }
 
-        // Enhanced dev wallet tracking
+        // Check if this is a dev wallet transaction (either as trader or counterparty)
         const isDevWallet = updatedToken.devWallet && (
           updatedToken.devWallet === tradeData.traderPublicKey ||
           updatedToken.devWallet === tradeData.counterpartyPublicKey
-        );
-
-        // Track if dev is buying (they are trader) or selling (they are counterparty)
-        const isDevBuying = isDevWallet && tradeData.txType === 'buy' && 
-          updatedToken.devWallet === tradeData.traderPublicKey;
-        const isDevSelling = isDevWallet && (
-          (tradeData.txType === 'sell' && updatedToken.devWallet === tradeData.traderPublicKey) ||
-          (tradeData.txType === 'buy' && updatedToken.devWallet === tradeData.counterpartyPublicKey)
         );
 
         if (isDevWallet) {
           console.log('[PumpPortal] Dev wallet activity detected:', {
             token: address,
             type: tradeData.txType,
-            action: isDevBuying ? 'buying' : 'selling',
-            devWallet: updatedToken.devWallet,
-            trader: tradeData.traderPublicKey,
-            counterparty: tradeData.counterpartyPublicKey
+            wallet: tradeData.traderPublicKey === updatedToken.devWallet ? 
+                   tradeData.traderPublicKey : tradeData.counterpartyPublicKey
           });
         }
 
@@ -198,20 +183,20 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           bondingCurveKey: tradeData.bondingCurveKey,
           vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
           vSolInBondingCurve: tradeData.vSolInBondingCurve,
-          marketCapSol: tradeData.marketCapSol,
+          marketCapSol: tradeData.marketCapSol
         };
       };
 
       const isViewed = state.activeTokenView === address;
       const updates: Partial<PumpPortalStore> = {
-        tokens: state.tokens.map((t) => (t.address === address ? updateToken(t) : t)),
-        lastUpdate: Date.now(),
+        tokens: state.tokens.map(t => t.address === address ? updateToken(t) : t),
+        lastUpdate: Date.now()
       };
 
       if (isViewed) {
         updates.viewedTokens = {
           ...state.viewedTokens,
-          [address]: updateToken(existingToken),
+          [address]: updateToken(existingToken)
         };
       }
 
@@ -221,53 +206,51 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   setConnected: (connected) => set({ isConnected: connected, lastUpdate: Date.now() }),
   setSolPrice: (price) => set({ solPrice: price, lastUpdate: Date.now() }),
 
-  resetTokens: () =>
-    set({
-      tokens: [],
-      viewedTokens: {},
-      activeTokenView: null,
-      lastUpdate: Date.now(),
-    }),
+  resetTokens: () => set({ 
+    tokens: [],
+    viewedTokens: {},
+    activeTokenView: null,
+    lastUpdate: Date.now()
+  }),
 
-  addToViewedTokens: (address) =>
-    set((state) => {
-      const token = state.tokens.find((t) => t.address === address);
-      if (!token) return state;
+  addToViewedTokens: (address) => set((state) => {
+    const token = state.tokens.find(t => t.address === address);
+    if (!token) return state;
 
-      return {
-        viewedTokens: {
-          ...state.viewedTokens,
-          [address]: token,
-        },
-        lastUpdate: Date.now(),
+    return {
+      viewedTokens: {
+        ...state.viewedTokens,
+        [address]: token
+      },
+      lastUpdate: Date.now()
+    };
+  }),
+
+  setActiveTokenView: (address) => set((state) => {
+    if (!address) {
+      return { 
+        activeTokenView: null,
+        lastUpdate: Date.now()
       };
-    }),
+    }
 
-  setActiveTokenView: (address) =>
-    set((state) => {
-      if (!address) {
-        return {
-          activeTokenView: null,
-          lastUpdate: Date.now(),
-        };
-      }
-      const token = state.tokens.find((t) => t.address === address);
-      if (!token) return state;
+    const token = state.tokens.find(t => t.address === address);
+    if (!token) return state;
 
-      return {
-        activeTokenView: address,
-        viewedTokens: {
-          ...state.viewedTokens,
-          [address]: token,
-        },
-        lastUpdate: Date.now(),
-      };
-    }),
+    return {
+      activeTokenView: address,
+      viewedTokens: {
+        ...state.viewedTokens,
+        [address]: token
+      },
+      lastUpdate: Date.now()
+    };
+  }),
 
   getToken: (address) => {
     const state = get();
-    return state.viewedTokens[address] || state.tokens.find((t) => t.address === address);
-  },
+    return state.viewedTokens[address] || state.tokens.find(t => t.address === address);
+  }
 }));
 
 export function mapTokenData(data: any): PumpPortalToken {
@@ -280,18 +263,19 @@ export function mapTokenData(data: any): PumpPortalToken {
     vTokensInBondingCurve: data.vTokensInBondingCurve,
     vSolInBondingCurve: data.vSolInBondingCurve,
     marketCapSol: data.marketCapSol,
-    devWallet: data.devWallet, // If the server sets it explicitly
-    recentTrades: [],
+    devWallet: data.devWallet, // Preserve devWallet if already set
+    recentTrades: []
   };
 }
 
-// WebSocket connection logic
+// WebSocket connection
 let ws: WebSocket | null = null;
 let reconnectTimeout: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
 let solPriceInterval: NodeJS.Timeout | null = null;
 let connectionCheckInterval: NodeJS.Timeout | null = null;
 
+// Fetch SOL price from Binance
 const fetchSolanaPrice = async (retries = 3): Promise<number> => {
   try {
     const response = await axios.get('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT');
@@ -302,18 +286,17 @@ const fetchSolanaPrice = async (retries = 3): Promise<number> => {
   } catch (error) {
     console.error('[PumpPortal] Failed to fetch SOL price:', error);
     if (retries > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       return fetchSolanaPrice(retries - 1);
     }
   }
-  return 100; // fallback
+  return 100; // fallback price
 };
 
+// Cleanup function
 function cleanup() {
   if (ws) {
-    try {
-      ws.close();
-    } catch {}
+    try { ws.close(); } catch {}
     ws = null;
   }
   if (solPriceInterval) {
@@ -330,6 +313,7 @@ function cleanup() {
   }
 }
 
+// Initialize WebSocket
 export function initializePumpPortalWebSocket() {
   if (typeof window === 'undefined') return;
 
@@ -340,7 +324,8 @@ export function initializePumpPortalWebSocket() {
     console.log('[PumpPortal] Initializing WebSocket...');
     ws = new WebSocket(WS_URL);
 
-    fetchSolanaPrice().then((price) => {
+    // Get initial SOL price
+    fetchSolanaPrice().then(price => {
       store.setSolPrice(price);
       solPriceInterval = setInterval(async () => {
         const newPrice = await fetchSolanaPrice();
@@ -365,12 +350,10 @@ export function initializePumpPortalWebSocket() {
             if (data.imageLink) {
               preloadTokenImages([{ imageLink: data.imageLink, symbol: data.symbol }]);
             }
-            ws?.send(
-              JSON.stringify({
-                method: 'subscribeTokenTrade',
-                keys: [data.mint],
-              })
-            );
+            ws?.send(JSON.stringify({
+              method: 'subscribeTokenTrade',
+              keys: [data.mint],
+            }));
             break;
           }
           case 'trade': {
@@ -378,9 +361,6 @@ export function initializePumpPortalWebSocket() {
             store.addTradeToHistory(data.mint, data);
             break;
           }
-          default:
-            // ignore
-            break;
         }
       } catch (error) {
         console.error('[PumpPortal] Failed to parse message:', error);
@@ -404,18 +384,20 @@ export function initializePumpPortalWebSocket() {
       store.setConnected(false);
     };
 
-    // Periodically check if we've gotten updates
+    // Add connection check interval
     connectionCheckInterval = setInterval(() => {
       const now = Date.now();
-      const storeNow = usePumpPortalStore.getState();
-      // If no updates in 30 seconds, reset
-      if (now - storeNow.lastUpdate > 30000) {
+      const store = usePumpPortalStore.getState();
+
+      // If no updates in 30 seconds, reset connection
+      if (now - store.lastUpdate > 30000) {
         console.log('[PumpPortal] No updates detected, resetting connection...');
         cleanup();
-        storeNow.resetTokens();
+        store.resetTokens();
         initializePumpPortalWebSocket();
       }
     }, 10000);
+
   } catch (error) {
     console.error('[PumpPortal] Failed to initialize WebSocket:', error);
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
@@ -426,6 +408,7 @@ export function initializePumpPortalWebSocket() {
   }
 }
 
+// Initialize on load
 if (typeof window !== 'undefined') {
   initializePumpPortalWebSocket();
 }

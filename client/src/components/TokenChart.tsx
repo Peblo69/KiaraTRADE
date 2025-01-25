@@ -40,12 +40,7 @@ interface Candle {
   color?: string;
 }
 
-const formatPriceScale = (price: number): string => {
-  if (price >= 1000000) return `${(price / 1000000).toFixed(1)}M`;
-  if (price >= 1000) return `${(price / 1000).toFixed(1)}K`;
-  return price.toFixed(2);
-};
-
+// Memoized chart component to prevent unnecessary re-renders
 const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -54,7 +49,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const lastViewRangeRef = useRef<{ from: number; to: number } | null>(null);
   const [showUsd, setShowUsd] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [selectedInterval, setSelectedInterval] = useState<TimeInterval>(TIME_INTERVALS[0]);
+  const [selectedInterval, setSelectedInterval] = useState<TimeInterval>(TIME_INTERVALS[0]); // Default to 1s
 
   const token = usePumpPortalStore(
     useCallback(state => state.tokens.find(t => t.address === tokenAddress), [tokenAddress])
@@ -62,6 +57,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
   const solPrice = usePumpPortalStore(state => state.solPrice);
 
+  // Use devWallet from token data
   const devWallet = token?.devWallet;
 
   const cleanupChart = useCallback(() => {
@@ -71,6 +67,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     }
 
     if (chartRef.current) {
+      // Store current view range before cleanup
       const timeScale = chartRef.current.timeScale();
       const visibleRange = timeScale.getVisibleLogicalRange();
       if (visibleRange) {
@@ -81,6 +78,12 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       chartRef.current = null;
     }
   }, []);
+
+  const formatPriceScale = (price: number): string => {
+    if (price >= 1000000) return `${(price / 1000000).toFixed(1)}M`;
+    if (price >= 1000) return `${(price / 1000).toFixed(1)}K`;
+    return price.toFixed(2);
+  };
 
   const initializeChart = useCallback(() => {
     if (!chartContainerRef.current || !token?.recentTrades?.length) return;
@@ -100,20 +103,13 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       height: chartContainerRef.current.clientHeight,
       rightPriceScale: {
         borderColor: '#333333',
-        mode: 1,
-        autoScale: false,
-        alignLabels: true,
-        borderVisible: true,
         scaleMargins: {
           top: 0.1,
           bottom: 0.1,
         },
-        ticksVisible: true,
-        priceFormat: {
-          type: 'price',
-          precision: 0,
-          minMove: 200, // Force 200 unit increments
-        },
+        mode: 1,
+        autoScale: true,
+        formatter: formatPriceScale,
       },
       timeScale: {
         timeVisible: true,
@@ -121,11 +117,15 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         borderColor: '#333333',
         rightOffset: 12,
         barSpacing: 12,
-        fixLeftEdge: true,
-        fixRightEdge: true,
-        minBarSpacing: 6,
+        lockVisibleTimeRangeOnResize: true,
+        rightBarStaysOnScroll: true,
       },
-      handleScroll: false,
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true,
+      },
       handleScale: {
         axisPressedMouseMove: {
           time: true,
@@ -136,41 +136,37 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       },
       crosshair: {
         mode: 1,
-        vertLine: {
-          width: 1,
-          color: '#555',
-          style: 0,
-        },
-        horzLine: {
-          width: 1,
-          color: '#555',
-          style: 0,
-        },
       },
     });
 
     chartRef.current = chart;
 
     const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#22c55e',
-      downColor: '#ef4444',
+      upColor: '#22c55e',      // Green for buys
+      downColor: '#ef4444',    // Red for sells
       borderUpColor: '#22c55e',
       borderDownColor: '#ef4444',
       wickUpColor: '#22c55e',
       wickDownColor: '#ef4444',
     });
 
+    // Process trades into candles
     const generateCandles = () => {
       const candles = new Map<number, Candle>();
-      let lastClose = token.marketCapSol * solPrice;
+      let lastClose = token.marketCapSol * solPrice; // Initialize in USD
 
       token.recentTrades.forEach(trade => {
         const timestamp = Math.floor(trade.timestamp / 1000);
         const interval = selectedInterval.seconds;
         const candleTime = Math.floor(timestamp / interval) * interval;
 
-        const mcap = trade.marketCapSol * solPrice;
+        const mcap = trade.marketCapSol * solPrice; // Convert to USD
         const existing = candles.get(candleTime);
+
+        // Set candle color based on trade type and if it's from DEV wallet
+        const isDevTrade = trade.traderPublicKey === devWallet;
+        const candleColor = isDevTrade ? '#fbbf24' : // Yellow for DEV
+          trade.txType === 'buy' ? '#22c55e' : '#ef4444'; // Green for buy, Red for sell
 
         if (!existing) {
           candles.set(candleTime, {
@@ -179,11 +175,14 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
             high: Math.max(lastClose, mcap),
             low: Math.min(lastClose, mcap),
             close: mcap,
+            color: candleColor
           });
         } else {
           existing.high = Math.max(existing.high, mcap);
           existing.low = Math.min(existing.low, mcap);
           existing.close = mcap;
+          // Color based on the last trade in the candle
+          existing.color = candleColor;
         }
 
         lastClose = mcap;
@@ -198,18 +197,13 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     if (candles.length > 0) {
       candlestickSeries.setData(candles);
 
-      // Set initial price range (7K to 9K)
-      candlestickSeries.priceScale().applyOptions({
-        autoScale: false,
-        scaleMargins: {
-          top: 0.1,
-          bottom: 0.1,
-        },
-        minValue: 7000,
-        maxValue: 9000,
-      });
-
-      chart.timeScale().fitContent();
+      // Only fit content on initial load if no previous view range
+      if (!lastViewRangeRef.current) {
+        chart.timeScale().fitContent();
+      } else {
+        // Restore previous view range
+        chart.timeScale().setVisibleLogicalRange(lastViewRangeRef.current);
+      }
     }
 
     const resizeObserver = new ResizeObserver(entries => {
@@ -227,8 +221,9 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       resizeObserverRef.current = resizeObserver;
     }
 
-  }, [token?.recentTrades, cleanupChart, selectedInterval, solPrice]);
+  }, [token?.recentTrades, cleanupChart, selectedInterval, solPrice, devWallet]);
 
+  // Handle interval change
   const handleIntervalChange = useCallback((interval: TimeInterval) => {
     setSelectedInterval(interval);
     cleanupChart();
@@ -365,26 +360,19 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                 {token.recentTrades?.map((trade, idx) => {
                   const isDevWallet = trade.traderPublicKey === devWallet ||
                     trade.counterpartyPublicKey === devWallet;
-                  const isDevBuying = isDevWallet && (
-                    (trade.traderPublicKey === devWallet && trade.txType === 'buy') ||
-                    (trade.counterpartyPublicKey === devWallet && trade.txType === 'sell')
-                  );
+                  const isDevBuying = isDevWallet && trade.traderPublicKey === devWallet && trade.txType === 'buy';
                   const isDevSelling = isDevWallet && (
                     (trade.traderPublicKey === devWallet && trade.txType === 'sell') ||
                     (trade.counterpartyPublicKey === devWallet && trade.txType === 'buy')
                   );
 
-                  const tradeColor = trade.txType === 'buy' ? 'text-green-500' : 'text-red-500';
-                  const tradeBg = trade.txType === 'buy' ? 'bg-green-500/10' : 'bg-red-500/10';
-
                   return (
                     <div
                       key={trade.signature || idx}
-                      className={`flex items-center justify-between p-2 rounded text-sm ${
+                      className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
                         isDevWallet ?
-                          isDevBuying ? 'bg-amber-400/20 text-amber-400 border border-amber-400' :
-                            'bg-orange-500/20 text-orange-500 border border-orange-500' :
-                          `${tradeBg} ${tradeColor}`
+                          isDevBuying ? 'text-amber-400' : 'text-orange-500' : // Yellow for DEV buys, Orange for DEV sells
+                          trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -463,6 +451,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   );
 });
 
+// Wrap with error boundary
 const TokenChart: FC<TokenChartProps> = (props) => {
   return (
     <ErrorBoundary>
