@@ -18,94 +18,119 @@ const TOKEN_DECIMALS = 9;
 const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const isMountedRef = useRef(true);
   const [showUsd, setShowUsd] = useState(true);
 
   const token = usePumpPortalStore(state => 
     state.tokens.find(t => t.address === tokenAddress)
   );
   const solPrice = usePumpPortalStore(state => state.solPrice);
-  const isConnected = usePumpPortalStore(state => state.isConnected);
 
-  // Chart initialization and cleanup
-  useEffect(() => {
-    if (!chartContainerRef.current || !token?.recentTrades) return;
+  // Cleanup function
+  const cleanupChart = () => {
+    if (resizeObserverRef.current && chartContainerRef.current) {
+      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current = null;
+    }
 
-    // Convert trades to chart data with proper price calculation
-    const trades = token.recentTrades
-      .map((trade, index) => {
-        // Calculate raw SOL/token price
-        const tokenAmount = trade.tokenAmount / (10 ** TOKEN_DECIMALS);
-        const fillPrice = tokenAmount > 0 ? trade.solAmount / tokenAmount : 0;
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
+    }
+  };
 
-        // Add millisecond offset to ensure unique timestamps
-        const timestamp = Math.floor(trade.timestamp / 1000);
-        return {
-          time: timestamp + (index * 0.001),
-          value: fillPrice,
-        };
-      })
-      .filter(trade => !isNaN(trade.value) && trade.value > 0)
-      .sort((a, b) => {
-        if (a.time === b.time) return 0;
-        return a.time - b.time;
+  // Initialize chart
+  const initializeChart = () => {
+    if (!chartContainerRef.current || !token?.recentTrades || !isMountedRef.current) return;
+
+    try {
+      // Clean up existing chart if any
+      cleanupChart();
+
+      // Create new chart
+      const chart = createChart(chartContainerRef.current, {
+        layout: {
+          background: { color: '#000000' },
+          textColor: '#666666',
+        },
+        grid: {
+          vertLines: { color: '#1a1a1a' },
+          horzLines: { color: '#1a1a1a' },
+        },
+        width: chartContainerRef.current.clientWidth,
+        height: chartContainerRef.current.clientHeight,
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: false,
+          borderColor: '#333333',
+        },
       });
 
-    if (trades.length === 0) return;
+      chartRef.current = chart;
 
-    // Create chart
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { color: '#000000' },
-        textColor: '#666666',
-      },
-      grid: {
-        vertLines: { color: '#1a1a1a' },
-        horzLines: { color: '#1a1a1a' },
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: chartContainerRef.current.clientHeight,
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: false,
-        borderColor: '#333333',
-      },
-    });
+      const lineSeries = chart.addLineSeries({
+        color: '#22c55e',
+        lineWidth: 2,
+        priceFormat: {
+          type: 'price',
+          precision: 9,
+          minMove: 0.000000001,
+        },
+      });
 
-    chartRef.current = chart;
+      // Convert trades to chart data
+      const trades = token.recentTrades
+        .map((trade, index) => {
+          const tokenAmount = trade.tokenAmount / (10 ** TOKEN_DECIMALS);
+          const fillPrice = tokenAmount > 0 ? trade.solAmount / tokenAmount : 0;
+          const timestamp = Math.floor(trade.timestamp / 1000);
 
-    const lineSeries = chart.addLineSeries({
-      color: '#22c55e',
-      lineWidth: 2,
-      priceFormat: {
-        type: 'price',
-        precision: 9,
-        minMove: 0.000000001,
-      },
-    });
+          return {
+            time: timestamp + (index * 0.001),
+            value: fillPrice,
+          };
+        })
+        .filter(trade => !isNaN(trade.value) && trade.value > 0)
+        .sort((a, b) => {
+          if (a.time === b.time) return 0;
+          return a.time - b.time;
+        });
 
-    if (trades.length > 0 && trades.every(t => typeof t.time === 'number' && typeof t.value === 'number')) {
-      lineSeries.setData(trades);
-      chart.timeScale().fitContent();
-    }
-
-    const resizeObserver = new ResizeObserver(entries => {
-      const { width, height } = entries[0].contentRect;
-      chart.applyOptions({ width, height });
-    });
-
-    if (chartContainerRef.current) {
-      resizeObserver.observe(chartContainerRef.current);
-    }
-
-    // Cleanup function
-    return () => {
-      resizeObserver.disconnect();
-      if (chartRef.current) {
-        chartRef.current.remove();
-        chartRef.current = null;
+      if (trades.length > 0) {
+        lineSeries.setData(trades);
+        chart.timeScale().fitContent();
       }
+
+      // Set up resize observer
+      const resizeObserver = new ResizeObserver(entries => {
+        if (!chartRef.current || !isMountedRef.current) return;
+
+        const { width, height } = entries[0].contentRect;
+        chartRef.current.applyOptions({ width, height });
+      });
+
+      if (chartContainerRef.current) {
+        resizeObserver.observe(chartContainerRef.current);
+        resizeObserverRef.current = resizeObserver;
+      }
+    } catch (error) {
+      console.error('Chart initialization error:', error);
+    }
+  };
+
+  // Handle chart initialization and cleanup
+  useEffect(() => {
+    isMountedRef.current = true;
+    initializeChart();
+
+    return () => {
+      isMountedRef.current = false;
+      cleanupChart();
     };
-  }, [token?.recentTrades]);
+  }, [token?.recentTrades, tokenAddress]);
+
+  const isConnected = usePumpPortalStore(state => state.isConnected);
 
   // Handle WebSocket reconnection and status
   useEffect(() => {
@@ -142,7 +167,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     return `${solAmount.toFixed(9)} SOL`;
   };
 
-  // Calculate current bonding curve price
   const getBondingCurvePrice = () => {
     const vTokens = token.vTokensInBondingCurve / (10 ** TOKEN_DECIMALS);
     if (vTokens <= 0) return 0;
