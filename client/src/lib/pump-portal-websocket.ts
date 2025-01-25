@@ -73,17 +73,23 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
     const now = Date.now();
 
-    // Get the raw amounts from trade
-    const solAmount = Number(trade.solAmount || 0);
+    // Convert raw amounts
+    const solAmount = Number(trade.solAmount || 0) / 1e9; // Convert lamports to SOL
     const tokenAmount = Number(trade.tokenAmount || 0);
     const userTokenAmount = tokenAmount / Math.pow(10, TOKEN_DECIMALS);
 
-    // For buys: solAmount is what was paid, for sells: it's what was received
-    const displayAmount = Math.abs(solAmount);
-
-    // Calculate per-token price (SOL spent or received / tokens traded)
-    const actualTradePriceSol = userTokenAmount > 0 ? displayAmount / userTokenAmount : 0;
+    // Calculate actual price per token
+    const actualTradePriceSol = userTokenAmount > 0 ? solAmount / userTokenAmount : 0;
     const actualTradePriceUsd = actualTradePriceSol * state.solPrice;
+
+    // Debug logging
+    console.log('[Trade]', {
+        solAmount,
+        tokenAmount,
+        userTokenAmount,
+        actualTradePriceSol,
+        actualTradePriceUsd
+    });
 
     // Get bonding curve data
     const vSol = Number(trade.vSolInBondingCurve || 0);
