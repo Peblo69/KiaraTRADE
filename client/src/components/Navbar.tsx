@@ -2,13 +2,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { WalletConnectButton } from "@/lib/wallet";
-import RegisterModal from "./auth/RegisterModal";
-import LoginModal from "./auth/LoginModal";
+import { LineChart, Wallet } from "lucide-react";
 
 export default function Navbar() {
-  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
-
   return (
     <>
       <nav className="border-b border-purple-800/20 backdrop-blur-sm">
@@ -55,35 +51,30 @@ export default function Navbar() {
               </Link>
               <Link href="/subscriptions"><Button variant="ghost">Subscriptions</Button></Link>
 
-              <Button 
-                onClick={() => setIsRegisterOpen(true)}
-                variant="outline" 
-                className="text-purple-400 hover:text-purple-300"
-              >
-                Register
-              </Button>
-              <Button 
-                onClick={() => setIsLoginOpen(true)}
-                variant="outline" 
-                className="text-purple-400 hover:text-purple-300"
-              >
-                Login
-              </Button>
+              <Link href="/predictions">
+                <Button 
+                  variant="outline" 
+                  className="text-purple-400 hover:text-purple-300 flex items-center gap-2"
+                >
+                  <LineChart className="w-4 h-4" />
+                  Price Predictions
+                </Button>
+              </Link>
+              <Link href="/portfolio">
+                <Button 
+                  variant="outline" 
+                  className="text-purple-400 hover:text-purple-300 flex items-center gap-2"
+                >
+                  <Wallet className="w-4 h-4" />
+                  Wallet Tracking
+                </Button>
+              </Link>
 
               <WalletConnectButton />
             </div>
           </div>
         </div>
       </nav>
-
-      <RegisterModal 
-        isOpen={isRegisterOpen} 
-        onClose={() => setIsRegisterOpen(false)} 
-      />
-      <LoginModal 
-        isOpen={isLoginOpen} 
-        onClose={() => setIsLoginOpen(false)} 
-      />
     </>
   );
 }
