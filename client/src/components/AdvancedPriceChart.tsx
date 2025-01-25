@@ -15,6 +15,26 @@ interface ChartProps {
     rsi: number;
     macd: number;
     ema: number;
+    bollingerBands: {
+      upper: number;
+      middle: number;
+      lower: number;
+    };
+    volumeProfile: {
+      value: number;
+      strength: number;
+    };
+    fibonacci: {
+      levels: number[];
+      current: number;
+    };
+    pivotPoints: {
+      pivot: number;
+      r1: number;
+      r2: number;
+      s1: number;
+      s2: number;
+    };
   };
   onTimeRangeChange?: (range: { from: number; to: number }) => void;
 }
@@ -72,6 +92,70 @@ export function AdvancedPriceChart({ symbol, data, indicators, onTimeRangeChange
 
     candlestickSeries.setData(formattedData);
 
+    // Add Bollinger Bands
+    const upperBandSeries = chart.addLineSeries({
+      color: 'rgba(250, 250, 250, 0.3)',
+      lineWidth: 1,
+      lineStyle: LineStyle.Dotted,
+    });
+
+    const middleBandSeries = chart.addLineSeries({
+      color: 'rgba(250, 250, 250, 0.6)',
+      lineWidth: 1,
+    });
+
+    const lowerBandSeries = chart.addLineSeries({
+      color: 'rgba(250, 250, 250, 0.3)',
+      lineWidth: 1,
+      lineStyle: LineStyle.Dotted,
+    });
+
+    // Add Fibonacci Levels
+    const fibLevels = indicators.fibonacci.levels;
+    const fibSeries = fibLevels.map(level => {
+      const series = chart.addLineSeries({
+        color: 'rgba(255, 215, 0, 0.3)',
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+      });
+      series.setData(data.map(d => ({
+        time: d.time as Time,
+        value: level
+      })));
+      return series;
+    });
+
+    // Add Pivot Points
+    const pivotSeries = chart.addLineSeries({
+      color: 'rgba(255, 255, 255, 0.6)',
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+    });
+
+    const r1Series = chart.addLineSeries({
+      color: 'rgba(76, 175, 80, 0.4)',
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+    });
+
+    const r2Series = chart.addLineSeries({
+      color: 'rgba(76, 175, 80, 0.6)',
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+    });
+
+    const s1Series = chart.addLineSeries({
+      color: 'rgba(244, 67, 54, 0.4)',
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+    });
+
+    const s2Series = chart.addLineSeries({
+      color: 'rgba(244, 67, 54, 0.6)',
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+    });
+
     // Add volume series
     const volumeSeries = chart.addHistogramSeries({
       color: '#26a69a',
@@ -92,19 +176,34 @@ export function AdvancedPriceChart({ symbol, data, indicators, onTimeRangeChange
       color: d.close >= d.open ? '#26a69a50' : '#ef535050',
     })));
 
-    // Add EMA line
-    const emaSeries = chart.addLineSeries({
-      color: 'rgba(255, 255, 255, 0.6)',
-      lineWidth: 1,
-    });
-
-    const emaData = data.map((d, i) => ({
+    // Set Bollinger Bands data
+    const bbData = data.map(d => ({
       time: d.time as Time,
-      value: indicators.ema,
+      value: indicators.bollingerBands.upper,
     }));
+    upperBandSeries.setData(bbData);
 
-    emaSeries.setData(emaData);
+    const middleBBData = data.map(d => ({
+      time: d.time as Time,
+      value: indicators.bollingerBands.middle,
+    }));
+    middleBandSeries.setData(middleBBData);
 
+    const lowerBBData = data.map(d => ({
+      time: d.time as Time,
+      value: indicators.bollingerBands.lower,
+    }));
+    lowerBandSeries.setData(lowerBBData);
+
+    // Set Pivot Points data
+    const { pivot, r1, r2, s1, s2 } = indicators.pivotPoints;
+    const timeRange = data.map(d => ({ time: d.time as Time }));
+
+    pivotSeries.setData(timeRange.map(t => ({ ...t, value: pivot })));
+    r1Series.setData(timeRange.map(t => ({ ...t, value: r1 })));
+    r2Series.setData(timeRange.map(t => ({ ...t, value: r2 })));
+    s1Series.setData(timeRange.map(t => ({ ...t, value: s1 })));
+    s2Series.setData(timeRange.map(t => ({ ...t, value: s2 })));
 
     // Add legends
     const legend = document.createElement('div');
@@ -123,11 +222,19 @@ export function AdvancedPriceChart({ symbol, data, indicators, onTimeRangeChange
       const price = param.seriesData.get(candlestickSeries);
       if (!price) return;
 
+      const pivotInfo = indicators.pivotPoints;
       legend.innerHTML = `
         <div>O: ${price.open.toFixed(2)}</div>
         <div>H: ${price.high.toFixed(2)}</div>
         <div>L: ${price.low.toFixed(2)}</div>
         <div>C: ${price.close.toFixed(2)}</div>
+        <div class="mt-2 pt-2 border-t border-gray-600">
+          <div>Pivot: ${pivotInfo.pivot.toFixed(2)}</div>
+          <div class="text-green-400">R1: ${pivotInfo.r1.toFixed(2)}</div>
+          <div class="text-green-400">R2: ${pivotInfo.r2.toFixed(2)}</div>
+          <div class="text-red-400">S1: ${pivotInfo.s1.toFixed(2)}</div>
+          <div class="text-red-400">S2: ${pivotInfo.s2.toFixed(2)}</div>
+        </div>
       `;
     };
 

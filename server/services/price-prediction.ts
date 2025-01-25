@@ -18,6 +18,19 @@ interface IndicatorValues {
     levels: number[];
     current: number;
   };
+  atr: number;
+  pivotPoints: {
+    pivot: number;
+    r1: number;
+    r2: number;
+    s1: number;
+    s2: number;
+  };
+  patterns: {
+    name: string;
+    confidence: number;
+    type: 'bullish' | 'bearish';
+  }[];
 }
 
 class PricePredictionService {
@@ -28,6 +41,7 @@ class PricePredictionService {
   private readonly EMA_PERIOD = 20;
   private readonly BOLLINGER_PERIOD = 20;
   private readonly BOLLINGER_STD = 2;
+  private readonly ATR_PERIOD = 14;
 
   private calculateBollingerBands(prices: number[]): { upper: number; middle: number; lower: number } {
     if (prices.length < this.BOLLINGER_PERIOD) {
@@ -49,6 +63,79 @@ class PricePredictionService {
   private calculateFibonacciLevels(high: number, low: number): number[] {
     const diff = high - low;
     return [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1].map(level => low + (diff * level));
+  }
+
+  private calculatePivotPoints(high: number, low: number, close: number) {
+    const pivot = (high + low + close) / 3;
+    return {
+      pivot,
+      r1: (2 * pivot) - low,
+      r2: pivot + (high - low),
+      s1: (2 * pivot) - high,
+      s2: pivot - (high - low)
+    };
+  }
+
+  private calculateATR(highs: number[], lows: number[], closes: number[]): number {
+    if (highs.length < 2) return 0;
+
+    const ranges = highs.map((high, i) => {
+      if (i === 0) return high - lows[i];
+      const tr1 = high - lows[i];
+      const tr2 = Math.abs(high - closes[i - 1]);
+      const tr3 = Math.abs(lows[i] - closes[i - 1]);
+      return Math.max(tr1, tr2, tr3);
+    });
+
+    return ranges.reduce((sum, range) => sum + range, 0) / ranges.length;
+  }
+
+  private detectPatterns(prices: number[], volumes: number[]): { name: string; confidence: number; type: 'bullish' | 'bearish'; }[] {
+    const patterns: { name: string; confidence: number; type: 'bullish' | 'bearish'; }[] = [];
+    const len = prices.length;
+    if (len < 20) return patterns;
+
+    // Head and Shoulders Pattern
+    const last20 = prices.slice(-20);
+    const leftShoulder = Math.max(...last20.slice(0, 5));
+    const head = Math.max(...last20.slice(5, 10));
+    const rightShoulder = Math.max(...last20.slice(10, 15));
+
+    if (head > leftShoulder && head > rightShoulder && 
+        Math.abs(leftShoulder - rightShoulder) / leftShoulder < 0.1) {
+      patterns.push({
+        name: 'Head and Shoulders',
+        confidence: 0.85,
+        type: 'bearish'
+      });
+    }
+
+    // Double Bottom Pattern
+    const last10 = prices.slice(-10);
+    const firstBottom = Math.min(...last10.slice(0, 5));
+    const secondBottom = Math.min(...last10.slice(5));
+
+    if (Math.abs(firstBottom - secondBottom) / firstBottom < 0.02) {
+      patterns.push({
+        name: 'Double Bottom',
+        confidence: 0.8,
+        type: 'bullish'
+      });
+    }
+
+    // Volume Price Confirmation
+    const recentVolume = volumes.slice(-5);
+    const avgVolume = volumes.slice(-20, -5).reduce((sum, vol) => sum + vol, 0) / 15;
+
+    if (recentVolume.every(vol => vol > avgVolume * 1.5)) {
+      patterns.push({
+        name: 'Volume Breakout',
+        confidence: 0.75,
+        type: prices[prices.length - 1] > prices[prices.length - 5] ? 'bullish' : 'bearish'
+      });
+    }
+
+    return patterns;
   }
 
   private calculateVolumeProfile(prices: number[], volumes: number[]): { value: number; strength: number } {
@@ -100,7 +187,7 @@ class PricePredictionService {
     const macdLine = fastEMA - slowEMA;
     const signalLine = this.calculateEMA([...Array(this.MACD_SLOW - 1).fill(0), macdLine], this.MACD_SIGNAL);
 
-    return macdLine - signalLine; // MACD histogram
+    return macdLine - signalLine;
   }
 
   private calculateEMA(prices: number[], period: number): number {
@@ -119,6 +206,11 @@ class PricePredictionService {
   private calculateIndicators(prices: number[], volumes: number[]): IndicatorValues {
     const high = Math.max(...prices);
     const low = Math.min(...prices);
+    const close = prices[prices.length - 1];
+
+    const highs = prices.map((p, i) => Math.max(p, prices[i - 1] || p));
+    const lows = prices.map((p, i) => Math.min(p, prices[i - 1] || p));
+    const closes = prices.slice(0, -1);
 
     return {
       rsi: this.calculateRSI(prices, volumes),
@@ -128,8 +220,11 @@ class PricePredictionService {
       volumeProfile: this.calculateVolumeProfile(prices, volumes),
       fibonacci: {
         levels: this.calculateFibonacciLevels(high, low),
-        current: prices[prices.length - 1]
-      }
+        current: close
+      },
+      atr: this.calculateATR(highs, lows, closes),
+      pivotPoints: this.calculatePivotPoints(high, low, close),
+      patterns: this.detectPatterns(prices, volumes)
     };
   }
 
@@ -168,35 +263,45 @@ class PricePredictionService {
     }
     totalSignals += 2;
 
-    // Fibonacci Analysis (Weighted: 1)
-    const fibLevel = indicators.fibonacci.levels.findIndex(
+    // Fibonacci Analysis (Weighted: 2)
+    const currentFibLevel = indicators.fibonacci.levels.findIndex(
       level => indicators.fibonacci.current <= level
     );
-    if (fibLevel <= 2) { bullishSignals += 1; }
-    if (fibLevel >= 5) { bearishSignals += 1; }
-    totalSignals += 1;
+    if (currentFibLevel <= 2) { bullishSignals += 2; }
+    if (currentFibLevel >= 5) { bearishSignals += 2; }
+    totalSignals += 2;
+
+    // Pattern Analysis (Weighted: 3)
+    indicators.patterns.forEach(pattern => {
+      if (pattern.type === 'bullish') { bullishSignals += 3 * pattern.confidence; }
+      if (pattern.type === 'bearish') { bearishSignals += 3 * pattern.confidence; }
+      totalSignals += 3;
+    });
 
     const sentiment = bullishSignals > bearishSignals ? 'bullish' : 'bearish';
     const confidence = Math.abs(bullishSignals - bearishSignals) / totalSignals;
 
-    const volatilityFactor = Math.abs(
-      indicators.bollingerBands.upper - indicators.bollingerBands.lower
-    ) / currentPrice;
-
-    const priceChange = currentPrice * volatilityFactor * confidence;
+    // Calculate predicted range based on ATR and current price
+    const range = indicators.atr * confidence;
 
     return {
       currentPrice,
       predictedPriceRange: {
-        low: sentiment === 'bearish' ? currentPrice - priceChange : currentPrice,
-        high: sentiment === 'bullish' ? currentPrice + priceChange : currentPrice
+        low: sentiment === 'bearish' ? currentPrice - range : currentPrice,
+        high: sentiment === 'bullish' ? currentPrice + range : currentPrice
       },
       sentiment,
       confidence,
       indicators: {
         rsi: indicators.rsi,
         macd: indicators.macd,
-        ema: indicators.ema
+        ema: indicators.ema,
+        bollingerBands: indicators.bollingerBands,
+        volumeProfile: indicators.volumeProfile,
+        fibonacci: indicators.fibonacci,
+        atr: indicators.atr,
+        pivotPoints: indicators.pivotPoints,
+        patterns: indicators.patterns
       },
       timestamp: Date.now()
     };
