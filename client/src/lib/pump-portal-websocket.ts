@@ -40,10 +40,11 @@ export interface PumpPortalToken {
 interface PumpPortalStore {
   tokens: PumpPortalToken[];
   viewedTokens: { [key: string]: PumpPortalToken };
+  viewedTokensCache: { [key: string]: PumpPortalToken }; // Permanent cache for viewed tokens
   isConnected: boolean;
   solPrice: number;
   lastUpdate: number;
-  activeTokenView: string | null; // Track currently viewed token
+  activeTokenView: string | null;
 
   addToken: (tokenData: any) => void;
   addTradeToHistory: (address: string, tradeData: any) => void;
@@ -53,11 +54,13 @@ interface PumpPortalStore {
   addToViewedTokens: (address: string) => void;
   setActiveTokenView: (address: string | null) => void;
   getToken: (address: string) => PumpPortalToken | undefined;
+  removeFromViewedTokens: (address: string) => void;
 }
 
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
   viewedTokens: {},
+  viewedTokensCache: {}, // New permanent cache
   isConnected: false,
   solPrice: 0,
   lastUpdate: Date.now(),
@@ -67,35 +70,33 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     set((state) => {
       const newToken = mapTokenData(tokenData);
       const existingTokenIndex = state.tokens.findIndex(t => t.address === newToken.address);
-      console.log('[PumpPortal] Adding/Updating token:', {
-        address: newToken.address,
-        exists: existingTokenIndex >= 0,
-        isViewed: !!state.viewedTokens[newToken.address],
-        isActive: state.activeTokenView === newToken.address
-      });
 
-      // Preserve token in viewedTokens if it's currently being viewed
-      const shouldPreserve = state.activeTokenView === newToken.address;
-      const updatedTokens = existingTokenIndex >= 0
-        ? state.tokens.map((t, i) => i === existingTokenIndex ? { ...t, ...newToken } : t)
-        : [newToken, ...state.tokens].slice(0, shouldPreserve ? MAX_TOKENS_IN_LIST + 1 : MAX_TOKENS_IN_LIST);
+      // Check if token is currently being viewed
+      const isViewed = state.activeTokenView === newToken.address;
 
-      const newState = {
-        tokens: updatedTokens,
-        viewedTokens: {
-          ...state.viewedTokens,
-          ...(shouldPreserve ? { [newToken.address]: newToken } : {})
-        },
-        lastUpdate: Date.now()
+      // Update token in main list if it exists
+      let updatedTokens = state.tokens;
+      if (existingTokenIndex >= 0) {
+        updatedTokens = state.tokens.map((t, i) => 
+          i === existingTokenIndex ? { ...t, ...newToken } : t
+        );
+      } else {
+        // Add new token while preserving viewed token
+        updatedTokens = [newToken, ...state.tokens]
+          .filter((t, i) => i < MAX_TOKENS_IN_LIST || t.address === state.activeTokenView);
+      }
+
+      // Always update viewed token cache if token is being viewed
+      const updatedViewedTokensCache = {
+        ...state.viewedTokensCache,
+        ...(isViewed ? { [newToken.address]: newToken } : {})
       };
 
-      console.log('[PumpPortal] Store updated:', {
-        tokensCount: newState.tokens.length,
-        viewedTokensCount: Object.keys(newState.viewedTokens).length,
-        activeToken: state.activeTokenView
-      });
-
-      return newState;
+      return {
+        tokens: updatedTokens,
+        viewedTokensCache: updatedViewedTokensCache,
+        lastUpdate: Date.now()
+      };
     }),
 
   addTradeToHistory: (address, tradeData) => 
@@ -115,12 +116,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         marketCapSol: tradeData.marketCapSol
       };
 
-      console.log('[PumpPortal] Adding trade:', {
-        tokenAddress: address,
-        isViewed: !!state.viewedTokens[address],
-        isActive: state.activeTokenView === address
-      });
-
+      // Update token data with new trade
       const updateToken = (token: PumpPortalToken): PumpPortalToken => ({
         ...token,
         recentTrades: [newTrade, ...token.recentTrades].slice(0, MAX_TRADES_PER_TOKEN),
@@ -130,11 +126,12 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         marketCapSol: tradeData.marketCapSol
       });
 
+      // Update in both main list and cache if being viewed
       return {
         tokens: state.tokens.map(t => t.address === address ? updateToken(t) : t),
-        viewedTokens: {
-          ...state.viewedTokens,
-          ...(state.viewedTokens[address] ? { [address]: updateToken(state.viewedTokens[address]) } : {})
+        viewedTokensCache: {
+          ...state.viewedTokensCache,
+          ...(state.viewedTokensCache[address] ? { [address]: updateToken(state.viewedTokensCache[address]) } : {})
         },
         lastUpdate: Date.now()
       };
@@ -142,9 +139,11 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
   setConnected: (connected) => set({ isConnected: connected, lastUpdate: Date.now() }),
   setSolPrice: (price) => set({ solPrice: price, lastUpdate: Date.now() }),
+
   resetTokens: () => set(state => ({
     tokens: [],
     viewedTokens: {},
+    viewedTokensCache: {},
     activeTokenView: null,
     lastUpdate: Date.now()
   })),
@@ -152,46 +151,42 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   addToViewedTokens: (address) => set((state) => {
     const token = state.tokens.find(t => t.address === address);
     if (!token) {
-      console.warn('[PumpPortal] Attempted to view non-existent token:', address);
+      console.warn('[PumpPortal] Cannot add non-existent token to viewed cache:', address);
       return state;
     }
 
-    console.log('[PumpPortal] Adding token to viewed cache:', {
-      address,
-      tokenExists: !!token,
-      wasViewed: !!state.viewedTokens[address]
-    });
-
     return {
-      viewedTokens: {
-        ...state.viewedTokens,
+      viewedTokensCache: {
+        ...state.viewedTokensCache,
         [address]: token
       },
       lastUpdate: Date.now()
     };
   }),
 
-  setActiveTokenView: (address) => set(state => {
-    console.log('[PumpPortal] Setting active token view:', {
-      previous: state.activeTokenView,
-      new: address
-    });
-    return { activeTokenView: address };
-  }),
+  setActiveTokenView: (address) => set(state => ({
+    activeTokenView: address,
+    lastUpdate: Date.now()
+  })),
 
   getToken: (address) => {
     const state = get();
-    const token = state.tokens.find(t => t.address === address) || state.viewedTokens[address];
+    // Look in main list first, then cached tokens
+    return state.tokens.find(t => t.address === address) || 
+           state.viewedTokensCache[address];
+  },
 
-    console.log('[PumpPortal] Getting token:', {
-      address,
-      foundInMain: !!state.tokens.find(t => t.address === address),
-      foundInViewed: !!state.viewedTokens[address],
-      isActive: state.activeTokenView === address
-    });
+  removeFromViewedTokens: (address) => set(state => {
+    if (state.activeTokenView === address) {
+      return state; // Don't remove if still being viewed
+    }
 
-    return token;
-  }
+    const { [address]: removed, ...remaining } = state.viewedTokensCache;
+    return {
+      viewedTokensCache: remaining,
+      lastUpdate: Date.now()
+    };
+  })
 }));
 
 // Map raw token data 

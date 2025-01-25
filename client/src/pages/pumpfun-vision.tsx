@@ -13,15 +13,10 @@ interface TokenRowProps {
 
 // Memoize token row to prevent unnecessary re-renders
 const TokenRow: FC<TokenRowProps> = ({ token, onClick }) => {
-  // Memoize click handler
-  const handleClick = useCallback(() => {
-    onClick();
-  }, [onClick]);
-
   return (
     <Card 
       className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
-      onClick={handleClick}
+      onClick={onClick}
     >
       <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
         <div className="flex items-center gap-3">
@@ -85,16 +80,36 @@ const TokenListContent: FC = () => {
   const addToViewedTokens = usePumpPortalStore(useCallback(state => state.addToViewedTokens, []));
   const setActiveTokenView = usePumpPortalStore(useCallback(state => state.setActiveTokenView, []));
   const getToken = usePumpPortalStore(useCallback(state => state.getToken, []));
+  const removeFromViewedTokens = usePumpPortalStore(useCallback(state => state.removeFromViewedTokens, []));
 
-  // Reset selection on unmount
+  // Handle token selection and cache management
+  const handleTokenSelect = useCallback((address: string) => {
+    addToViewedTokens(address); // Add to cache
+    setActiveTokenView(address); // Mark as active
+    setSelectedToken(address);
+  }, [addToViewedTokens, setActiveTokenView]);
+
+  // Handle back navigation
+  const handleBack = useCallback(() => {
+    if (selectedToken) {
+      removeFromViewedTokens(selectedToken); // Clean up cache if needed
+    }
+    setSelectedToken(null);
+    setActiveTokenView(null);
+  }, [selectedToken, removeFromViewedTokens, setActiveTokenView]);
+
+  // Reset on unmount
   useEffect(() => {
     return () => {
+      if (selectedToken) {
+        removeFromViewedTokens(selectedToken);
+      }
       setSelectedToken(null);
       setActiveTokenView(null);
     };
-  }, [setActiveTokenView]);
+  }, [selectedToken, removeFromViewedTokens, setActiveTokenView]);
 
-  // Monitor connection health
+  // Monitor health
   useEffect(() => {
     const healthCheck = setInterval(() => {
       const now = Date.now();
@@ -105,21 +120,6 @@ const TokenListContent: FC = () => {
 
     return () => clearInterval(healthCheck);
   }, [lastUpdate]);
-
-  // Handle token selection
-  const handleTokenSelect = useCallback((address: string) => {
-    console.log('[PumpFunVision] Selecting token:', address);
-    addToViewedTokens(address); // Add to viewed tokens cache
-    setActiveTokenView(address); // Mark as active view
-    setSelectedToken(address);
-  }, [addToViewedTokens, setActiveTokenView]);
-
-  // Handle back navigation
-  const handleBack = useCallback(() => {
-    console.log('[PumpFunVision] Navigating back from token view');
-    setSelectedToken(null);
-    setActiveTokenView(null);
-  }, [setActiveTokenView]);
 
   if (selectedToken) {
     const token = getToken(selectedToken);
