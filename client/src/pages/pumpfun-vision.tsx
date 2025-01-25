@@ -1,19 +1,27 @@
-import '@/lib/unified-websocket';
-import { FC, useState } from "react";
+import { FC, useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
-import { useUnifiedTokenStore } from "@/lib/unified-token-store";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { getTokenImage } from "@/lib/token-metadata";
-import { formatPrice, formatMarketCap } from "@/lib/utils";
 import TokenChart from "@/components/TokenChart";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) => {
+interface TokenRowProps {
+  token: any;
+  onClick: () => void;
+}
+
+// Memoize token row to prevent unnecessary re-renders
+const TokenRow: FC<TokenRowProps> = ({ token, onClick }) => {
+  // Memoize click handler
+  const handleClick = useCallback(() => {
+    onClick();
+  }, [onClick]);
+
   return (
     <Card 
       className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
-      onClick={onClick}
+      onClick={handleClick}
     >
       <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] gap-4 p-4 items-center">
         <div className="flex items-center gap-3">
@@ -21,6 +29,7 @@ const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) =
             src={token.imageLink || 'https://via.placeholder.com/150'}
             alt={`${token.symbol} logo`}
             className="w-10 h-10 rounded-full object-cover bg-purple-500/20"
+            loading="lazy"
             onError={(e) => {
               (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150';
             }}
@@ -51,17 +60,58 @@ const TokenRow: FC<{ token: any; onClick: () => void }> = ({ token, onClick }) =
   );
 };
 
+// Helper functions
+const formatPrice = (price: number) => {
+  if (!price) return '$0.00';
+  return `$${price.toFixed(8)}`;
+};
+
+const formatMarketCap = (value: number) => {
+  if (!value) return '$0.00';
+  return `$${value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
+};
+
 const PumpFunVision: FC = () => {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
-  const tokens = usePumpPortalStore((state) => state.tokens);
-  const isConnected = usePumpPortalStore((state) => state.isConnected);
+
+  // Use refs to prevent unnecessary re-renders
+  const tokens = usePumpPortalStore(useCallback(state => state.tokens, []));
+  const isConnected = usePumpPortalStore(useCallback(state => state.isConnected, []));
+
+  // Handle back navigation
+  const handleBack = useCallback(() => {
+    setSelectedToken(null);
+  }, []);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      // Clean up any subscriptions or side effects
+      setSelectedToken(null);
+    };
+  }, []);
+
+  // Debug logs
+  useEffect(() => {
+    console.log('[PumpFunVision] Render state:', {
+      timestamp: new Date().toISOString(),
+      selectedToken,
+      tokensCount: tokens.length,
+      isConnected
+    });
+  }, [selectedToken, tokens.length, isConnected]);
 
   if (selectedToken) {
     return (
-      <TokenChart 
-        tokenAddress={selectedToken} 
-        onBack={() => setSelectedToken(null)} 
-      />
+      <ErrorBoundary>
+        <TokenChart 
+          tokenAddress={selectedToken} 
+          onBack={handleBack}
+        />
+      </ErrorBoundary>
     );
   }
 
@@ -91,13 +141,15 @@ const PumpFunVision: FC = () => {
               <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
             </div>
           ) : tokens.length > 0 ? (
-            tokens.map((token) => (
-              <TokenRow
-                key={token.address}
-                token={token}
-                onClick={() => setSelectedToken(token.address)}
-              />
-            ))
+            <div className="space-y-2">
+              {tokens.map((token) => (
+                <TokenRow
+                  key={token.address}
+                  token={token}
+                  onClick={() => setSelectedToken(token.address)}
+                />
+              ))}
+            </div>
           ) : (
             <div className="flex items-center justify-center h-40">
               <p className="text-muted-foreground">Waiting for new tokens...</p>
