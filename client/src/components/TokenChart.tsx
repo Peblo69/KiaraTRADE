@@ -1,4 +1,4 @@
-import { FC, useEffect, useRef, useState } from 'react';
+import { FC, useEffect, useRef, useState, useCallback } from 'react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,9 +26,10 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     state.tokens.find(t => t.address === tokenAddress)
   );
   const solPrice = usePumpPortalStore(state => state.solPrice);
+  const isConnected = usePumpPortalStore(state => state.isConnected);
 
   // Cleanup function
-  const cleanupChart = () => {
+  const cleanupChart = useCallback(() => {
     if (resizeObserverRef.current && chartContainerRef.current) {
       resizeObserverRef.current.disconnect();
       resizeObserverRef.current = null;
@@ -38,10 +39,10 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       chartRef.current.remove();
       chartRef.current = null;
     }
-  };
+  }, []);
 
   // Initialize chart
-  const initializeChart = () => {
+  const initializeChart = useCallback(() => {
     if (!chartContainerRef.current || !token?.recentTrades || !isMountedRef.current) return;
 
     try {
@@ -105,32 +106,49 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       // Set up resize observer
       const resizeObserver = new ResizeObserver(entries => {
         if (!chartRef.current || !isMountedRef.current) return;
-
         const { width, height } = entries[0].contentRect;
-        chartRef.current.applyOptions({ width, height });
+        requestAnimationFrame(() => {
+          if (chartRef.current && isMountedRef.current) {
+            chartRef.current.applyOptions({ width, height });
+          }
+        });
       });
 
       if (chartContainerRef.current) {
         resizeObserver.observe(chartContainerRef.current);
         resizeObserverRef.current = resizeObserver;
       }
+
     } catch (error) {
       console.error('Chart initialization error:', error);
+      // Try to recover
+      cleanupChart();
+      setTimeout(initializeChart, 1000);
     }
-  };
+  }, [token?.recentTrades, cleanupChart]);
 
   // Handle chart initialization and cleanup
   useEffect(() => {
     isMountedRef.current = true;
     initializeChart();
 
+    // Periodic chart refresh to prevent black screen
+    const refreshInterval = setInterval(() => {
+      if (isMountedRef.current && chartRef.current) {
+        requestAnimationFrame(() => {
+          if (chartRef.current && isMountedRef.current) {
+            chartRef.current.timeScale().fitContent();
+          }
+        });
+      }
+    }, 30000);
+
     return () => {
       isMountedRef.current = false;
       cleanupChart();
+      clearInterval(refreshInterval);
     };
-  }, [token?.recentTrades, tokenAddress]);
-
-  const isConnected = usePumpPortalStore(state => state.isConnected);
+  }, [token?.recentTrades, tokenAddress, initializeChart, cleanupChart]);
 
   // Handle WebSocket reconnection and status
   useEffect(() => {
@@ -139,7 +157,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         if (!isConnected) {
           window.location.reload();
         }
-      }, 30000); // Try to reconnect every 30 seconds
+      }, 30000);
 
       return () => clearInterval(reconnectInterval);
     }
