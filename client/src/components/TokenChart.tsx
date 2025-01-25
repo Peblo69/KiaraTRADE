@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { ArrowLeft, DollarSign, Coins } from "lucide-react";
-import { createChart } from 'lightweight-charts';
+import { createChart, IChartApi } from 'lightweight-charts';
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
 interface TokenChartProps {
@@ -17,13 +17,16 @@ const TOKEN_DECIMALS = 9;
 
 const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
   const [showUsd, setShowUsd] = useState(true);
 
   const token = usePumpPortalStore(state => 
     state.tokens.find(t => t.address === tokenAddress)
   );
   const solPrice = usePumpPortalStore(state => state.solPrice);
+  const isConnected = usePumpPortalStore(state => state.isConnected);
 
+  // Chart initialization and cleanup
   useEffect(() => {
     if (!chartContainerRef.current || !token?.recentTrades) return;
 
@@ -49,6 +52,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
     if (trades.length === 0) return;
 
+    // Create chart
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { color: '#000000' },
@@ -66,6 +70,8 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         borderColor: '#333333',
       },
     });
+
+    chartRef.current = chart;
 
     const lineSeries = chart.addLineSeries({
       color: '#22c55e',
@@ -91,11 +97,28 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       resizeObserver.observe(chartContainerRef.current);
     }
 
+    // Cleanup function
     return () => {
-      chart.remove();
       resizeObserver.disconnect();
+      if (chartRef.current) {
+        chartRef.current.remove();
+        chartRef.current = null;
+      }
     };
   }, [token?.recentTrades]);
+
+  // Handle WebSocket reconnection and status
+  useEffect(() => {
+    if (!isConnected) {
+      const reconnectInterval = setInterval(() => {
+        if (!isConnected) {
+          window.location.reload();
+        }
+      }, 30000); // Try to reconnect every 30 seconds
+
+      return () => clearInterval(reconnectInterval);
+    }
+  }, [isConnected]);
 
   if (!token) return null;
 
@@ -184,7 +207,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         </div>
 
         <div className="grid grid-cols-[1fr,300px] gap-4">
-          <ResizablePanelGroup direction="vertical" className="h-[700px]">
+          <ResizablePanelGroup direction="vertical" className="h-[calc(100vh-200px)]">
             <ResizablePanel defaultSize={40} minSize={30}>
               <div className="h-full bg-[#111] rounded-lg p-4">
                 <div ref={chartContainerRef} className="h-full w-full" />
