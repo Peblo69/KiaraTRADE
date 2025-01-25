@@ -1,0 +1,59 @@
+What We Want to Achieve:
+User Interaction:
+
+Add a button in the trading view page of each token that says "Show Wallet Data."
+When the button is clicked, it should fetch the required wallet information (Top Holders, Snipers, Insiders) for the currently displayed token.
+Data Display:
+
+Open a modal or side panel showing:
+A list of Top 10% Holders (wallet addresses, their holdings, and percentage of total supply).
+A list of Snipers (wallet addresses and their initial buy times).
+A list of Insiders (wallet addresses and their transaction details with the dev wallet or significant profit patterns).
+Each wallet should be clickable to view more details if needed (e.g., linking to a block explorer).
+Data Calculation:
+
+Use the Helius API to fetch token holder data, trade activity, and dev wallet interactions to compute:
+Top 10% Holders based on the total token supply.
+Snipers based on the first few trades after token creation.
+Insiders based on interactions with the dev wallet (e.g., significant sells after large buys, frequent dev wallet trades).
+Integration with Chart:
+
+This functionality should integrate seamlessly into the existing token chart UI.
+The chart and wallet data should both reflect the same token's data.
+
+How It Should Work:
+When the Button is Clicked:
+
+Fetch data for the currently displayed token (using its mint address).
+Fetch and process:
+Top Holders: Use the /token-holders endpoint from Helius to get all token holders and calculate the top 10%.
+Snipers: Use trade history from Helius or existing logic to identify wallets that purchased the token in the first few trades.
+Insiders: Use trade data to detect wallets interacting frequently with the dev wallet or making significant profits.
+Data Processing:
+
+Top Holders:
+Sort all holders by token balance in descending order.
+Calculate cumulative token holdings until the total reaches 10% of the total supply.
+Snipers:
+Identify wallets that made trades within the first block or shortly after the token creation timestamp.
+
+Insiders:
+Check for frequent dev wallet interactions or large profit margins after buying from the dev wallet.
+Store wallet interactions with timestamps and trade details.
+Display the Data:
+
+Show the data in a modal or side panel.
+Categorize wallets into:
+Top Holders
+Snipers
+Insiders
+For each wallet, display:
+Wallet address (formatted as abcd...1234).
+Relevant metrics (e.g., balance, profit, transaction count).
+Tags like "Sniper," "Insider," or "Top Holder" for easy identification.
+Backend Workflow:
+
+Use the Helius API for fetching token data:
+/token-holders: To get all token holders.
+/account-transactions: To identify trades and wallet interactions.
+Use your existing trade tracking logic to enhance the data (e.g., identifying dev wallet interactions and snipers).

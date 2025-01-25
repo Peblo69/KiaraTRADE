@@ -4,9 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { ArrowLeft, DollarSign, Coins } from "lucide-react";
+import { ArrowLeft, DollarSign, Coins, ChartPie } from "lucide-react";
 import { createChart, IChartApi } from 'lightweight-charts';
 import { ErrorBoundary } from './ErrorBoundary';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { useQuery } from "@tanstack/react-query";
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -22,7 +31,31 @@ interface Candle {
   color?: string;
 }
 
+interface TokenAnalytics {
+  topHolders: Array<{
+    address: string;
+    balance: number;
+    percentage: number;
+  }>;
+  snipers: Array<{
+    address: string;
+    timestamp: number;
+    amount: number;
+  }>;
+  insiders: Array<{
+    address: string;
+    interactions: number;
+  }>;
+  analytics: {
+    totalHolders: number;
+    averageBalance: number;
+    sniperCount: number;
+    insiderCount: number;
+  };
+}
+
 const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) => {
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
@@ -191,10 +224,20 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   };
 
   const formatAddress = (address: string) =>
-    address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '';
+    `${address.slice(0, 6)}...${address.slice(-4)}`;
+
+  const formatPercentage = (value: number) =>
+    `${value.toFixed(2)}%`;
+
 
   const formatTimestamp = (timestamp: number) =>
-    new Date(timestamp).toLocaleTimeString();
+    new Date(timestamp).toLocaleString();
+
+  // Fetch token analytics
+  const { data: analytics, isLoading: isLoadingAnalytics } = useQuery<TokenAnalytics>({
+    queryKey: [`/api/token-analytics/${tokenAddress}`],
+    enabled: showAnalytics,
+  });
 
   if (!token) return null;
 
@@ -219,7 +262,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
   return (
     <div className="flex-1 h-screen bg-black text-white">
-      <div className="absolute top-4 left-4 z-10">
+      <div className="absolute top-4 left-4 z-10 flex items-center gap-4">
         <Button
           variant="ghost"
           className="text-white hover:bg-white/10"
@@ -228,6 +271,139 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
+
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button
+              variant="outline"
+              className="bg-purple-500/20 border-purple-500/50 hover:bg-purple-500/30"
+              onClick={() => setShowAnalytics(true)}
+            >
+              <ChartPie className="h-4 w-4 mr-2" />
+              Analytics
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl bg-black/95 text-white border-purple-500/20">
+            <DialogHeader>
+              <DialogTitle>Token Analytics</DialogTitle>
+              <DialogDescription>
+                Advanced analytics and holder information
+              </DialogDescription>
+            </DialogHeader>
+
+            {isLoadingAnalytics ? (
+              <div className="flex items-center justify-center p-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-purple-500"></div>
+              </div>
+            ) : analytics ? (
+              <div className="space-y-6">
+                {/* Overview Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-purple-500/10 rounded-lg p-4">
+                    <div className="text-sm text-gray-400">Total Holders</div>
+                    <div className="text-xl font-bold">{analytics.analytics.totalHolders}</div>
+                  </div>
+                  <div className="bg-purple-500/10 rounded-lg p-4">
+                    <div className="text-sm text-gray-400">Avg Balance</div>
+                    <div className="text-xl font-bold">{analytics.analytics.averageBalance.toFixed(2)}</div>
+                  </div>
+                  <div className="bg-purple-500/10 rounded-lg p-4">
+                    <div className="text-sm text-gray-400">Snipers</div>
+                    <div className="text-xl font-bold">{analytics.analytics.sniperCount}</div>
+                  </div>
+                  <div className="bg-purple-500/10 rounded-lg p-4">
+                    <div className="text-sm text-gray-400">Insiders</div>
+                    <div className="text-xl font-bold">{analytics.analytics.insiderCount}</div>
+                  </div>
+                </div>
+
+                {/* Top Holders */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Top Holders</h3>
+                  <div className="space-y-2">
+                    {analytics.topHolders.map((holder, idx) => (
+                      <div
+                        key={holder.address}
+                        className="flex items-center justify-between p-2 bg-purple-500/5 rounded-lg hover:bg-purple-500/10 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-purple-400">#{idx + 1}</span>
+                          <a
+                            href={`https://solscan.io/account/${holder.address}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-400 hover:underline"
+                          >
+                            {formatAddress(holder.address)}
+                          </a>
+                        </div>
+                        <div className="text-right">
+                          <div>{formatPercentage(holder.percentage)}</div>
+                          <div className="text-sm text-gray-400">{holder.balance.toFixed(2)} tokens</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Snipers */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Early Buyers (Snipers)</h3>
+                  <div className="space-y-2">
+                    {analytics.snipers.map((sniper) => (
+                      <div
+                        key={sniper.address}
+                        className="flex items-center justify-between p-2 bg-amber-500/5 rounded-lg hover:bg-amber-500/10 transition-colors"
+                      >
+                        <a
+                          href={`https://solscan.io/account/${sniper.address}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:underline"
+                        >
+                          {formatAddress(sniper.address)}
+                        </a>
+                        <div className="text-right">
+                          <div>{sniper.amount.toFixed(2)} tokens</div>
+                          <div className="text-sm text-gray-400">{formatTimestamp(sniper.timestamp)}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Insiders */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Insider Activity</h3>
+                  <div className="space-y-2">
+                    {analytics.insiders.map((insider) => (
+                      <div
+                        key={insider.address}
+                        className="flex items-center justify-between p-2 bg-orange-500/5 rounded-lg hover:bg-orange-500/10 transition-colors"
+                      >
+                        <a
+                          href={`https://solscan.io/account/${insider.address}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:underline"
+                        >
+                          {formatAddress(insider.address)}
+                        </a>
+                        <div>
+                          <div>{insider.interactions} interactions</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-400">
+                Failed to load analytics data
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="p-4">

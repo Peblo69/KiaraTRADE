@@ -11,7 +11,6 @@ import { getTokenImage } from './image-worker';
 import { pricePredictionService } from './services/price-prediction';
 import { cryptoService } from './services/crypto'; // Import the crypto service
 
-
 const CACHE_DURATION = 30000; // 30 seconds cache
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
 const NEWSDATA_API_BASE = 'https://newsdata.io/api/1';
@@ -55,6 +54,18 @@ if (!process.env.HELIUS_API_KEY) {
 
 // Updated Helius API base URL and endpoint for RPC
 const HELIUS_RPC_URL = `https://api.helius.xyz/v0/rpc?api-key=${process.env.HELIUS_API_KEY}`;
+
+// Add error logging helper
+function logHeliusError(error: any, context: string) {
+  console.error(`[Helius ${context} Error]`, {
+    message: error.message,
+    status: error.response?.status,
+    data: error.response?.data,
+    url: error.config?.url,
+    method: error.config?.method,
+    params: error.config?.data
+  });
+}
 
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
@@ -506,7 +517,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Wallet data endpoint with detailed logging
+  // Wallet data endpoint 
   app.get('/api/wallet/:address', async (req, res) => {
     try {
       const { address } = req.params;
@@ -518,17 +529,11 @@ export function registerRoutes(app: Express): Server {
       }
 
       console.log(`[DEBUG] Starting wallet data fetch for address: ${address}`);
-      console.log(`[DEBUG] Using Helius API base: ${HELIUS_RPC_URL}`);
-      console.log(`[DEBUG] API Key exists: ${!!process.env.HELIUS_API_KEY}`);
+      console.log(`[DEBUG] Using Helius API with key: ${process.env.HELIUS_API_KEY?.substring(0, 5)}...`);
 
-      // Portfolio request config
-      const portfolioConfig = {
-        method: 'post',
-        url: HELIUS_RPC_URL,
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        data: {
+      // Portfolio request
+      try {
+        const portfolioResponse = await axios.post(HELIUS_RPC_URL, {
           jsonrpc: '2.0',
           id: 'portfolio-request',
           method: 'getPortfolio',
@@ -540,128 +545,106 @@ export function registerRoutes(app: Express): Server {
               portionSize: 20
             }
           }
+        });
+
+        console.log('[DEBUG] Portfolio Response:', {
+          status: portfolioResponse.status,
+          hasResult: !!portfolioResponse.data?.result
+        });
+        if (!portfolioResponse.data?.result) {
+          throw new Error('Invalid portfolio response from Helius API');
         }
-      };
+        const portfolio = portfolioResponse.data.result;
 
-      console.log('[DEBUG] Portfolio request config:', JSON.stringify(portfolioConfig, null, 2));
+        // Transaction request
+        try {
+          const txResponse = await axios.post(HELIUS_RPC_URL, {
+            jsonrpc: '2.0',
+            id: 'tx-request',
+            method: 'getParsedTransactions',
+            params: {
+              address,
+              numResults: 20
+            }
+          });
 
-      const portfolioResponse = await axios(portfolioConfig);
-
-      console.log('[DEBUG] Portfolio API Response:', {
-        status: portfolioResponse.status,
-        statusText: portfolioResponse.statusText,
-        data: portfolioResponse.data
-      });
-
-      if (!portfolioResponse.data?.result) {
-        throw new Error('Invalid portfolio response from Helius API');
-      }
-
-      const portfolio = portfolioResponse.data.result;
-
-      // Map tokens to our format
-      const tokens = (portfolio.tokens || []).map((token: any) => ({
-        mint: token.tokenAddress,
-        amount: token.amount,
-        symbol: token.symbol || 'Unknown',
-        price: token.price || 0,
-        value: token.value || 0,
-        pnl24h: token.priceChange24h || 0
-      }));
-
-      // Calculate total balance
-      const balance = portfolio.value || 0;
-
-      // Transaction request config
-      const txConfig = {
-        method: 'post',
-        url: HELIUS_RPC_URL,
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        data: {
-          jsonrpc: '2.0',
-          id: 'tx-request',
-          method: 'getParsedTransactions',
-          params: {
-            address,
-            numResults: 20
+          console.log('[DEBUG] Transaction Response:', {
+            status: txResponse.status,
+            hasResult: !!txResponse.data?.result
+          });
+          if (!txResponse.data?.result) {
+            throw new Error('Invalid transaction response from Helius API');
           }
+          const transactions = txResponse.data.result.map((tx: any) => {
+            const transfer = tx.tokenTransfers?.[0];
+            let type: 'buy' | 'sell' | 'transfer' = 'transfer';
+
+            if (transfer) {
+              type = transfer.fromUserAccount === address ? 'sell' : 'buy';
+            }
+
+            return {
+              signature: tx.signature,
+              type,
+              tokenSymbol: transfer?.symbol || 'SOL',
+              amount: transfer?.tokenAmount || 0,
+              price: transfer?.price || 0,
+              timestamp: tx.timestamp * 1000,
+              value: (transfer?.tokenAmount || 0) * (transfer?.price || 0)
+            };
+          });
+
+          // Map tokens to our format
+          const tokens = (portfolio.tokens || []).map((token: any) => ({
+            mint: token.tokenAddress,
+            amount: token.amount,
+            symbol: token.symbol || 'Unknown',
+            price: token.price || 0,
+            value: token.value || 0,
+            pnl24h: token.priceChange24h || 0
+          }));
+
+          const balance = portfolio.value || 0;
+
+          // Calculate PNL
+          const now = Date.now();
+          const oneDayAgo = now - 24 * 60 * 60 * 1000;
+          const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+          const dailyTxs = transactions.filter(tx => tx.timestamp > oneDayAgo);
+          const weeklyTxs = transactions.filter(tx => tx.timestamp > oneWeekAgo);
+
+          const calculatePNL = (txs: any[]) => {
+            const buys = txs.filter(tx => tx.type === 'buy')
+              .reduce((sum, tx) => sum + tx.value, 0);
+            const sells = txs.filter(tx => tx.type === 'sell')
+              .reduce((sum, tx) => sum + tx.value, 0);
+
+            if (buys === 0) return 0;
+            return ((sells - buys) / buys * 100);
+          };
+
+          const pnl = {
+            daily: calculatePNL(dailyTxs),
+            weekly: calculatePNL(weeklyTxs),
+            monthly: 0
+          };
+
+          res.json({
+            address,
+            balance,
+            tokens,
+            transactions,
+            pnl
+          });
+        } catch (error: any) {
+          logHeliusError(error, 'Transactions');
+          throw error;
         }
-      };
-
-      console.log('[DEBUG] Transaction request config:', JSON.stringify(txConfig, null, 2));
-
-      const txResponse = await axios(txConfig);
-
-      console.log('[DEBUG] Transaction API Response:', {
-        status: txResponse.status,
-        statusText: txResponse.statusText,
-        data: txResponse.data
-      });
-
-      if (!txResponse.data?.result) {
-        throw new Error('Invalid transaction response from Helius API');
+      } catch (error: any) {
+        logHeliusError(error, 'Portfolio');
+        throw error;
       }
-
-      const transactions = txResponse.data.result.map((tx: any) => {
-        const transfer = tx.tokenTransfers?.[0];
-        let type: 'buy' | 'sell' | 'transfer' = 'transfer';
-
-        if (transfer) {
-          type = transfer.fromUserAccount === address ? 'sell' : 'buy';
-        }
-
-        return {
-          signature: tx.signature,
-          type,
-          tokenSymbol: transfer?.symbol || 'SOL',
-          amount: transfer?.tokenAmount || 0,
-          price: transfer?.price || 0,
-          timestamp: tx.timestamp * 1000,
-          value: (transfer?.tokenAmount || 0) * (transfer?.price || 0)
-        };
-      });
-
-      // Calculate PNL
-      const now = Date.now();
-      const oneDayAgo = now - 24 * 60 * 60 * 1000;
-      const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
-
-      const dailyTxs = transactions.filter(tx => tx.timestamp > oneDayAgo);
-      const weeklyTxs = transactions.filter(tx => tx.timestamp > oneWeekAgo);
-
-      const calculatePNL = (txs: any[]) => {
-        const buys = txs.filter(tx => tx.type === 'buy')
-          .reduce((sum, tx) => sum + tx.value, 0);
-        const sells = txs.filter(tx => tx.type === 'sell')
-          .reduce((sum, tx) => sum + tx.value, 0);
-
-        if (buys === 0) return 0;
-        return ((sells - buys) / buys * 100);
-      };
-
-      const pnl = {
-        daily: calculatePNL(dailyTxs),
-        weekly: calculatePNL(weeklyTxs),
-        monthly: 0
-      };
-
-      console.log('[DEBUG] Successfully compiled wallet data:', {
-        address,
-        tokenCount: tokens.length,
-        transactionCount: transactions.length,
-        balance,
-        pnl
-      });
-
-      res.json({
-        address,
-        balance,
-        tokens,
-        transactions,
-        pnl
-      });
 
     } catch (error: any) {
       console.error('[DEBUG] Wallet data error:', {
@@ -671,7 +654,6 @@ export function registerRoutes(app: Express): Server {
           status: error.response?.status,
           statusText: error.response?.statusText,
           data: error.response?.data,
-          headers: error.response?.headers
         }
       });
 
