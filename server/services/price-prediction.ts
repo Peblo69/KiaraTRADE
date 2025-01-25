@@ -101,7 +101,7 @@ class PricePredictionService {
     const head = Math.max(...last20.slice(5, 10));
     const rightShoulder = Math.max(...last20.slice(10, 15));
 
-    if (head > leftShoulder && head > rightShoulder && 
+    if (head > leftShoulder && head > rightShoulder &&
         Math.abs(leftShoulder - rightShoulder) / leftShoulder < 0.1) {
       patterns.push({
         name: 'Head and Shoulders',
@@ -143,7 +143,7 @@ class PricePredictionService {
       return { value: 0, strength: 0 };
     }
 
-    const volumeWeightedPrice = prices.reduce((sum, price, i) => sum + (price * volumes[i]), 0) / 
+    const volumeWeightedPrice = prices.reduce((sum, price, i) => sum + (price * volumes[i]), 0) /
                                volumes.reduce((sum, vol) => sum + vol, 0);
 
     const averageVolume = volumes.reduce((sum, vol) => sum + vol, 0) / volumes.length;
@@ -281,28 +281,37 @@ class PricePredictionService {
     const sentiment = bullishSignals > bearishSignals ? 'bullish' : 'bearish';
     const confidence = Math.abs(bullishSignals - bearishSignals) / totalSignals;
 
-    // Calculate predicted range based on ATR and current price
-    const range = indicators.atr * confidence;
+    // Enhanced 24-hour prediction range calculation
+    // Use ATR for volatility-based range and multiply by 24 for daily projection
+    const dailyVolatilityRange = indicators.atr * 24;
+    const trendMultiplier = sentiment === 'bullish' ? 1 + confidence : 1 - confidence;
+
+    // Calculate predicted range incorporating trend and confidence
+    const predictedChange = currentPrice * (dailyVolatilityRange / currentPrice) * trendMultiplier;
+
+    // For bearish sentiment, we expect price to go down
+    const baseRange = sentiment === 'bearish' ?
+      {
+        low: currentPrice - predictedChange,
+        high: currentPrice
+      } :
+      {
+        low: currentPrice,
+        high: currentPrice + predictedChange
+      };
+
+    // Adjust range based on confidence and support/resistance levels
+    const range = {
+      low: Math.max(baseRange.low, indicators.pivotPoints.s2),
+      high: Math.min(baseRange.high, indicators.pivotPoints.r2)
+    };
 
     return {
       currentPrice,
-      predictedPriceRange: {
-        low: sentiment === 'bearish' ? currentPrice - range : currentPrice,
-        high: sentiment === 'bullish' ? currentPrice + range : currentPrice
-      },
+      predictedPriceRange: range,
       sentiment,
       confidence,
-      indicators: {
-        rsi: indicators.rsi,
-        macd: indicators.macd,
-        ema: indicators.ema,
-        bollingerBands: indicators.bollingerBands,
-        volumeProfile: indicators.volumeProfile,
-        fibonacci: indicators.fibonacci,
-        atr: indicators.atr,
-        pivotPoints: indicators.pivotPoints,
-        patterns: indicators.patterns
-      },
+      indicators,
       timestamp: Date.now()
     };
   }
@@ -316,7 +325,7 @@ class PricePredictionService {
       }
 
       const indicators = this.calculateIndicators(
-        priceData.historicalPrices, 
+        priceData.historicalPrices,
         priceData.historicalVolumes
       );
 
