@@ -22,14 +22,16 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   useEffect(() => {
     if (!chartContainerRef.current || !token?.recentTrades) return;
 
-    // Convert trades to chart data
+    // Convert trades to chart data with unique timestamps
     const trades = token.recentTrades
-      .map(trade => ({
-        time: Math.floor(trade.timestamp / 1000),
-        value: trade.solAmount / trade.tokenAmount, // Raw price calculation
+      .map((trade, index) => ({
+        time: Math.floor(trade.timestamp / 1000) + index, // Add index to ensure unique timestamps
+        value: trade.solAmount / trade.tokenAmount,
       }))
       .filter(trade => !isNaN(trade.value) && trade.value > 0)
       .sort((a, b) => a.time - b.time);
+
+    if (trades.length === 0) return; // Don't create chart without data
 
     if (trades.length === 0) return;
 
