@@ -34,6 +34,7 @@ export interface PumpPortalToken {
   vTokensInBondingCurve: number;
   vSolInBondingCurve: number;
   marketCapSol: number;
+  devWallet?: string; // Add devWallet field
   recentTrades: TokenTrade[];
 }
 
@@ -66,18 +67,20 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   addToken: (tokenData) => 
     set((state) => {
       const newToken = mapTokenData(tokenData);
-      const existingTokenIndex = state.tokens.findIndex(t => t.address === newToken.address);
 
-      // Check if token is currently being viewed
+      // If it's a creation event, set devWallet
+      if (tokenData.txType === 'create') {
+        newToken.devWallet = tokenData.traderPublicKey;
+      }
+
+      const existingTokenIndex = state.tokens.findIndex(t => t.address === newToken.address);
       const isViewed = state.activeTokenView === newToken.address;
 
-      // Update existing token
       if (existingTokenIndex >= 0) {
         const updatedTokens = state.tokens.map((t, i) => 
           i === existingTokenIndex ? { ...t, ...newToken } : t
         );
 
-        // If token is being viewed, also update in viewed tokens
         if (isViewed) {
           return {
             tokens: updatedTokens,
@@ -92,7 +95,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         return { tokens: updatedTokens, lastUpdate: Date.now() };
       }
 
-      // Add new token
       const updatedTokens = [newToken, ...state.tokens]
         .filter((t, i) => i < MAX_TOKENS_IN_LIST || t.address === state.activeTokenView);
 
@@ -134,7 +136,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         marketCapSol: tradeData.marketCapSol
       });
 
-      // Update token in both lists if being viewed
       const isViewed = state.activeTokenView === address;
       const updates: Partial<PumpPortalStore> = {
         tokens: state.tokens.map(t => t.address === address ? updateToken(t) : t),
@@ -175,7 +176,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   }),
 
   setActiveTokenView: (address) => set((state) => {
-    // If clearing active view, maintain viewed token in cache temporarily
     if (!address) {
       return { 
         activeTokenView: null,
@@ -183,7 +183,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       };
     }
 
-    // Setting new active view
     const token = state.tokens.find(t => t.address === address);
     if (!token) return state;
 
@@ -199,12 +198,10 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
   getToken: (address) => {
     const state = get();
-    // Check viewed tokens first, then main list
     return state.viewedTokens[address] || state.tokens.find(t => t.address === address);
   }
 }));
 
-// Map raw token data 
 function mapTokenData(data: any): PumpPortalToken {
   return {
     symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
@@ -215,6 +212,7 @@ function mapTokenData(data: any): PumpPortalToken {
     vTokensInBondingCurve: data.vTokensInBondingCurve,
     vSolInBondingCurve: data.vSolInBondingCurve,
     marketCapSol: data.marketCapSol,
+    devWallet: data.devWallet, // Preserve devWallet if already set
     recentTrades: []
   };
 }

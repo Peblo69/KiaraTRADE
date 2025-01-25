@@ -57,11 +57,8 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
   const solPrice = usePumpPortalStore(state => state.solPrice);
 
-  // Get DEV wallet (first buyer)
-  const devWallet = token?.recentTrades?.length ? 
-    token.recentTrades.reduce((earliest, trade) => 
-      trade.timestamp < earliest.timestamp ? trade : earliest
-    ).traderPublicKey : null;
+  // Use devWallet from token data
+  const devWallet = token?.devWallet;
 
   const cleanupChart = useCallback(() => {
     if (resizeObserverRef.current && chartContainerRef.current) {
@@ -246,7 +243,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const formatPrice = (value: number) => {
     if (!value || isNaN(value)) return showUsd ? '$0.00' : '0 SOL';
     return showUsd
-      ? `$${(value).toFixed(2)}` // Updated to format USD directly
+      ? `$${(value).toFixed(2)}` 
       : `${value.toFixed(9)} SOL`;
   };
 
@@ -312,15 +309,15 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           <div className="flex gap-6">
             <div className="text-right">
               <div className="text-sm text-gray-400">Price</div>
-              <div className="font-bold">{formatPrice(token.marketCapSol * solPrice)}</div> {/* Updated to use USD */}
+              <div className="font-bold">{formatPrice(token.marketCapSol * solPrice)}</div> 
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Liquidity</div>
-              <div className="font-bold">{formatPrice(token.vSolInBondingCurve * solPrice)}</div> {/* Updated to use USD */}
+              <div className="font-bold">{formatPrice(token.vSolInBondingCurve * solPrice)}</div> 
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Market Cap</div>
-              <div className="font-bold">{formatPriceScale(token.marketCapSol * solPrice)}</div> {/* Updated to use new formatter */}
+              <div className="font-bold">{formatPriceScale(token.marketCapSol * solPrice)}</div> 
             </div>
           </div>
         </div>
@@ -378,7 +375,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                         </span>
                       </div>
                       <div className="text-right">
-                        {formatPrice(trade.solAmount * solPrice)} {/* Updated to use USD */}
+                        {formatPrice(trade.solAmount * solPrice)}
                       </div>
                     </div>
                   );
@@ -423,11 +420,11 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                   <div className="grid grid-cols-2 text-sm">
                     <div>
                       <div className="text-gray-400">Liquidity</div>
-                      <div>{formatPrice(token.vSolInBondingCurve * solPrice)}</div> {/* Updated to use USD */}
+                      <div>{formatPrice(token.vSolInBondingCurve * solPrice)}</div> 
                     </div>
                     <div>
                       <div className="text-gray-400">Market Cap</div>
-                      <div>{formatPriceScale(token.marketCapSol * solPrice)}</div> {/* Updated to use new formatter */}
+                      <div>{formatPriceScale(token.marketCapSol * solPrice)}</div> 
                     </div>
                   </div>
                 </div>
