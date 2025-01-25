@@ -71,16 +71,18 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const now = Date.now();
     const tradeAmount = Number(trade.solAmount || 0);
     const isBuy = trade.txType === 'buy';
-    const tradePrice = Number(trade.price || 0);
+    const tradePrice = Number(trade.solAmount || 0) / Number(trade.tokenAmount || 1);
     const tradePriceUsd = tradePrice * state.solPrice;
-    const tradeVolume = tradeAmount * tradePriceUsd;
+    const tradeVolume = tradeAmount * state.solPrice;
 
     console.log('[Trade]', {
       type: isBuy ? 'buy' : 'sell',
       price: tradePrice,
       priceUsd: tradePriceUsd,
       amount: tradeAmount,
-      volume: tradeVolume
+      volume: tradeVolume,
+      solPrice: state.solPrice,
+      tokenAmount: trade.tokenAmount
     });
 
     const newTrade: TokenTrade = {
@@ -121,6 +123,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   setConnected: (connected) => set({ isConnected: connected }),
   setSolPrice: (price) => {
     if (price > 0) {
+      console.log('[PumpPortal] Updated SOL price:', price);
       set({ solPrice: price });
     }
   },
@@ -160,7 +163,7 @@ const fetchSolanaPrice = async (retries = 3): Promise<number> => {
         throw new Error('Invalid price response');
       } catch (error: any) {
         const isLastAttempt = i === retries - 1;
-        const isLastEndpoint = endpoint === API_ENDPOINTS.length - 1;
+        const isLastEndpoint = endpoint === API_ENDPOINTS[0];
 
         console.error(`[PumpPortal] Error fetching SOL price from ${endpoint.url} (attempt ${i + 1}/${retries}):`,
           error.response?.status || error.message);
