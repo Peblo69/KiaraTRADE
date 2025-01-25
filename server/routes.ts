@@ -8,6 +8,7 @@ import { initializePumpPortalWebSocket } from './pumpportal';
 import { generateAIResponse } from './services/ai';
 import axios from 'axios';
 import { getTokenImage } from './image-worker';
+import { pricePredictionService } from './services/price-prediction';
 
 const CACHE_DURATION = 30000; // 30 seconds cache
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
@@ -49,6 +50,23 @@ export function registerRoutes(app: Express): Server {
 
   // Initialize PumpPortal WebSocket
   initializePumpPortalWebSocket();
+
+  // Add price prediction endpoint
+  app.get('/api/prediction/:symbol', async (req, res) => {
+    try {
+      const symbol = req.params.symbol;
+      console.log(`[Routes] Generating prediction for ${symbol}`);
+
+      const prediction = await pricePredictionService.getPricePrediction(symbol);
+      res.json(prediction);
+    } catch (error: any) {
+      console.error('[Routes] Prediction error:', error);
+      res.status(500).json({
+        error: 'Failed to generate prediction',
+        details: error.message
+      });
+    }
+  });
 
   // Add crypto news endpoint
   app.get('/api/crypto-news', async (req, res) => {
