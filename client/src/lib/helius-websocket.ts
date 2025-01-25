@@ -132,20 +132,28 @@ async function processTransaction(signature: string, tokenAddress: string) {
 
     if (preBalances.length === 0 || postBalances.length === 0) return;
 
+    // Get token amounts
     const preAmount = preBalances[0]?.uiTokenAmount.uiAmount || 0;
     const postAmount = postBalances[0]?.uiTokenAmount.uiAmount || 0;
 
     if (preAmount === postAmount) return;
 
-    const preTokenAccount = preBalances[0];
-    const postTokenAccount = postBalances[0];
-    
-    // Calculate actual price and determine trade type
-    const deltaAmount = Math.abs(postAmount - preAmount);
+    // Calculate SOL amount involved
     const solTransfers = tx.meta.preBalances.map((pre, i) => {
       const post = tx.meta.postBalances[i];
       return (post - pre) / 1e9; // Convert lamports to SOL
     });
+
+    // Get the largest SOL transfer (likely the trade amount)
+    const solAmount = Math.abs(Math.max(...solTransfers.filter(t => t !== 0)));
+    const tokenAmount = Math.abs(postAmount - preAmount);
+    const price = solAmount / tokenAmount;
+    const isBuy = postAmount > preAmount;
+
+    // Get the buyer/seller wallets
+    const wallets = tx.transaction.message.accountKeys.map(key => key.toString());
+    const buyer = isBuy ? wallets[0] : wallets[1];
+    const seller = isBuy ? wallets[1] : wallets[0];
     
     const solAmount = Math.abs(Math.max(...solTransfers));
     const price = solAmount / deltaAmount;
