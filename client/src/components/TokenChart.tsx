@@ -142,12 +142,17 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     chartRef.current = chart;
 
     const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#22c55e',      // Green for buys
-      downColor: '#ef4444',    // Red for sells
+      upColor: '#22c55e',      // Green for price increase
+      downColor: '#ef4444',    // Red for price decrease  
       borderUpColor: '#22c55e',
       borderDownColor: '#ef4444',
       wickUpColor: '#22c55e',
       wickDownColor: '#ef4444',
+    });
+
+    // Override colors based on trade type
+    candlestickSeries.applyOptions({
+      color: (bar: any) => bar.isSell ? '#ef4444' : '#22c55e'
     });
 
     // Process trades into candles
