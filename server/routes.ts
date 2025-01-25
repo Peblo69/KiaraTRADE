@@ -1,14 +1,14 @@
 import { db } from "@db";
 import { Express } from "express";
 import { createServer, type Server } from "http";
-import WebSocket from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { log } from './vite';
 
 export function registerRoutes(app: Express): Server {  
   const httpServer = createServer(app);
 
   // Create WebSocket server
-  const wss = new WebSocket.Server({ server: httpServer });
+  const wss = new WebSocketServer({ server: httpServer });
 
   // Connect to PumpPortal
   const pumpPortalWs = new WebSocket('wss://api.pumpfun.com/v1/ws');
