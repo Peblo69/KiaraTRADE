@@ -78,7 +78,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
       if (existingTokenIndex >= 0) {
         const updatedTokens = state.tokens.map((t, i) => 
-          i === existingTokenIndex ? { ...t, ...newToken } : t
+          i === existingTokenIndex ? { ...t, ...newToken, devWallet: t.devWallet || newToken.devWallet } : t
         );
 
         if (isViewed) {
@@ -86,7 +86,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
             tokens: updatedTokens,
             viewedTokens: {
               ...state.viewedTokens,
-              [newToken.address]: { ...newToken }
+              [newToken.address]: { ...newToken, devWallet: state.viewedTokens[newToken.address]?.devWallet || newToken.devWallet }
             },
             lastUpdate: Date.now()
           };
