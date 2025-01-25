@@ -358,13 +358,20 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {token.recentTrades?.map((trade, idx) => {
-                  const isDevWallet = trade.traderPublicKey === devWallet;
+                  const isDevWallet = trade.traderPublicKey === devWallet ||
+                    trade.counterpartyPublicKey === devWallet;
+                  const isDevBuying = isDevWallet && trade.traderPublicKey === devWallet && trade.txType === 'buy';
+                  const isDevSelling = isDevWallet && (
+                    (trade.traderPublicKey === devWallet && trade.txType === 'sell') ||
+                    (trade.counterpartyPublicKey === devWallet && trade.txType === 'buy')
+                  );
+
                   return (
                     <div
                       key={trade.signature || idx}
                       className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
                         isDevWallet ?
-                          trade.txType === 'buy' ? 'text-amber-400' : 'text-orange-500' : // Yellow for DEV buys, Orange for DEV sells
+                          isDevBuying ? 'text-amber-400' : 'text-orange-500' : // Yellow for DEV buys, Orange for DEV sells
                           trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
                       }`}
                     >
@@ -372,7 +379,13 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                         <span>{formatTimestamp(trade.timestamp)}</span>
                         <span>
                           {formatAddress(trade.traderPublicKey)}
-                          {isDevWallet && <span className="ml-1 text-xs bg-amber-400/20 text-amber-400 px-1 rounded">DEV</span>}
+                          {isDevWallet && (
+                            <span className={`ml-1 text-xs px-1 rounded ${
+                              isDevBuying ? 'bg-amber-400/20 text-amber-400' : 'bg-orange-500/20 text-orange-500'
+                            }`}>
+                              DEV
+                            </span>
+                          )}
                         </span>
                       </div>
                       <div className="text-right">

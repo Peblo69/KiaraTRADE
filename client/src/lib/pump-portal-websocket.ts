@@ -157,9 +157,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         if (!token.devWallet && tradeData.txType === 'buy' && token.recentTrades.length === 0) {
           console.log('[PumpPortal] Setting dev wallet from first buy:', {
             token: address,
-            wallet: tradeData.traderPublicKey
+            wallet: tradeData.counterpartyPublicKey // First seller is likely the dev
           });
-          updatedToken.devWallet = tradeData.traderPublicKey;
+          updatedToken.devWallet = tradeData.counterpartyPublicKey;
         }
 
         // Check if this is a dev wallet transaction (either as trader or counterparty)
