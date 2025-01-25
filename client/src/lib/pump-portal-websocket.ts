@@ -68,32 +68,46 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     if (!token || !state.solPrice) return;
 
     const now = Date.now();
-    const tradeAmount = Number(trade.solAmount || 0);
+    const solAmount = Number(trade.solAmount || 0);
+    
+    // Handle token decimals properly (assuming 9 decimals)
+    const rawTokenAmount = Number(trade.tokenAmount || 0);
+    const decimals = 9;
+    const userTokenAmount = rawTokenAmount / Math.pow(10, decimals);
+    
     const isBuy = trade.txType === 'buy';
 
-    // Process trade data with proper bonding curve calculations
-    const vTokens = Number(trade.vTokensInBondingCurve || 0);
+    // Calculate actual trade price from the transaction amounts
+    let actualTradePriceSol = userTokenAmount > 0 ? solAmount / userTokenAmount : 0;
+    const actualTradePriceUsd = actualTradePriceSol * state.solPrice;
+
+    // Process bonding curve data
+    const vTokens = Number(trade.vTokensInBondingCurve || 0) / Math.pow(10, decimals);
     const vSol = Number(trade.vSolInBondingCurve || 0);
     const marketCapSol = Number(trade.marketCapSol || 0);
     const liquidity = vSol;
 
-    // Calculate base price from bonding curve
-    const tokenPrice = vTokens > 0 ? Number((vSol / vTokens).toFixed(12)) : 0;
+    // Calculate current bonding curve price
+    const bondingCurvePriceSol = vTokens > 0 ? vSol / vTokens : 0;
+    const bondingCurvePriceUsd = bondingCurvePriceSol * state.solPrice;
 
-    // Calculate price impact based on trade size relative to liquidity
-    const IMPACT_FACTOR = 0.005; // 0.5% impact factor
-    const priceImpact = liquidity > 0 ? 
-        Math.min((Math.abs(tradeAmount) / liquidity) * IMPACT_FACTOR, 0.01) : 0;
+    // Calculate USD values
+    const marketCapUsd = marketCapSol * state.solPrice;
+    const tradeVolume = Math.abs(solAmount) * state.solPrice;
 
-    // Apply price impact based on trade direction
-    const adjustedTokenPrice = isBuy ? 
-        tokenPrice * (1 + priceImpact) :
-        tokenPrice * (1 - priceImpact);
-
-    // Calculate USD values with proper precision
-    const tokenPriceUsd = Number((adjustedTokenPrice * state.solPrice).toFixed(12));
-    const marketCapUsd = Number((marketCapSol * state.solPrice).toFixed(2));
-    const tradeVolume = Number((Math.abs(tradeAmount) * state.solPrice).toFixed(2));
+    console.log('[Trade]', {
+        type: isBuy ? 'buy' : 'sell',
+        price: actualTradePriceSol,
+        priceUsd: actualTradePriceUsd,
+        amount: Math.abs(solAmount),
+        volume: tradeVolume,
+        solPrice: state.solPrice,
+        tokenAmount: userTokenAmount,
+        vTokens,
+        vSol,
+        marketCapSol,
+        marketCapUsd
+    });
 
     // Validate wallet addresses
     const buyerAddress = isBuy ? trade.traderPublicKey : trade.counterpartyPublicKey;
@@ -126,9 +140,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const newTrade: TokenTrade = {
       signature: trade.signature,
       timestamp: now,
-      price: tokenPrice,
-      priceUsd: tokenPriceUsd,
-      amount: Math.abs(tradeAmount),
+      price: actualTradePriceSol,
+      priceUsd: actualTradePriceUsd,
+      amount: Math.abs(solAmount),
       type: isBuy ? 'buy' : 'sell',
       buyer: buyerAddress,
       seller: sellerAddress
@@ -138,16 +152,23 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const last24h = now - 24 * 60 * 60 * 1000;
     const trades24h = recentTrades.filter(t => t.timestamp > last24h);
 
+    const volume24hUsd = trades24h.reduce(
+      (sum, t) => sum + (t.amount * t.priceUsd / (t.price > 0 ? t.price : 1)),
+      0
+    );
+
+    const newCumulativeVolume = (token.volume || 0) + tradeVolume;
+
     set((state) => ({
       tokens: state.tokens.map(t =>
         t.address === address ? {
           ...t,
-          price: tokenPrice,
-          priceUsd: tokenPriceUsd,
+          price: actualTradePriceSol,
+          priceUsd: actualTradePriceUsd,
           marketCap: marketCapUsd,
           liquidity: vSol * state.solPrice,
-          volume: t.volume + tradeVolume,
-          volume24h: trades24h.reduce((sum, t) => sum + (t.amount * t.priceUsd), 0),
+          volume: newCumulativeVolume,
+          volume24h: volume24hUsd,
           trades: t.trades + 1,
           trades24h: trades24h.length,
           buys24h: trades24h.filter(t => t.type === 'buy').length,
