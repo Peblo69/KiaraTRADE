@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { ArrowLeft } from "lucide-react";
-import { createChart } from 'lightweight-charts';
+import { createChart, ColorType } from 'lightweight-charts';
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
 interface TokenChartProps {
@@ -22,42 +22,17 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   useEffect(() => {
     if (!chartContainerRef.current || !token?.recentTrades) return;
 
-    // Process trades into consistent time-ordered data points
+    // Process trades into candlestick data
     const trades = token.recentTrades
       .map(trade => ({
-        timestamp: Math.floor(trade.timestamp / 1000) * 1000,
-        price: trade.price || 0,
+        time: Math.floor(trade.timestamp / 1000),
+        value: trade.price,
+        color: trade.type === 'buy' ? '#22c55e' : '#ef4444'
       }))
-      .filter(trade => !isNaN(trade.price) && trade.price > 0)
-      .sort((a, b) => a.timestamp - b.timestamp);
-
-    // Create candles from trades
-    const candleMap = new Map();
-    const CANDLE_INTERVAL = 60000; // 1 minute candles
-
-    trades.forEach(trade => {
-      const candleTime = Math.floor(trade.timestamp / CANDLE_INTERVAL) * CANDLE_INTERVAL;
-
-      if (!candleMap.has(candleTime)) {
-        candleMap.set(candleTime, {
-          time: candleTime / 1000,
-          open: trade.price,
-          high: trade.price,
-          low: trade.price,
-          close: trade.price
-        });
-      } else {
-        const candle = candleMap.get(candleTime);
-        candle.high = Math.max(candle.high, trade.price);
-        candle.low = Math.min(candle.low, trade.price);
-        candle.close = trade.price;
-      }
-    });
-
-    const candleData = Array.from(candleMap.values())
+      .filter(trade => !isNaN(trade.value) && trade.value > 0)
       .sort((a, b) => a.time - b.time);
 
-    if (candleData.length === 0) return;
+    if (trades.length === 0) return;
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
@@ -69,7 +44,7 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         horzLines: { color: '#1a1a1a' },
       },
       width: chartContainerRef.current.clientWidth,
-      height: chartContainerRef.clientHeight,
+      height: chartContainerRef.current.clientHeight,
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
@@ -77,35 +52,38 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       },
     });
 
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#22c55e',
-      downColor: '#ef4444',
-      borderVisible: false,
-      wickUpColor: '#22c55e',
-      wickDownColor: '#ef4444',
+    const series = chart.addLineSeries({
+      color: '#22c55e',
+      lineWidth: 2,
+      priceFormat: {
+        type: 'price',
+        precision: 8,
+        minMove: 0.00000001,
+      },
     });
 
-    candlestickSeries.setData(candleData);
+    series.setData(trades);
 
     // Set visible range with padding
     const timeRange = {
-      from: candleData[0].time - 300,
-      to: candleData[candleData.length - 1].time + 300
+      from: trades[0].time - 300,
+      to: trades[trades.length - 1].time + 300
     };
 
     chart.timeScale().setVisibleRange(timeRange);
 
     // Handle resize
     const resizeObserver = new ResizeObserver(entries => {
-      if (entries[0]) {
-        chart.applyOptions({
-          width: entries[0].contentRect.width,
-          height: entries[0].contentRect.height,
-        });
-      }
+      const { width, height } = entries[0].contentRect;
+      chart.applyOptions({
+        width,
+        height,
+      });
     });
 
-    resizeObserver.observe(chartContainerRef.current);
+    if (chartContainerRef.current) {
+      resizeObserver.observe(chartContainerRef.current);
+    }
 
     return () => {
       chart.remove();
@@ -151,11 +129,11 @@ export const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <img 
-              src={token.imageLink || '/placeholder.png'} 
+              src={token.imageLink || 'https://via.placeholder.com/150'} 
               className="w-8 h-8 rounded-full"
               alt={token.symbol}
               onError={(e) => {
-                (e.target as HTMLImageElement).src = '/placeholder.png';
+                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150';
               }}
             />
             <div>

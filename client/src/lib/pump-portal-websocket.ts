@@ -75,6 +75,14 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const tradePriceUsd = tradePrice * state.solPrice;
     const tradeVolume = tradeAmount * tradePriceUsd;
 
+    console.log('[Trade]', {
+      type: isBuy ? 'buy' : 'sell',
+      price: tradePrice,
+      priceUsd: tradePriceUsd,
+      amount: tradeAmount,
+      volume: tradeVolume
+    });
+
     const newTrade: TokenTrade = {
       signature: trade.signature,
       timestamp: now,
@@ -123,6 +131,52 @@ let ws: WebSocket | null = null;
 let reconnectTimeout: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
 let solPriceInterval: NodeJS.Timeout | null = null;
+
+const API_ENDPOINTS = [
+  {
+    url: 'https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT',
+    extract: (data: any) => Number(data?.price)
+  }
+];
+
+const fetchSolanaPrice = async (retries = 3): Promise<number> => {
+  const axiosInstance = axios.create({
+    timeout: 5000,
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    }
+  });
+
+  for (const endpoint of API_ENDPOINTS) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await axiosInstance.get(endpoint.url);
+        const price = endpoint.extract(response.data);
+
+        if (typeof price === 'number' && price > 0) {
+          return price;
+        }
+        throw new Error('Invalid price response');
+      } catch (error: any) {
+        const isLastAttempt = i === retries - 1;
+        const isLastEndpoint = endpoint === API_ENDPOINTS.length - 1;
+
+        console.error(`[PumpPortal] Error fetching SOL price from ${endpoint.url} (attempt ${i + 1}/${retries}):`,
+          error.response?.status || error.message);
+
+        if (!isLastAttempt || !isLastEndpoint) {
+          const delay = Math.min(1000 * Math.pow(2, i), 10000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+      }
+    }
+  }
+
+  console.warn('[PumpPortal] Using fallback SOL price after all attempts failed');
+  return 100;
+};
 
 export function initializePumpPortalWebSocket() {
   if (typeof window === 'undefined') return;
@@ -179,6 +233,7 @@ export function initializePumpPortalWebSocket() {
     ws.onmessage = async (event) => {
       try {
         const { type, data } = JSON.parse(event.data);
+        console.log('[PumpPortal] Received message:', type, data);
 
         switch (type) {
           case 'newToken': {
@@ -256,11 +311,20 @@ export function mapPumpPortalData(data: any): PumpPortalToken {
   } = data;
 
   const solPrice = usePumpPortalStore.getState().solPrice || 0;
-  const priceSol = (Number(marketCapSol || 0)) / TOTAL_SUPPLY;
+  const priceSol = Number(marketCapSol || 0) / TOTAL_SUPPLY;
   const priceUsd = priceSol * solPrice;
   const marketCapUsd = Number(marketCapSol || 0) * solPrice;
   const liquidityUsd = Number(vSolInBondingCurve || 0) * solPrice;
   const volumeUsd = Number(solAmount || 0) * solPrice;
+
+  console.log('[Token Data]', {
+    symbol,
+    priceSol,
+    priceUsd,
+    marketCapUsd,
+    liquidityUsd,
+    volumeUsd
+  });
 
   const now = Date.now();
   return {
@@ -291,52 +355,6 @@ export function mapPumpPortalData(data: any): PumpPortalToken {
     imageLink: imageLink || 'https://via.placeholder.com/150',
   };
 }
-
-const API_ENDPOINTS = [
-  {
-    url: 'https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT',
-    extract: (data: any) => Number(data?.price)
-  }
-];
-
-const fetchSolanaPrice = async (retries = 3): Promise<number> => {
-  const axiosInstance = axios.create({
-    timeout: 5000,
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json'
-    }
-  });
-
-  for (const endpoint of API_ENDPOINTS) {
-    for (let i = 0; i < retries; i++) {
-      try {
-        const response = await axiosInstance.get(endpoint.url);
-        const price = endpoint.extract(response.data);
-
-        if (typeof price === 'number' && price > 0) {
-          return price;
-        }
-        throw new Error('Invalid price response');
-      } catch (error: any) {
-        const isLastAttempt = i === retries - 1;
-        const isLastEndpoint = endpoint === API_ENDPOINTS[API_ENDPOINTS.length - 1];
-
-        console.error(`[PumpPortal] Error fetching SOL price from ${endpoint.url} (attempt ${i + 1}/${retries}):`,
-          error.response?.status || error.message);
-
-        if (!isLastAttempt || !isLastEndpoint) {
-          const delay = Math.min(1000 * Math.pow(2, i), 10000);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
-        }
-      }
-    }
-  }
-
-  console.warn('[PumpPortal] Using fallback SOL price after all attempts failed');
-  return 100;
-};
 
 // Initialize WebSocket connection
 initializePumpPortalWebSocket();
