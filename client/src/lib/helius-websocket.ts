@@ -140,15 +140,25 @@ async function processTransaction(signature: string, tokenAddress: string) {
     const isBuy = postAmount > preAmount;
     const store = useHeliusStore.getState();
 
+    const tradeAmount = Math.abs(postAmount - preAmount);
+    const buyerAddress = isBuy ? tx.transaction.message.accountKeys[0].toString() : '';
+    const sellerAddress = !isBuy ? tx.transaction.message.accountKeys[0].toString() : '';
+
+    // Validate addresses and amounts
+    if (tradeAmount <= 0 || (!buyerAddress && !sellerAddress)) {
+      console.warn('[Helius] Invalid trade data', { tradeAmount, buyerAddress, sellerAddress });
+      return;
+    }
+
     store.addTrade(tokenAddress, {
       signature,
       timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
       tokenAddress,
-      amount: Math.abs(postAmount - preAmount),
-      price: 0,
+      amount: tradeAmount,
+      price: 0, // Price calculation handled by PumpPortal
       priceUsd: 0,
-      buyer: isBuy ? tx.transaction.message.accountKeys[0].toString() : '',
-      seller: !isBuy ? tx.transaction.message.accountKeys[0].toString() : '',
+      buyer: buyerAddress,
+      seller: sellerAddress,
       type: isBuy ? 'buy' : 'sell'
     });
   } catch (error) {

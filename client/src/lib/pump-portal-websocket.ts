@@ -77,22 +77,33 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const marketCapSol = Number(trade.marketCapSol || 0);
 
     // Calculate price using bonding curve data
-    const tokenPrice = vTokens > 0 ? vSol / vTokens : 0;
+    // Calculate price using weighted average of bonding curve
+    const tokenPrice = vTokens > 0 ? (vSol / vTokens) : 0;
     const tokenPriceUsd = tokenPrice * state.solPrice;
-    const marketCapUsd = marketCapSol * state.solPrice;
-    const tradeVolume = tradeAmount * state.solPrice;
+    const marketCapUsd = Number(marketCapSol || 0) * state.solPrice;
+    const tradeVolume = Math.abs(tradeAmount) * state.solPrice;
+    
+    // Validate wallet addresses
+    const buyerAddress = isBuy ? trade.traderPublicKey : trade.counterpartyPublicKey;
+    const sellerAddress = isBuy ? trade.counterpartyPublicKey : trade.traderPublicKey;
+    
+    // Ensure valid wallet addresses
+    if (!buyerAddress?.startsWith('') || !sellerAddress?.startsWith('')) {
+      console.warn('[PumpPortal] Invalid wallet address in trade');
+      return;
+    }
 
     console.log('[Trade]', {
-      type: isBuy ? 'buy' : 'sell',
+      type: isBuy ? 'buy' : 'sell', 
       price: tokenPrice,
       priceUsd: tokenPriceUsd,
-      amount: tradeAmount,
+      amount: Math.abs(tradeAmount),
       volume: tradeVolume,
       solPrice: state.solPrice,
-      tokenAmount: trade.tokenAmount,
-      vTokens,
-      vSol,
-      marketCapSol,
+      tokenAmount: Number(trade.tokenAmount || 0),
+      vTokens: Number(vTokens || 0),
+      vSol: Number(vSol || 0),
+      marketCapSol: Number(marketCapSol || 0),
       marketCapUsd
     });
 
@@ -101,10 +112,10 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       timestamp: now,
       price: tokenPrice,
       priceUsd: tokenPriceUsd,
-      amount: tradeAmount,
+      amount: Math.abs(tradeAmount),
       type: isBuy ? 'buy' : 'sell',
-      buyer: isBuy ? trade.traderPublicKey : trade.counterpartyPublicKey,
-      seller: isBuy ? trade.counterpartyPublicKey : trade.traderPublicKey
+      buyer: buyerAddress,
+      seller: sellerAddress
     };
 
     const recentTrades = [newTrade, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN);
