@@ -34,13 +34,13 @@ export interface PumpPortalToken {
   vTokensInBondingCurve: number;
   vSolInBondingCurve: number;
   marketCapSol: number;
-  devWallet?: string; // Add devWallet field
+  devWallet?: string;
   recentTrades: TokenTrade[];
 }
 
 interface PumpPortalStore {
   tokens: PumpPortalToken[];
-  viewedTokens: { [key: string]: PumpPortalToken }; // Cache for tokens being actively viewed
+  viewedTokens: { [key: string]: PumpPortalToken };
   isConnected: boolean;
   solPrice: number;
   lastUpdate: number;
@@ -70,6 +70,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
       // If it's a creation event, set devWallet
       if (tokenData.txType === 'create') {
+        console.log('[PumpPortal] Setting dev wallet:', tokenData.traderPublicKey, 'for token:', tokenData.mint);
         newToken.devWallet = tokenData.traderPublicKey;
       }
 
@@ -127,14 +128,25 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         marketCapSol: tradeData.marketCapSol
       };
 
-      const updateToken = (token: PumpPortalToken): PumpPortalToken => ({
-        ...token,
-        recentTrades: [newTrade, ...token.recentTrades].slice(0, MAX_TRADES_PER_TOKEN),
-        bondingCurveKey: tradeData.bondingCurveKey,
-        vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
-        vSolInBondingCurve: tradeData.vSolInBondingCurve,
-        marketCapSol: tradeData.marketCapSol
-      });
+      // Get existing token to preserve devWallet
+      const existingToken = state.viewedTokens[address] || state.tokens.find(t => t.address === address);
+
+      const updateToken = (token: PumpPortalToken): PumpPortalToken => {
+        // Log dev wallet interaction
+        if (token.devWallet === newTrade.traderPublicKey) {
+          console.log('[PumpPortal] Dev wallet trade:', newTrade.txType, 'for token:', address);
+        }
+
+        return {
+          ...token,
+          recentTrades: [newTrade, ...token.recentTrades].slice(0, MAX_TRADES_PER_TOKEN),
+          bondingCurveKey: tradeData.bondingCurveKey,
+          vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
+          vSolInBondingCurve: tradeData.vSolInBondingCurve,
+          marketCapSol: tradeData.marketCapSol,
+          devWallet: token.devWallet // Preserve dev wallet
+        };
+      };
 
       const isViewed = state.activeTokenView === address;
       const updates: Partial<PumpPortalStore> = {
@@ -142,10 +154,10 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         lastUpdate: Date.now()
       };
 
-      if (isViewed) {
+      if (isViewed && existingToken) {
         updates.viewedTokens = {
           ...state.viewedTokens,
-          [address]: updateToken(state.viewedTokens[address] || state.tokens.find(t => t.address === address)!)
+          [address]: updateToken(existingToken)
         };
       }
 
