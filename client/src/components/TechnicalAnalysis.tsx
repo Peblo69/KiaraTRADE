@@ -45,6 +45,11 @@ export const TechnicalAnalysis: FC<Props> = ({
         .sort((a, b) => a - b)[0]
     : currentPrice * 1.05; // Default to 5% above current price
 
+  const formatPrice = (price: number | undefined): string => {
+    if (typeof price !== 'number') return 'N/A';
+    return price.toFixed(2);
+  };
+
   const getPriceStrength = () => {
     if (rsi > 70) return { text: 'Overbought', color: 'text-red-400' };
     if (rsi < 30) return { text: 'Oversold', color: 'text-green-400' };
@@ -89,21 +94,21 @@ export const TechnicalAnalysis: FC<Props> = ({
               <ArrowUp className="w-5 h-5 text-red-400" />
               <span className="text-gray-300">Nearest Resistance</span>
             </div>
-            <span className="font-mono text-red-400">${nearestResistance.toFixed(2)}</span>
+            <span className="font-mono text-red-400">${formatPrice(nearestResistance)}</span>
           </div>
           <div className="flex items-center justify-between p-3 rounded-lg bg-gray-900/50">
             <div className="flex items-center gap-2">
               <Target className="w-5 h-5 text-purple-400" />
               <span className="text-gray-300">Current Price</span>
             </div>
-            <span className="font-mono text-white">${currentPrice.toFixed(2)}</span>
+            <span className="font-mono text-white">${formatPrice(currentPrice)}</span>
           </div>
           <div className="flex items-center justify-between p-3 rounded-lg bg-gray-900/50">
             <div className="flex items-center gap-2">
               <ArrowDown className="w-5 h-5 text-green-400" />
               <span className="text-gray-300">Nearest Support</span>
             </div>
-            <span className="font-mono text-green-400">${nearestSupport.toFixed(2)}</span>
+            <span className="font-mono text-green-400">${formatPrice(nearestSupport)}</span>
           </div>
         </div>
       </Card>
@@ -117,7 +122,7 @@ export const TechnicalAnalysis: FC<Props> = ({
               <span className="text-gray-300">RSI</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="font-mono text-white">{rsi.toFixed(2)}</span>
+              <span className="font-mono text-white">{formatPrice(rsi)}</span>
               <span className={`text-sm ${strength.color}`}>{strength.text}</span>
             </div>
           </div>
