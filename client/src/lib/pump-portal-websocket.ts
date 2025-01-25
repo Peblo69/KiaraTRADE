@@ -162,12 +162,18 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           updatedToken.devWallet = tradeData.traderPublicKey;
         }
 
-        // Log if this is a dev wallet transaction
-        if (updatedToken.devWallet && updatedToken.devWallet === tradeData.traderPublicKey) {
+        // Check if this is a dev wallet transaction (either as trader or counterparty)
+        const isDevWallet = updatedToken.devWallet && (
+          updatedToken.devWallet === tradeData.traderPublicKey ||
+          updatedToken.devWallet === tradeData.counterpartyPublicKey
+        );
+
+        if (isDevWallet) {
           console.log('[PumpPortal] Dev wallet activity detected:', {
             token: address,
             type: tradeData.txType,
-            wallet: tradeData.traderPublicKey
+            wallet: tradeData.traderPublicKey === updatedToken.devWallet ? 
+                   tradeData.traderPublicKey : tradeData.counterpartyPublicKey
           });
         }
 
