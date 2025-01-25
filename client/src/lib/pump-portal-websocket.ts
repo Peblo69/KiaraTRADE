@@ -167,19 +167,28 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           updatedToken.devWallet = tradeData.counterpartyPublicKey;
         }
 
-        // Now check if dev wallet is either side of this transaction
-        const isDevWallet =
-          updatedToken.devWallet &&
-          (updatedToken.devWallet === tradeData.traderPublicKey ||
-            updatedToken.devWallet === tradeData.counterpartyPublicKey);
+        // Enhanced dev wallet tracking
+        const isDevWallet = updatedToken.devWallet && (
+          updatedToken.devWallet === tradeData.traderPublicKey ||
+          updatedToken.devWallet === tradeData.counterpartyPublicKey
+        );
+
+        // Track if dev is buying (they are trader) or selling (they are counterparty)
+        const isDevBuying = isDevWallet && tradeData.txType === 'buy' && 
+          updatedToken.devWallet === tradeData.traderPublicKey;
+        const isDevSelling = isDevWallet && (
+          (tradeData.txType === 'sell' && updatedToken.devWallet === tradeData.traderPublicKey) ||
+          (tradeData.txType === 'buy' && updatedToken.devWallet === tradeData.counterpartyPublicKey)
+        );
 
         if (isDevWallet) {
           console.log('[PumpPortal] Dev wallet activity detected:', {
             token: address,
             type: tradeData.txType,
+            action: isDevBuying ? 'buying' : 'selling',
             devWallet: updatedToken.devWallet,
             trader: tradeData.traderPublicKey,
-            counterparty: tradeData.counterpartyPublicKey,
+            counterparty: tradeData.counterpartyPublicKey
           });
         }
 
