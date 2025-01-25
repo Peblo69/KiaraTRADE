@@ -144,15 +144,26 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         marketCapSol: tradeData.marketCapSol
       };
 
-      // Get existing token to preserve devWallet
+      // Get existing token
       const existingToken = state.viewedTokens[address] || 
                           state.tokens.find(t => t.address === address);
 
       if (!existingToken) return state;
 
       const updateToken = (token: PumpPortalToken): PumpPortalToken => {
-        // Check if this is a dev wallet transaction
-        if (token.devWallet && token.devWallet === tradeData.traderPublicKey) {
+        let updatedToken = { ...token };
+
+        // Set dev wallet from first buy if not already set
+        if (!token.devWallet && tradeData.txType === 'buy' && token.recentTrades.length === 0) {
+          console.log('[PumpPortal] Setting dev wallet from first buy:', {
+            token: address,
+            wallet: tradeData.traderPublicKey
+          });
+          updatedToken.devWallet = tradeData.traderPublicKey;
+        }
+
+        // Log if this is a dev wallet transaction
+        if (updatedToken.devWallet && updatedToken.devWallet === tradeData.traderPublicKey) {
           console.log('[PumpPortal] Dev wallet activity detected:', {
             token: address,
             type: tradeData.txType,
@@ -161,13 +172,12 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         }
 
         return {
-          ...token,
+          ...updatedToken,
           recentTrades: [newTrade, ...token.recentTrades].slice(0, MAX_TRADES_PER_TOKEN),
           bondingCurveKey: tradeData.bondingCurveKey,
           vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
           vSolInBondingCurve: tradeData.vSolInBondingCurve,
-          marketCapSol: tradeData.marketCapSol,
-          devWallet: token.devWallet // Preserve dev wallet
+          marketCapSol: tradeData.marketCapSol
         };
       };
 
@@ -204,7 +214,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     return {
       viewedTokens: {
         ...state.viewedTokens,
-        [address]: { ...token }
+        [address]: token
       },
       lastUpdate: Date.now()
     };
