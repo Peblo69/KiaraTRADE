@@ -2,11 +2,32 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { Progress } from "@/components/ui/progress";
-import { ArrowUpIcon, ArrowDownIcon, LineChart } from "lucide-react";
+import { ArrowUpIcon, ArrowDownIcon, LineChart, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { PredictionResult } from "../../server/types/prediction";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import type { PredictionResult } from "../../../server/types/prediction";
 import { AdvancedPriceChart } from "@/components/AdvancedPriceChart";
 import { TechnicalAnalysis } from "@/components/TechnicalAnalysis";
+
+interface ChartData {
+  [key: string]: {
+    klines: {
+      time: number;
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+      volume: number;
+    }[];
+  };
+}
 
 export default function PredictionsPage() {
   const { toast } = useToast();
@@ -16,13 +37,13 @@ export default function PredictionsPage() {
   // Fetch predictions and chart data
   const { data: predictions, isLoading } = useQuery<Record<string, PredictionResult>>({
     queryKey: ['/api/predictions'],
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: 30000, // Increased frequency to 30 seconds
   });
 
   // Fetch OHLCV data for charts
-  const { data: chartData } = useQuery({
+  const { data: chartData } = useQuery<ChartData>({
     queryKey: ['/api/klines', selectedTimeframe],
-    refetchInterval: 60000,
+    refetchInterval: 30000, // Increased frequency to 30 seconds
   });
 
   function getConfidenceColor(confidence: number) {
@@ -42,20 +63,76 @@ export default function PredictionsPage() {
 
   return (
     <div className="container mx-auto p-6 min-h-screen bg-gradient-to-b from-gray-900 to-black">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Advanced Price Predictions</h1>
-        <p className="text-gray-400">
-          ML-enhanced technical analysis updated every minute. Combines RSI, MACD, EMA, Bollinger Bands,
-          Volume Profile, and Fibonacci levels for high-accuracy predictions.
-        </p>
+      <div className="mb-8 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2">Advanced Price Predictions</h1>
+          <p className="text-gray-400">
+            ML-enhanced technical analysis updated every 30 seconds. Combines RSI, MACD, EMA, Bollinger Bands,
+            Volume Profile, and Fibonacci levels for high-accuracy predictions.
+          </p>
+        </div>
+
+        <Dialog>
+          <DialogTrigger>
+            <div className="p-2 rounded-full bg-gray-800 hover:bg-gray-700 transition-colors">
+              <Info className="w-6 h-6 text-blue-400" />
+            </div>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Advanced Trading Analysis Features</DialogTitle>
+              <DialogDescription>
+                <div className="space-y-4 mt-4">
+                  <section>
+                    <h3 className="text-lg font-semibold mb-2">Technical Indicators</h3>
+                    <ul className="list-disc pl-5 space-y-2">
+                      <li>RSI (Relative Strength Index) - Momentum indicator</li>
+                      <li>MACD (Moving Average Convergence Divergence) - Trend indicator</li>
+                      <li>Bollinger Bands - Volatility and price levels</li>
+                      <li>Fibonacci Retracement - Key support/resistance levels</li>
+                      <li>Volume Profile - Trading activity analysis</li>
+                    </ul>
+                  </section>
+
+                  <section>
+                    <h3 className="text-lg font-semibold mb-2">Pattern Recognition</h3>
+                    <ul className="list-disc pl-5 space-y-2">
+                      <li>Head & Shoulders pattern detection</li>
+                      <li>Double Top/Bottom patterns</li>
+                      <li>Volume breakout analysis</li>
+                    </ul>
+                  </section>
+
+                  <section>
+                    <h3 className="text-lg font-semibold mb-2">Risk Analysis</h3>
+                    <ul className="list-disc pl-5 space-y-2">
+                      <li>ATR (Average True Range) - Volatility measurement</li>
+                      <li>Support & Resistance levels</li>
+                      <li>Price prediction ranges with confidence levels</li>
+                    </ul>
+                  </section>
+
+                  <section>
+                    <h3 className="text-lg font-semibold mb-2">Updates & Accuracy</h3>
+                    <ul className="list-disc pl-5 space-y-2">
+                      <li>Real-time data updates every 30 seconds</li>
+                      <li>ML-enhanced pattern recognition</li>
+                      <li>Multi-timeframe analysis capabilities</li>
+                    </ul>
+                  </section>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {selectedTokens.map(token => {
           const prediction = predictions?.[token];
-          const tokenChartData = chartData?.[token]?.klines;
+          const tokenChartData = chartData?.[token]?.klines || [];
 
-          if (!prediction || !tokenChartData) {
+          if (!prediction || !tokenChartData.length) {
             return (
               <Card key={token} className="p-6 bg-gray-800/50 border-gray-700">
                 <div className="animate-pulse space-y-4">
@@ -102,7 +179,7 @@ export default function PredictionsPage() {
 
                 <TechnicalAnalysis
                   symbol={token}
-                  patterns={[]}
+                  patterns={prediction.indicators.patterns || []}
                   supportLevels={[prediction.predictedPriceRange.low]}
                   resistanceLevels={[prediction.predictedPriceRange.high]}
                   currentPrice={prediction.currentPrice}
