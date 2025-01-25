@@ -51,6 +51,35 @@ export function registerRoutes(app: Express): Server {
   // Initialize PumpPortal WebSocket
   initializePumpPortalWebSocket();
 
+  // Add predictions endpoint for all tokens
+  app.get('/api/predictions', async (req, res) => {
+    try {
+      // Default tokens if not specified
+      const tokens = ['BTC-USDT', 'ETH-USDT', 'SOL-USDT'];
+      const predictions: Record<string, any> = {};
+
+      // Generate predictions for all tokens in parallel
+      await Promise.all(
+        tokens.map(async (symbol) => {
+          try {
+            predictions[symbol] = await pricePredictionService.getPricePrediction(symbol);
+          } catch (error) {
+            console.error(`Failed to generate prediction for ${symbol}:`, error);
+          }
+        })
+      );
+
+      console.log('[Routes] Generated predictions for tokens:', Object.keys(predictions));
+      res.json(predictions);
+    } catch (error: any) {
+      console.error('[Routes] Failed to generate predictions:', error);
+      res.status(500).json({
+        error: 'Failed to generate predictions',
+        details: error.message
+      });
+    }
+  });
+
   // Add price prediction endpoint
   app.get('/api/prediction/:symbol', async (req, res) => {
     try {
