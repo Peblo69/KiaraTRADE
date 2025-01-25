@@ -243,7 +243,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const formatPrice = (value: number) => {
     if (!value || isNaN(value)) return showUsd ? '$0.00' : '0 SOL';
     return showUsd
-      ? `$${(value).toFixed(2)}` 
+      ? `$${(value).toFixed(2)}`
       : `${value.toFixed(9)} SOL`;
   };
 
@@ -309,15 +309,15 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           <div className="flex gap-6">
             <div className="text-right">
               <div className="text-sm text-gray-400">Price</div>
-              <div className="font-bold">{formatPrice(token.marketCapSol * solPrice)}</div> 
+              <div className="font-bold">{formatPrice(token.marketCapSol * solPrice)}</div>
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Liquidity</div>
-              <div className="font-bold">{formatPrice(token.vSolInBondingCurve * solPrice)}</div> 
+              <div className="font-bold">{formatPrice(token.vSolInBondingCurve * solPrice)}</div>
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Market Cap</div>
-              <div className="font-bold">{formatPriceScale(token.marketCapSol * solPrice)}</div> 
+              <div className="font-bold">{formatPriceScale(token.marketCapSol * solPrice)}</div>
             </div>
           </div>
         </div>
@@ -363,8 +363,9 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                     <div
                       key={trade.signature || idx}
                       className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
-                        isDevWallet ? 'text-amber-400' : // Yellow for DEV
-                        trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
+                        isDevWallet ?
+                          trade.txType === 'buy' ? 'text-amber-400' : 'text-orange-500' : // Yellow for DEV buys, Orange for DEV sells
+                          trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -420,11 +421,11 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                   <div className="grid grid-cols-2 text-sm">
                     <div>
                       <div className="text-gray-400">Liquidity</div>
-                      <div>{formatPrice(token.vSolInBondingCurve * solPrice)}</div> 
+                      <div>{formatPrice(token.vSolInBondingCurve * solPrice)}</div>
                     </div>
                     <div>
                       <div className="text-gray-400">Market Cap</div>
-                      <div>{formatPriceScale(token.marketCapSol * solPrice)}</div> 
+                      <div>{formatPriceScale(token.marketCapSol * solPrice)}</div>
                     </div>
                   </div>
                 </div>
