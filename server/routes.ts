@@ -44,6 +44,16 @@ const cache = {
   news: { data: null, timestamp: 0 }
 };
 
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import axios from 'axios';
+
+if (!process.env.HELIUS_API_KEY) {
+  throw new Error("HELIUS_API_KEY must be set in environment variables");
+}
+
+const HELIUS_API_BASE = 'https://api.helius-rpc.com';
+
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
@@ -489,6 +499,85 @@ export function registerRoutes(app: Express): Server {
       console.error('[Routes] Market context error:', error);
       res.status(500).json({
         error: 'Failed to get market context',
+        details: error.message
+      });
+    }
+  });
+
+  // Get wallet details, balance and tokens
+  app.get('/api/wallet/:address', async (req, res) => {
+    try {
+      const { address } = req.params;
+
+      // Get balances using Helius API
+      const response = await axios.post(`${HELIUS_API_BASE}/${process.env.HELIUS_API_KEY}`, {
+        jsonrpc: '2.0',
+        id: 'balance-request',
+        method: 'getAssetsByOwner',
+        params: {
+          ownerAddress: address,
+          displayOptions: {
+            showFungible: true,
+            showNativeBalance: true
+          }
+        }
+      });
+
+      const tokens = response.data.result.items.map((token: any) => ({
+        mint: token.id,
+        amount: token.tokenInfo?.tokenAmount || 0,
+        symbol: token.symbol || 'Unknown',
+        price: token.price || 0,
+        value: (token.tokenInfo?.tokenAmount || 0) * (token.price || 0),
+        pnl24h: token.priceChange24h || 0
+      }));
+
+      // Calculate total balance
+      const balance = tokens.reduce((acc: number, token: any) => acc + token.value, 0);
+
+      // Get recent transactions
+      const txResponse = await axios.post(`${HELIUS_API_BASE}/${process.env.HELIUS_API_KEY}`, {
+        jsonrpc: '2.0',
+        id: 'tx-request',
+        method: 'getAddressHistory',
+        params: [address]
+      });
+
+      const transactions = txResponse.data.result.map((tx: any) => {
+        let type: 'buy' | 'sell' | 'transfer' = 'transfer';
+        if (tx.tokenTransfers?.[0]) {
+          type = tx.tokenTransfers[0].sender === address ? 'sell' : 'buy';
+        }
+
+        return {
+          signature: tx.signature,
+          type,
+          tokenSymbol: tx.tokenTransfers?.[0]?.symbol || 'SOL',
+          amount: tx.tokenTransfers?.[0]?.tokenAmount || tx.nativeTransfers?.[0]?.amount || 0,
+          price: tx.tokenTransfers?.[0]?.price || 0,
+          timestamp: tx.timestamp * 1000,
+          value: (tx.tokenTransfers?.[0]?.tokenAmount || 0) * (tx.tokenTransfers?.[0]?.price || 0)
+        };
+      });
+
+      // Calculate PNL
+      const pnl = {
+        daily: tokens.reduce((acc: number, token: any) => acc + token.pnl24h, 0),
+        weekly: 0, // Would need historical data
+        monthly: 0 // Would need historical data
+      };
+
+      res.json({
+        address,
+        balance,
+        tokens,
+        transactions,
+        pnl
+      });
+    } catch (error: any) {
+      console.error('[Routes] Wallet data error:', error);
+      res.status(500).json({
+        error: 'Failed to fetch wallet data',
         details: error.message
       });
     }

@@ -10,15 +10,31 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Bell, Activity, Wallet } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus, Bell, Activity, Wallet, ChevronRight, ArrowUpDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import CryptoIcon from "@/components/CryptoIcon";
 
 interface WalletData {
   address: string;
   balance: number;
   tokens: TokenHolding[];
   transactions: Transaction[];
+  pnl: {
+    daily: number;
+    weekly: number;
+    monthly: number;
+  };
 }
 
 interface TokenHolding {
@@ -26,25 +42,39 @@ interface TokenHolding {
   amount: number;
   symbol: string;
   price: number;
+  value: number;
+  pnl24h: number;
 }
 
 interface Transaction {
   signature: string;
-  type: 'buy' | 'sell';
+  type: 'buy' | 'sell' | 'transfer';
   tokenSymbol: string;
   amount: number;
   price: number;
   timestamp: number;
+  value: number;
+}
+
+interface Alert {
+  id: string;
+  type: 'price' | 'volume' | 'transaction';
+  condition: 'above' | 'below' | 'equals';
+  value: number;
+  token?: string;
+  enabled: boolean;
 }
 
 export default function WalletTrackingPage() {
   const [walletAddress, setWalletAddress] = useState<string>("");
   const [trackedWallets, setTrackedWallets] = useState<string[]>([]);
+  const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const { toast } = useToast();
 
   const { data: walletData, isLoading } = useQuery<WalletData>({
-    queryKey: [`/api/wallet/${walletAddress}`],
-    enabled: !!walletAddress && trackedWallets.includes(walletAddress),
+    queryKey: [`/api/wallet/${selectedWallet}`],
+    enabled: !!selectedWallet,
   });
 
   const handleAddWallet = () => {
@@ -67,6 +97,18 @@ export default function WalletTrackingPage() {
     }
 
     setTrackedWallets([...trackedWallets, walletAddress]);
+    setWalletAddress("");
+  };
+
+  const handleCreateAlert = (type: Alert['type']) => {
+    const newAlert: Alert = {
+      id: Math.random().toString(36).substr(2, 9),
+      type,
+      condition: 'above',
+      value: 0,
+      enabled: true,
+    };
+    setAlerts([...alerts, newAlert]);
   };
 
   return (
@@ -108,7 +150,22 @@ export default function WalletTrackingPage() {
             <Activity className="w-5 h-5" />
             Portfolio Overview
           </h2>
-          {/* Portfolio stats will go here */}
+          {selectedWallet && walletData ? (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Total Balance</span>
+                <span className="text-xl font-semibold">${walletData.balance.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">24h PNL</span>
+                <span className={`text-lg ${walletData.pnl.daily >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {walletData.pnl.daily >= 0 ? '+' : ''}{walletData.pnl.daily.toFixed(2)}%
+                </span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-gray-500">Select a wallet to view portfolio stats</p>
+          )}
         </Card>
 
         <Card className="p-6 bg-gray-800/50 border-gray-700">
@@ -122,11 +179,74 @@ export default function WalletTrackingPage() {
                 Configure Alerts
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[425px] bg-gray-800 text-white">
               <DialogHeader>
                 <DialogTitle>Alert Settings</DialogTitle>
+                <DialogDescription className="text-gray-400">
+                  Create custom alerts for price movements, volume changes, and transactions.
+                </DialogDescription>
               </DialogHeader>
-              {/* Alert configuration form will go here */}
+              <div className="grid gap-4 py-4">
+                <div className="space-y-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleCreateAlert('price')}
+                    className="w-full"
+                  >
+                    + Add Price Alert
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleCreateAlert('volume')}
+                    className="w-full"
+                  >
+                    + Add Volume Alert
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleCreateAlert('transaction')}
+                    className="w-full"
+                  >
+                    + Add Transaction Alert
+                  </Button>
+                </div>
+                {alerts.map((alert) => (
+                  <div key={alert.id} className="flex items-center gap-2 p-2 border border-gray-700 rounded-lg">
+                    <Select
+                      value={alert.condition}
+                      onValueChange={(value: any) => {
+                        const updatedAlerts = alerts.map(a =>
+                          a.id === alert.id ? { ...a, condition: value } : a
+                        );
+                        setAlerts(updatedAlerts);
+                      }}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select condition" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel>Conditions</SelectLabel>
+                          <SelectItem value="above">Above</SelectItem>
+                          <SelectItem value="below">Below</SelectItem>
+                          <SelectItem value="equals">Equals</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      value={alert.value}
+                      onChange={(e) => {
+                        const updatedAlerts = alerts.map(a =>
+                          a.id === alert.id ? { ...a, value: parseFloat(e.target.value) } : a
+                        );
+                        setAlerts(updatedAlerts);
+                      }}
+                      className="w-24"
+                    />
+                  </div>
+                ))}
+              </div>
             </DialogContent>
           </Dialog>
         </Card>
@@ -136,22 +256,93 @@ export default function WalletTrackingPage() {
         <h2 className="text-xl font-semibold mb-4">Tracked Wallets</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {trackedWallets.map((wallet) => (
-            <Card key={wallet} className="p-4 bg-gray-700/50">
+            <Card 
+              key={wallet} 
+              className={`p-4 bg-gray-700/50 cursor-pointer transition-colors hover:bg-gray-600/50 ${
+                selectedWallet === wallet ? 'ring-2 ring-purple-500' : ''
+              }`}
+              onClick={() => setSelectedWallet(wallet)}
+            >
               <div className="flex justify-between items-center">
                 <div>
                   <p className="font-medium text-sm text-gray-300">
                     {wallet.slice(0, 4)}...{wallet.slice(-4)}
                   </p>
-                  {/* Wallet stats will go here */}
+                  {selectedWallet === wallet && walletData && (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-sm text-gray-400">
+                        Balance: ${walletData.balance.toFixed(2)}
+                      </p>
+                      <p className="text-sm text-gray-400">
+                        Tokens: {walletData.tokens.length}
+                      </p>
+                    </div>
+                  )}
                 </div>
-                <Button variant="ghost" size="sm">
-                  View Details
-                </Button>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
               </div>
             </Card>
           ))}
         </div>
       </Card>
+
+      {selectedWallet && walletData && (
+        <div className="mt-8 space-y-6">
+          <Card className="p-6 bg-gray-800/50 border-gray-700">
+            <h3 className="text-xl font-semibold mb-4">Token Holdings</h3>
+            <div className="space-y-4">
+              {walletData.tokens.map((token) => (
+                <div key={token.mint} className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <CryptoIcon symbol={token.symbol} size="sm" />
+                    <div>
+                      <p className="font-medium">{token.symbol}</p>
+                      <p className="text-sm text-gray-400">{token.amount.toFixed(4)} tokens</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">${token.value.toFixed(2)}</p>
+                    <p className={`text-sm ${token.pnl24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {token.pnl24h >= 0 ? '+' : ''}{token.pnl24h.toFixed(2)}%
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-6 bg-gray-800/50 border-gray-700">
+            <h3 className="text-xl font-semibold mb-4">Recent Transactions</h3>
+            <div className="space-y-4">
+              {walletData.transactions.map((tx) => (
+                <div key={tx.signature} className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-full ${
+                      tx.type === 'buy' ? 'bg-green-500/20 text-green-400' :
+                      tx.type === 'sell' ? 'bg-red-500/20 text-red-400' :
+                      'bg-blue-500/20 text-blue-400'
+                    }`}>
+                      <ArrowUpDown className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{tx.tokenSymbol}</p>
+                      <p className="text-sm text-gray-400">
+                        {new Date(tx.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">${tx.value.toFixed(2)}</p>
+                    <p className="text-sm text-gray-400">
+                      {tx.amount.toFixed(4)} tokens
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
