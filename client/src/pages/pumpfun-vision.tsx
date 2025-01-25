@@ -80,34 +80,21 @@ const TokenListContent: FC = () => {
   const addToViewedTokens = usePumpPortalStore(useCallback(state => state.addToViewedTokens, []));
   const setActiveTokenView = usePumpPortalStore(useCallback(state => state.setActiveTokenView, []));
   const getToken = usePumpPortalStore(useCallback(state => state.getToken, []));
-  const removeFromViewedTokens = usePumpPortalStore(useCallback(state => state.removeFromViewedTokens, []));
 
-  // Handle token selection and cache management
+  // Handle token selection
   const handleTokenSelect = useCallback((address: string) => {
-    addToViewedTokens(address); // Add to cache
-    setActiveTokenView(address); // Mark as active
     setSelectedToken(address);
+    setActiveTokenView(address);
+    addToViewedTokens(address);
   }, [addToViewedTokens, setActiveTokenView]);
 
   // Handle back navigation
   const handleBack = useCallback(() => {
     if (selectedToken) {
-      removeFromViewedTokens(selectedToken); // Clean up cache if needed
-    }
-    setSelectedToken(null);
-    setActiveTokenView(null);
-  }, [selectedToken, removeFromViewedTokens, setActiveTokenView]);
-
-  // Reset on unmount
-  useEffect(() => {
-    return () => {
-      if (selectedToken) {
-        removeFromViewedTokens(selectedToken);
-      }
       setSelectedToken(null);
       setActiveTokenView(null);
-    };
-  }, [selectedToken, removeFromViewedTokens, setActiveTokenView]);
+    }
+  }, [selectedToken, setActiveTokenView]);
 
   // Monitor health
   useEffect(() => {
@@ -120,6 +107,14 @@ const TokenListContent: FC = () => {
 
     return () => clearInterval(healthCheck);
   }, [lastUpdate]);
+
+  // Reset on unmount
+  useEffect(() => {
+    return () => {
+      setSelectedToken(null);
+      setActiveTokenView(null);
+    };
+  }, [setActiveTokenView]);
 
   if (selectedToken) {
     const token = getToken(selectedToken);

@@ -39,8 +39,7 @@ export interface PumpPortalToken {
 
 interface PumpPortalStore {
   tokens: PumpPortalToken[];
-  viewedTokens: { [key: string]: PumpPortalToken };
-  viewedTokensCache: { [key: string]: PumpPortalToken }; // Permanent cache for viewed tokens
+  viewedTokens: { [key: string]: PumpPortalToken }; // Cache for tokens being actively viewed
   isConnected: boolean;
   solPrice: number;
   lastUpdate: number;
@@ -54,13 +53,11 @@ interface PumpPortalStore {
   addToViewedTokens: (address: string) => void;
   setActiveTokenView: (address: string | null) => void;
   getToken: (address: string) => PumpPortalToken | undefined;
-  removeFromViewedTokens: (address: string) => void;
 }
 
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
   viewedTokens: {},
-  viewedTokensCache: {}, // New permanent cache
   isConnected: false,
   solPrice: 0,
   lastUpdate: Date.now(),
@@ -74,28 +71,40 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       // Check if token is currently being viewed
       const isViewed = state.activeTokenView === newToken.address;
 
-      // Update token in main list if it exists
-      let updatedTokens = state.tokens;
+      // Update existing token
       if (existingTokenIndex >= 0) {
-        updatedTokens = state.tokens.map((t, i) => 
+        const updatedTokens = state.tokens.map((t, i) => 
           i === existingTokenIndex ? { ...t, ...newToken } : t
         );
-      } else {
-        // Add new token while preserving viewed token
-        updatedTokens = [newToken, ...state.tokens]
-          .filter((t, i) => i < MAX_TOKENS_IN_LIST || t.address === state.activeTokenView);
+
+        // If token is being viewed, also update in viewed tokens
+        if (isViewed) {
+          return {
+            tokens: updatedTokens,
+            viewedTokens: {
+              ...state.viewedTokens,
+              [newToken.address]: { ...newToken }
+            },
+            lastUpdate: Date.now()
+          };
+        }
+
+        return { tokens: updatedTokens, lastUpdate: Date.now() };
       }
 
-      // Always update viewed token cache if token is being viewed
-      const updatedViewedTokensCache = {
-        ...state.viewedTokensCache,
-        ...(isViewed ? { [newToken.address]: newToken } : {})
-      };
+      // Add new token
+      const updatedTokens = [newToken, ...state.tokens]
+        .filter((t, i) => i < MAX_TOKENS_IN_LIST || t.address === state.activeTokenView);
 
       return {
         tokens: updatedTokens,
-        viewedTokensCache: updatedViewedTokensCache,
-        lastUpdate: Date.now()
+        lastUpdate: Date.now(),
+        ...(isViewed && { 
+          viewedTokens: {
+            ...state.viewedTokens,
+            [newToken.address]: newToken
+          }
+        })
       };
     }),
 
@@ -116,7 +125,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         marketCapSol: tradeData.marketCapSol
       };
 
-      // Update token data with new trade
       const updateToken = (token: PumpPortalToken): PumpPortalToken => ({
         ...token,
         recentTrades: [newTrade, ...token.recentTrades].slice(0, MAX_TRADES_PER_TOKEN),
@@ -126,67 +134,74 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         marketCapSol: tradeData.marketCapSol
       });
 
-      // Update in both main list and cache if being viewed
-      return {
+      // Update token in both lists if being viewed
+      const isViewed = state.activeTokenView === address;
+      const updates: Partial<PumpPortalStore> = {
         tokens: state.tokens.map(t => t.address === address ? updateToken(t) : t),
-        viewedTokensCache: {
-          ...state.viewedTokensCache,
-          ...(state.viewedTokensCache[address] ? { [address]: updateToken(state.viewedTokensCache[address]) } : {})
-        },
         lastUpdate: Date.now()
       };
+
+      if (isViewed) {
+        updates.viewedTokens = {
+          ...state.viewedTokens,
+          [address]: updateToken(state.viewedTokens[address] || state.tokens.find(t => t.address === address)!)
+        };
+      }
+
+      return updates as any;
     }),
 
   setConnected: (connected) => set({ isConnected: connected, lastUpdate: Date.now() }),
   setSolPrice: (price) => set({ solPrice: price, lastUpdate: Date.now() }),
 
-  resetTokens: () => set(state => ({
+  resetTokens: () => set({ 
     tokens: [],
     viewedTokens: {},
-    viewedTokensCache: {},
     activeTokenView: null,
     lastUpdate: Date.now()
-  })),
+  }),
 
   addToViewedTokens: (address) => set((state) => {
     const token = state.tokens.find(t => t.address === address);
-    if (!token) {
-      console.warn('[PumpPortal] Cannot add non-existent token to viewed cache:', address);
-      return state;
-    }
+    if (!token) return state;
 
     return {
-      viewedTokensCache: {
-        ...state.viewedTokensCache,
+      viewedTokens: {
+        ...state.viewedTokens,
+        [address]: { ...token }
+      },
+      lastUpdate: Date.now()
+    };
+  }),
+
+  setActiveTokenView: (address) => set((state) => {
+    // If clearing active view, maintain viewed token in cache temporarily
+    if (!address) {
+      return { 
+        activeTokenView: null,
+        lastUpdate: Date.now()
+      };
+    }
+
+    // Setting new active view
+    const token = state.tokens.find(t => t.address === address);
+    if (!token) return state;
+
+    return {
+      activeTokenView: address,
+      viewedTokens: {
+        ...state.viewedTokens,
         [address]: token
       },
       lastUpdate: Date.now()
     };
   }),
 
-  setActiveTokenView: (address) => set(state => ({
-    activeTokenView: address,
-    lastUpdate: Date.now()
-  })),
-
   getToken: (address) => {
     const state = get();
-    // Look in main list first, then cached tokens
-    return state.tokens.find(t => t.address === address) || 
-           state.viewedTokensCache[address];
-  },
-
-  removeFromViewedTokens: (address) => set(state => {
-    if (state.activeTokenView === address) {
-      return state; // Don't remove if still being viewed
-    }
-
-    const { [address]: removed, ...remaining } = state.viewedTokensCache;
-    return {
-      viewedTokensCache: remaining,
-      lastUpdate: Date.now()
-    };
-  })
+    // Check viewed tokens first, then main list
+    return state.viewedTokens[address] || state.tokens.find(t => t.address === address);
+  }
 }));
 
 // Map raw token data 
