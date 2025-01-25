@@ -360,7 +360,12 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                 {token.recentTrades?.map((trade, idx) => {
                   const isDevWallet = trade.traderPublicKey === devWallet ||
                     trade.counterpartyPublicKey === devWallet;
-                  const isDevBuying = isDevWallet && trade.traderPublicKey === devWallet && trade.txType === 'buy';
+                  // Dev buys when they are trader in a buy OR counterparty in a sell
+                  const isDevBuying = isDevWallet && (
+                    (trade.traderPublicKey === devWallet && trade.txType === 'buy') ||
+                    (trade.counterpartyPublicKey === devWallet && trade.txType === 'sell')
+                  );
+                  // Dev sells when they are trader in a sell OR counterparty in a buy
                   const isDevSelling = isDevWallet && (
                     (trade.traderPublicKey === devWallet && trade.txType === 'sell') ||
                     (trade.counterpartyPublicKey === devWallet && trade.txType === 'buy')
