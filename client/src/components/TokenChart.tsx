@@ -40,7 +40,6 @@ interface Candle {
   color?: string;
 }
 
-// Memoized chart component to prevent unnecessary re-renders
 const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -49,15 +48,11 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const lastViewRangeRef = useRef<{ from: number; to: number } | null>(null);
   const [showUsd, setShowUsd] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [selectedInterval, setSelectedInterval] = useState<TimeInterval>(TIME_INTERVALS[0]); // Default to 1s
-
+  const [selectedInterval, setSelectedInterval] = useState<TimeInterval>(TIME_INTERVALS[0]); 
   const token = usePumpPortalStore(
     useCallback(state => state.tokens.find(t => t.address === tokenAddress), [tokenAddress])
   );
-
   const solPrice = usePumpPortalStore(state => state.solPrice);
-
-  // Use devWallet from token data
   const devWallet = token?.devWallet;
 
   const cleanupChart = useCallback(() => {
@@ -65,15 +60,12 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       resizeObserverRef.current.disconnect();
       resizeObserverRef.current = null;
     }
-
     if (chartRef.current) {
-      // Store current view range before cleanup
       const timeScale = chartRef.current.timeScale();
       const visibleRange = timeScale.getVisibleLogicalRange();
       if (visibleRange) {
         lastViewRangeRef.current = visibleRange;
       }
-
       chartRef.current.remove();
       chartRef.current = null;
     }
@@ -142,25 +134,24 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     chartRef.current = chart;
 
     const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#22c55e',      // Green for price increase
-      downColor: '#ef4444',    // Red for price decrease
+      upColor: '#22c55e',      
+      downColor: '#ef4444',    
       borderUpColor: '#22c55e',
       borderDownColor: '#ef4444',
       wickUpColor: '#22c55e',
       wickDownColor: '#ef4444',
     });
 
-    // Process trades into candles
     const generateCandles = () => {
       const candles = new Map<number, Candle>();
-      let lastClose = token.marketCapSol * solPrice; // Initialize in USD
+      let lastClose = token.marketCapSol * solPrice;
 
       token.recentTrades.forEach(trade => {
         const timestamp = Math.floor(trade.timestamp / 1000);
         const interval = selectedInterval.seconds;
         const candleTime = Math.floor(timestamp / interval) * interval;
 
-        const mcap = trade.marketCapSol * solPrice; // Convert to USD
+        const mcap = trade.marketCapSol * solPrice;
         const existing = candles.get(candleTime);
 
         if (!existing) {
@@ -170,15 +161,13 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
             high: Math.max(lastClose, mcap),
             low: Math.min(lastClose, mcap),
             close: mcap,
-            // Color based on price movement, not trade type
-            color: mcap >= lastClose ? '#22c55e' : '#ef4444'
+            color: trade.txType === 'buy' ? '#22c55e' : '#ef4444'
           });
         } else {
           existing.high = Math.max(existing.high, mcap);
           existing.low = Math.min(existing.low, mcap);
           existing.close = mcap;
-          // Color based on close vs open, not trade type
-          existing.color = existing.close >= existing.open ? '#22c55e' : '#ef4444';
+          existing.color = trade.txType === 'buy' ? '#22c55e' : '#ef4444';
         }
 
         lastClose = mcap;
@@ -193,11 +182,9 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     if (candles.length > 0) {
       candlestickSeries.setData(candles);
 
-      // Only fit content on initial load if no previous view range
       if (!lastViewRangeRef.current) {
         chart.timeScale().fitContent();
       } else {
-        // Restore previous view range
         chart.timeScale().setVisibleLogicalRange(lastViewRangeRef.current);
       }
     }
@@ -217,9 +204,8 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       resizeObserverRef.current = resizeObserver;
     }
 
-  }, [token?.recentTrades, cleanupChart, selectedInterval, solPrice, devWallet]);
+  }, [token?.recentTrades, cleanupChart, selectedInterval, solPrice]);
 
-  // Handle interval change
   const handleIntervalChange = useCallback((interval: TimeInterval) => {
     setSelectedInterval(interval);
     cleanupChart();
@@ -229,7 +215,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   useEffect(() => {
     isMountedRef.current = true;
     initializeChart();
-
     return () => {
       isMountedRef.current = false;
       cleanupChart();
@@ -367,7 +352,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                       key={trade.signature || idx}
                       className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
                         isDevWallet ?
-                          isDevBuying ? 'text-amber-400' : 'text-orange-500' : // Yellow for DEV buys, Orange for DEV sells
+                          isDevBuying ? 'text-amber-400' : 'text-orange-500' : 
                           trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
                       }`}
                     >
@@ -447,7 +432,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   );
 });
 
-// Wrap with error boundary
 const TokenChart: FC<TokenChartProps> = (props) => {
   return (
     <ErrorBoundary>
