@@ -83,24 +83,6 @@ interface RugCheckResult {
   }[];
 }
 
-function calculateRugScore(factors: {
-  hasUnlockedMint: boolean;
-  hasUnlockedFreeze: boolean;
-  topHolderConcentration: number;
-  liquidityValue: number;
-  sniperCount: number;
-}): number {
-  let score = 0;
-  
-  if (factors.hasUnlockedMint) score += 30;
-  if (factors.hasUnlockedFreeze) score += 20;
-  if (factors.topHolderConcentration > 50) score += 25;
-  if (factors.liquidityValue < 1000) score += 15;
-  if (factors.sniperCount > 10) score += 10;
-
-  return Math.min(score, 100);
-}
-
 export const useTokenAnalyticsStore = create<TokenAnalyticsStore>((set, get) => ({
   analytics: {},
   creationTimes: {},
