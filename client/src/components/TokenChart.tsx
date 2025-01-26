@@ -267,28 +267,22 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           </div>
         </div>
 
-        {/* Security Analysis Button */}
-        <div className="mb-4">
-          <Button
-            onClick={() => setShowSecurityPanel(true)}
-            className="bg-[#0a0b1c] text-white hover:bg-gray-800/50 border border-gray-800"
-          >
-            <Shield className="w-4 h-4 mr-2" />
-            Security Analysis
-          </Button>
-        </div>
-
-        {/* Main content grid */}
-        <div className="grid grid-cols-[1fr,300px] gap-4">
-          {/* Chart column */}
+        <div className="grid grid-cols-[1fr,300px] gap-4 pt-4">
           <div className="space-y-4">
+            <div className="mb-4">
+              <Button
+                onClick={() => setShowSecurityPanel(true)}
+                className="bg-[#0a0b1c] text-white hover:bg-gray-800/50 border border-gray-800"
+              >
+                <Shield className="w-4 h-4 mr-2" />
+                Security Analysis
+              </Button>
+            </div>
             <div className="h-[500px] bg-[#111] rounded-lg">
               <div className="p-4">
                 <div ref={chartContainerRef} className="h-[450px]" />
               </div>
             </div>
-
-            {/* Recent trades section */}
             <div className="bg-[#111] rounded-lg p-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-sm font-semibold">Recent Trades</h3>
@@ -301,7 +295,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                   {showUsd ? <DollarSign className="h-4 w-4" /> : <Coins className="h-4 w-4" />}
                 </Button>
               </div>
-
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {token.recentTrades?.map((trade, idx) => {
                   const isDevWallet = trade.traderPublicKey === devWallet ||
@@ -343,8 +336,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
               </div>
             </div>
           </div>
-
-          {/* Trading panel column */}
           <div className="space-y-4">
             <Card className="bg-[#111] border-none p-4">
               <Tabs defaultValue="market" className="w-full">
@@ -408,7 +399,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           </div>
         </div>
 
-        {/* Sliding Security Panel */}
         <AnimatePresence>
           {showSecurityPanel && (
             <motion.div
