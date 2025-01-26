@@ -1,5 +1,4 @@
 import { z } from "zod";
-import axios from "axios";
 import { useQuery } from "@tanstack/react-query";
 
 // Define token security schema to match our working backend implementation
@@ -12,7 +11,9 @@ const tokenAnalyticsSchema = z.object({
     totalSupply: z.number(),
     mintAuthority: z.string().nullable(),
     freezeAuthority: z.string().nullable(),
-    mutable: z.boolean()
+    mutable: z.boolean(),
+    created: z.number(),
+    supply: z.number()
   }),
   holders: z.object({
     total: z.number(),
@@ -58,9 +59,12 @@ export type TokenAnalytics = z.infer<typeof tokenAnalyticsSchema>;
 
 export async function analyzeToken(tokenAddress: string): Promise<TokenAnalytics> {
   try {
-    const response = await axios.get(`/api/token-analytics/${tokenAddress}`);
-    const data = tokenAnalyticsSchema.parse(response.data);
-    return data;
+    const response = await fetch(`/api/token-analytics/${tokenAddress}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch token analytics: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return tokenAnalyticsSchema.parse(data);
   } catch (error) {
     console.error("[TokenAnalysis] Error fetching token data:", error);
     throw error;

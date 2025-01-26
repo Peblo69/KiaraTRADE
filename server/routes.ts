@@ -689,14 +689,14 @@ export function registerRoutes(app: Express): Server {
       const transfers = transfersResponse.data?.result || [];
       console.log(`[Routes] Processing ${transfers.length} transfers`);
 
-      // 3. Process transfers to identify holders and snipers with validation
+      // 3. Process transfers to identify holders and snipers
       const holders = new Map<string, number>();
       const snipers = new Set<any>();
       const trades: any[] = [];
       const creationTime = transfers[transfers.length - 1]?.blockTime || Date.now();
       const sniperWindow = 30000; // 30 seconds
 
-      // Process transfers with validation
+      // Process transfers
       transfers.forEach((transfer: any, index: number) => {
         if (!transfer) {
           console.warn(`[Routes] Skipping invalid transfer at index ${index}`);
@@ -732,7 +732,7 @@ export function registerRoutes(app: Express): Server {
         });
       });
 
-      // 4. Calculate metrics with validation
+      // 4. Calculate metrics
       const holderMetrics = calculateHolderMetrics(holders);
       const snipersArray = Array.from(snipers);
       const topHolders = getTopHolders(holders, 10);
@@ -749,8 +749,8 @@ export function registerRoutes(app: Express): Server {
         holderConcentration.riskLevel = 'medium';
       }
 
-      // 5. Prepare response with validation
-      const analytics: TokenAnalytics = {
+      // 5. Prepare response
+      const analytics = {
         token: {
           address: mint,
           name: tokenInfo.name || 'Unknown',
@@ -759,7 +759,9 @@ export function registerRoutes(app: Express): Server {
           totalSupply: tokenInfo.supply || 0,
           mintAuthority: tokenInfo.authorities?.find((a: any) => a.type === 'mint')?.address || null,
           freezeAuthority: tokenInfo.authorities?.find((a: any) => a.type === 'freeze')?.address || null,
-          mutable: true
+          mutable: true,
+          created: tokenInfo.createdAt || Date.now(),
+          supply: tokenInfo.supply || 0
         },
         holders: {
           total: holderMetrics.totalHolders,
@@ -808,12 +810,7 @@ export function registerRoutes(app: Express): Server {
       console.log('[Routes] Analytics prepared:', {
         holdersCount: analytics.holders.total,
         snipersCount: analytics.snipers.total,
-        risks: analytics.risks,
-        tokenInfo: {
-          name: analytics.token.name,
-          symbol: analytics.token.symbol,
-          supply: analytics.token.totalSupply
-        }
+        risks: analytics.risks
       });
 
       res.json(analytics);
@@ -835,58 +832,7 @@ export function registerRoutes(app: Express): Server {
   return server;
 }
 
-// Helper functions
-interface TokenAnalytics {
-  token: {
-    address: string;
-    name: string;
-    symbol: string;
-    decimals: number;
-    totalSupply: number;
-    mintAuthority: string | null;
-    freezeAuthority: string | null;
-    mutable: boolean;
-  };
-  holders: {
-    total: number;
-    unique: number;
-    top10: Array<{
-      address: string;
-      balance: number;
-      percentage: number;
-    }>;
-    concentration: {
-      top10Percentage: number;
-      riskLevel: 'low' | 'medium' | 'high';
-    };
-    distribution: Array<{
-      name: string;
-      holders: number;
-    }>;
-  };
-  snipers: {
-    total: number;
-    details: Array<{
-      address: string;
-      amount: number;
-      timestamp: number;
-    }>;
-    volume: number;
-    averageAmount: number;
-  };
-  trading: {
-    volume24h: number;
-    transactions24h: number;
-    averageTradeSize: number;
-    priceImpact: number;
-  };
-  risks: Array<{
-    name: string;
-    score: number;
-  }>;
-  rugScore: number;
-}
-
+// Helper functions from your test code
 function calculateRiskScore(tokenInfo: any, holderConcentration: any, snipers: any[]): number {
   let score = 0;
 
@@ -1059,3 +1005,56 @@ import { generateAIResponse } from './services/ai';
 import { getTokenImage } from './image-worker';
 import { pricePredictionService } from './services/price-prediction';
 import { cryptoService } from './services/crypto'; // Import the crypto service
+
+interface TokenAnalytics {
+  token: {
+    address: string;
+    name: string;
+    symbol: string;
+    decimals: number;
+    totalSupply: number;
+    mintAuthority: string | null;
+    freezeAuthority: string | null;
+    mutable: boolean;
+    created: number;
+    supply: number;
+  };
+  holders: {
+    total: number;
+    unique: number;
+    top10: Array<{
+      address: string;
+      balance: number;
+      percentage: number;
+    }>;
+    concentration: {
+      top10Percentage: number;
+      riskLevel: 'low' | 'medium' | 'high';
+    };
+    distribution: Array<{
+      name: string;
+      holders: number;
+    }>;
+  };
+  snipers: {
+    total: number;
+    details: Array<{
+      address: string;
+      amount: number;
+      timestamp: number;
+    }>;
+    volume: number;
+    averageAmount: number;
+  };
+  trading: {
+    volume24h: number;
+    transactions24h: number;
+    averageTradeSize: number;
+    priceImpact: number;
+  };
+  risks: Array<{
+    name: string;
+    score: number;
+  }>;
+  rugScore: number;
+}
