@@ -1,323 +1,263 @@
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { WebSocketRequest } from "./types";
 import { config } from "./config";
 import { fetchTransactionDetails, createSwapTransaction, getRugCheckConfirmed, fetchAndSaveSwapDetails } from "./transactions";
 import { validateEnv } from "./utils/env-validator";
 import WebSocket from "ws";
+import { TokenMonitor } from "./monitor";
+import { format } from 'date-fns';
 
-// Regional Variables
-let activeTransactions = 0;
-const MAX_CONCURRENT = 1; // Only 1 concurrent transaction
-const BATCH_SIZE = 2; // Process max 2 transactions per batch
-const BATCH_INTERVAL = 60000; // 60 second interval between batches
-let pendingTransactions: string[] = [];
-const MAX_QUEUE_SIZE = 50; // Maximum number of pending transactions to store
-let wsRetryCount = 0;
-const MAX_WS_RETRIES = 5;
-const WS_RETRY_DELAY = 30000; // Increased to 30 seconds
-let processingBatch = false;
+// WebSocket and Transaction Queue Configuration
+const WS_CONFIG = {
+  MAX_CONCURRENT: 1,
+  BATCH_SIZE: 2,
+  BATCH_INTERVAL: 60000,
+  MAX_QUEUE_SIZE: 50,
+  MAX_WS_RETRIES: 5,
+  WS_RETRY_DELAY: 30000,
+  MAX_REQUESTS_PER_MINUTE: 10
+};
 
-// Rate limiting
-const MAX_REQUESTS_PER_MINUTE = 10; // 1 request per 6 seconds
-let requestCount = 0;
-let lastReset = Date.now();
+class EnhancedTokenMonitor extends TokenMonitor {
+  private wsRetryCount = 0;
+  private activeWs: WebSocket | null = null;
+  private wsConnecting = false;
+  private processingBatch = false;
+  private pendingTransactions: string[] = [];
+  private requestCount = 0;
+  private lastReset = Date.now();
 
-// WebSocket state management
-let activeWs: WebSocket | null = null;
-let wsConnecting = false;
+  constructor() {
+    super();
+    this.initializeRateLimitReset();
+  }
 
-// Reset request counter every minute
-setInterval(() => {
-  requestCount = 0;
-  lastReset = Date.now();
-  console.log("🔄 Request counter reset");
-}, 60000);
+  private initializeRateLimitReset(): void {
+    setInterval(() => {
+      this.requestCount = 0;
+      this.lastReset = Date.now();
+      console.log("🔄 Request counter reset");
+    }, 60000);
+  }
 
-// Function to check rate limit
-function checkRateLimit(): boolean {
-  const now = Date.now();
-  const timeElapsedSinceReset = now - lastReset;
+  private checkRateLimit(): boolean {
+    const now = Date.now();
+    const timeElapsedSinceReset = now - this.lastReset;
 
-  if (timeElapsedSinceReset > 60000) {
-    requestCount = 0;
-    lastReset = now;
+    if (timeElapsedSinceReset > 60000) {
+      this.requestCount = 0;
+      this.lastReset = now;
+      return true;
+    }
+
+    if (this.requestCount >= WS_CONFIG.MAX_REQUESTS_PER_MINUTE) {
+      console.log(`⚠️ Rate limit reached (${this.requestCount}/${WS_CONFIG.MAX_REQUESTS_PER_MINUTE} requests)`);
+      return false;
+    }
+
+    this.requestCount++;
     return true;
   }
 
-  if (requestCount >= MAX_REQUESTS_PER_MINUTE) {
-    console.log(`⚠️ Rate limit reached (${requestCount}/${MAX_REQUESTS_PER_MINUTE} requests). Waiting for reset...`);
-    return false;
-  }
-
-  requestCount++;
-  return true;
-}
-
-// Function to validate transaction signature format
-function isValidSignature(signature: string): boolean {
-  // Validate basic format (base58 characters and length)
-  if (!signature || !signature.match(/^[1-9A-HJ-NP-Za-km-z]{88,98}$/)) {
-    return false;
-  }
-
-  // Skip signatures containing 'pump' or known spam patterns
-  if (signature.toLowerCase().includes('pump') || 
-      signature.toLowerCase().includes('test') || 
-      signature.toLowerCase().includes('spam')) {
-    return false;
-  }
-
-  return true;
-}
-
-// Function to send subscription request
-function sendSubscribeRequest(ws: WebSocket): void {
-  const request: WebSocketRequest = {
-    jsonrpc: "2.0",
-    id: 1,
-    method: "logsSubscribe",
-    params: [
-      {
-        mentions: [config.liquidity_pool.radiyum_program_id],
-      },
-      {
-        commitment: "confirmed",
-      },
-    ],
-  };
-  ws.send(JSON.stringify(request));
-}
-
-// WebSocket connection manager
-function initializeWebSocket(): void {
-  if (wsConnecting || activeWs?.readyState === WebSocket.OPEN) {
-    console.log("WebSocket connection already active or connecting");
-    return;
-  }
-
-  wsConnecting = true;
-  const env = validateEnv();
-
-  // Close existing connection if any
-  if (activeWs) {
-    try {
-      activeWs.close();
-    } catch (err) {
-      console.log("Error closing existing WebSocket:", err);
+  private initializeWebSocket(): void {
+    if (this.wsConnecting || this.activeWs?.readyState === WebSocket.OPEN) {
+      return;
     }
-    activeWs = null;
+
+    this.wsConnecting = true;
+    const env = validateEnv();
+
+    if (this.activeWs) {
+      try {
+        this.activeWs.close();
+      } catch (err) {
+        console.log("Error closing existing WebSocket:", err);
+      }
+      this.activeWs = null;
+    }
+
+    const ws = new WebSocket(env.HELIUS_WSS_URI, {
+      handshakeTimeout: 10000,
+      maxPayload: 50 * 1024 * 1024
+    });
+
+    this.setupWebSocketListeners(ws);
   }
 
-  const ws = new WebSocket(env.HELIUS_WSS_URI, {
-    handshakeTimeout: 10000,
-    maxPayload: 50 * 1024 * 1024, // 50MB max payload
-  });
+  private setupWebSocketListeners(ws: WebSocket): void {
+    ws.on("open", () => {
+      console.log("✅ WebSocket connected successfully");
+      this.wsRetryCount = 0;
+      this.wsConnecting = false;
+      this.activeWs = ws;
+      this.sendSubscribeRequest(ws);
+    });
 
-  console.log("\n🔓 Attempting WebSocket connection...");
+    ws.on("message", async (data: WebSocket.Data) => {
+      await this.handleWebSocketMessage(data);
+    });
 
-  ws.on("open", () => {
-    console.log("✅ WebSocket connected successfully");
-    wsRetryCount = 0;
-    wsConnecting = false;
-    activeWs = ws;
-    sendSubscribeRequest(ws);
-  });
+    ws.on("error", (error: Error) => {
+      console.error("🚫 WebSocket error:", error.message);
+      this.wsConnecting = false;
+    });
 
-  ws.on("message", async (data: WebSocket.Data) => {
+    ws.on("close", (code: number, reason: string) => {
+      this.handleWebSocketClose(code, reason);
+    });
+  }
+
+  private sendSubscribeRequest(ws: WebSocket): void {
+    const request: WebSocketRequest = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "logsSubscribe",
+      params: [
+        {
+          mentions: [config.liquidity_pool.radiyum_program_id],
+        },
+        {
+          commitment: "confirmed",
+        },
+      ],
+    };
+    ws.send(JSON.stringify(request));
+  }
+
+  private async handleWebSocketMessage(data: WebSocket.Data): Promise<void> {
     try {
       const jsonString = data.toString();
       const parsedData = JSON.parse(jsonString);
 
-      if (parsedData.result !== undefined && !parsedData.error) {
-        console.log("✅ Subscription confirmed");
+      if (!this.validateWebSocketMessage(parsedData)) {
         return;
       }
 
-      if (parsedData.error) {
-        console.error("🚫 RPC Error:", parsedData.error);
-        return;
+      const signature = parsedData.params?.result?.value?.signature;
+      if (this.shouldProcessTransaction(signature)) {
+        await this.queueTransaction(signature);
       }
-
-      const logs = parsedData?.params?.result?.value?.logs;
-      const signature = parsedData?.params?.result?.value?.signature;
-
-      // Validate logs and signature
-      if (!Array.isArray(logs) || !signature || !isValidSignature(signature)) {
-        console.log("⚠️ Invalid WebSocket message format", { 
-          hasLogs: Array.isArray(logs), 
-          hasSignature: !!signature,
-          isValidSig: isValidSignature(signature || '')
-        });
-        return;
-      }
-
-      // Check for new pool creation
-      const containsCreate = logs.some((log: string) => 
-        typeof log === "string" && log.includes("Program log: initialize2: InitializeInstruction2")
-      );
-
-      if (!containsCreate) return;
-
-      // Add new transaction to pending queue with rate limiting
-      if (!pendingTransactions.includes(signature)) {
-        // Check queue size limit
-        if (pendingTransactions.length >= MAX_QUEUE_SIZE) {
-          console.log("⚠️ Queue full, dropping oldest transaction");
-          pendingTransactions.pop(); // Remove oldest transaction
-        }
-
-        pendingTransactions.push(signature);
-        console.log(`📝 Added transaction ${signature} to queue (${pendingTransactions.length}/${MAX_QUEUE_SIZE} pending)`);
-
-        // Start processing if not already processing
-        if (!processingBatch) {
-          processPendingTransactions();
-        }
-      }
-
     } catch (error) {
-      console.error("💥 Error processing message:", {
-        error: error instanceof Error ? error.message : "Unknown error",
-        timestamp: new Date().toISOString(),
-      });
+      console.error("💥 Error processing message:", error);
     }
-  });
+  }
 
-  ws.on("error", (error: Error) => {
-    console.error("🚫 WebSocket error:", error.message);
-    wsConnecting = false;
-  });
+  private validateWebSocketMessage(parsedData: any): boolean {
+    if (parsedData.result !== undefined && !parsedData.error) {
+      console.log("✅ Subscription confirmed");
+      return false;
+    }
 
-  ws.on("close", (code: number, reason: string) => {
+    if (parsedData.error) {
+      console.error("🚫 RPC Error:", parsedData.error);
+      return false;
+    }
+
+    const logs = parsedData?.params?.result?.value?.logs;
+    const signature = parsedData?.params?.result?.value?.signature;
+
+    return Array.isArray(logs) && signature && this.isValidSignature(signature);
+  }
+
+  private shouldProcessTransaction(signature: string): boolean {
+    return !this.pendingTransactions.includes(signature) &&
+           this.pendingTransactions.length < WS_CONFIG.MAX_QUEUE_SIZE;
+  }
+
+  private async queueTransaction(signature: string): Promise<void> {
+    if (this.pendingTransactions.length >= WS_CONFIG.MAX_QUEUE_SIZE) {
+      this.pendingTransactions.pop();
+    }
+
+    this.pendingTransactions.push(signature);
+    console.log(`📝 Queued transaction ${signature} (${this.pendingTransactions.length}/${WS_CONFIG.MAX_QUEUE_SIZE} pending)`);
+
+    if (!this.processingBatch) {
+      await this.processPendingTransactions();
+    }
+  }
+
+  private async processPendingTransactions(): Promise<void> {
+    if (this.processingBatch || this.pendingTransactions.length === 0) return;
+
+    if (!this.checkRateLimit()) {
+      setTimeout(() => this.processPendingTransactions(), 5000);
+      return;
+    }
+
+    this.processingBatch = true;
+    const batchSize = Math.min(WS_CONFIG.BATCH_SIZE, this.pendingTransactions.length);
+    const batch = this.pendingTransactions.splice(0, batchSize);
+
+    for (const signature of batch) {
+      try {
+        if (!this.checkRateLimit()) {
+          this.pendingTransactions.unshift(signature);
+          break;
+        }
+        await super.processTransaction(signature);
+        await new Promise(resolve => setTimeout(resolve, 10000));
+      } catch (error) {
+        console.error(`Error processing transaction ${signature}:`, error);
+      }
+    }
+
+    this.processingBatch = false;
+
+    if (this.pendingTransactions.length > 0) {
+      const nextBatchDelay = Math.max(
+        WS_CONFIG.BATCH_INTERVAL,
+        (60000 - (Date.now() - this.lastReset))
+      );
+      setTimeout(() => this.processPendingTransactions(), nextBatchDelay);
+    }
+  }
+
+  private handleWebSocketClose(code: number, reason: string): void {
     console.log(`📴 WebSocket closed (${code}): ${reason || 'No reason provided'}`);
-    wsConnecting = false;
-    activeWs = null;
+    this.wsConnecting = false;
+    this.activeWs = null;
 
-    if (wsRetryCount < MAX_WS_RETRIES) {
-      wsRetryCount++;
-      console.log(`🔄 Attempting reconnection ${wsRetryCount}/${MAX_WS_RETRIES} in ${WS_RETRY_DELAY/1000}s...`);
-      setTimeout(initializeWebSocket, WS_RETRY_DELAY);
+    if (this.wsRetryCount < WS_CONFIG.MAX_WS_RETRIES) {
+      this.wsRetryCount++;
+      console.log(`🔄 Attempting reconnection ${this.wsRetryCount}/${WS_CONFIG.MAX_WS_RETRIES} in ${WS_CONFIG.WS_RETRY_DELAY/1000}s...`);
+      setTimeout(() => this.initializeWebSocket(), WS_CONFIG.WS_RETRY_DELAY);
     } else {
       console.error("❌ Max reconnection attempts reached. Please restart the application.");
       process.exit(1);
     }
-  });
-}
-
-// Process transactions in batches with rate limiting
-async function processPendingTransactions() {
-  if (processingBatch || pendingTransactions.length === 0) return;
-
-  // Check rate limit before processing batch
-  if (!checkRateLimit()) {
-    setTimeout(processPendingTransactions, 5000);
-    return;
   }
 
-  processingBatch = true;
-  const batchSize = Math.min(BATCH_SIZE, pendingTransactions.length);
-  console.log(`\n🔄 Processing batch of ${batchSize} transactions...`);
+  public async start(): Promise<void> {
+    console.clear();
+    console.log(`\n🚀 Starting Enhanced Solana Token Monitor...`);
+    console.log(`Current Time (UTC): ${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}`);
+    console.log(`User: ${process.env.USER || 'Peblo69'}\n`);
 
-  // Take next batch of transactions
-  const batch = pendingTransactions.splice(0, batchSize);
+    console.log("⚡ Rate Limits:");
+    console.log(`   Max Requests/min: ${WS_CONFIG.MAX_REQUESTS_PER_MINUTE}`);
+    console.log(`   Batch Size: ${WS_CONFIG.BATCH_SIZE}`);
+    console.log(`   Batch Interval: ${WS_CONFIG.BATCH_INTERVAL/1000}s`);
+    console.log(`   Max Queue Size: ${WS_CONFIG.MAX_QUEUE_SIZE}\n`);
 
-  for (const signature of batch) {
-    try {
-      if (!checkRateLimit()) {
-        // Put transaction back in queue if rate limited
-        pendingTransactions.unshift(signature);
-        break;
-      }
-      await processTransaction(signature);
-      // Add delay between transactions in batch
-      await new Promise(resolve => setTimeout(resolve, 10000)); // 10 second delay between transactions
-    } catch (error) {
-      console.error(`Error processing transaction ${signature}:`, error);
-    }
-  }
-
-  processingBatch = false;
-
-  // Schedule next batch with rate limiting
-  if (pendingTransactions.length > 0) {
-    const nextBatchDelay = Math.max(BATCH_INTERVAL, (60000 - (Date.now() - lastReset)));
-    console.log(`📅 Next batch scheduled in ${nextBatchDelay/1000}s`);
-    setTimeout(processPendingTransactions, nextBatchDelay);
+    await super.start();
+    this.initializeWebSocket();
   }
 }
 
-// Function to handle individual transactions
-async function processTransaction(signature: string): Promise<void> {
-  // Validate signature format first
-  if (!isValidSignature(signature)) {
-    console.log(`🚫 Invalid signature format: ${signature}`);
-    return;
-  }
+// Start the enhanced monitor
+const monitor = new EnhancedTokenMonitor();
+monitor.start().catch(error => {
+  console.error("Fatal error during startup:", error);
+  process.exit(1);
+});
 
-  if (!checkRateLimit()) {
-    throw new Error("Rate limit reached during transaction processing");
-  }
+// Handle graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('\n\n🛑 Shutting down monitor...');
+  process.exit(0);
+});
 
-  console.log("\n=============================================");
-  console.log("🔎 New Liquidity Pool found.");
-  console.log("🔃 Fetching transaction details ...");
-
-  const data = await fetchTransactionDetails(signature);
-  if (!data) {
-    console.log("⛔ Transaction aborted. No data returned.");
-    console.log("🟢 Resuming looking for new tokens...\n");
-    return;
-  }
-
-  if (!data.solMint || !data.tokenMint) return;
-
-  const isRugCheckPassed = await getRugCheckConfirmed(data.tokenMint);
-  if (!isRugCheckPassed) {
-    console.log("🚫 Rug Check not passed! Transaction aborted.");
-    console.log("🟢 Resuming looking for new tokens...\n");
-    return;
-  }
-
-  if (data.tokenMint.trim().toLowerCase().endsWith("pump") && config.rug_check.ignore_pump_fun) {
-    console.log("🚫 Transaction skipped. Ignoring Pump.fun.");
-    console.log("🟢 Resuming looking for new tokens..\n");
-    return;
-  }
-
-  console.log("Token found");
-  console.log("👽 GMGN: https://gmgn.ai/sol/token/" + data.tokenMint);
-  console.log("😈 BullX: https://neo.bullx.io/terminal?chainId=1399811149&address=" + data.tokenMint);
-
-  if (config.rug_check.simulation_mode) {
-    console.log("👀 Token not swapped. Simulation mode is enabled.");
-    console.log("🟢 Resuming looking for new tokens..\n");
-    return;
-  }
-
-  await new Promise(resolve => setTimeout(resolve, config.tx.swap_tx_initial_delay));
-
-  const tx = await createSwapTransaction(data.solMint, data.tokenMint);
-  if (!tx) {
-    console.log("⛔ Transaction aborted.");
-    console.log("🟢 Resuming looking for new tokens...\n");
-    return;
-  }
-
-  console.log("🚀 Swapping SOL for Token.");
-  console.log("Swap Transaction: ", "https://solscan.io/tx/" + tx);
-
-  const saveConfirmation = await fetchAndSaveSwapDetails(tx);
-  if (!saveConfirmation) {
-    console.log("❌ Warning: Transaction not saved for tracking! Track Manually!");
-  }
-}
-
-// Print initial status
-console.log("\n🚀 Starting Solana Token Monitor...");
-console.log("\n⚡ Rate Limits:");
-console.log(`   Max Requests/min: ${MAX_REQUESTS_PER_MINUTE}`);
-console.log(`   Batch Size: ${BATCH_SIZE}`);
-console.log(`   Batch Interval: ${BATCH_INTERVAL/1000}s`);
-console.log(`   Max Queue Size: ${MAX_QUEUE_SIZE}`);
-
-console.clear();
-initializeWebSocket();
+process.on('unhandledRejection', (error) => {
+  console.error('Unhandled promise rejection:', error);
+});

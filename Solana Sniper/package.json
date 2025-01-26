@@ -9,17 +9,20 @@
     "start:tracker": "node dist/tracker/index.js",
     "dev": "tsx src/index.ts",
     "monitor": "tsx src/monitor.ts",
+    "ws-monitor": "tsx src/ws-monitor.ts",
     "test": "tsx src/test.ts",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "rebuild": "node-gyp rebuild"
   },
   "keywords": [],
   "author": "https://x.com/digbenjamins",
   "license": "ISC",
-  "description": "",
+  "description": "Solana Token Sniper with Enhanced Monitoring",
   "devDependencies": {
     "@types/luxon": "^3.4.2",
     "@types/node": "^22.10.1",
     "@types/ws": "^8.5.13",
+    "@types/date-fns": "^2.6.0",
     "eslint": "^9.15.0",
     "globals": "^15.12.0",
     "ts-node": "^10.9.2",
@@ -32,11 +35,22 @@
     "axios": "^1.7.8",
     "bs58": "^6.0.0",
     "chalk": "^5.3.0",
+    "date-fns": "^3.3.1",
     "dotenv": "^16.4.5",
     "luxon": "^3.5.0",
     "tsx": "^4.7.0",
     "ws": "^8.18.0",
     "sqlite3": "^5.1.7",
     "sqlite": "^5.1.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/sol_token_sniper"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/sol_token_sniper/issues"
   }
 }
