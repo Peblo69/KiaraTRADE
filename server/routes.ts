@@ -641,7 +641,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Update the token analytics endpoint
+  // Add token analytics endpoint
   app.get('/api/token-analytics/:mint', async (req, res) => {
     try {
       const { mint } = req.params;
@@ -658,99 +658,91 @@ export function registerRoutes(app: Express): Server {
         axios.post(HELIUS_RPC_URL, {
           jsonrpc: '2.0',
           id: 'transfers',
-          method: 'searchAssets',
+          method: 'getSignaturesForAsset',
           params: {
-            ownerAddress: mint,
+            assetId: mint,
             limit: 100,
-            page: 1,
-            displayOptions: {
-              showUnverifiedCollections: true,
-              showZeroBalance: true
+            sortBy: {
+              value: 'blockTime',
+              order: 'desc'
             }
           }
         })
       ]);
 
-      console.log('[Routes] Token Info Response:', tokenResponse.data);
-      console.log('[Routes] Transfers Response:', transfersResponse.data);
-
       const tokenInfo = tokenResponse.data.result;
-      // FIXED: Correct path to transfers array
-      const transfers = transfersResponse.data.result?.items || [];
+      const transfers = transfersResponse.data.result || [];
 
       // 2. Process transfers to identify holders and snipers
       const holders = new Map();
       const snipers = new Set();
       const trades = [];
-
-      // Default to current time if no transfers exist
-      const creationTime = transfers.length > 0 ? 
-        transfers[transfers.length - 1]?.blockTime || Date.now() : 
-        Date.now();
-
+      const creationTime = transfers[transfers.length - 1]?.blockTime || Date.now();
       const sniperWindow = 30000; // 30 seconds
 
-      console.log('[Routes] Processing transfers:', transfers.length);
+      transfers.forEach((transfer: any) => {
+        const { fromUserAccount, toUserAccount, amount, blockTime } = transfer;
 
-      // Only process transfers if there are any
-      if (transfers.length > 0) {
-        transfers.forEach((transfer: any) => {
-          const { fromUserAccount, toUserAccount, amount, blockTime } = transfer;
+        if (fromUserAccount) {
+          const currentFromBalance = holders.get(fromUserAccount) || 0;
+          holders.set(fromUserAccount, currentFromBalance - amount);
+        }
 
-          if (fromUserAccount) {
-            const currentFromBalance = holders.get(fromUserAccount) || 0;
-            holders.set(fromUserAccount, currentFromBalance - amount);
+        if (toUserAccount) {
+          const currentToBalance = holders.get(toUserAccount) || 0;
+          holders.set(toUserAccount, currentToBalance + amount);
+
+          // Check for snipers (early buyers)
+          if (blockTime - creationTime <= sniperWindow) {
+            snipers.add({
+              address: toUserAccount,
+              amount,
+              timestamp: blockTime
+            });
           }
+        }
 
-          if (toUserAccount) {
-            const currentToBalance = holders.get(toUserAccount) || 0;
-            holders.set(toUserAccount, currentToBalance + amount);
-
-            if (blockTime - creationTime <= sniperWindow) {
-              snipers.add({
-                address: toUserAccount,
-                amount,
-                timestamp: blockTime
-              });
-            }
-          }
-
-          trades.push({
-            type: fromUserAccount ? 'sell' : 'buy',
-            amount,
-            timestamp: blockTime,
-            address: fromUserAccount || toUserAccount
-          });
+        trades.push({
+          type: fromUserAccount ? 'sell' : 'buy',
+          amount,
+          timestamp: blockTime,
+          address: fromUserAccount || toUserAccount
         });
-      }
-
-      console.log('[Routes] Holders processed:', holders.size);
-      console.log('[Routes] Snipers detected:', snipers.size);
+      });
 
       // 3. Calculate metrics
       const holderMetrics = calculateHolderMetrics(holders);
       const snipersArray = Array.from(snipers);
       const topHolders = getTopHolders(holders, 10);
 
+      const holderConcentration = {
+        top10Percentage: topHolders.reduce((sum, h) => sum + h.percentage, 0),
+        riskLevel: 'low'
+      };
+
+      if (holderConcentration.top10Percentage > 80) {
+        holderConcentration.riskLevel = 'high';
+      } else if (holderConcentration.top10Percentage > 50) {
+        holderConcentration.riskLevel = 'medium';
+      }
+
       // 4. Prepare response
-      const analytics = {
+      const analytics: TokenAnalytics = {
         token: {
           address: mint,
-          name: tokenInfo.content?.metadata?.name || 'Unknown',
-          symbol: tokenInfo.content?.metadata?.symbol || 'Unknown',
-          decimals: tokenInfo.token_info?.decimals || 0,
-          supply: tokenInfo.token_info?.supply || 0,
+          name: tokenInfo.name || 'Unknown',
+          symbol: tokenInfo.symbol || 'Unknown',
+          decimals: tokenInfo.decimals || 0,
+          totalSupply: tokenInfo.supply || 0,
           mintAuthority: tokenInfo.authorities?.find((a: any) => a.type === 'mint')?.address || null,
           freezeAuthority: tokenInfo.authorities?.find((a: any) => a.type === 'freeze')?.address || null,
-          mutable: tokenInfo.mutable || false
+          mutable: true
         },
         holders: {
           total: holderMetrics.totalHolders,
           unique: holderMetrics.uniqueHolders,
           top10: topHolders,
-          concentration: {
-            top10Percentage: topHolders.reduce((sum, h) => sum + h.percentage, 0)
-          },
+          concentration: holderConcentration,
           distribution: holderMetrics.distribution
         },
         snipers: {
@@ -763,13 +755,12 @@ export function registerRoutes(app: Express): Server {
           volume24h: calculateVolume24h(trades),
           transactions24h: calculateTransactions24h(trades),
           averageTradeSize: calculateAverageTradeSize(trades),
-          priceImpact: calculatePriceImpact(trades),
-          markets: []
+          priceImpact: calculatePriceImpact(trades)
         },
         risks: [
           {
             name: 'Holder Concentration',
-            score: calculateHolderConcentrationScore(topHolders)
+            score: holderConcentration.top10Percentage > 80 ? 100 : holderConcentration.top10Percentage > 50 ? 50 : 0
           },
           {
             name: 'Mint Authority',
@@ -781,15 +772,18 @@ export function registerRoutes(app: Express): Server {
           },
           {
             name: 'Sniper Activity',
-            score: calculateSniperScore(snipersArray)
+            score: snipersArray.length > 20 ? 100 : snipersArray.length > 10 ? 50 : 0
           }
         ],
-        rugScore: calculateRiskScore(tokenInfo, {
-          top10Percentage: topHolders.reduce((sum, h) => sum + h.percentage, 0)
-        }, snipersArray)
+        rugScore: calculateRiskScore(tokenInfo, holderConcentration, snipersArray)
       };
 
-      console.log('[Routes] Analytics prepared successfully');
+      console.log('[Routes] Analytics prepared:', {
+        holdersCount: analytics.holders.total,
+        snipersCount: analytics.snipers.total,
+        risks: analytics.risks
+      });
+
       res.json(analytics);
 
     } catch (error: any) {
@@ -806,23 +800,6 @@ export function registerRoutes(app: Express): Server {
       });
     }
   });
-
-  // Add helper function for new score calculations
-  function calculateHolderConcentrationScore(topHolders: any[]): number {
-    const totalPercentage = topHolders.reduce((sum, h) => sum + h.percentage, 0);
-    if (totalPercentage > 80) return 100;
-    if (totalPercentage > 50) return 50;
-    return 0;
-  }
-
-  function calculateSniperScore(snipers: any[]): number {
-    if (snipers.length > 20) return 100;
-    if (snipers.length > 10) return 50;
-    return 0;
-  }
-
-  // Add token analytics endpoint
-
 
   return server;
 }
@@ -871,7 +848,6 @@ interface TokenAnalytics {
     transactions24h: number;
     averageTradeSize: number;
     priceImpact: number;
-    markets: any[];
   };
   risks: Array<{
     name: string;
@@ -998,14 +974,13 @@ const COIN_METADATA: Record<string, { name: string, image: string }> = {
 };
 
 // Helper function to get coin metadata
-function getCoinMetadata(symbol: string) {
-  return (
-    COIN_METADATA[symbol] || {
-      name: symbol,
-      image: `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/32/color/${symbol.toLowerCase()}.png`
-    }
-  );
-}
+const getCoinMetadata = (symbol: string) => {
+  const cleanSymbol = symbol.replace('-USDT', '');
+  return COIN_METADATA[cleanSymbol] || {
+    name: cleanSymbol,
+    image: `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/${cleanSymbol.toLowerCase()}.png`
+  };
+};
 
 // Helper function to format KuCoin data to match our frontend expectations
 const formatKuCoinData = (markets: any[]) => {
@@ -1053,4 +1028,3 @@ import { generateAIResponse } from './services/ai';
 import { getTokenImage } from './image-worker';
 import { pricePredictionService } from './services/price-prediction';
 import { cryptoService } from './services/crypto'; // Import the crypto service
-}
