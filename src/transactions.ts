@@ -15,105 +15,86 @@ import {
   NewTokenRecord,
   createSellTransactionResponse,
 } from "./types";
+import { insertHolding, insertNewToken, removeHolding, selectTokenByMint, selectTokenByNameAndCreator } from "./tracker/db";
 
 // Load environment variables from the .env file
 dotenv.config();
 
-// Cache successful responses to avoid duplicate API calls
-const responseCache = new Map<string, MintsDataReponse>();
-const rateLimitMap = new Map<string, number>();
-
-// Initial delay between retries (2 seconds)
-const INITIAL_RETRY_DELAY = 2000;
-// Maximum delay between retries (30 seconds)
-const MAX_RETRY_DELAY = 30000;
-// Maximum number of retries
-const MAX_RETRIES = 3;
-
-/**
- * Implements exponential backoff with jitter
- */
-function getBackoffDelay(attempt: number): number {
-  // Calculate exponential backoff
-  const exponentialDelay = Math.min(
-    INITIAL_RETRY_DELAY * Math.pow(2, attempt),
-    MAX_RETRY_DELAY
-  );
-  // Add random jitter (±20%)
-  const jitter = exponentialDelay * 0.2 * (Math.random() - 0.5);
-  return exponentialDelay + jitter;
-}
-
 export async function fetchTransactionDetails(signature: string): Promise<MintsDataReponse | null> {
-  // Check cache first
-  if (responseCache.has(signature)) {
-    console.log("📦 Using cached transaction details");
-    return responseCache.get(signature)!;
-  }
-
-  // Check rate limit for this endpoint
-  const now = Date.now();
-  const lastCallTime = rateLimitMap.get('fetchTx') || 0;
-  const timeSinceLastCall = now - lastCallTime;
-
-  if (timeSinceLastCall < 3000) { // Minimum 3 seconds between calls
-    const waitTime = 3000 - timeSinceLastCall;
-    console.log(`⏳ Rate limit cooling down, waiting ${waitTime}ms...`);
-    await new Promise(resolve => setTimeout(resolve, waitTime));
-  }
-
-  rateLimitMap.set('fetchTx', Date.now());
-
-  const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
-  const txUrl = `https://api.helius.xyz/v0/transactions/?api-key=${HELIUS_API_KEY}`;
+  // Set function constants
+  const txUrl = process.env.HELIUS_HTTPS_URI_TX || "";
+  const maxRetries = config.tx.fetch_tx_max_retries;
   let retryCount = 0;
 
-  while (retryCount < MAX_RETRIES) {
+  // Add longer initial delay to allow transaction to be processed
+  console.log("Waiting " + config.tx.fetch_tx_initial_delay / 1000 + " seconds for transaction to be confirmed...");
+  await new Promise((resolve) => setTimeout(resolve, config.tx.fetch_tx_initial_delay));
+
+  while (retryCount < maxRetries) {
     try {
-      console.log(`Attempt ${retryCount + 1} of ${MAX_RETRIES} to fetch transaction details...`);
+      // Output logs
+      console.log(`Attempt ${retryCount + 1} of ${maxRetries} to fetch transaction details...`);
 
       const response = await axios.post<any>(
         txUrl,
-        { transactions: [signature] },
         {
-          headers: { "Content-Type": "application/json" },
-          timeout: 10000,
+          transactions: [signature],
+          commitment: "finalized",
+          encoding: "jsonParsed",
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          timeout: config.tx.get_timeout,
         }
       );
 
-      if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
-        throw new Error("Invalid response data");
+      // Verify if a response was received
+      if (!response.data) {
+        throw new Error("No response data received");
       }
 
+      // Verify if the response was in the correct format and not empty
+      if (!Array.isArray(response.data) || response.data.length === 0) {
+        throw new Error("Response data array is empty");
+      }
+
+      // Access the `data` property which contains the array of transactions
       const transactions: TransactionDetailsResponseArray = response.data;
+
+      // Verify if transaction details were found
       if (!transactions[0]) {
         throw new Error("Transaction not found");
       }
 
+      // Access the `instructions` property which contains account instructions
       const instructions = transactions[0].instructions;
       if (!instructions || !Array.isArray(instructions) || instructions.length === 0) {
-        throw new Error("No instructions found");
+        throw new Error("No instructions found in transaction");
       }
 
+      // Verify and find the instructions for the correct market maker id
       const instruction = instructions.find((ix) => ix.programId === config.liquidity_pool.radiyum_program_id);
       if (!instruction || !instruction.accounts) {
         throw new Error("No market maker instruction found");
       }
-
       if (!Array.isArray(instruction.accounts) || instruction.accounts.length < 10) {
-        throw new Error("Invalid accounts array");
+        throw new Error("Invalid accounts array in instruction");
       }
 
+      // Store quote and token mints
       const accountOne = instruction.accounts[8];
       const accountTwo = instruction.accounts[9];
 
+      // Verify if we received both quote and token mints
       if (!accountOne || !accountTwo) {
         throw new Error("Required accounts not found");
       }
 
+      // Set new token and SOL mint
       let solTokenAccount = "";
       let newTokenAccount = "";
-
       if (accountOne === config.liquidity_pool.wsol_pc_mint) {
         solTokenAccount = accountOne;
         newTokenAccount = accountTwo;
@@ -122,52 +103,31 @@ export async function fetchTransactionDetails(signature: string): Promise<MintsD
         newTokenAccount = accountOne;
       }
 
-      if (!solTokenAccount.match(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/) ||
-          !newTokenAccount.match(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/)) {
-        throw new Error("Invalid token account format");
-      }
+      // Output logs
+      console.log("Successfully fetched transaction details!");
+      console.log(`SOL Token Account: ${solTokenAccount}`);
+      console.log(`New Token Account: ${newTokenAccount}`);
 
-      console.log("✅ Transaction details fetched successfully");
-      console.log(`SOL Token: ${solTokenAccount}`);
-      console.log(`New Token: ${newTokenAccount}`);
-
-      const result = {
+      const displayData: MintsDataReponse = {
         tokenMint: newTokenAccount,
         solMint: solTokenAccount,
       };
 
-      // Cache the successful response
-      responseCache.set(signature, result);
-
-      // Clean up old cache entries periodically
-      if (responseCache.size > 100) {
-        const oldestKey = responseCache.keys().next().value;
-        responseCache.delete(oldestKey);
-      }
-
-      return result;
-
+      return displayData;
     } catch (error: any) {
       console.log(`Attempt ${retryCount + 1} failed: ${error.message}`);
 
-      if (error.response?.status === 429) {
-        const delay = getBackoffDelay(retryCount);
-        console.log(`Rate limit hit. Waiting ${delay/1000}s...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        // For other errors, use a shorter delay
-        await new Promise(resolve => setTimeout(resolve, INITIAL_RETRY_DELAY));
-      }
-
       retryCount++;
 
-      if (retryCount >= MAX_RETRIES) {
-        console.log("❌ All attempts to fetch transaction details failed");
-        return null;
+      if (retryCount < maxRetries) {
+        const delay = Math.min(4000 * Math.pow(1.5, retryCount), 15000);
+        console.log(`Waiting ${delay / 1000} seconds before next attempt...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
 
+  console.log("All attempts to fetch transaction details failed");
   return null;
 }
 
@@ -753,24 +713,4 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
       tx: null,
     };
   }
-}
-
-export async function insertHolding(holding: HoldingRecord): Promise<void> {
-    //Implementation for database insertion
-}
-
-export async function insertNewToken(token: NewTokenRecord): Promise<void> {
-    //Implementation for database insertion
-}
-
-export async function removeHolding(tokenMint: string): Promise<void> {
-    //Implementation for database insertion
-}
-
-export async function selectTokenByMint(tokenMint: string):Promise<NewTokenRecord[]> {
-    //Implementation for database selection
-}
-
-export async function selectTokenByNameAndCreator(tokenName: string, tokenCreator: string): Promise<NewTokenRecord[]> {
-    //Implementation for database selection
 }
