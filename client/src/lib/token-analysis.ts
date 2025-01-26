@@ -48,6 +48,7 @@ export async function analyzeToken(tokenMint: string): Promise<TokenData | null>
   try {
     console.log(`[Token Analysis] Fetching fresh data for ${tokenMint}`);
     const response = await axios.get(`/api/token-analytics/${tokenMint}`);
+    console.log('[Token Analysis] Raw API response:', response.data);
 
     if (!response.data) {
       console.log("[Token Analysis] No response received from token analytics API");
@@ -62,7 +63,7 @@ export async function analyzeToken(tokenMint: string): Promise<TokenData | null>
       tokenMint,
       tokenName: analytics.token?.name || "Unknown",
       tokenSymbol: analytics.token?.symbol || "Unknown",
-      supply: analytics.token?.totalSupply?.toString() || "0",
+      supply: analytics.token?.supply?.toString() || "0",
       decimals: analytics.token?.decimals?.toString() || "0",
       mintAuthority: analytics.token?.mintAuthority || "N/A",
       freezeAuthority: analytics.token?.freezeAuthority || "N/A",
@@ -74,11 +75,7 @@ export async function analyzeToken(tokenMint: string): Promise<TokenData | null>
         address: holder.address,
         pct: holder.percentage || 0
       })) || [],
-      markets: analytics.trading ? [{
-        market: 'JUP',
-        liquidityA: analytics.trading.volume24h?.toString() || "0",
-        liquidityB: "0"
-      }] : [],
+      markets: analytics.trading?.markets || [],
       totalLPProviders: analytics.holders?.total || 0,
       totalMarketLiquidity: analytics.trading?.volume24h || 0,
       risks: analytics.risks?.map((risk: any) => ({
@@ -86,6 +83,8 @@ export async function analyzeToken(tokenMint: string): Promise<TokenData | null>
         score: risk.score || 0
       })) || []
     };
+
+    console.log('[Token Analysis] Processed token data:', tokenData);
 
     // Cache the results
     analysisCache.set(tokenMint, {

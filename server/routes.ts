@@ -641,7 +641,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add token analytics endpoint
+  // Update the token analytics endpoint
   app.get('/api/token-analytics/:mint', async (req, res) => {
     try {
       const { mint } = req.params;
@@ -670,6 +670,9 @@ export function registerRoutes(app: Express): Server {
         })
       ]);
 
+      console.log('[Routes] Token Info Response:', tokenResponse.data);
+      console.log('[Routes] Transfers Response:', transfersResponse.data);
+
       const tokenInfo = tokenResponse.data.result;
       const transfers = transfersResponse.data.result || [];
 
@@ -680,7 +683,10 @@ export function registerRoutes(app: Express): Server {
       const creationTime = transfers[transfers.length - 1]?.blockTime || Date.now();
       const sniperWindow = 30000; // 30 seconds
 
+      console.log('[Routes] Processing transfers:', transfers.length);
+
       transfers.forEach((transfer: any) => {
+        console.log('[Routes] Processing transfer:', transfer);
         const { fromUserAccount, toUserAccount, amount, blockTime } = transfer;
 
         if (fromUserAccount) {
@@ -692,7 +698,6 @@ export function registerRoutes(app: Express): Server {
           const currentToBalance = holders.get(toUserAccount) || 0;
           holders.set(toUserAccount, currentToBalance + amount);
 
-          // Check for snipers (early buyers)
           if (blockTime - creationTime <= sniperWindow) {
             snipers.add({
               address: toUserAccount,
@@ -710,6 +715,9 @@ export function registerRoutes(app: Express): Server {
         });
       });
 
+      console.log('[Routes] Holders processed:', holders.size);
+      console.log('[Routes] Snipers detected:', snipers.size);
+
       // 3. Calculate metrics
       const holderMetrics = calculateHolderMetrics(holders);
       const snipersArray = Array.from(snipers);
@@ -717,7 +725,7 @@ export function registerRoutes(app: Express): Server {
 
       const holderConcentration = {
         top10Percentage: topHolders.reduce((sum, h) => sum + h.percentage, 0),
-        riskLevel: 'low'
+        riskLevel: 'low' as const
       };
 
       if (holderConcentration.top10Percentage > 80) {
@@ -727,13 +735,13 @@ export function registerRoutes(app: Express): Server {
       }
 
       // 4. Prepare response
-      const analytics: TokenAnalytics = {
+      const analytics = {
         token: {
           address: mint,
           name: tokenInfo.name || 'Unknown',
           symbol: tokenInfo.symbol || 'Unknown',
           decimals: tokenInfo.decimals || 0,
-          totalSupply: tokenInfo.supply || 0,
+          supply: tokenInfo.supply || 0,
           mintAuthority: tokenInfo.authorities?.find((a: any) => a.type === 'mint')?.address || null,
           freezeAuthority: tokenInfo.authorities?.find((a: any) => a.type === 'freeze')?.address || null,
           mutable: true
@@ -779,9 +787,11 @@ export function registerRoutes(app: Express): Server {
       };
 
       console.log('[Routes] Analytics prepared:', {
+        token: analytics.token,
         holdersCount: analytics.holders.total,
         snipersCount: analytics.snipers.total,
-        risks: analytics.risks
+        risks: analytics.risks,
+        rugScore: analytics.rugScore
       });
 
       res.json(analytics);
@@ -800,6 +810,8 @@ export function registerRoutes(app: Express): Server {
       });
     }
   });
+
+  // Add token analytics endpoint
 
   return server;
 }
@@ -928,7 +940,7 @@ function calculateVolume24h(trades: Array<{ timestamp: number; amount: number }>
   const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
   return trades
     .filter(trade => trade.timestamp >= oneDayAgo)
-    .reduce((sum, trade) => sum + (trade.amount || 0), 0);
+        .reduce((sum, trade) => sum + (trade.amount || 0), 0);
 }
 
 function calculateAverageTradeSize(trades: Array<{ amount: number }>) {
