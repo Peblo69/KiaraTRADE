@@ -1,0 +1,190 @@
+// Update the token analytics endpoint
+app.get('/api/token-analytics/:mint', async (req, res) => {
+  try {
+    const { mint } = req.params;
+    console.log(`[Routes] Getting analytics for token ${mint}`);
+
+    // 1. Get Basic Token Info and Transfers
+    const [tokenResponse, transfersResponse] = await Promise.all([
+      axios.post(HELIUS_RPC_URL, {
+        jsonrpc: '2.0',
+        id: 'token-info',
+        method: 'getAsset',
+        params: [mint]
+      }),
+      axios.post(HELIUS_RPC_URL, {
+        jsonrpc: '2.0',
+        id: 'transfers',
+        method: 'searchAssets',
+        params: {
+          ownerAddress: mint,
+          limit: 100,
+          page: 1,
+          displayOptions: {
+            showUnverifiedCollections: true,
+            showZeroBalance: true
+          }
+        }
+      })
+    ]);
+
+    console.log('[Routes] Token Info Response:', tokenResponse.data);
+    console.log('[Routes] Transfers Response:', transfersResponse.data);
+
+    const tokenInfo = tokenResponse.data.result;
+    // Ensure transfers is always an array
+    const transfers = transfersResponse.data.result?.items || [];
+
+    // 2. Process transfers to identify holders and snipers
+    const holders = new Map();
+    const snipers = new Set();
+    const trades = [];
+    
+    // Default to current time if no transfers exist
+    const creationTime = transfers.length > 0 ? 
+      transfers[transfers.length - 1]?.blockTime || Date.now() : 
+      Date.now();
+    
+    const sniperWindow = 30000; // 30 seconds
+
+    console.log('[Routes] Processing transfers:', transfers.length);
+
+    // Only process transfers if there are any
+    if (transfers.length > 0) {
+      transfers.forEach((transfer: any) => {
+        const { fromUserAccount, toUserAccount, amount, blockTime } = transfer;
+
+        if (fromUserAccount) {
+          const currentFromBalance = holders.get(fromUserAccount) || 0;
+          holders.set(fromUserAccount, currentFromBalance - amount);
+        }
+
+        if (toUserAccount) {
+          const currentToBalance = holders.get(toUserAccount) || 0;
+          holders.set(toUserAccount, currentToBalance + amount);
+
+          if (blockTime - creationTime <= sniperWindow) {
+            snipers.add({
+              address: toUserAccount,
+              amount,
+              timestamp: blockTime
+            });
+          }
+        }
+
+        trades.push({
+          type: fromUserAccount ? 'sell' : 'buy',
+          amount,
+          timestamp: blockTime,
+          address: fromUserAccount || toUserAccount
+        });
+      });
+    }
+
+    console.log('[Routes] Holders processed:', holders.size);
+    console.log('[Routes] Snipers detected:', snipers.size);
+
+    // 3. Calculate metrics
+    const holderMetrics = calculateHolderMetrics(holders);
+    const snipersArray = Array.from(snipers);
+    const topHolders = getTopHolders(holders, 10);
+
+    // 4. Prepare response
+    const analytics = {
+      token: {
+        address: mint,
+        name: tokenInfo.content?.metadata?.name || 'Unknown',
+        symbol: tokenInfo.content?.metadata?.symbol || 'Unknown',
+        decimals: tokenInfo.token_info?.decimals || 0,
+        supply: tokenInfo.token_info?.supply || 0,
+        mintAuthority: tokenInfo.authorities?.find((a: any) => a.type === 'mint')?.address || null,
+        freezeAuthority: tokenInfo.authorities?.find((a: any) => a.type === 'freeze')?.address || null,
+        mutable: tokenInfo.mutable || false
+      },
+      holders: {
+        total: holderMetrics.totalHolders,
+        unique: holderMetrics.uniqueHolders,
+        top10: topHolders,
+        concentration: {
+          top10Percentage: topHolders.reduce((sum, h) => sum + h.percentage, 0)
+        },
+        distribution: holderMetrics.distribution
+      },
+      snipers: {
+        total: snipersArray.length,
+        details: snipersArray,
+        volume: calculateSniperVolume(snipersArray),
+        averageAmount: calculateAverageAmount(snipersArray)
+      },
+      trading: {
+        volume24h: calculateVolume24h(trades),
+        transactions24h: calculateTransactions24h(trades),
+        averageTradeSize: calculateAverageTradeSize(trades),
+        priceImpact: calculatePriceImpact(trades),
+        markets: []
+      },
+      risks: [
+        {
+          name: 'Holder Concentration',
+          score: calculateHolderConcentrationScore(topHolders)
+        },
+        {
+          name: 'Mint Authority',
+          score: tokenInfo.authorities?.find((a: any) => a.type === 'mint') ? 100 : 0
+        },
+        {
+          name: 'Freeze Authority',
+          score: tokenInfo.authorities?.find((a: any) => a.type === 'freeze') ? 100 : 0
+        },
+        {
+          name: 'Sniper Activity',
+          score: calculateSniperScore(snipersArray)
+        }
+      ],
+      rugScore: calculateRiskScore(tokenInfo, {
+        top10Percentage: topHolders.reduce((sum, h) => sum + h.percentage, 0)
+      }, snipersArray)
+    };
+
+    console.log('[Routes] Analytics prepared successfully');
+    res.json(analytics);
+
+  } catch (error: any) {
+    console.error('[Routes] Token analytics error:', error);
+    if (error.response) {
+      console.error('[Routes] Response error:', {
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
+    res.status(500).json({
+      error: 'Failed to fetch token analytics',
+      details: error.message
+    });
+  }
+});
+
+// Add helper function for new score calculations
+function calculateHolderConcentrationScore(topHolders: any[]): number {
+  const totalPercentage = topHolders.reduce((sum, h) => sum + h.percentage, 0);
+  if (totalPercentage > 80) return 100;
+  if (totalPercentage > 50) return 50;
+  return 0;
+}
+
+function calculateSniperScore(snipers: any[]): number {
+  if (snipers.length > 20) return 100;
+  if (snipers.length > 10) return 50;
+  return 0;
+}
+
+The main changes made:
+
+    Added null checks for transfers response
+    Ensured transfers is always an array with transfersResponse.data.result?.items || []
+    Added checks before processing transfers
+    Added better error handling and logging
+    Added new helper functions for score calculations
+    Improved type safety with proper null checks
+
+This should resolve the "transfers.forEach is not a function" error and make the endpoint more robust

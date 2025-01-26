@@ -675,45 +675,54 @@ export function registerRoutes(app: Express): Server {
       console.log('[Routes] Transfers Response:', transfersResponse.data);
 
       const tokenInfo = tokenResponse.data.result;
-      const transfers = transfersResponse.data.result || [];
+      // Ensure transfers is always an array
+      const transfers = transfersResponse.data.result?.items || [];
 
       // 2. Process transfers to identify holders and snipers
       const holders = new Map();
       const snipers = new Set();
       const trades = [];
-      const creationTime = transfers[transfers.length - 1]?.blockTime || Date.now();
+
+      // Default to current time if no transfers exist
+      const creationTime = transfers.length > 0 ? 
+        transfers[transfers.length - 1]?.blockTime || Date.now() : 
+        Date.now();
+
       const sniperWindow = 30000; // 30 seconds
 
       console.log('[Routes] Processing transfers:', transfers.length);
 
-      transfers.forEach((transfer: any) => {
-        const { fromUserAccount, toUserAccount, amount, blockTime } = transfer;
+      // Only process transfers if there are any
+      if (transfers.length > 0) {
+        transfers.forEach((transfer: any) => {
+          const { fromUserAccount, toUserAccount, amount, blockTime } = transfer;
 
-        if (fromUserAccount) {
-          const currentFromBalance = holders.get(fromUserAccount) || 0;
-          holders.set(fromUserAccount, currentFromBalance - amount);
-        }
-
-        if (toUserAccount) {
-          const currentToBalance = holders.get(toUserAccount) || 0;
-          holders.set(toUserAccount, currentToBalance + amount);
-
-          if (blockTime - creationTime <= sniperWindow) {
-            snipers.add({
-              address: toUserAccount,
-              amount,
-              timestamp: blockTime
-            });
+          if (fromUserAccount) {
+            const currentFromBalance = holders.get(fromUserAccount) || 0;
+            holders.set(fromUserAccount, currentFromBalance - amount);
           }
-        }
 
-        trades.push({
-          type: fromUserAccount ? 'sell' : 'buy',
-          amount,
-          timestamp: blockTime,
-          address: fromUserAccount || toUserAccount
+          if (toUserAccount) {
+            const currentToBalance = holders.get(toUserAccount) || 0;
+            holders.set(toUserAccount, currentToBalance + amount);
+
+            if (blockTime - creationTime <= sniperWindow) {
+              snipers.add({
+                address: toUserAccount,
+                amount,
+                timestamp: blockTime
+              });
+            }
+          }
+
+          trades.push({
+            type: fromUserAccount ? 'sell' : 'buy',
+            amount,
+            timestamp: blockTime,
+            address: fromUserAccount || toUserAccount
+          });
         });
-      });
+      }
 
       console.log('[Routes] Holders processed:', holders.size);
       console.log('[Routes] Snipers detected:', snipers.size);
@@ -760,8 +769,7 @@ export function registerRoutes(app: Express): Server {
         risks: [
           {
             name: 'Holder Concentration',
-            score: topHolders.reduce((sum, h) => sum + h.percentage, 0) > 80 ? 100 : 
-                   topHolders.reduce((sum, h) => sum + h.percentage, 0) > 50 ? 50 : 0
+            score: calculateHolderConcentrationScore(topHolders)
           },
           {
             name: 'Mint Authority',
@@ -773,7 +781,7 @@ export function registerRoutes(app: Express): Server {
           },
           {
             name: 'Sniper Activity',
-            score: snipersArray.length > 20 ? 100 : snipersArray.length > 10 ? 50 : 0
+            score: calculateSniperScore(snipersArray)
           }
         ],
         rugScore: calculateRiskScore(tokenInfo, {
@@ -781,14 +789,7 @@ export function registerRoutes(app: Express): Server {
         }, snipersArray)
       };
 
-      console.log('[Routes] Analytics prepared:', {
-        token: analytics.token,
-        holdersCount: analytics.holders.total,
-        snipersCount: analytics.snipers.total,
-        risks: analytics.risks,
-        rugScore: analytics.rugScore
-      });
-
+      console.log('[Routes] Analytics prepared successfully');
       res.json(analytics);
 
     } catch (error: any) {
@@ -806,8 +807,21 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add token analytics endpoint
+  // Add helper function for new score calculations
+  function calculateHolderConcentrationScore(topHolders: any[]): number {
+    const totalPercentage = topHolders.reduce((sum, h) => sum + h.percentage, 0);
+    if (totalPercentage > 80) return 100;
+    if (totalPercentage > 50) return 50;
+    return 0;
+  }
 
+  function calculateSniperScore(snipers: any[]): number {
+    if (snipers.length > 20) return 100;
+    if (snipers.length > 10) return 50;
+    return 0;
+  }
+
+  // Add token analytics endpoint
 
 
   return server;
@@ -935,10 +949,10 @@ function calculateTransactions24h(trades: Array<{ timestamp: number }>) {
 }
 
 function calculateVolume24h(trades: Array<{ timestamp: number; amount: number }>) {
-  const oneDayAgo = Datenow() - 24 * 60 * 60 * 1000;
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
   return trades
     .filter(trade => trade.timestamp >= oneDayAgo)
-        .reduce((sum, trade) => sum + (trade.amount || 0), 0);
+    .reduce((sum, trade) => sum + (trade.amount || 0), 0);
 }
 
 function calculateAverageTradeSize(trades: Array<{ amount: number }>) {
@@ -1038,3 +1052,4 @@ import { generateAIResponse } from './services/ai';
 import { getTokenImage } from './image-worker';
 import { pricePredictionService } from './services/price-prediction';
 import { cryptoService } from './services/crypto'; // Import the crypto service
+}
