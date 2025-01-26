@@ -25,11 +25,15 @@ export function validateEnv(): EnvConfig {
     "DEX_HTTPS_LATEST_TOKENS",
   ] as const;
 
+  console.log("Checking environment variables...");
+
   const missingVars = requiredEnvVars.filter((envVar) => {
     if (envVar === "PRIV_KEY_WALLET" && !process.env[envVar]) {
       return false; // Allow PRIV_KEY_WALLET to be empty
     }
-    return !process.env[envVar];
+    const exists = !!process.env[envVar];
+    console.log(`${envVar}: ${exists ? "present" : "missing"}`);
+    return !exists;
   });
 
   if (missingVars.length > 0) {
@@ -43,56 +47,50 @@ export function validateEnv(): EnvConfig {
 
   function isValidUrl(urlString: string, protocol: string): boolean {
     try {
+      console.log(`Validating URL: ${urlString} with protocol ${protocol}`);
       const url = new URL(urlString);
-      return url.protocol === protocol;
+      const valid = url.protocol === protocol;
+      console.log(`URL validation result: ${valid ? "valid" : "invalid"}`);
+      return valid;
     } catch (e) {
+      console.log(`URL validation error:`, e);
       return false;
     }
   }
 
-  // Validate URLs
-  if (!isValidUrl(process.env.HELIUS_HTTPS_URI!, 'https:')) {
-    throw new Error('🚫 HELIUS_HTTPS_URI must be a valid HTTPS URL');
-  }
-  if (!isValidUrl(process.env.HELIUS_WSS_URI!, 'wss:')) {
-    throw new Error('🚫 HELIUS_WSS_URI must be a valid WSS URL');
-  }
-  if (!isValidUrl(process.env.HELIUS_HTTPS_URI_TX!, 'https:')) {
-    throw new Error('🚫 HELIUS_HTTPS_URI_TX must be a valid HTTPS URL');
-  }
-  if (!isValidUrl(process.env.JUP_HTTPS_QUOTE_URI!, 'https:')) {
-    throw new Error('🚫 JUP_HTTPS_QUOTE_URI must be a valid HTTPS URL');
-  }
-  if (!isValidUrl(process.env.JUP_HTTPS_SWAP_URI!, 'https:')) {
-    throw new Error('🚫 JUP_HTTPS_SWAP_URI must be a valid HTTPS URL');
-  }
-  if (!isValidUrl(process.env.JUP_HTTPS_PRICE_URI!, 'https:')) {
-    throw new Error('🚫 JUP_HTTPS_PRICE_URI must be a valid HTTPS URL');
-  }
-  if (!isValidUrl(process.env.DEX_HTTPS_LATEST_TOKENS!, 'https:')) {
-    throw new Error('🚫 DEX_HTTPS_LATEST_TOKENS must be a valid HTTPS URL');
-  }
+  const validateUrl = (envVar: string, protocol: string, checkApiKey: boolean = false) => {
+    const value = process.env[envVar];
+    if (!value) return;
 
-  // Check for Helius API key presence
-  const heliusUrls = [
-    process.env.HELIUS_HTTPS_URI,
-    process.env.HELIUS_WSS_URI,
-    process.env.HELIUS_HTTPS_URI_TX
-  ];
+    console.log(`Validating ${envVar}`);
+    if (!isValidUrl(value, protocol)) {
+      throw new Error(`🚫 ${envVar} must start with ${protocol}`);
+    }
 
-  for (const url of heliusUrls) {
-    if (url) {
+    if (checkApiKey && value) {
       try {
-        const parsedUrl = new URL(url);
-        const apiKey = parsedUrl.searchParams.get('api-key');
-        if (!apiKey) {
-          throw new Error(`🚫 Missing api-key in URL: ${url}`);
+        const url = new URL(value);
+        const apiKey = url.searchParams.get("api-key");
+        if (!apiKey || apiKey.trim() === "") {
+          throw new Error(`🚫 The 'api-key' parameter is missing or empty in the URL: ${value}`);
         }
       } catch (e) {
-        // URL parsing error is already handled by isValidUrl
-        continue;
+        throw new Error(`🚫 Invalid URL format for ${envVar}: ${e.message}`);
       }
     }
+  };
+
+  // Validate URLs
+  validateUrl("HELIUS_HTTPS_URI", "https:", true);
+  validateUrl("HELIUS_WSS_URI", "wss:", true);
+  validateUrl("HELIUS_HTTPS_URI_TX", "https:", true);
+  validateUrl("JUP_HTTPS_QUOTE_URI", "https:");
+  validateUrl("JUP_HTTPS_SWAP_URI", "https:");
+  validateUrl("JUP_HTTPS_PRICE_URI", "https:");
+  validateUrl("DEX_HTTPS_LATEST_TOKENS", "https:");
+
+  if (process.env.HELIUS_HTTPS_URI_TX?.includes("{function}")) {
+    throw new Error("🚫 HELIUS_HTTPS_URI_TX contains {function}. Check your configuration.");
   }
 
   return {

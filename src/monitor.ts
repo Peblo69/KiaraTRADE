@@ -29,7 +29,7 @@ interface WalletData {
   }>;
 }
 
-class MonitorService {
+export class MonitorService {
   private connection: Connection | null = null;
   private ws: WebSocket | null = null;
   private tokenDataMap: Map<string, TokenData> = new Map();
@@ -40,18 +40,29 @@ class MonitorService {
     this.env = validateEnv();
   }
 
-  async initialize() {
+  async start() {
     try {
       console.log("Initializing monitor service...");
-      
+
+      await this.initialize();
+
+      console.log("Monitor service started successfully");
+    } catch (error) {
+      console.error("Failed to start monitor service:", error);
+      throw error;
+    }
+  }
+
+  async initialize() {
+    try {      
       // Initialize Solana connection
       this.connection = new Connection(this.env.HELIUS_HTTPS_URI);
-      
+
       // Initialize WebSocket connection
       this.ws = new WebSocket(this.env.HELIUS_WSS_URI);
-      
+
       this.setupWebSocketHandlers();
-      
+
       console.log("Monitor service initialized successfully");
     } catch (error) {
       console.error("Failed to initialize monitor service:", error);
@@ -146,11 +157,11 @@ class MonitorService {
         name: "New Token",
       });
 
-      // Emit token data to any subscribers
+      // Emit token data update
       this.emitTokenUpdate(tokenMint);
-      
+
       // Fetch additional token metadata
-      this.fetchTokenMetadata(tokenMint);
+      await this.fetchTokenMetadata(tokenMint);
     } catch (error) {
       console.error("Error handling new token:", error);
     }
@@ -158,15 +169,15 @@ class MonitorService {
 
   private async fetchTokenMetadata(tokenMint: string) {
     try {
-      // Fetch token metadata from various sources
       const metadataUrl = `${this.env.DEX_HTTPS_LATEST_TOKENS}${tokenMint}`;
       const response = await axios.get(metadataUrl);
-      
+
       if (response.data && response.data.pairs?.[0]) {
         const pair = response.data.pairs[0];
-        
+
+        const existingData = this.tokenDataMap.get(tokenMint) || { address: tokenMint };
         this.tokenDataMap.set(tokenMint, {
-          ...this.tokenDataMap.get(tokenMint),
+          ...existingData,
           symbol: pair.baseToken.symbol,
           name: pair.baseToken.name,
           price: pair.priceUsd,
@@ -185,7 +196,6 @@ class MonitorService {
     const tokenData = this.tokenDataMap.get(tokenMint);
     if (tokenData) {
       console.log("Token Update:", tokenData);
-      // Here you would emit the data to your frontend
     }
   }
 
@@ -194,7 +204,7 @@ class MonitorService {
     try {
       const publicKey = new PublicKey(walletAddress);
       const balance = await this.connection?.getBalance(publicKey);
-      
+
       this.walletDataMap.set(walletAddress, {
         address: walletAddress,
         balance: balance || 0,
@@ -214,7 +224,7 @@ class MonitorService {
 
     try {
       const publicKey = new PublicKey(walletAddress);
-      
+
       // Subscribe to account changes
       this.connection.onAccountChange(
         publicKey,
@@ -260,13 +270,9 @@ class MonitorService {
     const walletData = this.walletDataMap.get(walletAddress);
     if (walletData) {
       console.log("Wallet Update:", walletData);
-      // Here you would emit the data to your frontend
     }
   }
 }
 
 // Export singleton instance
 export const monitorService = new MonitorService();
-
-// Initialize the service when the module is imported
-monitorService.initialize().catch(console.error);
