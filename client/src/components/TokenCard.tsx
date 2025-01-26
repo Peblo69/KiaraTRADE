@@ -1,14 +1,27 @@
-{/* ... other code ... */}
+import { TokenSecurityButton } from "@/components/TokenSecurityButton";
+import { formatNumber } from "@/lib/utils";
 
-  <div>
-    <div className="text-sm text-muted-foreground">💎 Price</div>
-    <div className="font-medium">${formatNumber(token.price)}</div>
+interface TokenCardProps {
+  token: {
+    address: string;
+    price: number;
+  };
+  analytics?: any;
+}
 
-    {/* Security button will be re-added with new implementation */}
+export function TokenCard({ token, analytics }: TokenCardProps) {
+  return (
+    <div>
+      <div className="text-sm text-muted-foreground">💎 Price</div>
+      <div className="font-medium">${formatNumber(token.price)}</div>
 
-    {analytics && (
-      <TokenDetails analytics={analytics} />
-    )}
-  </div>
+      <TokenSecurityButton tokenAddress={token.address} className="mt-2" />
 
-{/* ... rest of the TokenCard component ... */}
+      {analytics && (
+        <div className="mt-2">
+          {/* Analytics details here */}
+        </div>
+      )}
+    </div>
+  );
+}

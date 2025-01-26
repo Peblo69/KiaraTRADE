@@ -1,4 +1,3 @@
-```tsx
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -16,35 +15,25 @@ export function TokenSecurityButton({
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchSecurityData = async () => {
-    setIsLoading(true);
-    try {
-      // TODO: Implement actual API call to your security analysis endpoint
-      const response = await fetch(`/api/token-security/${tokenAddress}`);
-      const data = await response.json();
-      setIsLoading(false);
-      return data;
-    } catch (error) {
-      console.error("Failed to fetch security data:", error);
-      setIsLoading(false);
-    }
-  };
-
-  const handleRefresh = () => {
-    fetchSecurityData();
-  };
-
-  // Example data - replace with actual API data
+  // Example data - this would normally come from your API
   const tokenData = {
     name: "Example Token",
     symbol: "EX",
-    mintAuthority: false,
+    mintAuthority: true,
     freezeAuthority: false,
-    liquidity: 5573,
+    liquidity: 5573.42,
     lpCount: 2,
     topHolderPct: 97.86,
     holderCount: 4,
-    riskScore: 40
+    riskScore: 75
+  };
+
+  const handleRefresh = () => {
+    setIsLoading(true);
+    // Simulate API call
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
   };
 
   return (
@@ -60,12 +49,12 @@ export function TokenSecurityButton({
         onClick={() => setIsOpen(!isOpen)}
         disabled={isLoading}
       >
-        <span className="custom-emoji-security" />
+        <span>🔒</span>
         Security
         <span className={cn(
           "absolute right-2 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full",
           tokenData.riskScore > 70 
-            ? "bg-red-500" 
+            ? "bg-destructive" 
             : tokenData.riskScore > 40 
             ? "bg-yellow-500" 
             : "bg-green-500"
@@ -81,4 +70,3 @@ export function TokenSecurityButton({
     </div>
   );
 }
-```

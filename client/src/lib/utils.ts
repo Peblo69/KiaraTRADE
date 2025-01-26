@@ -6,6 +6,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export const formatNumber = (value: number | undefined | null): string => {
+  if (typeof value !== 'number' || isNaN(value)) return '0.00';
+
+  if (value > 1000000) {
+    return millify(value, {
+      precision: 2
+    });
+  }
+
+  if (value < 0.01) {
+    return value.toFixed(6);
+  }
+
+  return value.toFixed(2);
+};
+
 export const formatPrice = (price: number | undefined | null): string => {
   if (typeof price !== 'number' || isNaN(price)) return '$0.00';
   return `$${price.toFixed(8)}`;
