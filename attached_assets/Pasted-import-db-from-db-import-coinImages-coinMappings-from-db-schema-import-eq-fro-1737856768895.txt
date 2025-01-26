@@ -1,0 +1,191 @@
+import { db } from "@db";
+import { coinImages, coinMappings } from "@db/schema";
+import { eq } from "drizzle-orm";
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { wsManager } from './services/websocket';
+import { initializePumpPortalWebSocket } from './pumpportal';
+import { generateAIResponse } from './services/ai';
+import axios from 'axios';
+import { getTokenImage } from './image-worker';
+import { pricePredictionService } from './services/price-prediction';
+import { cryptoService } from './services/crypto'; // Import the crypto service
+
+const CACHE_DURATION = 30000; // 30 seconds cache
+const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
+const NEWSDATA_API_BASE = 'https://newsdata.io/api/1';
+
+// Configure axios with timeout and headers
+axios.defaults.timeout = 10000;
+axios.defaults.headers.common['accept'] = 'application/json';
+
+// Add request interceptor for rate limiting
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 20;
+
+axios.interceptors.request.use(async (config) => {
+  const now = Date.now();
+  const timeSinceLastRequest = now - lastRequestTime;
+
+  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+    await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest));
+  }
+
+  lastRequestTime = Date.now();
+  return config;
+});
+
+// Cache structure for API data
+const cache = {
+  prices: { data: null, timestamp: 0 },
+  stats24h: { data: null, timestamp: 0 },
+  trending: { data: null, timestamp: 0 },
+  news: { data: null, timestamp: 0 }
+};
+
+if (!process.env.HELIUS_API_KEY) {
+  throw new Error("HELIUS_API_KEY must be set in environment variables");
+}
+
+// Update the Helius RPC URL to use the correct endpoint
+const HELIUS_RPC_URL = `https://rpc.helius.xyz/?api-key=${process.env.HELIUS_API_KEY}`;
+
+function logHeliusError(error: any, context: string) {
+  console.error(`[Helius ${context} Error]`, {
+    message: error.message,
+    status: error.response?.status,
+    data: error.response?.data,
+    url: error.config?.url,
+    method: error.config?.method,
+    params: error.config?.data
+  });
+}
+
+export function registerRoutes(app: Express): Server {
+  const httpServer = createServer(app);
+
+  // Initialize WebSocket manager - this will handle all WebSocket connections
+  wsManager.initialize(httpServer);
+
+  // Initialize PumpPortal WebSocket
+  initializePumpPortalWebSocket();
+
+  // Add token analytics endpoint
+  app.get('/api/token-analytics/:mint', async (req, res) => {
+    try {
+      const { mint } = req.params;
+      console.log(`[Routes] Getting token analytics for ${mint}`);
+
+      // Get token metadata and authority info using correct Helius API methods
+      const [tokenInfoResponse, holdersResponse, txResponse] = await Promise.all([
+        axios.post(HELIUS_RPC_URL, {
+          jsonrpc: '2.0',
+          id: 'token-info',
+          method: 'getToken',  // Correct method name
+          params: [mint]
+        }),
+        axios.post(HELIUS_RPC_URL, {
+          jsonrpc: '2.0',
+          id: 'holders-request',
+          method: 'getTokenHolders',  // Correct method name
+          params: [mint]
+        }),
+        axios.post(HELIUS_RPC_URL, {
+          jsonrpc: '2.0',
+          id: 'tx-request',
+          method: 'searchTransactions',  // Correct method name
+          params: {
+            commitment: "finalized",
+            limit: 100,
+            query: {
+              accounts: [mint]
+            }
+          }
+        })
+      ]);
+
+      console.log('[DEBUG] Token Info Response:', tokenInfoResponse.data);
+      console.log('[DEBUG] Holders Response:', holdersResponse.data);
+      console.log('[DEBUG] Transactions Response:', txResponse.data);
+
+      // Extract token information
+      const tokenInfo = tokenInfoResponse.data.result;
+      const mintAuthority = tokenInfo?.mintAuthority || null;
+      const freezeAuthority = tokenInfo?.freezeAuthority || null;
+
+      // Calculate holder distribution
+      const holders = holdersResponse.data.result || [];
+      const totalSupply = tokenInfo.supply || 0;
+
+      const holdersBySize = holders
+        .map(h => ({
+          address: h.address,
+          amount: h.amount,
+          pct: (h.amount / totalSupply) * 100
+        }))
+        .sort((a, b) => b.amount - a.amount);
+
+      // Analyze transactions for patterns
+      const transactions = txResponse.data.result || [];
+      const creationTime = transactions[transactions.length - 1]?.timestamp || Date.now();
+
+      // Identify early buyer patterns (snipers)
+      const sniperWindow = 30000; // 30 seconds
+      const snipers = transactions
+        .filter(tx => tx.timestamp - creationTime <= sniperWindow)
+        .map(tx => ({
+          address: tx.source,
+          timestamp: tx.timestamp,
+          amount: tx.tokenTransfers?.[0]?.tokenAmount || 0
+        }));
+
+      // Check for liquidity changes using Raydium program ID
+      const liquidityTx = transactions.filter(tx => 
+        tx.tokenTransfers?.some(transfer => 
+          transfer.source.includes('liquidity') || 
+          transfer.destination.includes('liquidity')
+        )
+      );
+
+      const liquidityAnalysis = {
+        totalLiquidity: liquidityTx.reduce((sum, tx) => 
+          sum + (tx.tokenTransfers?.[0]?.tokenAmount || 0), 0),
+        recentChanges: liquidityTx.slice(0, 5)
+      };
+
+      console.log('[Routes] Analytics response:', {
+        topHoldersCount: holdersBySize.length,
+        snipersCount: snipers.length,
+        liquidityStatus: liquidityAnalysis.totalLiquidity > 0 ? 'present' : 'absent'
+      });
+
+      res.json({
+        mintAuthority,
+        freezeAuthority,
+        topHolders: holdersBySize,
+        snipers,
+        markets: [{
+          totalLiquidity: liquidityAnalysis.totalLiquidity
+        }],
+        analytics: {
+          totalHolders: holders.length,
+          averageBalance: totalSupply / holders.length,
+          sniperCount: snipers.length
+        }
+      });
+
+    } catch (error: any) {
+      console.error('[Routes] Token analytics error:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      res.status(500).json({
+        error: 'Failed to fetch token analytics',
+        details: error.message
+      });
+    }
+  });
+
+  return httpServer;
+}
