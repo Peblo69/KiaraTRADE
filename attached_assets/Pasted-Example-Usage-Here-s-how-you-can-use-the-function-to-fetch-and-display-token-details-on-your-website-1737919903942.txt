@@ -1,0 +1,61 @@
+Example Usage
+Here’s how you can use the function to fetch and display token details on your website:
+
+typescript
+Copy
+Edit
+async function displayTokenDetails() {
+  const tokenMint = "YourTokenMintHere"; // Replace with the token mint you want to check
+  const tokenDetails = await getTokenDetails(tokenMint);
+
+  if (tokenDetails) {
+    console.log("Token Details:", tokenDetails);
+    // Display the details on your website, e.g.:
+    document.getElementById("tokenName").innerText = `Name: ${tokenDetails.tokenName}`;
+    document.getElementById("tokenSymbol").innerText = `Symbol: ${tokenDetails.tokenSymbol}`;
+    document.getElementById("supply").innerText = `Supply: ${tokenDetails.supply}`;
+    document.getElementById("mintAuthority").innerText = `Mint Authority: ${tokenDetails.mintAuthority}`;
+    document.getElementById("rugScore").innerText = `Rug Score: ${tokenDetails.rugScore}`;
+  } else {
+    console.log("Failed to fetch token details.");
+  }
+}
+Output Example
+For a given token, the function will return an object like this:
+
+json
+Copy
+Edit
+{
+  "tokenMint": "SomeTokenMintAddress",
+  "tokenName": "ExampleToken",
+  "tokenSymbol": "EXT",
+  "supply": "100000000",
+  "decimals": 6,
+  "mintAuthority": "SomeAuthorityAddress",
+  "freezeAuthority": null,
+  "isInitialized": true,
+  "mutable": false,
+  "rugged": false,
+  "rugScore": 15,
+  "topHolders": [
+    { "address": "Holder1Address", "pct": 20 },
+    { "address": "Holder2Address", "pct": 10 }
+  ],
+  "markets": [
+    { "market": "Raydium", "liquidityA": "AddressA", "liquidityB": "AddressB" }
+  ],
+  "totalLPProviders": 5,
+  "totalMarketLiquidity": 500000,
+  "risks": [
+    { "name": "Low Liquidity", "score": 5 },
+    { "name": "Insider Holding", "score": 3 }
+  ]
+}
+
+Call the getTokenDetails function whenever a user searches for a token.
+Display the returned information on your webpage.
+Custom Presentation:
+
+Use the data fields (e.g., rugScore, topHolders) to provide insights to users in an intuitive format.
+Highlight important fields like "Top Holders" or "Rug Score" visually.

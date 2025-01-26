@@ -1,54 +1,52 @@
 import { FC, useState } from 'react';
-import { Shield, AlertTriangle, Check, Activity } from 'lucide-react';
+import { Shield, AlertTriangle, Check, Activity, Info, TrendingUp, Users, Wallet, Lock } from 'lucide-react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-interface TokenRisk {
-  name: string;
-  description: string;
-  level: 'low' | 'medium' | 'high';
-  score: number;
-}
-
-interface TokenAnalysisData {
-  basic: {
+interface TokenData {
+  tokenMint: string;
+  tokenName: string; 
+  tokenSymbol: string;
+  supply: string;
+  decimals: string;
+  mintAuthority: string;
+  freezeAuthority: string;
+  isInitialized: boolean;
+  mutable: boolean;
+  rugged: boolean;
+  rugScore: number;
+  topHolders: Array<{
+    address: string;
+    pct: number;
+  }>;
+  markets: Array<{
+    market: string;
+    liquidityA: string;
+    liquidityB: string;
+  }>;
+  totalLPProviders: number;
+  totalMarketLiquidity: number;
+  risks: Array<{
     name: string;
-    symbol: string;
-    totalSupply: number;
-    createdAt: number;
-  };
-  control: {
-    mintAuthorityEnabled: boolean;
-    freezeAuthorityEnabled: boolean;
-    isImmutable: boolean;
-  };
-  holders: {
-    topHolders: Array<{
-      address: string;
-      balance: number;
-      percentage: number;
-      isInsider: boolean;
-    }>;
-    concentration: number;
-  };
-  market: {
-    liquidityUSD: number;
-    activeMarkets: number;
-    liquidityProviders: number;
-  };
-  risks: TokenRisk[];
-  overallScore: number;
+    score: number;
+  }>;
 }
 
 interface Props {
   tokenAddress: string;
-  onAnalyze: (address: string) => Promise<TokenAnalysisData>;
+  onAnalyze: (address: string) => Promise<TokenData | null>;
 }
 
 export const TokenAnalysis: FC<Props> = ({ tokenAddress, onAnalyze }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [analysis, setAnalysis] = useState<TokenAnalysisData | null>(null);
+  const [analysis, setAnalysis] = useState<TokenData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleAnalyze = async () => {
@@ -73,20 +71,21 @@ export const TokenAnalysis: FC<Props> = ({ tokenAddress, onAnalyze }) => {
     }).format(num);
 
   const getRiskColor = (score: number) => {
-    if (score >= 75) return 'text-red-500 bg-red-500/20';
-    if (score >= 40) return 'text-yellow-500 bg-yellow-500/20';
-    return 'text-green-500 bg-green-500/20';
+    if (score >= 75) return 'text-red-500 bg-red-500/10 border-red-500/20';
+    if (score >= 40) return 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20';
+    return 'text-green-500 bg-green-500/10 border-green-500/20';
   };
 
-  const getRiskIcon = (level: string) => {
-    switch (level) {
-      case 'high':
-        return <AlertTriangle className="w-4 h-4 text-red-400" />;
-      case 'medium':
-        return <Activity className="w-4 h-4 text-yellow-400" />;
-      default:
-        return <Check className="w-4 h-4 text-green-400" />;
-    }
+  const getProgressColor = (score: number) => {
+    if (score >= 75) return 'bg-red-500';
+    if (score >= 40) return 'bg-yellow-500';
+    return 'bg-green-500';
+  };
+
+  const getRiskEmoji = (score: number) => {
+    if (score >= 75) return '⚠️';
+    if (score >= 40) return '⚡';
+    return '✅';
   };
 
   if (error) {
@@ -130,108 +129,180 @@ export const TokenAnalysis: FC<Props> = ({ tokenAddress, onAnalyze }) => {
         </Button>
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium">Security Score</h3>
-            <div className={`px-2 py-1 rounded text-sm ${getRiskColor(analysis.overallScore)}`}>
-              {analysis.overallScore}/100
+          {/* Overall Risk Score */}
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Shield className="w-5 h-5" />
+                <h3 className="text-lg font-medium">Security Score</h3>
+              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <div className={`px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1.5 ${getRiskColor(analysis.rugScore)}`}>
+                      {getRiskEmoji(analysis.rugScore)}
+                      {analysis.rugScore}/100
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Token Security Rating</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
-          </div>
-
-          <Progress
-            value={analysis.overallScore}
-            className="h-2"
-            indicatorClassName={getRiskColor(analysis.overallScore)}
-          />
+            <Progress
+              value={analysis.rugScore}
+              className={`h-2.5 mt-2 ${getProgressColor(analysis.rugScore)}`}
+            />
+          </Card>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <h4 className="text-sm text-gray-400 mb-2">Control</h4>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span>Mint Authority</span>
-                  <span className={analysis.control.mintAuthorityEnabled ? 'text-red-400' : 'text-green-400'}>
-                    {analysis.control.mintAuthorityEnabled ? 'Enabled' : 'Disabled'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span>Freeze Authority</span>
-                  <span className={analysis.control.freezeAuthorityEnabled ? 'text-red-400' : 'text-green-400'}>
-                    {analysis.control.freezeAuthorityEnabled ? 'Enabled' : 'Disabled'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span>Contract</span>
-                  <span className={analysis.control.isImmutable ? 'text-green-400' : 'text-yellow-400'}>
-                    {analysis.control.isImmutable ? 'Immutable' : 'Mutable'}
-                  </span>
-                </div>
+            {/* Authority Status */}
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Lock className="w-4 h-4" />
+                <h4 className="font-medium">Control</h4>
               </div>
-            </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <span className="text-sm flex items-center gap-1.5">
+                          <Info className="w-3.5 h-3.5" />
+                          Mint Authority
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Ability to create new tokens</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <span className={`px-2 py-0.5 rounded text-sm ${
+                    analysis.mintAuthority !== "N/A" 
+                    ? 'bg-red-500/10 text-red-400' 
+                    : 'bg-green-500/10 text-green-400'
+                  }`}>
+                    {analysis.mintAuthority !== "N/A" ? '🔓 Enabled' : '🔒 Disabled'}
+                  </span>
+                </div>
 
-            <div>
-              <h4 className="text-sm text-gray-400 mb-2">Market Health</h4>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span>Liquidity</span>
-                  <span>${formatNumber(analysis.market.liquidityUSD)}</span>
+                <div className="flex items-center justify-between">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <span className="text-sm flex items-center gap-1.5">
+                          <Info className="w-3.5 h-3.5" />
+                          Freeze Authority
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Ability to freeze token transfers</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <span className={`px-2 py-0.5 rounded text-sm ${
+                    analysis.freezeAuthority !== "N/A"
+                    ? 'bg-red-500/10 text-red-400'
+                    : 'bg-green-500/10 text-green-400'
+                  }`}>
+                    {analysis.freezeAuthority !== "N/A" ? '🔓 Enabled' : '🔒 Disabled'}
+                  </span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span>Active Markets</span>
-                  <span>{analysis.market.activeMarkets}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span>LP Count</span>
-                  <span>{analysis.market.liquidityProviders}</span>
+
+                <div className="flex items-center justify-between">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <span className="text-sm flex items-center gap-1.5">
+                          <Info className="w-3.5 h-3.5" />
+                          Contract
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Contract modification status</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <span className={`px-2 py-0.5 rounded text-sm ${
+                    !analysis.mutable
+                    ? 'bg-green-500/10 text-green-400'
+                    : 'bg-yellow-500/10 text-yellow-400'
+                  }`}>
+                    {!analysis.mutable ? '🔒 Immutable' : '⚠️ Mutable'}
+                  </span>
                 </div>
               </div>
-            </div>
+            </Card>
+
+            {/* Market Health */}
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-4 h-4" />
+                <h4 className="font-medium">Market Health</h4>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">💧 Liquidity</span>
+                  <span className="text-sm font-medium">${formatNumber(analysis.totalMarketLiquidity)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">🏦 Active Markets</span>
+                  <span className="text-sm font-medium">{analysis.markets.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">👥 LP Count</span>
+                  <span className="text-sm font-medium">{analysis.totalLPProviders}</span>
+                </div>
+              </div>
+            </Card>
           </div>
 
-          <div>
-            <h4 className="text-sm text-gray-400 mb-2">Top Holders</h4>
-            <div className="space-y-1">
-              {analysis.holders.topHolders.slice(0, 3).map((holder, idx) => (
-                <div key={idx} className="flex items-center justify-between text-sm">
+          {/* Top Holders */}
+          <Card className="p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Users className="w-4 h-4" />
+              <h4 className="font-medium">Top Holders</h4>
+            </div>
+            <div className="space-y-2">
+              {analysis.topHolders.slice(0, 3).map((holder, idx) => (
+                <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-gray-900/50">
                   <div className="flex items-center gap-2">
-                    <span>{formatAddress(holder.address)}</span>
-                    {holder.isInsider && (
-                      <span className="px-1.5 py-0.5 rounded-full text-xs bg-yellow-500/20 text-yellow-400">
-                        Insider
-                      </span>
-                    )}
+                    <Wallet className="w-3.5 h-3.5 opacity-50" />
+                    <span className="text-sm font-medium">{formatAddress(holder.address)}</span>
                   </div>
-                  <span>{holder.percentage.toFixed(2)}%</span>
+                  <span className={`text-sm font-medium ${
+                    holder.pct > 50 ? 'text-red-400' :
+                    holder.pct > 25 ? 'text-yellow-400' :
+                    'text-green-400'
+                  }`}>
+                    {holder.pct.toFixed(2)}%
+                  </span>
                 </div>
               ))}
             </div>
-            {analysis.holders.concentration > 50 && (
-              <div className="mt-2 text-xs text-red-400">
-                Warning: High holder concentration detected
-              </div>
-            )}
-          </div>
+          </Card>
 
-          <div>
-            <h4 className="text-sm text-gray-400 mb-2">Risk Factors</h4>
+          {/* Risk Factors */}
+          <Card className="p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <AlertTriangle className="w-4 h-4" />
+              <h4 className="font-medium">Risk Factors</h4>
+            </div>
             <div className="space-y-2">
               {analysis.risks.map((risk, idx) => (
                 <div
                   key={idx}
-                  className={`p-2 rounded-lg border flex items-start gap-2 ${
-                    risk.level === 'high' ? 'border-red-500/20 bg-red-500/10' :
-                    risk.level === 'medium' ? 'border-yellow-500/20 bg-yellow-500/10' :
-                    'border-green-500/20 bg-green-500/10'
-                  }`}
+                  className={`p-3 rounded-lg border ${getRiskColor(risk.score)}`}
                 >
-                  {getRiskIcon(risk.level)}
-                  <div>
+                  <div className="flex items-center gap-2">
+                    <span>{getRiskEmoji(risk.score)}</span>
                     <div className="text-sm font-medium">{risk.name}</div>
-                    <div className="text-xs text-gray-400">{risk.description}</div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
           <Button
             onClick={handleAnalyze}
@@ -239,7 +310,7 @@ export const TokenAnalysis: FC<Props> = ({ tokenAddress, onAnalyze }) => {
             size="sm"
             className="w-full mt-4"
           >
-            Refresh Analysis
+            🔄 Refresh Analysis
           </Button>
         </div>
       )}

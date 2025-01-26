@@ -1,77 +1,87 @@
-import { z } from 'zod';
+import axios from 'axios';
 
-const TokenRiskSchema = z.object({
-  name: z.string(),
-  description: z.string(),
-  level: z.enum(['low', 'medium', 'high']),
-  score: z.number().min(0).max(100),
-});
-
-const TokenAnalysisSchema = z.object({
-  basic: z.object({
-    name: z.string(),
-    symbol: z.string(),
-    totalSupply: z.number(),
-    createdAt: z.number(),
-  }),
-  control: z.object({
-    mintAuthorityEnabled: z.boolean(),
-    freezeAuthorityEnabled: z.boolean(),
-    isImmutable: z.boolean(),
-  }),
-  holders: z.object({
-    topHolders: z.array(z.object({
-      address: z.string(),
-      balance: z.number(),
-      percentage: z.number(),
-      isInsider: z.boolean(),
-    })),
-    concentration: z.number(),
-  }),
-  market: z.object({
-    liquidityUSD: z.number(),
-    activeMarkets: z.number(),
-    liquidityProviders: z.number(),
-  }),
-  risks: z.array(TokenRiskSchema),
-  overallScore: z.number().min(0).max(100),
-});
-
-export type TokenAnalysisData = z.infer<typeof TokenAnalysisSchema>;
-export type TokenRisk = z.infer<typeof TokenRiskSchema>;
+interface TokenData {
+  tokenMint: string;
+  tokenName: string; 
+  tokenSymbol: string;
+  supply: string;
+  decimals: string;
+  mintAuthority: string;
+  freezeAuthority: string;
+  isInitialized: boolean;
+  mutable: boolean;
+  rugged: boolean;
+  rugScore: number;
+  topHolders: Array<{
+    address: string;
+    pct: number;
+  }>;
+  markets: Array<{
+    market: string;
+    liquidityA: string;
+    liquidityB: string;
+  }>;
+  totalLPProviders: number;
+  totalMarketLiquidity: number;
+  risks: Array<{
+    name: string;
+    score: number;
+  }>;
+}
 
 // Cache analyzed tokens to reduce API calls
-const analysisCache = new Map<string, { data: TokenAnalysisData; timestamp: number }>();
+const analysisCache = new Map<string, { data: TokenData; timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-export async function analyzeToken(address: string): Promise<TokenAnalysisData> {
+export async function analyzeToken(tokenMint: string): Promise<TokenData | null> {
   // Check cache first
-  const cached = analysisCache.get(address);
+  const cached = analysisCache.get(tokenMint);
   const now = Date.now();
-  
+
   if (cached && (now - cached.timestamp) < CACHE_DURATION) {
     return cached.data;
   }
 
   try {
-    const response = await fetch(`/api/token/analyze/${address}`);
-    
-    if (!response.ok) {
-      throw new Error(`Analysis failed: ${response.statusText}`);
+    const response = await axios.get(`https://api.rugcheck.xyz/v1/tokens/${tokenMint}/report`, {
+      timeout: 10000
+    });
+
+    if (!response.data) {
+      console.log("No response received from RugCheck API");
+      return null;
     }
 
-    const data = await response.json();
-    const validated = TokenAnalysisSchema.parse(data);
+    const tokenReport = response.data;
+
+    const tokenData: TokenData = {
+      tokenMint,
+      tokenName: tokenReport.tokenMeta?.name || "N/A",
+      tokenSymbol: tokenReport.tokenMeta?.symbol || "N/A",
+      supply: tokenReport.token?.supply || "N/A",
+      decimals: tokenReport.token?.decimals || "N/A",
+      mintAuthority: tokenReport.token?.mintAuthority || "N/A",
+      freezeAuthority: tokenReport.token?.freezeAuthority || "N/A",
+      isInitialized: tokenReport.token?.isInitialized || false,
+      mutable: tokenReport.tokenMeta?.mutable || false,
+      rugged: tokenReport.rugged || false,
+      rugScore: tokenReport.score || 0,
+      topHolders: tokenReport.topHolders || [],
+      markets: tokenReport.markets || [],
+      totalLPProviders: tokenReport.totalLPProviders || 0,
+      totalMarketLiquidity: tokenReport.totalMarketLiquidity || 0,
+      risks: tokenReport.risks || [],
+    };
 
     // Cache the results
-    analysisCache.set(address, {
-      data: validated,
+    analysisCache.set(tokenMint, {
+      data: tokenData,
       timestamp: now,
     });
 
-    return validated;
+    return tokenData;
   } catch (error) {
-    console.error('Token analysis failed:', error);
-    throw new Error(error instanceof Error ? error.message : 'Failed to analyze token');
+    console.error("Token analysis failed:", error);
+    return null;
   }
 }

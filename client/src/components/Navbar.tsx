@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { WalletConnectButton } from "@/lib/wallet";
-import { LineChart, Wallet } from "lucide-react";
+import { LineChart, Wallet, Shield } from "lucide-react";
 
 export default function Navbar() {
   return (
@@ -47,6 +47,15 @@ export default function Navbar() {
               <Link href="/pumpfun-vision">
                 <Button variant="ghost" className="text-purple-400 hover:text-purple-300">
                   PumpFun Vision
+                </Button>
+              </Link>
+              <Link href="/token-analysis">
+                <Button 
+                  variant="outline" 
+                  className="text-purple-400 hover:text-purple-300 flex items-center gap-2"
+                >
+                  <Shield className="w-4 h-4" />
+                  Token Analysis
                 </Button>
               </Link>
               <Link href="/subscriptions"><Button variant="ghost">Subscriptions</Button></Link>
