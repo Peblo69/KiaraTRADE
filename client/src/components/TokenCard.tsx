@@ -12,6 +12,11 @@ interface TokenCardProps {
 export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
   const analytics = useTokenAnalyticsStore(state => state.analytics[token.address]);
   const rugCheck = useTokenAnalyticsStore(state => state.rugCheck[token.address]);
+  
+  const formatPrice = (price: number) => {
+    if (!price) return '$0.00';
+    return price < 0.01 ? price.toExponential(4) : price.toFixed(4);
+  };
 
   const getRugRiskEmoji = (risk: string) => {
     switch(risk) {
@@ -72,7 +77,11 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="col-span-2 bg-black/10 p-2 rounded-lg">
+              <span className="text-xs text-purple-400">Last Trade: </span>
+              <span className="text-xs">{token.recentTrades?.[0]?.timestamp ? new Date(token.recentTrades[0].timestamp).toLocaleTimeString() : 'No trades'}</span>
+            </div>
           <div>
             <div className="text-sm text-muted-foreground">💎 Price</div>
             <div className="font-medium">${formatNumber(token.price)}</div>
