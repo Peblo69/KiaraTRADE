@@ -272,10 +272,44 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
         <div className="grid grid-cols-[1fr,300px] gap-4 relative">
           <div className="space-y-4">
-            <div className="h-[500px] bg-[#111] rounded-lg">
+            <div className="h-[500px] bg-[#111] rounded-lg relative" id="chart-container">
               <div className="p-4">
                 <div ref={chartContainerRef} className="h-[450px]" />
               </div>
+
+              <AnimatePresence>
+                {showSecurityPanel && (
+                  <motion.div
+                    initial={{ x: "100%" }}
+                    animate={{ x: 0 }}
+                    exit={{ x: "100%" }}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    className="absolute top-0 right-[-350px] w-[350px] h-full z-50"
+                    style={{
+                      transform: showSecurityPanel ? "translateX(-350px)" : "translateX(0)",
+                    }}
+                  >
+                    <TokenSecurityPanel
+                      isOpen={showSecurityPanel}
+                      onClose={() => setShowSecurityPanel(false)}
+                      onRefresh={() => {
+                        // Refresh logic here
+                      }}
+                      tokenData={{
+                        name: token?.name || "",
+                        symbol: token?.symbol || "",
+                        mintAuthority: true,
+                        freezeAuthority: false,
+                        liquidity: token?.vSolInBondingCurve || 0,
+                        lpCount: 2,
+                        topHolderPct: 97.86,
+                        holderCount: 4,
+                        riskScore: 75
+                      }}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <div className="bg-[#111] rounded-lg p-4">
@@ -394,52 +428,16 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
               </Tabs>
             </Card>
           </div>
-
-          <AnimatePresence>
-            {showSecurityPanel && (
-              <motion.div
-                initial={{ x: "100%" }}
-                animate={{ x: 0 }}
-                exit={{ x: "100%" }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="absolute top-[-64px] right-[-350px] w-[350px] h-[564px] z-50"
-                style={{
-                  transform: showSecurityPanel ? "translateX(-350px)" : "translateX(0)",
-                }}
-              >
-                <TokenSecurityPanel
-                  isOpen={showSecurityPanel}
-                  onClose={() => setShowSecurityPanel(false)}
-                  onRefresh={() => {
-                    // Refresh logic here
-                  }}
-                  tokenData={{
-                    name: token?.name || "",
-                    symbol: token?.symbol || "",
-                    mintAuthority: true,
-                    freezeAuthority: false,
-                    liquidity: token?.vSolInBondingCurve || 0,
-                    lpCount: 2,
-                    topHolderPct: 97.86,
-                    holderCount: 4,
-                    riskScore: 75
-                  }}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       </div>
     </div>
   );
 });
 
-const TokenChart: FC<TokenChartProps> = (props) => {
-  return (
-    <ErrorBoundary>
-      <TokenChartContent {...props} />
-    </ErrorBoundary>
-  );
-};
+const TokenChart: FC<TokenChartProps> = (props) => (
+  <ErrorBoundary>
+    <TokenChartContent {...props} />
+  </ErrorBoundary>
+);
 
 export default TokenChart;
