@@ -280,11 +280,11 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
               <AnimatePresence>
                 {showSecurityPanel && (
                   <motion.div
-                    initial={{ x: "100%" }}
-                    animate={{ x: 0 }}
-                    exit={{ x: "100%" }}
+                    initial={{ y: "100%" }}
+                    animate={{ y: 0 }}
+                    exit={{ y: "100%" }}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="absolute top-0 right-0 w-[300px] h-full z-50"
+                    className="absolute bottom-[300px] right-0 w-[300px] z-50"
                   >
                     <TokenSecurityPanel
                       isOpen={showSecurityPanel}
