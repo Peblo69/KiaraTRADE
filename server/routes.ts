@@ -1,36 +1,14 @@
-import { db } from "@db";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { wsManager } from './services/websocket';
 import { initializePumpPortalWebSocket } from './pumpportal';
-import { generateAIResponse } from './services/ai';
 import axios from 'axios';
-import { pricePredictionService } from './services/price-prediction';
-import { cryptoService } from './services/crypto';
-
-// Constants
-const RUGCHECK_API_BASE = 'https://api.rugcheck.xyz/v1';
 
 // Configure axios
 axios.defaults.timeout = 10000;
 axios.defaults.headers.common['accept'] = 'application/json';
 
-if (!process.env.HELIUS_API_KEY) {
-  throw new Error("HELIUS_API_KEY must be set in environment variables");
-}
-
-const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
-
-function logHeliusError(error: any, context: string) {
-  console.error(`[Helius ${context} Error]`, {
-    message: error.message,
-    status: error.response?.status,
-    data: error.response?.data,
-    url: error.config?.url,
-    method: error.config?.method,
-    params: error.config?.data
-  });
-}
+const RUGCHECK_API_BASE = 'https://api.rugcheck.xyz/v1';
 
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
@@ -47,16 +25,17 @@ export function registerRoutes(app: Express): Server {
       const { mint } = req.params;
       console.log(`[Routes] Getting rugcheck data for token ${mint}`);
 
-      // Fetch data directly from rugcheck API
-      const rugcheckResponse = await axios.get(`${RUGCHECK_API_BASE}/tokens/${mint}/report/summary`);
+      // Direct forward to rugcheck API
+      const rugcheckResponse = await axios.get(
+        `${RUGCHECK_API_BASE}/tokens/${mint}/report/summary`
+      );
 
       res.json(rugcheckResponse.data);
     } catch (error: any) {
       console.error('[Routes] Rugcheck error:', error);
       res.status(500).json({
         error: 'Failed to fetch rugcheck data',
-        details: error.message,
-        tokenAddress: req.params.mint
+        details: error.message
       });
     }
   });
