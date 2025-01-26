@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { ArrowLeft, DollarSign, Coins, Shield, ArrowRight } from "lucide-react";
+import { ArrowLeft, DollarSign, Coins, Shield } from "lucide-react";
 import { createChart, IChartApi } from 'lightweight-charts';
 import { ErrorBoundary } from './ErrorBoundary';
 import { TokenSecurityPanel } from "./TokenSecurityPanel";
@@ -284,10 +284,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                     animate={{ x: 0 }}
                     exit={{ x: "100%" }}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="absolute top-0 right-[-350px] w-[350px] h-full z-50"
-                    style={{
-                      transform: showSecurityPanel ? "translateX(-350px)" : "translateX(0)",
-                    }}
+                    className="absolute top-0 right-0 w-[300px] h-full z-50"
                   >
                     <TokenSecurityPanel
                       isOpen={showSecurityPanel}
@@ -326,43 +323,22 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
               </div>
 
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                {token.recentTrades?.map((trade, idx) => {
-                  const isDevWallet = trade.traderPublicKey === devWallet ||
-                    trade.counterpartyPublicKey === devWallet;
-                  const isDevBuying = isDevWallet && trade.traderPublicKey === devWallet && trade.txType === 'buy';
-                  const isDevSelling = isDevWallet && (
-                    (trade.traderPublicKey === devWallet && trade.txType === 'sell') ||
-                    (trade.counterpartyPublicKey === devWallet && trade.txType === 'buy')
-                  );
-
-                  return (
-                    <div
-                      key={trade.signature || idx}
-                      className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
-                        isDevWallet ?
-                          isDevBuying ? 'text-amber-400' : 'text-orange-500' :
-                            trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{formatTimestamp(trade.timestamp)}</span>
-                        <span>
-                          {formatAddress(trade.traderPublicKey)}
-                          {isDevWallet && (
-                            <span className={`ml-1 text-xs px-1 rounded ${
-                              isDevBuying ? 'bg-amber-400/20 text-amber-400' : 'bg-orange-500/20 text-orange-500'
-                            }`}>
-                              DEV
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        {formatPrice(trade.solAmount * solPrice)}
-                      </div>
+                {token.recentTrades?.map((trade, idx) => (
+                  <div
+                    key={trade.signature || idx}
+                    className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
+                      trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span>{formatTimestamp(trade.timestamp)}</span>
+                      <span>{formatAddress(trade.traderPublicKey)}</span>
                     </div>
-                  );
-                })}
+                    <div className="text-right">
+                      {formatPrice(trade.solAmount * solPrice)}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
