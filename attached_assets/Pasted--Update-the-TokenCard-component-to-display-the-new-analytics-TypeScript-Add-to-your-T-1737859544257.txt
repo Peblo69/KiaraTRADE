@@ -1,0 +1,57 @@
+
+    Update the TokenCard component to display the new analytics:
+
+TypeScript
+
+// Add to your TokenCard.tsx
+const TokenDetails: FC<{ analytics: any }> = ({ analytics }) => {
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <h3 className="text-sm font-medium mb-2">Top Holders</h3>
+          <div className="space-y-1">
+            {analytics.holders.top10.map((holder: any, i: number) => (
+              <div key={i} className="text-xs flex justify-between">
+                <span>{formatAddress(holder.address)}</span>
+                <span>{holder.percentage.toFixed(2)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <div>
+          <h3 className="text-sm font-medium mb-2">Snipers</h3>
+          <div className="space-y-1">
+            {analytics.snipers.details.map((sniper: any, i: number) => (
+              <div key={i} className="text-xs flex justify-between">
+                <span>{formatAddress(sniper.address)}</span>
+                <span>{formatNumber(sniper.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <h3 className="text-sm font-medium mb-2">Trading Activity</h3>
+          <div className="space-y-1 text-xs">
+            <div>24h Volume: ${formatNumber(analytics.trading.volume24h)}</div>
+            <div>24h Trades: {analytics.trading.transactions24h}</div>
+            <div>Avg Trade: ${formatNumber(analytics.trading.averageTradeSize)}</div>
+          </div>
+        </div>
+        
+        <div>
+          <h3 className="text-sm font-medium mb-2">Risk Analysis</h3>
+          <div className="space-y-1 text-xs">
+            <div>Holder Risk: {analytics.risk.holderConcentration}</div>
+            <div>Sniper Risk: {analytics.risk.sniperActivity}</div>
+            <div>Overall Risk: {analytics.risk.overallRisk.level}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
