@@ -72,7 +72,7 @@ export function RugcheckButton({ mint, onRiskUpdate }: RugcheckButtonProps) {
             disabled={loading || Date.now() - lastCheckRef.current < cooldownPeriod}
             className={`gap-2 ${
               riskData ? getRiskColor(riskData.score) : "text-gray-500"
-            }`}
+            } transition-all duration-300 hover:scale-105 active:scale-95`}
           >
             {loading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -84,20 +84,63 @@ export function RugcheckButton({ mint, onRiskUpdate }: RugcheckButtonProps) {
             {riskData ? `Risk: ${riskData.score}` : "Check Risk"}
           </Button>
         </TooltipTrigger>
-        <TooltipContent>
+        <TooltipContent className="w-72 p-4 bg-black/95 border-purple-500/20 backdrop-blur-md">
           {error ? (
             <p className="text-red-500">{error}</p>
           ) : riskData ? (
             <div className="space-y-2">
-              <p className={`font-semibold ${getRiskColor(riskData.score)}`}>
-                Risk Score: {riskData.score}
-              </p>
-              {riskData.risks.map((risk, i) => (
-                <div key={i} className="text-sm">
-                  <span className="font-medium">{risk.name}:</span>
-                  <p className="text-gray-400">{risk.description}</p>
+              <div className="flex items-center justify-between">
+                <p className={`font-semibold ${getRiskColor(riskData.score)}`}>
+                  Risk Score: {riskData.score}
+                </p>
+                <div className="text-xs text-gray-400">
+                  Updated: {new Date().toLocaleTimeString()}
                 </div>
-              ))}
+              </div>
+
+              <div className="h-2 bg-gray-800 rounded-full overflow-hidden mt-2">
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    riskData.score <= 200
+                      ? "bg-green-500"
+                      : riskData.score <= 500
+                      ? "bg-yellow-500"
+                      : "bg-red-500"
+                  }`}
+                  style={{ width: `${(riskData.score / 1000) * 100}%` }}
+                />
+              </div>
+
+              <div className="space-y-3 mt-4">
+                {riskData.risks.map((risk, i) => (
+                  <div 
+                    key={i}
+                    className={`p-2 rounded-lg ${
+                      risk.level === "high"
+                        ? "bg-red-500/10 border border-red-500/20"
+                        : risk.level === "medium"
+                        ? "bg-yellow-500/10 border border-yellow-500/20"
+                        : "bg-green-500/10 border border-green-500/20"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{risk.name}</span>
+                      <span 
+                        className={`text-xs px-2 py-0.5 rounded-full ${
+                          risk.level === "high"
+                            ? "bg-red-500/20 text-red-400"
+                            : risk.level === "medium"
+                            ? "bg-yellow-500/20 text-yellow-400"
+                            : "bg-green-500/20 text-green-400"
+                        }`}
+                      >
+                        {risk.level.toUpperCase()}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-400 mt-1">{risk.description}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             <p>Click to check token risk score</p>
