@@ -30,6 +30,11 @@ interface Candle {
   color?: string;
 }
 
+interface TokenAnalysisProps {
+  tokenAddress: string;
+  className?: string;
+}
+
 const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) => {
   const [showInfo, setShowInfo] = useState(false);
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -41,7 +46,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const [error, setError] = useState<Error | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
 
-  const { tokens, setActiveTokenView, addToViewedTokens } = usePumpPortalStore(); // Added import and destructuring
+  const { tokens, setActiveTokenView, addToViewedTokens } = usePumpPortalStore(); 
 
   const token = usePumpPortalStore(
     useCallback(state => state.tokens.find(t => t.address === tokenAddress), [tokenAddress])
@@ -396,8 +401,8 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                     <Button
                       onClick={() => {
                         setShowAnalysis(true);
-                        addToViewedTokens(tokenAddress); //Added this line
-                        setActiveTokenView(tokenAddress); //Added this line
+                        addToViewedTokens(tokenAddress); 
+                        setActiveTokenView(tokenAddress); 
                       }}
                       className="w-full bg-purple-600 hover:bg-purple-700 flex items-center justify-center gap-2"
                     >
@@ -510,7 +515,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
             <div className="p-4 overflow-y-auto">
               <TokenAnalysis
                 tokenAddress={tokenAddress}
-                onAnalyze={analyzeToken}
+                className="w-full"
               />
             </div>
           </DrawerContent>

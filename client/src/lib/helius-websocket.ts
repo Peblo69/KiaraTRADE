@@ -1,5 +1,4 @@
-import { create } from 'zustand';
-import { useTokenAnalyticsStore } from './token-analytics-websocket';
+import { create } from "zustand";
 
 // Constants
 const HELIUS_WS_URL = 'wss://mainnet.helius-rpc.com/?api-key=004f9b13-f526-4952-9998-52f5c7bec6ee';
@@ -43,21 +42,6 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
       return;
     }
 
-    // Check for sniper behavior (large buys within first 30 seconds)
-    const analytics = useTokenAnalyticsStore.getState();
-    const creationTime = analytics.creationTimes[tokenAddress];
-    const isSniper = creationTime && trade.timestamp - creationTime <= 30000;
-    
-    if (isSniper && trade.type === 'buy') {
-      const riskLevel = trade.amount > 5 ? 'high' : trade.amount > 2 ? 'medium' : 'low';
-      analytics.updateAnalytics(tokenAddress, {
-        analytics: {
-          rugPullRisk: riskLevel,
-          sniperCount: (analytics.analytics[tokenAddress]?.sniperCount || 0) + 1
-        }
-      });
-    }
-
     activeTransactions++;
 
     try {
@@ -67,27 +51,6 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
           [tokenAddress]: [trade, ...(state.trades[tokenAddress] || [])].slice(0, 100),
         },
       }));
-
-      const analyticsStore = useTokenAnalyticsStore.getState();
-      const creationTime = analyticsStore.creationTimes[tokenAddress];
-
-      // Check if it's a sniper (within 30s of creation)
-      if (creationTime && trade.timestamp - creationTime <= 30000 && trade.type === 'buy') {
-        analyticsStore.addSniper(tokenAddress, trade.buyer, trade.amount, trade.timestamp);
-      }
-
-      // Update holder balances with verification
-      if (trade.type === 'buy') {
-        analyticsStore.updateHolder(tokenAddress, trade.buyer, trade.amount);
-        if (trade.seller) {
-          analyticsStore.updateHolder(tokenAddress, trade.seller, -trade.amount);
-        }
-      } else {
-        analyticsStore.updateHolder(tokenAddress, trade.seller, -trade.amount);
-        if (trade.buyer) {
-          analyticsStore.updateHolder(tokenAddress, trade.buyer, trade.amount);
-        }
-      }
     } catch (error) {
       console.error('[Helius] Error processing trade:', error);
     } finally {
@@ -133,9 +96,6 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
 
       store.subscribedTokens.add(tokenAddress);
       console.log(`[Helius] Subscribed to token: ${tokenAddress}`);
-
-      // Set creation time for snipers tracking
-      useTokenAnalyticsStore.getState().setCreationTime(tokenAddress, Date.now());
     } catch (error) {
       console.error('[Helius] Subscribe error:', error);
     }
@@ -250,7 +210,7 @@ export function initializeHeliusWebSocket() {
     };
 
     ws.onclose = handleWebSocketClose;
-    ws.onerror = handleWebSocketError;
+    ws.onerror = (event) => handleWebSocketError(event instanceof Error ? event : new Error('WebSocket error'));
     ws.onmessage = handleWebSocketMessage;
 
   } catch (error) {
