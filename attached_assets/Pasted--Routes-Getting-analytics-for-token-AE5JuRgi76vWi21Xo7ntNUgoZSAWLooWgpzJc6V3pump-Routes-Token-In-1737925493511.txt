@@ -1,0 +1,170 @@
+[Routes] Getting analytics for token AE5JuRgi76vWi21Xo7ntNUgoZSAWLooWgpzJc6V3pump
+[Routes] Token Info Response: {
+  jsonrpc: '2.0',
+  result: {
+    interface: 'FungibleToken',
+    id: 'AE5JuRgi76vWi21Xo7ntNUgoZSAWLooWgpzJc6V3pump',
+    content: {
+      '$schema': 'https://schema.metaplex.com/nft1.0.json',
+      json_uri: 'https://ipfs.io/ipfs/Qmc3D8N7qyCpnQuvZpfmecEtGcy4ag7mqWPpLx1fjsDz4B',
+      files: [Array],
+      metadata: [Object],
+      links: [Object]
+    },
+    authorities: [ [Object] ],
+    compression: {
+      eligible: false,
+      compressed: false,
+      data_hash: '',
+      creator_hash: '',
+      asset_hash: '',
+      tree: '',
+      seq: 0,
+      leaf_id: 0
+    },
+    grouping: [],
+    royalty: {
+      royalty_model: 'creators',
+      target: null,
+      percent: 0,
+      basis_points: 0,
+      primary_sale_happened: false,
+      locked: false
+    },
+    creators: [],
+    ownership: {
+      frozen: false,
+      delegated: false,
+      delegate: null,
+      ownership_model: 'token',
+      owner: ''
+    },
+    supply: null,
+    mutable: false,
+    burnt: false,
+    token_info: {
+      supply: 1000000000000000,
+      decimals: 6,
+      token_program: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
+    }
+  },
+  id: 'token-info'
+}
+[Routes] Transfers Response: {
+  jsonrpc: '2.0',
+  error: {
+    code: -32000,
+    message: 'Pagination Sorting Error. Only sorting based on id is supported for this pagination option.'
+  },
+  id: 'transfers'
+}
+[Routes] Processing transfers: 0
+[Routes] Holders processed: 0
+[Routes] Snipers detected: 0
+[Routes] Analytics prepared: {
+  token: {
+    address: 'AE5JuRgi76vWi21Xo7ntNUgoZSAWLooWgpzJc6V3pump',
+    name: 'Wallety',
+    symbol: 'WALLET',
+    decimals: 6,
+    supply: 1000000000000000,
+    mintAuthority: null,
+    freezeAuthority: null,
+    mutable: false
+  },
+  holdersCount: 0,
+  snipersCount: 0,
+  risks: [
+    { name: 'Holder Concentration', score: 0 },
+    { name: 'Mint Authority', score: 0 },
+    { name: 'Freeze Authority', score: 0 },
+    { name: 'Sniper Activity', score: 0 }
+  ],
+  rugScore: 0
+}
+9:04:16 PM [5UVRpvqm1SY2p4qfF7f6xfFDSSe227PvzdKjR88Xpump] [PumpPortal] New token created:
+9:04:16 PM [Successfully subscribed to keys.] [PumpPortal] Subscription confirmed:
+[Routes] Getting analytics for token AE5JuRgi76vWi21Xo7ntNUgoZSAWLooWgpzJc6V3pump
+[Routes] Token Info Response: {
+  jsonrpc: '2.0',
+  result: {
+    interface: 'FungibleToken',
+    id: 'AE5JuRgi76vWi21Xo7ntNUgoZSAWLooWgpzJc6V3pump',
+    content: {
+      '$schema': 'https://schema.metaplex.com/nft1.0.json',
+      json_uri: 'https://ipfs.io/ipfs/Qmc3D8N7qyCpnQuvZpfmecEtGcy4ag7mqWPpLx1fjsDz4B',
+      files: [Array],
+      metadata: [Object],
+      links: [Object]
+    },
+    authorities: [ [Object] ],
+    compression: {
+      eligible: false,
+      compressed: false,
+      data_hash: '',
+      creator_hash: '',
+      asset_hash: '',
+      tree: '',
+      seq: 0,
+      leaf_id: 0
+    },
+    grouping: [],
+    royalty: {
+      royalty_model: 'creators',
+      target: null,
+      percent: 0,
+      basis_points: 0,
+      primary_sale_happened: false,
+      locked: false
+    },
+    creators: [],
+    ownership: {
+      frozen: false,
+      delegated: false,
+      delegate: null,
+      ownership_model: 'token',
+      owner: ''
+    },
+    supply: null,
+    mutable: false,
+    burnt: false,
+    token_info: {
+      supply: 1000000000000000,
+      decimals: 6,
+      token_program: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
+    }
+  },
+  id: 'token-info'
+}
+[Routes] Transfers Response: {
+  jsonrpc: '2.0',
+  error: {
+    code: -32000,
+    message: 'Pagination Sorting Error. Only sorting based on id is supported for this pagination option.'
+  },
+  id: 'transfers'
+}
+[Routes] Processing transfers: 0
+[Routes] Holders processed: 0
+[Routes] Snipers detected: 0
+[Routes] Analytics prepared: {
+  token: {
+    address: 'AE5JuRgi76vWi21Xo7ntNUgoZSAWLooWgpzJc6V3pump',
+    name: 'Wallety',
+    symbol: 'WALLET',
+    decimals: 6,
+    supply: 1000000000000000,
+    mintAuthority: null,
+    freezeAuthority: null,
+    mutable: false
+  },
+  holdersCount: 0,
+  snipersCount: 0,
+  risks: [
+    { name: 'Holder Concentration', score: 0 },
+    { name: 'Mint Authority', score: 0 },
+    { name: 'Freeze Authority', score: 0 },
+    { name: 'Sniper Activity', score: 0 }
+  ],
+  rugScore: 0
+}

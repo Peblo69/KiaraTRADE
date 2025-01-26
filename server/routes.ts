@@ -662,9 +662,10 @@ export function registerRoutes(app: Express): Server {
           params: {
             ownerAddress: mint,
             limit: 100,
-            sortBy: {
-              sortBy: "created",
-              sortDirection: "desc"
+            page: 1,
+            displayOptions: {
+              showUnverifiedCollections: true,
+              showZeroBalance: true
             }
           }
         })
@@ -686,7 +687,6 @@ export function registerRoutes(app: Express): Server {
       console.log('[Routes] Processing transfers:', transfers.length);
 
       transfers.forEach((transfer: any) => {
-        console.log('[Routes] Processing transfer:', transfer);
         const { fromUserAccount, toUserAccount, amount, blockTime } = transfer;
 
         if (fromUserAccount) {
@@ -740,8 +740,7 @@ export function registerRoutes(app: Express): Server {
           unique: holderMetrics.uniqueHolders,
           top10: topHolders,
           concentration: {
-            top10Percentage: topHolders.reduce((sum, h) => sum + h.percentage, 0),
-            riskLevel: 'low' as const
+            top10Percentage: topHolders.reduce((sum, h) => sum + h.percentage, 0)
           },
           distribution: holderMetrics.distribution
         },
@@ -808,6 +807,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Add token analytics endpoint
+
 
 
   return server;
@@ -935,7 +935,7 @@ function calculateTransactions24h(trades: Array<{ timestamp: number }>) {
 }
 
 function calculateVolume24h(trades: Array<{ timestamp: number; amount: number }>) {
-  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  const oneDayAgo = Datenow() - 24 * 60 * 60 * 1000;
   return trades
     .filter(trade => trade.timestamp >= oneDayAgo)
         .reduce((sum, trade) => sum + (trade.amount || 0), 0);
