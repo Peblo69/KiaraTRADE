@@ -15,11 +15,21 @@ export function TokenSecurityButton({
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Example data - this would normally come from your API
+  const handleRefresh = async () => {
+    setIsLoading(true);
+    try {
+      // Add actual refresh logic here
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // In a real implementation, this would come from your API
   const tokenData = {
     name: "Example Token",
     symbol: "EX",
-    mintAuthority: true,
+    mintAuthority: true, 
     freezeAuthority: false,
     liquidity: 5573.42,
     lpCount: 2,
@@ -28,21 +38,13 @@ export function TokenSecurityButton({
     riskScore: 75
   };
 
-  const handleRefresh = () => {
-    setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-  };
-
   return (
     <div className="w-full">
       <Button
         variant="outline"
         size="sm"
         className={cn(
-          "w-full gap-2 relative",
+          "w-full gap-2 relative border-gray-800 bg-[#0a0b1c] text-white hover:bg-gray-800/50",
           isLoading && "opacity-70 cursor-not-allowed",
           className
         )}
@@ -54,7 +56,7 @@ export function TokenSecurityButton({
         <span className={cn(
           "absolute right-2 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full",
           tokenData.riskScore > 70 
-            ? "bg-destructive" 
+            ? "bg-red-500" 
             : tokenData.riskScore > 40 
             ? "bg-yellow-500" 
             : "bg-green-500"
