@@ -4,20 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { ArrowLeft, DollarSign, Coins, Info, Shield } from "lucide-react";
+import { ArrowLeft, DollarSign, Coins, Shield, ArrowRight } from "lucide-react";
 import { createChart, IChartApi } from 'lightweight-charts';
 import { ErrorBoundary } from './ErrorBoundary';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { TokenAnalysis } from './TokenAnalysis';
-import { analyzeToken } from '@/lib/token-analysis';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 import { TokenSecurityPanel } from "./TokenSecurityPanel";
 import { motion, AnimatePresence } from "framer-motion";
-
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -33,11 +24,6 @@ interface Candle {
   color?: string;
 }
 
-interface TokenAnalysisProps {
-  tokenAddress: string;
-  className?: string;
-}
-
 const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) => {
   const [showInfo, setShowInfo] = useState(false);
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -47,7 +33,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const lastViewRangeRef = useRef<{ from: number; to: number } | null>(null);
   const [showUsd, setShowUsd] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [showSecurityPanel, setShowSecurityPanel] = useState(false);
 
   const { tokens, setActiveTokenView, addToViewedTokens } = usePumpPortalStore();
 
@@ -246,6 +232,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         </Button>
       </div>
 
+      {/* Token info and stats section */}
       <div className="p-4">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -306,128 +293,148 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           </div>
         </div>
 
-        <div className="flex gap-4">
-          <div className="flex-1">
-            <div className="mb-4">
-              <Button
-                onClick={() => setShowAnalysis(!showAnalysis)}
-                className="bg-[#0a0b1c] text-white hover:bg-gray-800/50 border border-gray-800"
-              >
-                <Shield className="w-4 h-4 mr-2" />
-                Security Analysis
-              </Button>
+        {/* Security Analysis Button */}
+        <div className="mb-4">
+          <Button
+            onClick={() => setShowSecurityPanel(true)}
+            className="bg-[#0a0b1c] text-white hover:bg-gray-800/50 border border-gray-800"
+          >
+            <Shield className="w-4 h-4 mr-2" />
+            Security Analysis
+          </Button>
+        </div>
+
+        {/* Main content grid */}
+        <div className="grid grid-cols-[1fr,300px] gap-4">
+          {/* Chart column */}
+          <div className="space-y-4">
+            <div className="h-[500px] bg-[#111] rounded-lg">
+              <div className="p-4">
+                <div ref={chartContainerRef} className="h-[450px]" />
+              </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="h-[500px] bg-[#111] rounded-lg">
-                <div className="p-4">
-                  <div ref={chartContainerRef} className="h-[450px]" />
-                </div>
+            {/* Recent trades section */}
+            <div className="bg-[#111] rounded-lg p-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-sm font-semibold">Recent Trades</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowUsd(!showUsd)}
+                  className="text-xs"
+                >
+                  {showUsd ? <DollarSign className="h-4 w-4" /> : <Coins className="h-4 w-4" />}
+                </Button>
               </div>
 
-              <div className="bg-[#111] rounded-lg p-4">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-sm font-semibold">Recent Trades</h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowUsd(!showUsd)}
-                    className="text-xs"
-                  >
-                    {showUsd ? <DollarSign className="h-4 w-4" /> : <Coins className="h-4 w-4" />}
-                  </Button>
-                </div>
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {token.recentTrades?.map((trade, idx) => {
+                  const isDevWallet = trade.traderPublicKey === devWallet ||
+                    trade.counterpartyPublicKey === devWallet;
+                  const isDevBuying = isDevWallet && trade.traderPublicKey === devWallet && trade.txType === 'buy';
+                  const isDevSelling = isDevWallet && (
+                    (trade.traderPublicKey === devWallet && trade.txType === 'sell') ||
+                    (trade.counterpartyPublicKey === devWallet && trade.txType === 'buy')
+                  );
 
-                <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                  {token.recentTrades?.map((trade, idx) => {
-                    const isDevWallet = trade.traderPublicKey === devWallet ||
-                      trade.counterpartyPublicKey === devWallet;
-                    const isDevBuying = isDevWallet && trade.traderPublicKey === devWallet && trade.txType === 'buy';
-                    const isDevSelling = isDevWallet && (
-                      (trade.traderPublicKey === devWallet && trade.txType === 'sell') ||
-                      (trade.counterpartyPublicKey === devWallet && trade.txType === 'buy')
-                    );
-
-                    return (
-                      <div
-                        key={trade.signature || idx}
-                        className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
-                          isDevWallet ?
-                            isDevBuying ? 'text-amber-400' : 'text-orange-500' :
-                              trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span>{formatTimestamp(trade.timestamp)}</span>
-                          <span>
-                            {formatAddress(trade.traderPublicKey)}
-                            {isDevWallet && (
-                              <span className={`ml-1 text-xs px-1 rounded ${
-                                isDevBuying ? 'bg-amber-400/20 text-amber-400' : 'bg-orange-500/20 text-orange-500'
-                              }`}>
-                                DEV
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          {formatPrice(trade.solAmount * solPrice)}
-                        </div>
+                  return (
+                    <div
+                      key={trade.signature || idx}
+                      className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
+                        isDevWallet ?
+                          isDevBuying ? 'text-amber-400' : 'text-orange-500' :
+                            trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{formatTimestamp(trade.timestamp)}</span>
+                        <span>
+                          {formatAddress(trade.traderPublicKey)}
+                          {isDevWallet && (
+                            <span className={`ml-1 text-xs px-1 rounded ${
+                              isDevBuying ? 'bg-amber-400/20 text-amber-400' : 'bg-orange-500/20 text-orange-500'
+                            }`}>
+                              DEV
+                            </span>
+                          )}
+                        </span>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className="text-right">
+                        {formatPrice(trade.solAmount * solPrice)}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
 
-          <AnimatePresence>
-            {showAnalysis && (
-              <motion.div
-                initial={{ x: "100%", opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: "100%", opacity: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="w-[350px] h-full"
-              >
-                <TokenSecurityPanel
-                  isOpen={showAnalysis}
-                  onClose={() => setShowAnalysis(false)}
-                  onRefresh={() => {
-                    // Refresh logic here
-                  }}
-                  tokenData={{
-                    name: token?.name || "",
-                    symbol: token?.symbol || "",
-                    mintAuthority: true,
-                    freezeAuthority: false,
-                    liquidity: token?.liquidity || 0,
-                    lpCount: 2,
-                    topHolderPct: 97.86,
-                    holderCount: 4,
-                    riskScore: 75
-                  }}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Trading panel column */}
+          <div className="space-y-4">
+            <Card className="bg-[#111] border-none p-4">
+              <Tabs defaultValue="market" className="w-full">
+                <TabsList>
+                  <TabsTrigger value="market">Market</TabsTrigger>
+                  <TabsTrigger value="trades">Trades</TabsTrigger>
+                </TabsList>
+                <TabsContent value="market">
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-sm font-medium">Price</div>
+                      <div className="text-lg font-bold">{formatPrice(token.marketCapSol * solPrice)}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium">Liquidity</div>
+                      <div className="text-lg font-bold">{formatPrice(token.vSolInBondingCurve * solPrice)}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium">Market Cap</div>
+                      <div className="text-lg font-bold">{formatPriceScale(token.marketCapSol * solPrice)}</div>
+                    </div>
+                  </div>
+                </TabsContent>
+                <TabsContent value="trades">
+                  <div className="h-64 overflow-y-auto">
+                    {/*  Add your trades here */}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </Card>
+          </div>
         </div>
-        <Drawer open={showAnalysis} onOpenChange={setShowAnalysis}>
-          <DrawerContent className="h-[90vh]">
-            <DrawerHeader>
-              <DrawerTitle>Token Security Analysis</DrawerTitle>
-              <DrawerDescription>
-                Analyzing {token.symbol} ({formatAddress(token.address)})
-              </DrawerDescription>
-            </DrawerHeader>
-            <div className="p-4 overflow-y-auto">
-              <TokenAnalysis
-                tokenAddress={tokenAddress}
-                className="w-full"
+
+        {/* Sliding Security Panel */}
+        <AnimatePresence>
+          {showSecurityPanel && (
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed top-0 right-0 w-[350px] h-full z-50 bg-black/95 text-white"
+            >
+              <TokenSecurityPanel
+                isOpen={showSecurityPanel}
+                onClose={() => setShowSecurityPanel(false)}
+                onRefresh={() => {
+                  // Refresh logic here
+                }}
+                tokenData={{
+                  name: token?.name || "",
+                  symbol: token?.symbol || "",
+                  mintAuthority: true,
+                  freezeAuthority: false,
+                  liquidity: token?.liquidity || 0,
+                  lpCount: 2,
+                  topHolderPct: 97.86,
+                  holderCount: 4,
+                  riskScore: 75
+                }}
               />
-            </div>
-          </DrawerContent>
-        </Drawer>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
