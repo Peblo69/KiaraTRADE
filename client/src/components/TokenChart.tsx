@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { ArrowLeft, DollarSign, Coins, Info } from "lucide-react";
+import { ArrowLeft, DollarSign, Coins, Info, Shield } from "lucide-react";
 import { createChart, IChartApi } from 'lightweight-charts';
 import { ErrorBoundary } from './ErrorBoundary';
 import {
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/popover";
 import { TokenAnalysis } from './TokenAnalysis';
 import { analyzeToken } from '@/lib/token-analysis';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -38,6 +39,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const lastViewRangeRef = useRef<{ from: number; to: number } | null>(null);
   const [showUsd, setShowUsd] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [showAnalysis, setShowAnalysis] = useState(false);
 
   const token = usePumpPortalStore(
     useCallback(state => state.tokens.find(t => t.address === tokenAddress), [tokenAddress])
@@ -360,11 +362,10 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           <div className="space-y-4">
             <Card className="bg-[#111] border-none p-4">
               <Tabs defaultValue="market" className="w-full">
-                <TabsList className="grid grid-cols-4 mb-4">
+                <TabsList className="grid grid-cols-3 mb-4">
                   <TabsTrigger value="market">Market</TabsTrigger>
                   <TabsTrigger value="limit">Limit</TabsTrigger>
                   <TabsTrigger value="dca">DCA</TabsTrigger>
-                  <TabsTrigger value="analysis">Analysis</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="market">
@@ -389,6 +390,14 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                       <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
                       <Button variant="destructive">Sell</Button>
                     </div>
+
+                    <Button
+                      onClick={() => setShowAnalysis(true)}
+                      className="w-full bg-purple-600 hover:bg-purple-700 flex items-center justify-center gap-2"
+                    >
+                      <Shield className="w-4 h-4" />
+                      Analyze Token Security
+                    </Button>
 
                     <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Funds</Button>
 
@@ -480,17 +489,26 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                     </div>
                   </div>
                 </TabsContent>
-
-                <TabsContent value="analysis">
-                  <TokenAnalysis
-                    tokenAddress={tokenAddress}
-                    onAnalyze={analyzeToken}
-                  />
-                </TabsContent>
               </Tabs>
             </Card>
           </div>
         </div>
+        <Drawer open={showAnalysis} onOpenChange={setShowAnalysis}>
+          <DrawerContent className="h-[90vh]">
+            <DrawerHeader>
+              <DrawerTitle>Token Security Analysis</DrawerTitle>
+              <DrawerDescription>
+                Analyzing {token.symbol} ({formatAddress(token.address)})
+              </DrawerDescription>
+            </DrawerHeader>
+            <div className="p-4 overflow-y-auto">
+              <TokenAnalysis
+                tokenAddress={tokenAddress}
+                onAnalyze={analyzeToken}
+              />
+            </div>
+          </DrawerContent>
+        </Drawer>
       </div>
     </div>
   );

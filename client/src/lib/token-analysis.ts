@@ -43,34 +43,46 @@ export async function analyzeToken(tokenMint: string): Promise<TokenData | null>
   }
 
   try {
-    const response = await axios.get(`https://api.rugcheck.xyz/v1/tokens/${tokenMint}/report`, {
+    // Use our server endpoint instead of direct RugCheck API call
+    const response = await axios.get(`/api/token-analytics/${tokenMint}`, {
       timeout: 10000
     });
 
     if (!response.data) {
-      console.log("No response received from RugCheck API");
+      console.log("No response received from token analytics API");
       return null;
     }
 
-    const tokenReport = response.data;
+    const analytics = response.data;
 
+    // Map server response to TokenData interface
     const tokenData: TokenData = {
       tokenMint,
-      tokenName: tokenReport.tokenMeta?.name || "N/A",
-      tokenSymbol: tokenReport.tokenMeta?.symbol || "N/A",
-      supply: tokenReport.token?.supply || "N/A",
-      decimals: tokenReport.token?.decimals || "N/A",
-      mintAuthority: tokenReport.token?.mintAuthority || "N/A",
-      freezeAuthority: tokenReport.token?.freezeAuthority || "N/A",
-      isInitialized: tokenReport.token?.isInitialized || false,
-      mutable: tokenReport.tokenMeta?.mutable || false,
-      rugged: tokenReport.rugged || false,
-      rugScore: tokenReport.score || 0,
-      topHolders: tokenReport.topHolders || [],
-      markets: tokenReport.markets || [],
-      totalLPProviders: tokenReport.totalLPProviders || 0,
-      totalMarketLiquidity: tokenReport.totalMarketLiquidity || 0,
-      risks: tokenReport.risks || [],
+      tokenName: analytics.token?.name || "Unknown",
+      tokenSymbol: analytics.token?.symbol || "Unknown",
+      supply: analytics.token?.totalSupply?.toString() || "0",
+      decimals: analytics.token?.decimals?.toString() || "0",
+      mintAuthority: analytics.token?.mintAuthority || "N/A",
+      freezeAuthority: analytics.token?.freezeAuthority || "N/A",
+      isInitialized: true,
+      mutable: true,
+      rugged: false,
+      rugScore: analytics.risk?.score || 0,
+      topHolders: analytics.holders?.top10?.map(holder => ({
+        address: holder.address,
+        pct: holder.percentage || 0
+      })) || [],
+      markets: analytics.trading ? [{
+        market: 'JUP',
+        liquidityA: analytics.trading.volume24h?.toString() || "0",
+        liquidityB: "0"
+      }] : [],
+      totalLPProviders: analytics.holders?.total || 0,
+      totalMarketLiquidity: analytics.trading?.volume24h || 0,
+      risks: analytics.risk?.risks?.map(risk => ({
+        name: risk.type,
+        score: risk.score || 0
+      })) || []
     };
 
     // Cache the results
