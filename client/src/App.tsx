@@ -15,6 +15,7 @@ import Landing from "@/pages/landing";
 import CryptoNews from "@/pages/crypto-news";
 import Predictions from "@/pages/predictions";
 import WalletTracking from "@/pages/wallet-tracking";
+import TokenMonitor from "@/pages/token-monitor";
 import { WalletContextProvider } from "@/lib/wallet";
 import MarketDataBar from "@/components/MarketDataBar";
 import Navbar from "@/components/Navbar";
@@ -48,6 +49,7 @@ function Router() {
           <Route path="/pumpfun-vision" component={PumpFunVision} />
           <Route path="/predictions" component={Predictions} />
           <Route path="/wallet-tracking" component={WalletTracking} />
+          <Route path="/token-monitor" component={TokenMonitor} />
           <Route component={NotFound} />
         </Switch>
       </main>
