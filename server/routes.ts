@@ -504,13 +504,20 @@ export function registerRoutes(app: Express): Server {
             holders.set(tokenTransfer.toUserAccount, currentBalance + tokenTransfer.tokenAmount);
           }
 
-          // Track potential snipers
-          if (tx.timestamp - creationTime <= sniperWindow && tokenTransfer.tokenAmount > 0) {
-            snipers.add({
-              address: tokenTransfer.toUserAccount,
-              amount: tokenTransfer.tokenAmount,
-              timestamp: tx.timestamp
-            });
+          // Track potential snipers with enhanced detection
+          if (tx.timestamp - creationTime <= sniperWindow) {
+            const isLargeAmount = tokenTransfer.tokenAmount > (supply * 0.01); // Over 1% of supply
+            const isVeryEarly = tx.timestamp - creationTime <= 5000; // Within first 5 seconds
+            
+            if (tokenTransfer.tokenAmount > 0 && (isLargeAmount || isVeryEarly)) {
+              snipers.add({
+                address: tokenTransfer.toUserAccount,
+                amount: tokenTransfer.tokenAmount,
+                timestamp: tx.timestamp,
+                isWhale: isLargeAmount,
+                isInstant: isVeryEarly
+              });
+            }
           }
         });
       }
