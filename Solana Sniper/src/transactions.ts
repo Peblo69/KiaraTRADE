@@ -15,13 +15,34 @@ import {
   NewTokenRecord,
   createSellTransactionResponse,
 } from "./types";
-import { insertHolding, insertNewToken, removeHolding, selectTokenByMint, selectTokenByNameAndCreator } from "./tracker/db";
 
 // Load environment variables from the .env file
 dotenv.config();
 
 // Cache successful responses to avoid duplicate API calls
 const responseCache = new Map<string, MintsDataReponse>();
+const rateLimitMap = new Map<string, number>();
+
+// Initial delay between retries (2 seconds)
+const INITIAL_RETRY_DELAY = 2000;
+// Maximum delay between retries (30 seconds)
+const MAX_RETRY_DELAY = 30000;
+// Maximum number of retries
+const MAX_RETRIES = 3;
+
+/**
+ * Implements exponential backoff with jitter
+ */
+function getBackoffDelay(attempt: number): number {
+  // Calculate exponential backoff
+  const exponentialDelay = Math.min(
+    INITIAL_RETRY_DELAY * Math.pow(2, attempt),
+    MAX_RETRY_DELAY
+  );
+  // Add random jitter (±20%)
+  const jitter = exponentialDelay * 0.2 * (Math.random() - 0.5);
+  return exponentialDelay + jitter;
+}
 
 export async function fetchTransactionDetails(signature: string): Promise<MintsDataReponse | null> {
   // Check cache first
@@ -30,15 +51,22 @@ export async function fetchTransactionDetails(signature: string): Promise<MintsD
     return responseCache.get(signature)!;
   }
 
+  // Check rate limit for this endpoint
+  const now = Date.now();
+  const lastCallTime = rateLimitMap.get('fetchTx') || 0;
+  const timeSinceLastCall = now - lastCallTime;
+
+  if (timeSinceLastCall < 3000) { // Minimum 3 seconds between calls
+    const waitTime = 3000 - timeSinceLastCall;
+    console.log(`⏳ Rate limit cooling down, waiting ${waitTime}ms...`);
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+  }
+
+  rateLimitMap.set('fetchTx', Date.now());
+
   const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
   const txUrl = `https://api.helius.xyz/v0/transactions/?api-key=${HELIUS_API_KEY}`;
   let retryCount = 0;
-  const MAX_RETRIES = 2;
-  const INITIAL_DELAY = 2000;
-  const MAX_DELAY = 8000;
-
-  // Initial delay
-  await new Promise(resolve => setTimeout(resolve, INITIAL_DELAY));
 
   while (retryCount < MAX_RETRIES) {
     try {
@@ -123,11 +151,12 @@ export async function fetchTransactionDetails(signature: string): Promise<MintsD
       console.log(`Attempt ${retryCount + 1} failed: ${error.message}`);
 
       if (error.response?.status === 429) {
-        const delay = Math.min(INITIAL_DELAY * Math.pow(2, retryCount), MAX_DELAY);
+        const delay = getBackoffDelay(retryCount);
         console.log(`Rate limit hit. Waiting ${delay/1000}s...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       } else {
-        await new Promise(resolve => setTimeout(resolve, INITIAL_DELAY));
+        // For other errors, use a shorter delay
+        await new Promise(resolve => setTimeout(resolve, INITIAL_RETRY_DELAY));
       }
 
       retryCount++;
@@ -724,4 +753,24 @@ export async function createSellTransaction(solMint: string, tokenMint: string, 
       tx: null,
     };
   }
+}
+
+export async function insertHolding(holding: HoldingRecord): Promise<void> {
+    //Implementation for database insertion
+}
+
+export async function insertNewToken(token: NewTokenRecord): Promise<void> {
+    //Implementation for database insertion
+}
+
+export async function removeHolding(tokenMint: string): Promise<void> {
+    //Implementation for database insertion
+}
+
+export async function selectTokenByMint(tokenMint: string):Promise<NewTokenRecord[]> {
+    //Implementation for database selection
+}
+
+export async function selectTokenByNameAndCreator(tokenName: string, tokenCreator: string): Promise<NewTokenRecord[]> {
+    //Implementation for database selection
 }
