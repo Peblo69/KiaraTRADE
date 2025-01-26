@@ -284,7 +284,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                     animate={{ x: 0 }}
                     exit={{ x: "100%" }}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="absolute top-0 right-0 w-[300px] h-full"
+                    className="absolute bottom-[300px] right-0 w-[300px] z-50"
                   >
                     <TokenSecurityPanel
                       isOpen={showSecurityPanel}
