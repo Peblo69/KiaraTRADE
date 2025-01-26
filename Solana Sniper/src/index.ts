@@ -20,9 +20,10 @@ let processingBatch = false;
 const MAX_REQUESTS_PER_MINUTE = 10; // 1 request per 6 seconds
 let requestCount = 0;
 let lastReset = Date.now();
-let lastWsConnect = 0;
-const WS_COOLDOWN = 60000; // 1 minute cooldown between WebSocket connections
-let rateLimitMap = new Map<string, number>();
+
+// WebSocket state management
+let activeWs: WebSocket | null = null;
+let wsConnecting = false;
 
 // Reset request counter every minute
 setInterval(() => {
@@ -66,6 +67,140 @@ function isValidSignature(signature: string): boolean {
   }
 
   return true;
+}
+
+// Function to send subscription request
+function sendSubscribeRequest(ws: WebSocket): void {
+  const request: WebSocketRequest = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "logsSubscribe",
+    params: [
+      {
+        mentions: [config.liquidity_pool.radiyum_program_id],
+      },
+      {
+        commitment: "confirmed",
+      },
+    ],
+  };
+  ws.send(JSON.stringify(request));
+}
+
+// WebSocket connection manager
+function initializeWebSocket(): void {
+  if (wsConnecting || activeWs?.readyState === WebSocket.OPEN) {
+    console.log("WebSocket connection already active or connecting");
+    return;
+  }
+
+  wsConnecting = true;
+  const env = validateEnv();
+
+  // Close existing connection if any
+  if (activeWs) {
+    try {
+      activeWs.close();
+    } catch (err) {
+      console.log("Error closing existing WebSocket:", err);
+    }
+    activeWs = null;
+  }
+
+  const ws = new WebSocket(env.HELIUS_WSS_URI, {
+    handshakeTimeout: 10000,
+    maxPayload: 50 * 1024 * 1024, // 50MB max payload
+  });
+
+  console.log("\n🔓 Attempting WebSocket connection...");
+
+  ws.on("open", () => {
+    console.log("✅ WebSocket connected successfully");
+    wsRetryCount = 0;
+    wsConnecting = false;
+    activeWs = ws;
+    sendSubscribeRequest(ws);
+  });
+
+  ws.on("message", async (data: WebSocket.Data) => {
+    try {
+      const jsonString = data.toString();
+      const parsedData = JSON.parse(jsonString);
+
+      if (parsedData.result !== undefined && !parsedData.error) {
+        console.log("✅ Subscription confirmed");
+        return;
+      }
+
+      if (parsedData.error) {
+        console.error("🚫 RPC Error:", parsedData.error);
+        return;
+      }
+
+      const logs = parsedData?.params?.result?.value?.logs;
+      const signature = parsedData?.params?.result?.value?.signature;
+
+      // Validate logs and signature
+      if (!Array.isArray(logs) || !signature || !isValidSignature(signature)) {
+        console.log("⚠️ Invalid WebSocket message format", { 
+          hasLogs: Array.isArray(logs), 
+          hasSignature: !!signature,
+          isValidSig: isValidSignature(signature || '')
+        });
+        return;
+      }
+
+      // Check for new pool creation
+      const containsCreate = logs.some((log: string) => 
+        typeof log === "string" && log.includes("Program log: initialize2: InitializeInstruction2")
+      );
+
+      if (!containsCreate) return;
+
+      // Add new transaction to pending queue with rate limiting
+      if (!pendingTransactions.includes(signature)) {
+        // Check queue size limit
+        if (pendingTransactions.length >= MAX_QUEUE_SIZE) {
+          console.log("⚠️ Queue full, dropping oldest transaction");
+          pendingTransactions.pop(); // Remove oldest transaction
+        }
+
+        pendingTransactions.push(signature);
+        console.log(`📝 Added transaction ${signature} to queue (${pendingTransactions.length}/${MAX_QUEUE_SIZE} pending)`);
+
+        // Start processing if not already processing
+        if (!processingBatch) {
+          processPendingTransactions();
+        }
+      }
+
+    } catch (error) {
+      console.error("💥 Error processing message:", {
+        error: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
+      });
+    }
+  });
+
+  ws.on("error", (error: Error) => {
+    console.error("🚫 WebSocket error:", error.message);
+    wsConnecting = false;
+  });
+
+  ws.on("close", (code: number, reason: string) => {
+    console.log(`📴 WebSocket closed (${code}): ${reason || 'No reason provided'}`);
+    wsConnecting = false;
+    activeWs = null;
+
+    if (wsRetryCount < MAX_WS_RETRIES) {
+      wsRetryCount++;
+      console.log(`🔄 Attempting reconnection ${wsRetryCount}/${MAX_WS_RETRIES} in ${WS_RETRY_DELAY/1000}s...`);
+      setTimeout(initializeWebSocket, WS_RETRY_DELAY);
+    } else {
+      console.error("❌ Max reconnection attempts reached. Please restart the application.");
+      process.exit(1);
+    }
+  });
 }
 
 // Process transactions in batches with rate limiting
@@ -174,131 +309,6 @@ async function processTransaction(signature: string): Promise<void> {
   if (!saveConfirmation) {
     console.log("❌ Warning: Transaction not saved for tracking! Track Manually!");
   }
-}
-
-// Function to send subscription request
-function sendSubscribeRequest(ws: WebSocket): void {
-  const request: WebSocketRequest = {
-    jsonrpc: "2.0",
-    id: 1,
-    method: "logsSubscribe",
-    params: [
-      {
-        mentions: [config.liquidity_pool.radiyum_program_id],
-      },
-      {
-        commitment: "confirmed",
-      },
-    ],
-  };
-  ws.send(JSON.stringify(request));
-}
-
-// WebSocket connection manager
-function initializeWebSocket(): void {
-  // Check WebSocket cooldown
-  const now = Date.now();
-  if (now - lastWsConnect < WS_COOLDOWN) {
-    const waitTime = WS_COOLDOWN - (now - lastWsConnect);
-    console.log(`⏳ WebSocket cooldown, waiting ${waitTime/1000}s...`);
-    setTimeout(initializeWebSocket, waitTime);
-    return;
-  }
-
-  lastWsConnect = now;
-  const env = validateEnv();
-  const ws = new WebSocket(env.HELIUS_WSS_URI, {
-    handshakeTimeout: 10000,
-    maxPayload: 50 * 1024 * 1024, // 50MB max payload
-  });
-
-  console.log("\n🔓 Attempting WebSocket connection...");
-
-  ws.on("open", () => {
-    console.log("✅ WebSocket connected successfully");
-    wsRetryCount = 0;
-    sendSubscribeRequest(ws);
-  });
-
-  ws.on("message", async (data: WebSocket.Data) => {
-    try {
-      const jsonString = data.toString();
-      const parsedData = JSON.parse(jsonString);
-
-      if (parsedData.result !== undefined && !parsedData.error) {
-        console.log("✅ Subscription confirmed");
-        return;
-      }
-
-      if (parsedData.error) {
-        console.error("🚫 RPC Error:", parsedData.error);
-        return;
-      }
-
-      const logs = parsedData?.params?.result?.value?.logs;
-      const signature = parsedData?.params?.result?.value?.signature;
-
-      // Validate logs and signature
-      if (!Array.isArray(logs) || !signature || !isValidSignature(signature)) {
-        console.log("⚠️ Invalid WebSocket message format", { 
-          hasLogs: Array.isArray(logs), 
-          hasSignature: !!signature,
-          isValidSig: isValidSignature(signature || '')
-        });
-        return;
-      }
-
-      // Check for new pool creation
-      const containsCreate = logs.some((log: string) => 
-        typeof log === "string" && log.includes("Program log: initialize2: InitializeInstruction2")
-      );
-
-      if (!containsCreate) return;
-
-      // Add new transaction to pending queue with rate limiting
-      if (!pendingTransactions.includes(signature)) {
-        // Check queue size limit
-        if (pendingTransactions.length >= MAX_QUEUE_SIZE) {
-          console.log("⚠️ Queue full, dropping oldest transaction");
-          pendingTransactions.pop(); // Remove oldest transaction
-        }
-
-        // Add to queue
-        pendingTransactions.push(signature);
-        console.log(`📝 Added transaction ${signature} to queue (${pendingTransactions.length}/${MAX_QUEUE_SIZE} pending)`);
-
-        // Start processing if not already processing
-        if (!processingBatch) {
-          processPendingTransactions();
-        }
-      }
-
-    } catch (error) {
-      console.error("💥 Error processing message:", {
-        error: error instanceof Error ? error.message : "Unknown error",
-        timestamp: new Date().toISOString(),
-      });
-    }
-  });
-
-  ws.on("error", (error: Error) => {
-    console.error("🚫 WebSocket error:", error.message);
-  });
-
-  ws.on("close", (code: number, reason: string) => {
-    console.log(`📴 WebSocket closed (${code}): ${reason || 'No reason provided'}`);
-
-    ws.removeAllListeners();
-
-    if (wsRetryCount < MAX_WS_RETRIES) {
-      wsRetryCount++;
-      console.log(`🔄 Attempting reconnection ${wsRetryCount}/${MAX_WS_RETRIES} in ${WS_RETRY_DELAY/1000}s...`);
-      setTimeout(initializeWebSocket, WS_RETRY_DELAY);
-    } else {
-      console.error("❌ Max reconnection attempts reached. Please restart the application.");
-      process.exit(1);
-    }
-  });
 }
 
 // Print initial status
