@@ -55,25 +55,36 @@ export const initializePumpPortalWebSocket = () => {
             log('[PumpPortal] New token created:', data.mint);
             console.log('[PumpPortal] Setting creator wallet:', data.traderPublicKey);
 
-            // Only check rug risk if token is being actively viewed
+            // First broadcast the basic token data
+            const tokenData: TokenWithRisk = {
+              mint: data.mint,
+              name: data.name || 'Unknown',
+              symbol: data.symbol || 'Unknown',
+              riskScore: 0,
+              riskIndicators: '',
+            };
+
+            // Broadcast new token to all clients
+            wsManager.broadcast({ 
+              type: 'newToken',
+              data: tokenData
+            });
+
+            // If token is being actively viewed, get and broadcast risk data
             if (activeTokens.has(data.mint)) {
               const rugReport = await rugcheckService.getTokenReport(data.mint);
 
               if (rugReport) {
-                // Prepare token data with risk indicators
-                const tokenData: TokenWithRisk = {
-                  mint: data.mint,
-                  name: data.name || 'Unknown',
-                  symbol: data.symbol || 'Unknown',
+                const tokenDataWithRisk: TokenWithRisk = {
+                  ...tokenData,
                   riskScore: rugReport.score,
                   riskIndicators: rugcheckService.getDetailedRiskInfo(rugReport),
                   detailedRisk: rugReport
                 };
 
-                // Broadcast to all connected clients
                 wsManager.broadcast({ 
                   type: 'tokenUpdate',
-                  data: tokenData
+                  data: tokenDataWithRisk
                 });
               }
             }
@@ -89,7 +100,13 @@ export const initializePumpPortalWebSocket = () => {
 
           // Handle trade events
           else if (['buy', 'sell'].includes(data.txType) && data.mint) {
-            // Only check rug risk if token is being actively viewed
+            // Broadcast trade data first
+            wsManager.broadcast({
+              type: 'trade',
+              data: data
+            });
+
+            // Only get risk data if token is being actively viewed
             if (activeTokens.has(data.mint)) {
               const rugReport = await rugcheckService.getTokenReport(data.mint);
               if (rugReport) {
