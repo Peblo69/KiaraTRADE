@@ -1,0 +1,171 @@
+
+    APIs Used:
+
+    Helius API (Main Solana Data Provider):
+
+TypeScript
+
+const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
+
+This API is used for:
+
+    Getting token information
+    Fetching transfer history
+    Getting wallet data
+    Analyzing token metrics
+
+    Main Functionality:
+
+TypeScript
+
+// 1. Get Token Information
+const tokenResponse = await axios.post(HELIUS_RPC_URL, {
+  jsonrpc: '2.0',
+  id: 'token-info',
+  method: 'getAsset',
+  params: [mint] // mint is the token address
+});
+
+// 2. Get Transfer History
+const transfersResponse = await axios.post(HELIUS_RPC_URL, {
+  jsonrpc: '2.0',
+  id: 'transfers',
+  method: 'searchAssets',
+  params: {
+    ownerAddress: mint,
+    limit: 100
+  }
+});
+
+    What the Code Does:
+
+TypeScript
+
+// A. Analyzes Token Safety
+const analytics = {
+  token: {
+    // Basic token info
+    address: mint,
+    name: tokenInfo.content?.metadata?.name || 'Unknown',
+    symbol: tokenInfo.content?.metadata?.symbol || 'Unknown',
+    decimals: tokenInfo.token_info?.decimals || 0,
+    supply: tokenInfo.token_info?.supply || 0,
+  },
+  
+  // B. Analyzes Holder Distribution
+  holders: {
+    total: holderMetrics.totalHolders,
+    unique: holderMetrics.uniqueHolders,
+    top10: topHolders, // Top 10 largest holders
+  },
+
+  // C. Tracks Sniper Activity (quick buyers)
+  snipers: {
+    total: snipersArray.length,
+    details: snipersArray,
+    volume: calculateSniperVolume(snipersArray),
+  },
+
+  // D. Trading Metrics
+  trading: {
+    volume24h: calculateVolume24h(trades),
+    transactions24h: calculateTransactions24h(trades),
+  },
+
+  // E. Risk Assessment
+  risks: [
+    { name: 'Holder Concentration', score: /* ... */ },
+    { name: 'Mint Authority', score: /* ... */ },
+    { name: 'Freeze Authority', score: /* ... */ },
+    { name: 'Sniper Activity', score: /* ... */ }
+  ],
+  rugScore: calculateRiskScore(/* ... */)
+};
+
+    Key Features:
+
+a) Token Safety Check:
+TypeScript
+
+function calculateRiskScore(tokenInfo: any, holderConcentration: any, snipers: any[]): number {
+  let score = 0;
+
+  // Risk: Can mint more tokens
+  if (tokenInfo.authorities?.find((a: any) => a.type === 'mint')) {
+    score += 30;
+  }
+
+  // Risk: Too many tokens held by few wallets
+  if (holderConcentration.top10Percentage > 80) {
+    score += 40;
+  }
+
+  // Risk: Too many snipers (potential pump and dump)
+  if (snipers.length > 20) {
+    score += 30;
+  }
+
+  return score; // Higher score = Higher risk
+}
+
+b) Sniper Detection:
+TypeScript
+
+// Identifies wallets that bought quickly after token launch
+if (blockTime - creationTime <= sniperWindow) {
+  snipers.add({
+    address: toUserAccount,
+    amount,
+    timestamp: blockTime
+  });
+}
+
+c) Holder Analysis:
+TypeScript
+
+function calculateHolderMetrics(holders: Map<string, number>) {
+  const validHolders = Array.from(holders.entries())
+    .filter(([_, balance]) => balance > 0);
+
+  return {
+    totalHolders: validHolders.length,
+    uniqueHolders: new Set(validHolders.map(([address]) => address)).size,
+  };
+}
+
+    Use Case Example:
+
+TypeScript
+
+// Example API call:
+GET /api/token-analytics/225QF1wTNQBFCS9VKh4cRiWkPnb2VhurNVJ7Tf4Qpump
+
+// Returns:
+{
+  "token": {
+    "name": "Some Token",
+    "supply": "1000000000000000",
+    "decimals": "6"
+  },
+  "risks": [
+    {"name": "Mint Authority", "score": 100}, // Can mint more tokens (risky)
+    {"name": "Holder Concentration", "score": 80} // Too concentrated (risky)
+  ],
+  "rugScore": 70 // Higher score = Higher risk
+}
+
+    Purpose:
+
+    Helps identify potentially risky tokens
+    Tracks token holder distribution
+    Monitors trading patterns
+    Calculates risk scores
+    Identifies potential pump and dump schemes
+
+This system is essentially a token analyzer that helps users:
+
+    Assess token safety
+    Track holder distribution
+    Monitor trading activity
+    Identify suspicious patterns
+    Calculate overall risk scores
