@@ -35,8 +35,9 @@ let connection: Connection | null = null;
 
 export async function initializeSolanaMonitor() {
   if (typeof window === 'undefined') return;
-  
-  if (!process.env.VITE_HELIUS_API_KEY) {
+
+  const heliusApiKey = import.meta.env.VITE_HELIUS_API_KEY;
+  if (!heliusApiKey) {
     console.error('[SolanaMonitor] Missing Helius API key');
     return;
   }
@@ -45,12 +46,12 @@ export async function initializeSolanaMonitor() {
 
   try {
     connection = new Connection(
-      `https://mainnet.helius-rpc.com/?api-key=${process.env.VITE_HELIUS_API_KEY}`
+      `https://mainnet.helius-rpc.com/?api-key=${heliusApiKey}`
     );
 
     // Subscribe to Raydium program for new pool events
     const RAYDIUM_PROGRAM_ID = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8";
-    
+
     await connection.onProgramAccountChange(
       new PublicKey(RAYDIUM_PROGRAM_ID),
       async (keyedAccountInfo, context) => {
@@ -58,7 +59,7 @@ export async function initializeSolanaMonitor() {
           // Extract token data
           const signature = context.slot.toString();
           console.log(`[SolanaMonitor] New token event detected at slot ${signature}`);
-          
+
           // Add basic token info, details will be fetched asynchronously
           store.addToken({
             address: signature,

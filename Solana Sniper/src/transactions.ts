@@ -20,82 +20,72 @@ import { insertHolding, insertNewToken, removeHolding, selectTokenByMint, select
 // Load environment variables from the .env file
 dotenv.config();
 
+// Cache successful responses to avoid duplicate API calls
+const responseCache = new Map<string, MintsDataReponse>();
+
 export async function fetchTransactionDetails(signature: string): Promise<MintsDataReponse | null> {
-  // Set function constants
+  // Check cache first
+  if (responseCache.has(signature)) {
+    console.log("📦 Using cached transaction details");
+    return responseCache.get(signature)!;
+  }
+
   const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
   const txUrl = `https://api.helius.xyz/v0/transactions/?api-key=${HELIUS_API_KEY}`;
-  const maxRetries = config.tx.fetch_tx_max_retries;
   let retryCount = 0;
+  const MAX_RETRIES = 2;
+  const INITIAL_DELAY = 2000;
+  const MAX_DELAY = 8000;
 
-  // Add longer initial delay to allow transaction to be processed
-  console.log("Waiting " + config.tx.fetch_tx_initial_delay / 1000 + " seconds for transaction to be confirmed...");
-  await new Promise((resolve) => setTimeout(resolve, config.tx.fetch_tx_initial_delay));
+  // Initial delay
+  await new Promise(resolve => setTimeout(resolve, INITIAL_DELAY));
 
-  while (retryCount < maxRetries) {
+  while (retryCount < MAX_RETRIES) {
     try {
-      // Output logs
-      console.log(`Attempt ${retryCount + 1} of ${maxRetries} to fetch transaction details...`);
+      console.log(`Attempt ${retryCount + 1} of ${MAX_RETRIES} to fetch transaction details...`);
 
       const response = await axios.post<any>(
         txUrl,
+        { transactions: [signature] },
         {
-          transactions: [signature],
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          timeout: config.tx.get_timeout,
+          headers: { "Content-Type": "application/json" },
+          timeout: 10000,
         }
       );
 
-      // Verify if a response was received
-      if (!response.data) {
-        throw new Error("No response data received");
+      if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
+        throw new Error("Invalid response data");
       }
 
-      // Verify if the response was in the correct format and not empty
-      if (!Array.isArray(response.data) || response.data.length === 0) {
-        throw new Error("Response data array is empty");
-      }
-
-      // Access the data property which contains the array of transactions
       const transactions: TransactionDetailsResponseArray = response.data;
-
-      // Verify if transaction details were found
       if (!transactions[0]) {
         throw new Error("Transaction not found");
       }
 
-      // Access the instructions property which contains account instructions
       const instructions = transactions[0].instructions;
       if (!instructions || !Array.isArray(instructions) || instructions.length === 0) {
-        throw new Error("No instructions found in transaction");
+        throw new Error("No instructions found");
       }
 
-      // Verify and find the instructions for the correct market maker id
       const instruction = instructions.find((ix) => ix.programId === config.liquidity_pool.radiyum_program_id);
       if (!instruction || !instruction.accounts) {
         throw new Error("No market maker instruction found");
       }
 
-      // Validate accounts array
       if (!Array.isArray(instruction.accounts) || instruction.accounts.length < 10) {
-        throw new Error("Invalid accounts array in instruction");
+        throw new Error("Invalid accounts array");
       }
 
-      // Store quote and token mints
       const accountOne = instruction.accounts[8];
       const accountTwo = instruction.accounts[9];
 
-      // Verify if we received both quote and token mints
       if (!accountOne || !accountTwo) {
         throw new Error("Required accounts not found");
       }
 
-      // Set new token and SOL mint 
       let solTokenAccount = "";
       let newTokenAccount = "";
+
       if (accountOne === config.liquidity_pool.wsol_pc_mint) {
         solTokenAccount = accountOne;
         newTokenAccount = accountTwo;
@@ -104,51 +94,46 @@ export async function fetchTransactionDetails(signature: string): Promise<MintsD
         newTokenAccount = accountOne;
       }
 
-      // Validate token addresses
-      if (!solTokenAccount.match(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/)) {
-        throw new Error("Invalid SOL token account format");
-      }
-      if (!newTokenAccount.match(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/)) {
-        throw new Error("Invalid new token account format");
+      if (!solTokenAccount.match(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/) ||
+          !newTokenAccount.match(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/)) {
+        throw new Error("Invalid token account format");
       }
 
-      // Output logs
-      console.log("Successfully fetched transaction details!");
-      console.log(`SOL Token Account: ${solTokenAccount}`);
-      console.log(`New Token Account: ${newTokenAccount}`);
+      console.log("✅ Transaction details fetched successfully");
+      console.log(`SOL Token: ${solTokenAccount}`);
+      console.log(`New Token: ${newTokenAccount}`);
 
-      return {
+      const result = {
         tokenMint: newTokenAccount,
         solMint: solTokenAccount,
       };
+
+      // Cache the successful response
+      responseCache.set(signature, result);
+
+      // Clean up old cache entries periodically
+      if (responseCache.size > 100) {
+        const oldestKey = responseCache.keys().next().value;
+        responseCache.delete(oldestKey);
+      }
+
+      return result;
+
     } catch (error: any) {
       console.log(`Attempt ${retryCount + 1} failed: ${error.message}`);
 
-      // Special handling for different error types
-      if (error.response?.status === 404) {
-        console.log("Transaction not yet available, waiting longer...");
-        await new Promise((resolve) => setTimeout(resolve, config.tx.fetch_tx_initial_delay));
-      } else if (error.response?.status === 429) {
-        // Rate limit hit - use exponential backoff
-        const delay = Math.min(5000 * Math.pow(2, retryCount), 30000);
-        console.log(`Rate limit hit. Waiting ${delay/1000}s before retry...`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      } else if (error.response?.status === 400) {
-        // Bad request - likely invalid signature, wait shorter time
-        const delay = Math.min(2000 * Math.pow(1.5, retryCount), 10000);
-        console.log(`Invalid request. Waiting ${delay/1000}s before retry...`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
+      if (error.response?.status === 429) {
+        const delay = Math.min(INITIAL_DELAY * Math.pow(2, retryCount), MAX_DELAY);
+        console.log(`Rate limit hit. Waiting ${delay/1000}s...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       } else {
-        // For other errors, use moderate backoff
-        const delay = Math.min(3000 * Math.pow(1.5, retryCount), 15000);
-        console.log(`Error: ${error.message}. Waiting ${delay/1000}s before retry...`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await new Promise(resolve => setTimeout(resolve, INITIAL_DELAY));
       }
 
       retryCount++;
 
-      if (retryCount >= maxRetries) {
-        console.log("All attempts to fetch transaction details failed");
+      if (retryCount >= MAX_RETRIES) {
+        console.log("❌ All attempts to fetch transaction details failed");
         return null;
       }
     }
