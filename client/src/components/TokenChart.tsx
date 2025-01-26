@@ -204,6 +204,13 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     };
   }, [token?.recentTrades, initializeChart, cleanupChart]);
 
+  useEffect(() => {
+    if (tokenAddress) {
+      useTokenAnalyticsStore.getState().performRugCheck(tokenAddress);
+    }
+  }, [tokenAddress]);
+
+
   const formatPrice = (value: number) => {
     if (!value || isNaN(value)) return showUsd ? '$0.00' : '0 SOL';
     return showUsd
@@ -220,12 +227,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
   const formatTimestamp = (timestamp: number) =>
     new Date(timestamp).toLocaleString();
-
-  // Fetch token analytics
-  //const { data: analytics, isLoading: isLoadingAnalytics } = useQuery<TokenAnalytics>({
-  //  queryKey: [`/api/token-analytics/${tokenAddress}`],
-  //  enabled: showAnalytics,
-  //});
 
   if (!token) return null;
 

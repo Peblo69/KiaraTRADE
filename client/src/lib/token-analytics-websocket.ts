@@ -1,3 +1,4 @@
+import { create } from 'zustand';
 
 interface RugCheckResult {
   score: number;
@@ -22,9 +23,6 @@ interface RugCheckResult {
     totalLiquidity: number;
   }[];
 }
-
-
-import { create } from 'zustand';
 
 interface TokenAnalytics {
   topHolders: Array<{
@@ -59,35 +57,11 @@ interface TokenAnalyticsStore {
   performRugCheck: (tokenAddress: string) => Promise<void>;
 }
 
-interface RugCheckResult {
-  score: number;
-  risks: {
-    name: string;
-    value: string;
-    description: string;
-    score: number;
-    level: 'low' | 'medium' | 'high';
-  }[];
-  mintAuthority: string | null;
-  freezeAuthority: string | null;
-  topHolders: {
-    address: string;
-    amount: number;
-    pct: number;
-    insider: boolean;
-  }[];
-  markets: {
-    liquidityA: string;
-    liquidityB: string;
-    totalLiquidity: number;
-  }[];
-}
-
 export const useTokenAnalyticsStore = create<TokenAnalyticsStore>((set, get) => ({
   analytics: {},
   creationTimes: {},
   rugCheck: {},
-  
+
   updateAnalytics: (tokenAddress, data) => set((state) => ({
     analytics: {
       ...state.analytics,
@@ -108,7 +82,7 @@ export const useTokenAnalyticsStore = create<TokenAnalyticsStore>((set, get) => 
   addSniper: (tokenAddress, address, amount, timestamp) => {
     const state = get();
     const creationTime = state.creationTimes[tokenAddress];
-    
+
     if (creationTime && timestamp - creationTime <= 30000) {
       set((state) => {
         const current = state.analytics[tokenAddress] || {
@@ -229,7 +203,7 @@ function calculateRugScore(factors: {
   sniperCount: number;
 }): number {
   let score = 0;
-  
+
   if (factors.hasUnlockedMint) score += 30;
   if (factors.hasUnlockedFreeze) score += 20;
   if (factors.topHolderConcentration > 50) score += 25;
@@ -241,7 +215,7 @@ function calculateRugScore(factors: {
 
 function generateRiskReport(score: number) {
   const risks = [];
-  
+
   if (score >= 75) {
     risks.push({
       name: 'Critical Risk',
