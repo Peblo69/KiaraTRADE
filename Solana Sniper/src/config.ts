@@ -17,7 +17,6 @@ export const config = {
     prio_level: "high", // Changed from veryHigh to high for testing
     amount: "10000000", // 0.01 SOL maximum per trade
     slippageBps: "200", // 2% slippage tolerance
-    db_name_tracker_holdings: "src/tracker/holdings.db",
     token_not_tradable_400_error_retries: 3,
     token_not_tradable_400_error_delay: 2000,
   },
