@@ -25,24 +25,48 @@ interface RugCheckResult {
 }
 
 interface TokenAnalytics {
-  topHolders: Array<{
-    address: string;
-    balance: number;
-    percentage: number;
-  }>;
-  snipers: Array<{
-    address: string;
-    timestamp: number;
-    amount: number;
-    type: 'buy' | 'sell';
-    profit?: number;
-  }>;
-  analytics: {
-    totalHolders: number;
-    averageBalance: number;
-    sniperCount: number;
-    totalVolume: number;
-    rugPullRisk: 'low' | 'medium' | 'high';
+  holders: {
+    total: number;
+    unique: number;
+    top10: Array<{
+      address: string;
+      balance: number;
+      percentage: number;
+    }>;
+    concentration: {
+      top10Percentage: number;
+      riskLevel: string;
+    };
+    distribution: Array<{
+      name: string;
+      holders: number;
+    }>;
+  };
+  snipers: {
+    total: number;
+    details: Array<{
+      address: string;
+      amount: number;
+      timestamp: number;
+      profit?: number;
+    }>;
+    volume: number;
+    averageAmount: number;
+  };
+  trading: {
+    volume24h: number;
+    transactions24h: number;
+    averageTradeSize: number;
+    priceImpact: number;
+  };
+  risk: {
+    holderConcentration: string;
+    sniperActivity: string;
+    mintRisk: string;
+    overallRisk: {
+      score: number;
+      level: string;
+    };
   };
 }
 
