@@ -663,118 +663,246 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/token-analytics/:mint', async (req, res) => {
     try {
       const { mint } = req.params;
-      console.log(`[Routes] Getting token analytics for ${mint}`);
+      console.log(`[Routes] Getting analytics for token ${mint}`);
 
-      // Get token metadata and authority info using correct Helius API methods
-      const [tokenInfoResponse, holdersResponse, txResponse] = await Promise.all([
+      // 1. Get Basic Token Info and Transfers
+      const [assetResponse, transfersResponse] = await Promise.all([
         axios.post(HELIUS_RPC_URL, {
           jsonrpc: '2.0',
-          id: 'token-info',
-          method: 'getToken',  // Correct method name
-          params: [mint]
-        }),
-        axios.post(HELIUS_RPC_URL, {
-          jsonrpc: '2.0',
-          id: 'holders-request',
-          method: 'getTokenHolders',  // Correct method name
-          params: [mint]
-        }),
-        axios.post(HELIUS_RPC_URL, {
-          jsonrpc: '2.0',
-          id: 'tx-request',
-          method: 'searchTransactions',  // Correct method name
+          id: 'asset-info',
+          method: 'getAsset',
           params: {
-            commitment: "finalized",
+            id: mint
+          }
+        }),
+        axios.post(HELIUS_RPC_URL, {
+          jsonrpc: '2.0',
+          id: 'transfers',
+          method: 'getAssetTransfers',
+          params: {
+            asset: mint,
             limit: 100,
-            query: {
-              accounts: [mint]
+            sortBy: {
+              timestamp: 'desc'
             }
           }
         })
       ]);
 
-      console.log('[DEBUG] Token Info Response:', tokenInfoResponse.data);
-      console.log('[DEBUG] Holders Response:', holdersResponse.data);
-      console.log('[DEBUG] Transactions Response:', txResponse.data);
+      const tokenInfo = assetResponse.data.result;
+      const transfers = transfersResponse.data.result || [];
 
-      // Extract token information
-      const tokenInfo = tokenInfoResponse.data.result;
-      const mintAuthority = tokenInfo?.mintAuthority || null;
-      const freezeAuthority = tokenInfo?.freezeAuthority || null;
+      // 2. Get Jupiter DEX Data
+      let jupiterData = null;
+      try {
+        const jupResponse = await axios.get(`https://price.jup.ag/v4/price?ids=${mint}`);
+        jupiterData = jupResponse.data?.data?.[mint];
+      } catch (error) {
+        console.log(`No Jupiter liquidity found for ${mint}`);
+      }
 
-      // Calculate holder distribution
-      const holders = holdersResponse.data.result || [];
-      const totalSupply = tokenInfo.supply || 0;
-
-      const holdersBySize = holders
-        .map(h => ({
-          address: h.address,
-          amount: h.amount,
-          pct: (h.amount / totalSupply) * 100
-        }))
-        .sort((a, b) => b.amount - a.amount);
-
-      // Analyze transactions for patterns
-      const transactions = txResponse.data.result || [];
-      const creationTime = transactions[transactions.length - 1]?.timestamp || Date.now();
-
-      // Identify early buyer patterns (snipers)
+      // 3. Process transfers to identify holders and snipers
+      const holders = new Map();
+      const snipers = new Set();
+      const trades = [];
+      const creationTime = transfers[transfers.length - 1]?.timestamp || Date.now();
       const sniperWindow = 30000; // 30 seconds
-      const snipers = transactions
-        .filter(tx => tx.timestamp - creationTime <= sniperWindow)
-        .map(tx => ({
-          address: tx.source,
-          timestamp: tx.timestamp,
-          amount: tx.tokenTransfers?.[0]?.tokenAmount || 0
-        }));
 
-      // Check for liquidity changes using Raydium program ID
-      const liquidityTx = transactions.filter(tx => 
-        tx.tokenTransfers?.some(transfer => 
-          transfer.source.includes('liquidity') || 
-          transfer.destination.includes('liquidity')
-        )
-      );
+      transfers.forEach(transfer => {
+        // Track holders
+        const { fromAddress, toAddress, amount, timestamp } = transfer;
+        
+        if (fromAddress) {
+          const currentFromBalance = holders.get(fromAddress) || 0;
+          holders.set(fromAddress, currentFromBalance - amount);
+        }
+        
+        if (toAddress) {
+          const currentToBalance = holders.get(toAddress) || 0;
+          holders.set(toAddress, currentToBalance + amount);
 
-      const liquidityAnalysis = {
-        totalLiquidity: liquidityTx.reduce((sum, tx) => 
-          sum + (tx.tokenTransfers?.[0]?.tokenAmount || 0), 0),
-        recentChanges: liquidityTx.slice(0, 5)
+          // Check for snipers (early buyers)
+          if (timestamp - creationTime <= sniperWindow) {
+            snipers.add({
+              address: toAddress,
+              amount,
+              timestamp
+            });
+          }
+        }
+
+        // Track trades
+        trades.push({
+          type: fromAddress ? 'sell' : 'buy',
+          address: fromAddress || toAddress,
+          amount,
+          timestamp,
+          price: jupiterData?.price || 0
+        });
+      });
+
+      // 4. Calculate holder metrics
+      const holderMetrics = calculateHolderMetrics(holders);
+      const snipersArray = Array.from(snipers);
+      const topHolders = getTopHolders(holders, 10);
+      
+      const holderConcentration = {
+        top10Percentage: topHolders.reduce((sum, h) => sum + h.percentage, 0),
+        riskLevel: 'low'
       };
 
-      console.log('[Routes] Analytics response:', {
-        topHoldersCount: holdersBySize.length,
-        snipersCount: snipers.length,
-        liquidityStatus: liquidityAnalysis.totalLiquidity > 0 ? 'present' : 'absent'
+      if (holderConcentration.top10Percentage > 80) {
+        holderConcentration.riskLevel = 'high';
+      } else if (holderConcentration.top10Percentage > 50) {
+        holderConcentration.riskLevel = 'medium';
+      }
+
+      // 5. Prepare response
+      const analytics = {
+        holders: {
+          total: holderMetrics.totalHolders,
+          unique: holderMetrics.uniqueHolders,
+          top10: topHolders,
+          concentration: holderConcentration,
+          distribution: holderMetrics.distribution
+        },
+        snipers: {
+          total: snipersArray.length,
+          details: snipersArray,
+          volume: calculateSniperVolume(snipersArray),
+          averageAmount: calculateAverageAmount(snipersArray)
+        },
+        trading: {
+          volume24h: calculateVolume24h(trades),
+          transactions24h: calculateTransactions24h(trades),
+          averageTradeSize: calculateAverageTradeSize(trades),
+          priceImpact: calculatePriceImpact(trades)
+        },
+        risk: {
+          holderConcentration: holderConcentration.riskLevel,
+          sniperActivity: snipersArray.length > 20 ? 'high' : snipersArray.length > 10 ? 'medium' : 'low',
+          mintRisk: tokenInfo.authorities?.length > 0 ? 'high' : 'low',
+          overallRisk: calculateOverallRisk({
+            holderConcentration,
+            snipers: snipersArray,
+            authorities: tokenInfo.authorities
+          })
+        }
+      };
+
+      console.log('[Routes] Analytics prepared:', {
+        holdersCount: analytics.holders.total,
+        snipersCount: analytics.snipers.total,
+        risk: analytics.risk.overallRisk
       });
 
-      res.json({
-        mintAuthority,
-        freezeAuthority,
-        topHolders: holdersBySize,
-        snipers,
-        markets: [{
-          totalLiquidity: liquidityAnalysis.totalLiquidity
-        }],
-        analytics: {
-          totalHolders: holders.length,
-          averageBalance: totalSupply / holders.length,
-          sniperCount: snipers.length
-        }
-      });
+      res.json(analytics);
 
     } catch (error: any) {
-      console.error('[Routes] Token analytics error:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
+      console.error('[Routes] Token analytics error:', error);
       res.status(500).json({
         error: 'Failed to fetch token analytics',
         details: error.message
       });
     }
   });
+
+  // Helper functions for analytics calculations
+  function calculateHolderMetrics(holders: Map<string, number>) {
+    const validHolders = Array.from(holders.entries())
+      .filter(([_, balance]) => balance > 0);
+
+    const totalHolders = validHolders.length;
+    const totalSupply = validHolders.reduce((sum, [_, balance]) => sum + balance, 0);
+
+    return {
+      totalHolders,
+      uniqueHolders: new Set(validHolders.map(([address]) => address)).size,
+      distribution: calculateDistribution(validHolders, totalSupply)
+    };
+  }
+
+  function calculateDistribution(holders: [string, number][], totalSupply: number) {
+    const ranges = [
+      { name: 'Whales (>1%)', min: 0.01 },
+      { name: 'Large (0.1-1%)', min: 0.001, max: 0.01 },
+      { name: 'Medium (0.01-0.1%)', min: 0.0001, max: 0.001 },
+      { name: 'Small (<0.01%)', max: 0.0001 }
+    ];
+
+    return ranges.map(range => ({
+      name: range.name,
+      holders: holders.filter(([_, balance]) => {
+        const percentage = balance / totalSupply;
+        return (!range.min || percentage >= range.min) && 
+               (!range.max || percentage < range.max);
+      }).length
+    }));
+  }
+
+  function getTopHolders(holders: Map<string, number>, limit: number) {
+    return Array.from(holders.entries())
+      .filter(([_, balance]) => balance > 0)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, limit)
+      .map(([address, balance]) => ({
+        address,
+        balance,
+        percentage: balance / Array.from(holders.values()).reduce((a, b) => a + b, 0) * 100
+      }));
+  }
+
+  function calculateSniperVolume(snipers: any[]) {
+    return snipers.reduce((sum: number, sniper: any) => sum + sniper.amount, 0);
+  }
+
+  function calculateAverageAmount(snipers: any[]) {
+    return snipers.length ? calculateSniperVolume(snipers) / snipers.length : 0;
+  }
+
+  function calculateVolume24h(trades: any[]) {
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    return trades
+      .filter(trade => trade.timestamp >= oneDayAgo)
+      .reduce((sum, trade) => sum + (trade.amount * trade.price), 0);
+  }
+
+  function calculateTransactions24h(trades: any[]) {
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    return trades.filter(trade => trade.timestamp >= oneDayAgo).length;
+  }
+
+  function calculateAverageTradeSize(trades: any[]) {
+    return trades.length ? trades.reduce((sum, trade) => sum + trade.amount, 0) / trades.length : 0;
+  }
+
+  function calculatePriceImpact(trades: any[]) {
+    if (trades.length < 2) return 0;
+    const sortedTrades = [...trades].sort((a, b) => b.amount - a.amount);
+    const largestTrade = sortedTrades[0];
+    const averageAmount = calculateAverageTradeSize(trades);
+    return (largestTrade.amount / averageAmount) - 1;
+  }
+
+  function calculateOverallRisk(data: any) {
+    let riskScore = 0;
+
+    // Holder concentration risk
+    if (data.holderConcentration.top10Percentage > 80) riskScore += 40;
+    else if (data.holderConcentration.top10Percentage > 50) riskScore += 20;
+
+    // Sniper activity risk
+    if (data.snipers.length > 20) riskScore += 30;
+    else if (data.snipers.length > 10) riskScore += 15;
+
+    // Authority risk
+    if (data.authorities?.length > 0) riskScore += 30;
+
+    return {
+      score: riskScore,
+      level: riskScore > 70 ? 'high' : riskScore > 40 ? 'medium' : 'low'
+    };
+  }
 
   return httpServer;
 }
