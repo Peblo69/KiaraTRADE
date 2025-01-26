@@ -1,9 +1,41 @@
-import WebSocket from "ws";
+import { format } from 'date-fns';
+import dotenv from 'dotenv';
+import WebSocket from 'ws';
+import { Connection } from '@solana/web3.js';
 import { WebSocketRequest } from "./types";
 import { config } from "./config";
 import { fetchTransactionDetails, createSwapTransaction, getRugCheckConfirmed, fetchAndSaveSwapDetails } from "./transactions";
 import { validateEnv } from "./utils/env-validator";
 import { monitorService } from "./monitor";
+
+// Load environment variables
+dotenv.config();
+
+function getCurrentTime(): string {
+  return format(new Date(), 'yyyy-MM-dd HH:mm:ss');
+}
+
+console.log(`\n🚀 Starting Solana Token Sniper...`);
+console.log(`📅 Current Time (UTC): ${getCurrentTime()}`);
+
+// Basic connection test
+async function testConnection() {
+  try {
+    if (!process.env.HELIUS_HTTPS_URI) {
+      console.log('❌ Missing HELIUS_HTTPS_URI environment variable');
+      return;
+    }
+
+    const connection = new Connection(process.env.HELIUS_HTTPS_URI);
+    const version = await connection.getVersion();
+    console.log('✅ Solana connection established:', version);
+  } catch (error) {
+    console.error('❌ Failed to connect:', error);
+  }
+}
+
+testConnection();
+
 
 // Regional Variables
 let activeTransactions = 0;

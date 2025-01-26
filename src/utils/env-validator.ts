@@ -47,13 +47,14 @@ export function validateEnv(): EnvConfig {
 
   function isValidUrl(urlString: string, protocol: string): boolean {
     try {
-      console.log(`Validating URL: ${urlString} with protocol ${protocol}`);
+      console.log(`Validating URL: ${urlString}`);
+      if (!urlString.startsWith(protocol)) {
+        return false;
+      }
       const url = new URL(urlString);
-      const valid = url.protocol === protocol;
-      console.log(`URL validation result: ${valid ? "valid" : "invalid"}`);
-      return valid;
-    } catch (e) {
-      console.log(`URL validation error:`, e);
+      return url.protocol === protocol;
+    } catch (err) {
+      console.log(`URL validation error: ${err instanceof Error ? err.message : 'Unknown error'}`);
       return false;
     }
   }
@@ -64,7 +65,7 @@ export function validateEnv(): EnvConfig {
 
     console.log(`Validating ${envVar}`);
     if (!isValidUrl(value, protocol)) {
-      throw new Error(`🚫 ${envVar} must start with ${protocol}`);
+      throw new Error(`🚫 ${envVar} must be a valid URL starting with ${protocol}`);
     }
 
     if (checkApiKey && value) {
@@ -72,10 +73,11 @@ export function validateEnv(): EnvConfig {
         const url = new URL(value);
         const apiKey = url.searchParams.get("api-key");
         if (!apiKey || apiKey.trim() === "") {
-          throw new Error(`🚫 The 'api-key' parameter is missing or empty in the URL: ${value}`);
+          throw new Error(`🚫 The 'api-key' parameter is missing or empty in ${envVar}`);
         }
-      } catch (e) {
-        throw new Error(`🚫 Invalid URL format for ${envVar}: ${e.message}`);
+      } catch (err) {
+        const error = err as Error;
+        throw new Error(`🚫 Invalid URL format for ${envVar}: ${error.message}`);
       }
     }
   };
