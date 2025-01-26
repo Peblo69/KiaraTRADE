@@ -423,30 +423,18 @@ export function registerRoutes(app: Express): Server {
       const tokenInfoResponse = await axios.post(HELIUS_RPC_URL, {
         jsonrpc: '2.0',
         id: 'token-info',
-        method: 'searchAssets',
-        params: {
-          ownerAddress: mint,
-          displayOptions: {
-            showFungible: true
-          }
-        }
+        method: 'getAsset',
+        params: [mint]
       });
 
-      if (!tokenInfoResponse.data?.result) {
-        throw new Error('Invalid token info response from Helius API');
-      }
-
-      const tokenInfo = tokenInfoResponse.data.result;
-
-      // 2. Get balance and holder information
+      // 2. Get balance and holder information 
       const balanceResponse = await axios.post(HELIUS_RPC_URL, {
         jsonrpc: '2.0',
         id: 'balance-info',
-        method: 'getAssetsByGroup',
+        method: 'searchAssets',
         params: {
-          groupKey: mint,
-          groupValue: "mint",
-          page: 1,
+          ownerAddress: mint,
+          page: 1, 
           limit: 1000
         }
       });
@@ -455,21 +443,21 @@ export function registerRoutes(app: Express): Server {
       const txResponse = await axios.post(HELIUS_RPC_URL, {
         jsonrpc: '2.0',
         id: 'tx-history',
-        method: 'getTransactions',
+        method: 'getAssetTransfers',
         params: {
-          commitment: 'confirmed',
+          asset: mint,
           limit: 100,
-          before: '',
-          until: '',
-          accounts: [mint]
+          sortBy: {
+            timestamp: "desc"
+          }
         }
       });
 
       // Process token information
-      const supply = tokenInfo.token_info?.supply || 0;
-      const decimals = tokenInfo.token_info?.decimals || 0;
-      const mintAuthority = tokenInfo.authorities?.[0]?.address;
-      const freezeAuthority = tokenInfo.authorities?.[1]?.address;
+      const supply = tokenInfoResponse.data.result.supply || 0;
+      const decimals = tokenInfoResponse.data.result.decimals || 0;
+      const mintAuthority = tokenInfoResponse.data.result.mintAuthority;
+      const freezeAuthority = tokenInfoResponse.data.result.freezeAuthority;
 
       // Calculate creation time from transaction history or use current time
       const creationTime = Date.now(); // Default to current time
@@ -529,13 +517,13 @@ export function registerRoutes(app: Express): Server {
 
       const holderConcentration = calculateHolderConcentration(topHolders);
       const snipersArray = Array.from(snipers).slice(0, 10);
-      
+
       // Prepare analytics response
       const analytics = {
         token: {
           address: mint,
-          name: tokenInfo.content?.metadata?.name || 'Unknown',
-          symbol: tokenInfo.content?.metadata?.symbol || 'Unknown',
+          name: tokenInfoResponse.data.result.name || 'Unknown',
+          symbol: tokenInfoResponse.data.result.symbol || 'Unknown',
           decimals,
           totalSupply: supply,
           mintAuthority,
@@ -558,7 +546,7 @@ export function registerRoutes(app: Express): Server {
           averageAmount: trades.length ? trades.reduce((sum, t) => sum + (t.amount || 0), 0) / trades.length : 0
         },
         risk: calculateRiskMetrics({
-          tokenInfo,
+          tokenInfoResponse: tokenInfoResponse.data.result,
           topHolders,
           snipers: snipersArray,
           trades
@@ -585,7 +573,7 @@ function calculateRiskMetrics(data: any) {
   const risks = [];
 
   // Mint authority risk
-  if (data.tokenInfo.authorities?.length > 0) {
+  if (data.tokenInfoResponse.authorities?.length > 0) {
     riskScore += 30;
     risks.push({
       type: 'mint_authority',
@@ -911,9 +899,7 @@ function calculateRiskMetrics(data: any) {
           jsonrpc: '2.0',
           id: 'asset-info',
           method: 'getAsset',
-          params: {
-            id: mint
-          }
+          params: [mint]
         }),
         axios.post(HELIUS_RPC_URL, {
           jsonrpc: '2.0',
@@ -946,17 +932,17 @@ function calculateRiskMetrics(data: any) {
       const snipers = new Set();
       const trades = [];
       const creationTime = transfers[transfers.length - 1]?.timestamp || Date.now();
-      const sniperWindow = 30000; // 30 seconds
+      constsniperWindow = 30000; // 30 seconds
 
       transfers.forEach(transfer => {
         // Track holders
         const { fromAddress, toAddress, amount, timestamp } = transfer;
-        
+
         if (fromAddress) {
           const currentFromBalance = holders.get(fromAddress) || 0;
           holders.set(fromAddress, currentFromBalance - amount);
         }
-        
+
         if (toAddress) {
           const currentToBalance = holders.get(toAddress) || 0;
           holders.set(toAddress, currentToBalance + amount);
@@ -985,7 +971,7 @@ function calculateRiskMetrics(data: any) {
       const holderMetrics = calculateHolderMetrics(holders);
       const snipersArray = Array.from(snipers);
       const topHolders = getTopHolders(holders, 10);
-      
+
       const holderConcentration = {
         top10Percentage: topHolders.reduce((sum, h) => sum + h.percentage, 0),
         riskLevel: 'low'
