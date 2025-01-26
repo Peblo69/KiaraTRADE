@@ -5,20 +5,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { wsManager } from './services/websocket';
 import { initializePumpPortalWebSocket } from './pumpportal';
-import { generateAIResponse } from './services/ai';
 import axios from 'axios';
-import { getTokenImage } from './image-worker';
-import { pricePredictionService } from './services/price-prediction';
-import { cryptoService } from './services/crypto'; // Import the crypto service
 
 // Constants
 const CACHE_DURATION = 30000; // 30 seconds cache
-const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
-const NEWSDATA_API_BASE = 'https://newsdata.io/api/1';
-
-// Configure axios with timeout and headers
-axios.defaults.timeout = 10000;
-axios.defaults.headers.common['accept'] = 'application/json';
 
 // Add request interceptor for rate limiting
 let lastRequestTime = 0;
@@ -36,20 +26,12 @@ axios.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Cache structure for API data
-const cache = {
-  prices: { data: null, timestamp: 0 },
-  stats24h: { data: null, timestamp: 0 },
-  trending: { data: null, timestamp: 0 },
-  news: { data: null, timestamp: 0 }
-};
-
 if (!process.env.HELIUS_API_KEY) {
   throw new Error("HELIUS_API_KEY must be set in environment variables");
 }
 
-// Update Helius RPC URL with the working API key
-const HELIUS_RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=004f9b13-f526-4952-9998-52f5c7bec6ee';
+// Update Helius RPC URL with API key
+const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
 
 function logHeliusError(error: any, context: string) {
   console.error(`[Helius ${context} Error]`, {
@@ -65,7 +47,7 @@ function logHeliusError(error: any, context: string) {
 export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
-  // Initialize WebSocket manager - this will handle all WebSocket connections
+  // Initialize WebSocket manager
   wsManager.initialize(httpServer);
 
   // Initialize PumpPortal WebSocket
@@ -413,253 +395,6 @@ export function registerRoutes(app: Express): Server {
 
       const kucoinTimeframe = timeframeMap[timeframe as string] || '1hour';
 
-  // Add token analytics endpoint
-  app.get('/api/token-analytics/:mint', async (req, res) => {
-    try {
-      const { mint } = req.params;
-      console.log(`[Routes] Getting analytics for token ${mint}`);
-
-      // 1. Get Basic Token Info using getAsset
-      const tokenInfoResponse = await axios.post(HELIUS_RPC_URL, {
-        jsonrpc: '2.0',
-        id: 'token-info',
-        method: 'getAsset',
-        params: [mint]
-      });
-
-      // 2. Get balance and holder information 
-      const balanceResponse = await axios.post(HELIUS_RPC_URL, {
-        jsonrpc: '2.0',
-        id: 'balance-info',
-        method: 'searchAssets',
-        params: {
-          ownerAddress: mint,
-          page: 1, 
-          limit: 1000
-        }
-      });
-
-      // 3. Get recent transactions
-      const txResponse = await axios.post(HELIUS_RPC_URL, {
-        jsonrpc: '2.0',
-        id: 'tx-history',
-        method: 'getSignaturesForAsset',
-        params: {
-          assetId: mint,
-          limit: 100,
-          sortBy: {
-            value: "blockTime",
-            order: "desc"
-          }
-        }
-      });
-
-      // Process token information
-      const supply = tokenInfoResponse.data.result.supply || 0;
-      const decimals = tokenInfoResponse.data.result.decimals || 0;
-      const mintAuthority = tokenInfoResponse.data.result.mintAuthority;
-      const freezeAuthority = tokenInfoResponse.data.result.freezeAuthority;
-
-      // Calculate creation time from transaction history or use current time
-      const creationTime = Date.now(); // Default to current time
-      let holders = new Map();
-      let snipers = new Set();
-      let trades = [];
-
-      // Process transactions if available
-      if (txResponse.data?.result) {
-        const transactions = txResponse.data.result;
-        const sniperWindow = 30000; // 30 seconds after creation
-
-        // Get parsed transaction details
-        const parsedTxResponse = await axios.post(HELIUS_RPC_URL, {
-          jsonrpc: '2.0',
-          id: 'parsed-tx',
-          method: 'getParsedTransactions',
-          params: {
-            signatures: transactions.map(tx => tx.signature)
-          }
-        });
-
-        const parsedTxs = parsedTxResponse.data.result || [];
-        parsedTxs.forEach(tx => {
-          const tokenTransfer = tx.tokenTransfers?.[0];
-          if (!tokenTransfer) return;
-
-          if (tx.timestamp && tx.timestamp < creationTime) {
-            creationTime = tx.timestamp;
-          }
-
-          // Track trades
-          trades.push({
-            type: tokenTransfer.fromUserAccount ? 'sell' : 'buy',
-            amount: tokenTransfer.tokenAmount,
-            timestamp: tx.timestamp,
-            address: tokenTransfer.fromUserAccount || tokenTransfer.toUserAccount
-          });
-
-          // Track holders
-          if (tokenTransfer.toUserAccount) {
-            const currentBalance = holders.get(tokenTransfer.toUserAccount) || 0;
-            holders.set(tokenTransfer.toUserAccount, currentBalance + tokenTransfer.tokenAmount);
-          }
-
-          // Track potential snipers
-          if (tx.timestamp - creationTime <= sniperWindow && tokenTransfer.tokenAmount > 0) {
-            snipers.add({
-              address: tokenTransfer.toUserAccount,
-              amount: tokenTransfer.tokenAmount,
-              timestamp: tx.timestamp
-            });
-          }
-        });
-      }
-
-      // Process holder information if available
-      if (balanceResponse.data?.result?.items) {
-        balanceResponse.data.result.items.forEach(item => {
-          if (item.ownership?.owner && item.ownership?.amount) {
-            holders.set(item.ownership.owner, item.ownership.amount);
-          }
-        });
-      }
-
-      // Calculate metrics
-      const topHolders = Array.from(holders.entries())
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 10)
-        .map(([address, amount]) => ({
-          address,
-          amount,
-          pct: (amount / supply) * 100
-        }));
-
-      const holderConcentration = calculateHolderConcentration(topHolders);
-      const snipersArray = Array.from(snipers).slice(0, 10);
-
-      // Prepare analytics response
-      const analytics = {
-        token: {
-          address: mint,
-          name: tokenInfoResponse.data.result.name || 'Unknown',
-          symbol: tokenInfoResponse.data.result.symbol || 'Unknown',
-          decimals,
-          totalSupply: supply,
-          mintAuthority,
-          freezeAuthority,
-          createdAt: creationTime
-        },
-        holders: {
-          total: holders.size,
-          top10: topHolders,
-          concentration: holderConcentration
-        },
-        snipers: {
-          total: snipers.size,
-          details: snipersArray,
-          volume: Array.from(snipers).reduce((sum: number, s: any) => sum + (s.amount || 0), 0)
-        },
-        trading: {
-          volume24h: calculateVolume24h(trades),
-          transactions24h: trades.filter(t => t.timestamp > Date.now() - 86400000).length,
-          averageAmount: trades.length ? trades.reduce((sum, t) => sum + (t.amount || 0), 0) / trades.length : 0
-        },
-        risk: calculateRiskMetrics({
-          tokenInfoResponse: tokenInfoResponse.data.result,
-          topHolders,
-          snipers: snipersArray,
-          trades
-        })
-      };
-
-// Helper functions for analytics
-function calculateHolderConcentration(topHolders: any[]) {
-  const top10Percentage = topHolders.reduce((sum, h) => sum + (h.pct || 0), 0);
-  return {
-    top10Percentage,
-    riskLevel: top10Percentage > 80 ? 'high' : top10Percentage > 50 ? 'medium' : 'low'
-  };
-}
-
-function calculateVolume24h(trades: any[]) {
-  return trades
-    .filter(t => t.timestamp > Date.now() - 86400000)
-    .reduce((sum, t) => sum + (t.amount || 0), 0);
-}
-
-function calculateRiskMetrics(data: any) {
-  let riskScore = 0;
-  const risks = [];
-
-  // Mint authority risk
-  if (data.tokenInfoResponse.authorities?.length > 0) {
-    riskScore += 30;
-    risks.push({
-      type: 'mint_authority',
-      level: 'high',
-      description: 'Token has active mint authority'
-    });
-  }
-
-  // Holder concentration risk
-  const topHolderPct = data.topHolders[0]?.pct || 0;
-  if (topHolderPct > 50) {
-    riskScore += 30;
-    risks.push({
-      type: 'holder_concentration',
-      level: 'high',
-      description: 'Single wallet holds >50% of supply'
-    });
-  }
-
-  // Sniper activity risk
-  if (data.snipers.length > 10) {
-    riskScore += 20;
-    risks.push({
-      type: 'sniper_activity',
-      level: 'medium',
-      description: 'High sniper activity detected'
-    });
-  }
-
-  // Trading volume risk
-  const recentTrades = data.trades.filter(t => t.timestamp > Date.now() - 3600000);
-  if (recentTrades.length < 5) {
-    riskScore += 10;
-    risks.push({
-      type: 'low_activity',
-      level: 'medium',
-      description: 'Low trading activity in last hour'
-    });
-  }
-
-  return {
-    score: Math.min(100, riskScore),
-    level: riskScore > 70 ? 'high' : riskScore > 40 ? 'medium' : 'low',
-    risks
-  };
-}
-
-
-      console.log('[Routes] Analytics prepared:', {
-        holdersCount: analytics.holders.total,
-        snipersCount: analytics.snipers.total,
-        riskLevel: analytics.risk.level
-      });
-
-      res.json(analytics);
-
-    } catch (error: any) {
-      console.error('[Routes] Token analytics error:', error);
-      res.status(500).json({
-        error: 'Failed to fetch token analytics',
-        details: error.message,
-        tokenAddress: req.params.mint
-      });
-    }
-  });
-
-
       await Promise.all(
         tokens.map(async (symbol) => {
           try {
@@ -913,10 +648,10 @@ function calculateRiskMetrics(data: any) {
       console.log(`[Routes] Getting analytics for token ${mint}`);
 
       // 1. Get Basic Token Info and Transfers
-      const [assetResponse, transfersResponse] = await Promise.all([
+      const [tokenResponse, transfersResponse] = await Promise.all([
         axios.post(HELIUS_RPC_URL, {
           jsonrpc: '2.0',
-          id: 'asset-info',
+          id: 'token-info',
           method: 'getAsset',
           params: [mint]
         }),
@@ -935,59 +670,47 @@ function calculateRiskMetrics(data: any) {
         })
       ]);
 
-      const tokenInfo = assetResponse.data.result;
+      const tokenInfo = tokenResponse.data.result;
       const transfers = transfersResponse.data.result || [];
 
-      // 2. Get Jupiter DEX Data
-      let jupiterData = null;
-      try {
-        const jupResponse = await axios.get(`https://price.jup.ag/v4/price?ids=${mint}`);
-        jupiterData = jupResponse.data?.data?.[mint];
-      } catch (error) {
-        console.log(`No Jupiter liquidity found for ${mint}`);
-      }
-
-      // 3. Process transfers to identify holders and snipers
+      // 2. Process transfers to identify holders and snipers
       const holders = new Map();
       const snipers = new Set();
       const trades = [];
       const creationTime = transfers[transfers.length - 1]?.blockTime || Date.now();
       const sniperWindow = 30000; // 30 seconds
 
-      transfers.forEach(transfer => {
-        // Track holders
-        const { fromAddress, toAddress, amount, blockTime } = transfer;
+      transfers.forEach((transfer: any) => {
+        const { fromUserAccount, toUserAccount, amount, blockTime } = transfer;
 
-        if (fromAddress) {
-          const currentFromBalance = holders.get(fromAddress) || 0;
-          holders.set(fromAddress, currentFromBalance - amount);
+        if (fromUserAccount) {
+          const currentFromBalance = holders.get(fromUserAccount) || 0;
+          holders.set(fromUserAccount, currentFromBalance - amount);
         }
 
-        if (toAddress) {
-          const currentToBalance = holders.get(toAddress) || 0;
-          holders.set(toAddress, currentToBalance + amount);
+        if (toUserAccount) {
+          const currentToBalance = holders.get(toUserAccount) || 0;
+          holders.set(toUserAccount, currentToBalance + amount);
 
           // Check for snipers (early buyers)
           if (blockTime - creationTime <= sniperWindow) {
             snipers.add({
-              address: toAddress,
+              address: toUserAccount,
               amount,
               timestamp: blockTime
             });
           }
         }
 
-        // Track trades
         trades.push({
-          type: fromAddress ? 'sell' : 'buy',
-          address: fromAddress || toAddress,
+          type: fromUserAccount ? 'sell' : 'buy',
           amount,
           timestamp: blockTime,
-          price: jupiterData?.price || 0
+          address: fromUserAccount || toUserAccount
         });
       });
 
-      // 4. Calculate holder metrics
+      // 3. Calculate metrics
       const holderMetrics = calculateHolderMetrics(holders);
       const snipersArray = Array.from(snipers);
       const topHolders = getTopHolders(holders, 10);
@@ -1003,8 +726,18 @@ function calculateRiskMetrics(data: any) {
         holderConcentration.riskLevel = 'medium';
       }
 
-      // 5. Prepare response
+      // 4. Prepare response
       const analytics = {
+        token: {
+          address: mint,
+          name: tokenInfo.name || 'Unknown',
+          symbol: tokenInfo.symbol || 'Unknown',
+          decimals: tokenInfo.decimals || 0,
+          totalSupply: tokenInfo.supply || 0,
+          mintAuthority: tokenInfo.authorities?.find((a: any) => a.type === 'mint')?.address || null,
+          freezeAuthority: tokenInfo.authorities?.find((a: any) => a.type === 'freeze')?.address || null,
+          mutable: true
+        },
         holders: {
           total: holderMetrics.totalHolders,
           unique: holderMetrics.uniqueHolders,
@@ -1024,28 +757,43 @@ function calculateRiskMetrics(data: any) {
           averageTradeSize: calculateAverageTradeSize(trades),
           priceImpact: calculatePriceImpact(trades)
         },
-        risk: {
-          holderConcentration: holderConcentration.riskLevel,
-          sniperActivity: snipersArray.length > 20 ? 'high' : snipersArray.length > 10 ? 'medium' : 'low',
-          mintRisk: tokenInfo.authorities?.length > 0 ? 'high' : 'low',
-          overallRisk: calculateOverallRisk({
-            holderConcentration,
-            snipers: snipersArray,
-            authorities: tokenInfo.authorities
-          })
-        }
+        risks: [
+          {
+            name: 'Holder Concentration',
+            score: holderConcentration.top10Percentage > 80 ? 100 : holderConcentration.top10Percentage > 50 ? 50 : 0
+          },
+          {
+            name: 'Mint Authority',
+            score: tokenInfo.authorities?.find((a: any) => a.type === 'mint') ? 100 : 0
+          },
+          {
+            name: 'Freeze Authority',
+            score: tokenInfo.authorities?.find((a: any) => a.type === 'freeze') ? 100 : 0
+          },
+          {
+            name: 'Sniper Activity',
+            score: snipersArray.length > 20 ? 100 : snipersArray.length > 10 ? 50 : 0
+          }
+        ],
+        rugScore: calculateRiskScore(tokenInfo, holderConcentration, snipersArray)
       };
 
       console.log('[Routes] Analytics prepared:', {
         holdersCount: analytics.holders.total,
         snipersCount: analytics.snipers.total,
-        risk: analytics.risk.overallRisk
+        risks: analytics.risks
       });
 
       res.json(analytics);
 
     } catch (error: any) {
       console.error('[Routes] Token analytics error:', error);
+      if (error.response) {
+        console.error('[Routes] Response error:', {
+          status: error.response.status,
+          data: error.response.data
+        });
+      }
       res.status(500).json({
         error: 'Failed to fetch token analytics',
         details: error.message
@@ -1053,104 +801,92 @@ function calculateRiskMetrics(data: any) {
     }
   });
 
-  // Helper functions for analytics calculations
-  function calculateHolderMetrics(holders: Map<string, number>) {
-    const validHolders = Array.from(holders.entries())
-      .filter(([_, balance]) => balance > 0);
-
-    const totalHolders = validHolders.length;
-    const totalSupply = validHolders.reduce((sum, [_, balance]) => sum + balance, 0);
-
-    return {
-      totalHolders,
-      uniqueHolders: new Set(validHolders.map(([address]) => address)).size,
-      distribution: calculateDistribution(validHolders, totalSupply)
-    };
-  }
-
-  function calculateDistribution(holders: [string, number][], totalSupply: number) {
-    const ranges = [
-      { name: 'Whales (>1%)', min: 0.01 },
-      { name: 'Large (0.1-1%)', min: 0.001, max: 0.01 },
-      { name: 'Medium (0.01-0.1%)', min: 0.0001, max: 0.001 },
-      { name: 'Small (<0.01%)', max: 0.0001 }
-    ];
-
-    return ranges.map(range => ({
-      name: range.name,
-      holders: holders.filter(([_, balance]) => {
-        const percentage = balance / totalSupply;
-        return (!range.min || percentage >= range.min) && 
-               (!range.max || percentage < range.max);
-      }).length
-    }));
-  }
-
-  function getTopHolders(holders: Map<string, number>, limit: number) {
-    return Array.from(holders.entries())
-      .filter(([_, balance]) => balance > 0)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, limit)
-      .map(([address, balance]) => ({
-        address,
-        balance,
-        percentage: balance / Array.from(holders.values()).reduce((a, b) => a + b, 0) * 100
-      }));
-  }
-
-  function calculateSniperVolume(snipers: any[]) {
-    return snipers.reduce((sum: number, sniper: any) => sum + sniper.amount, 0);
-  }
-
-  function calculateAverageAmount(snipers: any[]) {
-    return snipers.length ? calculateSniperVolume(snipers) / snipers.length : 0;
-  }
-
-  function calculateVolume24h(trades: any[]) {
-    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    return trades
-      .filter(trade => trade.timestamp >= oneDayAgo)
-      .reduce((sum, trade) => sum + (trade.amount * trade.price), 0);
-  }
-
-  function calculateTransactions24h(trades: any[]) {
-    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    return trades.filter(trade => trade.timestamp >= oneDayAgo).length;
-  }
-
-  function calculateAverageTradeSize(trades: any[]) {
-    return trades.length ? trades.reduce((sum, trade) => sum + trade.amount, 0) / trades.length : 0;
-  }
-
-  function calculatePriceImpact(trades: any[]) {
-    if (trades.length < 2) return 0;
-    const sortedTrades = [...trades].sort((a, b) => b.amount - a.amount);
-    const largestTrade = sortedTrades[0];
-    const averageAmount = calculateAverageTradeSize(trades);
-    return (largestTrade.amount / averageAmount) - 1;
-  }
-
-  function calculateOverallRisk(data: any) {
-    let riskScore = 0;
-
-    // Holder concentration risk
-    if (data.holderConcentration.top10Percentage > 80) riskScore += 40;
-    else if (data.holderConcentration.top10Percentage > 50) riskScore += 20;
-
-    // Sniper activity risk
-    if (data.snipers.length > 20) riskScore += 30;
-    else if (data.snipers.length > 10) riskScore += 15;
-
-    // Authority risk
-    if (data.authorities?.length > 0) riskScore += 30;
-
-    return {
-      score: riskScore,
-      level: riskScore > 70 ? 'high' : riskScore > 40 ? 'medium' : 'low'
-    };
-  }
-
   return httpServer;
+}
+
+// Helper functions
+function calculateRiskScore(tokenInfo: any, holderConcentration: any, snipers: any[]): number {
+  let score = 0;
+
+  // Mint authority risk (30 points)
+  if (tokenInfo.authorities?.find((a: any) => a.type === 'mint')) {
+    score += 30;
+  }
+
+  // Holder concentration risk (40 points)
+  if (holderConcentration.top10Percentage > 80) {
+    score += 40;
+  } else if (holderConcentration.top10Percentage > 50) {
+    score += 20;
+  }
+
+  // Sniper activity risk (30 points)
+  if (snipers.length > 20) {
+    score += 30;
+  } else if (snipers.length > 10) {
+    score += 15;
+  }
+
+  return score;
+}
+
+function calculateHolderMetrics(holders: Map<string, number>) {
+  const validHolders = Array.from(holders.entries())
+    .filter(([_, balance]) => balance > 0);
+
+  const totalHolders = validHolders.length;
+
+  return {
+    totalHolders,
+    uniqueHolders: new Set(validHolders.map(([address]) => address)).size,
+    distribution: [
+      { name: 'Active Wallets', holders: totalHolders }
+    ]
+  };
+}
+
+function getTopHolders(holders: Map<string, number>, limit: number) {
+  return Array.from(holders.entries())
+    .filter(([_, balance]) => balance > 0)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, limit)
+    .map(([address, balance]) => ({
+      address,
+      balance,
+      percentage: balance / Array.from(holders.values()).reduce((a, b) => a + b, 0) * 100
+    }));
+}
+
+function calculateSniperVolume(snipers: any[]) {
+  return snipers.reduce((sum, sniper) => sum + (sniper.amount || 0), 0);
+}
+
+function calculateAverageAmount(snipers: any[]) {
+  return snipers.length ? calculateSniperVolume(snipers) / snipers.length : 0;
+}
+
+function calculateVolume24h(trades: any[]) {
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  return trades
+    .filter(trade => trade.timestamp >= oneDayAgo)
+    .reduce((sum, trade) => sum + (trade.amount || 0), 0);
+}
+
+function calculateTransactions24h(trades: any[]) {
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  return trades.filter(trade => trade.timestamp >= oneDayAgo).length;
+}
+
+function calculateAverageTradeSize(trades: any[]) {
+  return trades.length ? trades.reduce((sum, trade) => sum + (trade.amount || 0), 0) / trades.length : 0;
+}
+
+function calculatePriceImpact(trades: any[]) {
+  if (trades.length < 2) return 0;
+  const sortedTrades = [...trades].sort((a, b) => (b.amount || 0) - (a.amount || 0));
+  const largestTrade = sortedTrades[0];
+  const averageAmount = calculateAverageTradeSize(trades);
+  return averageAmount ? (largestTrade.amount / averageAmount) - 1 : 0;
 }
 
 // In-memory data structure for chat history
@@ -1222,3 +958,16 @@ const addPriorityToken = (symbol: string) => {
   priorityQueue.push(symbol);
   console.log(`Added ${symbol} to priority queue.`);
 };
+const NEWSDATA_API_BASE = 'https://newsdata.io/api/1';
+const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
+const cache = {
+  prices: { data: null, timestamp: 0 },
+  stats24h: { data: null, timestamp: 0 },
+  trending: { data: null, timestamp: 0 },
+  news: { data: null, timestamp: 0 }
+};
+
+import { generateAIResponse } from './services/ai';
+import { getTokenImage } from './image-worker';
+import { pricePredictionService } from './services/price-prediction';
+import { cryptoService } from './services/crypto'; // Import the crypto service

@@ -34,26 +34,33 @@ const analysisCache = new Map<string, { data: TokenData; timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export async function analyzeToken(tokenMint: string): Promise<TokenData | null> {
+  console.log(`[Token Analysis] Starting analysis for token: ${tokenMint}`);
+
   // Check cache first
   const cached = analysisCache.get(tokenMint);
   const now = Date.now();
 
   if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+    console.log(`[Token Analysis] Returning cached data for ${tokenMint}`);
     return cached.data;
   }
 
   try {
-    // Use our server endpoint instead of direct RugCheck API call
+    console.log(`[Token Analysis] Fetching fresh data for ${tokenMint}`);
     const response = await axios.get(`/api/token-analytics/${tokenMint}`, {
       timeout: 10000
     });
 
+    console.log(`[Token Analysis] Response status:`, response.status);
+    console.log(`[Token Analysis] Raw response data:`, response.data);
+
     if (!response.data) {
-      console.log("No response received from token analytics API");
+      console.log("[Token Analysis] No response received from token analytics API");
       return null;
     }
 
     const analytics = response.data;
+    console.log(`[Token Analysis] Processing analytics:`, analytics);
 
     // Map server response to TokenData interface
     const tokenData: TokenData = {
@@ -85,6 +92,8 @@ export async function analyzeToken(tokenMint: string): Promise<TokenData | null>
       })) || []
     };
 
+    console.log(`[Token Analysis] Processed token data:`, tokenData);
+
     // Cache the results
     analysisCache.set(tokenMint, {
       data: tokenData,
@@ -93,7 +102,11 @@ export async function analyzeToken(tokenMint: string): Promise<TokenData | null>
 
     return tokenData;
   } catch (error) {
-    console.error("Token analysis failed:", error);
+    console.error("[Token Analysis] Analysis failed:", error);
+    if (axios.isAxiosError(error)) {
+      console.error("[Token Analysis] Response:", error.response?.data);
+      console.error("[Token Analysis] Status:", error.response?.status);
+    }
     return null;
   }
 }

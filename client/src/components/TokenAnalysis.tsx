@@ -1,5 +1,5 @@
 import { FC, useState } from 'react';
-import { Shield, AlertTriangle, Check, Activity, Info, TrendingUp, Users, Wallet, Lock } from 'lucide-react';
+import { Shield, AlertTriangle, Info, Activity, Users, Wallet, Lock, TrendingUp } from 'lucide-react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -9,53 +9,27 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-interface TokenData {
-  tokenMint: string;
-  tokenName: string; 
-  tokenSymbol: string;
-  supply: string;
-  decimals: string;
-  mintAuthority: string;
-  freezeAuthority: string;
-  isInitialized: boolean;
-  mutable: boolean;
-  rugged: boolean;
-  rugScore: number;
-  topHolders: Array<{
-    address: string;
-    pct: number;
-  }>;
-  markets: Array<{
-    market: string;
-    liquidityA: string;
-    liquidityB: string;
-  }>;
-  totalLPProviders: number;
-  totalMarketLiquidity: number;
-  risks: Array<{
-    name: string;
-    score: number;
-  }>;
-}
+import { analyzeToken } from '../lib/token-analysis';
 
 interface Props {
   tokenAddress: string;
-  onAnalyze: (address: string) => Promise<TokenData | null>;
 }
 
-export const TokenAnalysis: FC<Props> = ({ tokenAddress, onAnalyze }) => {
+export const TokenAnalysis: FC<Props> = ({ tokenAddress }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [analysis, setAnalysis] = useState<TokenData | null>(null);
+  const [analysis, setAnalysis] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleAnalyze = async () => {
     try {
+      console.log('[TokenAnalysis] Starting analysis for:', tokenAddress);
       setIsLoading(true);
       setError(null);
-      const data = await onAnalyze(tokenAddress);
+      const data = await analyzeToken(tokenAddress);
+      console.log('[TokenAnalysis] Analysis result:', data);
       setAnalysis(data);
     } catch (err) {
+      console.error('[TokenAnalysis] Analysis failed:', err);
       setError(err instanceof Error ? err.message : 'Failed to analyze token');
     } finally {
       setIsLoading(false);
@@ -179,9 +153,9 @@ export const TokenAnalysis: FC<Props> = ({ tokenAddress, onAnalyze }) => {
                     </Tooltip>
                   </TooltipProvider>
                   <span className={`px-2 py-0.5 rounded text-sm ${
-                    analysis.mintAuthority !== "N/A" 
-                    ? 'bg-red-500/10 text-red-400' 
-                    : 'bg-green-500/10 text-green-400'
+                    analysis.mintAuthority !== "N/A"
+                      ? 'bg-red-500/10 text-red-400'
+                      : 'bg-green-500/10 text-green-400'
                   }`}>
                     {analysis.mintAuthority !== "N/A" ? '🔓 Enabled' : '🔒 Disabled'}
                   </span>
@@ -203,8 +177,8 @@ export const TokenAnalysis: FC<Props> = ({ tokenAddress, onAnalyze }) => {
                   </TooltipProvider>
                   <span className={`px-2 py-0.5 rounded text-sm ${
                     analysis.freezeAuthority !== "N/A"
-                    ? 'bg-red-500/10 text-red-400'
-                    : 'bg-green-500/10 text-green-400'
+                      ? 'bg-red-500/10 text-red-400'
+                      : 'bg-green-500/10 text-green-400'
                   }`}>
                     {analysis.freezeAuthority !== "N/A" ? '🔓 Enabled' : '🔒 Disabled'}
                   </span>
@@ -226,8 +200,8 @@ export const TokenAnalysis: FC<Props> = ({ tokenAddress, onAnalyze }) => {
                   </TooltipProvider>
                   <span className={`px-2 py-0.5 rounded text-sm ${
                     !analysis.mutable
-                    ? 'bg-green-500/10 text-green-400'
-                    : 'bg-yellow-500/10 text-yellow-400'
+                      ? 'bg-green-500/10 text-green-400'
+                      : 'bg-yellow-500/10 text-yellow-400'
                   }`}>
                     {!analysis.mutable ? '🔒 Immutable' : '⚠️ Mutable'}
                   </span>
@@ -273,8 +247,8 @@ export const TokenAnalysis: FC<Props> = ({ tokenAddress, onAnalyze }) => {
                   </div>
                   <span className={`text-sm font-medium ${
                     holder.pct > 50 ? 'text-red-400' :
-                    holder.pct > 25 ? 'text-yellow-400' :
-                    'text-green-400'
+                      holder.pct > 25 ? 'text-yellow-400' :
+                        'text-green-400'
                   }`}>
                     {holder.pct.toFixed(2)}%
                   </span>
