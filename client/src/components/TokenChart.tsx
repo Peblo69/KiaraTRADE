@@ -414,19 +414,9 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                 isOpen={showSecurityPanel}
                 onClose={() => setShowSecurityPanel(false)}
                 onRefresh={() => {
-                  // Refresh logic here
+                  // Refresh logic for chart/trades if needed
                 }}
-                tokenData={{
-                  name: token?.name || "",
-                  symbol: token?.symbol || "",
-                  mintAuthority: true,
-                  freezeAuthority: false,
-                  liquidity: token?.liquidity || 0,
-                  lpCount: 2,
-                  topHolderPct: 97.86,
-                  holderCount: 4,
-                  riskScore: 75
-                }}
+                tokenAddress={tokenAddress}
               />
             </motion.div>
           )}
