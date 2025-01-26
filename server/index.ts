@@ -1,7 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { startImageWorker } from "./image-worker";
 
 const app = express();
 app.use(express.json());
@@ -10,15 +9,6 @@ app.use(express.urlencoded({ extended: false }));
 // Initialize server and handle startup errors
 async function startServer() {
   try {
-    // Start the image worker before setting up routes
-    try {
-      await startImageWorker();
-      log('Image worker initialized successfully');
-    } catch (error) {
-      log(`Warning: Image worker failed to initialize: ${error instanceof Error ? error.message : String(error)}`);
-      // Continue server startup even if worker fails
-    }
-
     // Register routes first
     const server = registerRoutes(app);
 
