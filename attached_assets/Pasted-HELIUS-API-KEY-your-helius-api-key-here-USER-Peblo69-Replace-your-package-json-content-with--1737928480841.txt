@@ -1,0 +1,146 @@
+HELIUS_API_KEY=your_helius_api_key_here
+USER=Peblo69
+
+    Replace your package.json content with:
+
+JSON
+
+{
+  "name": "solana-token-checker",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "axios": "^1.7.8",
+    "date-fns": "^3.3.1",
+    "dotenv": "^16.4.5",
+    "tsx": "^4.7.0",
+    "@types/node": "^20.11.0"
+  }
+}
+
+    Create a new file in the src folder called index.ts and paste this code:
+
+TypeScript
+
+import axios from 'axios';
+import { format } from 'date-fns';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
+// Print startup info
+console.log(`Current Date and Time (UTC): ${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}`);
+console.log(`Current User's Login: ${process.env.USER || 'Peblo69'}\n`);
+
+async function checkToken(tokenMint: string) {
+  try {
+    console.log(`\n🔍 Analyzing token: ${tokenMint}`);
+
+    // Get RugCheck data
+    const rugCheckUrl = `https://api.rugcheck.xyz/v1/tokens/${tokenMint}/report`;
+    console.log(`Fetching data from: ${rugCheckUrl}`);
+
+    const response = await axios.get(rugCheckUrl);
+    const token = response.data;
+
+    if (!token) {
+      throw new Error('No data received from RugCheck API');
+    }
+
+    // Print basic info
+    console.log('\n📊 Token Information:');
+    console.log('-------------------');
+    console.log(`Name: ${token.tokenMeta?.name || 'Unknown'}`);
+    console.log(`Symbol: ${token.tokenMeta?.symbol || 'Unknown'}`);
+    console.log(`Supply: ${token.token?.supply || 'Unknown'}`);
+    console.log(`Decimals: ${token.token?.decimals || 'Unknown'}`);
+    console.log(`Risk Score: ${token.score}/100`);
+
+    // Check for risks
+    console.log('\n🚨 Risk Analysis:');
+    console.log('---------------');
+    
+    if (token.token?.mintAuthority) {
+      console.log('⚠️  Has mint authority - Can create more tokens');
+    }
+    
+    if (token.token?.freezeAuthority) {
+      console.log('⚠️  Has freeze authority - Can freeze transfers');
+    }
+
+    if (token.tokenMeta?.mutable) {
+      console.log('⚠️  Token metadata is mutable - Can be changed');
+    }
+
+    // Show top holders
+    if (token.topHolders && token.topHolders.length > 0) {
+      console.log('\n👥 Top Holders:');
+      console.log('-------------');
+      token.topHolders.forEach((holder: any, index: number) => {
+        console.log(`${index + 1}. ${holder.address.substring(0, 8)}... : ${holder.pct.toFixed(2)}%${holder.insider ? ' (INSIDER)' : ''}`);
+      });
+    }
+
+    // Show liquidity info
+    console.log('\n💧 Liquidity Information:');
+    console.log('---------------------');
+    console.log(`LP Providers: ${token.totalLPProviders}`);
+    console.log(`Market Liquidity: ${token.totalMarketLiquidity}`);
+
+    // Final verdict
+    console.log('\n📝 Final Assessment:');
+    console.log('-----------------');
+    if (token.rugged) {
+      console.log('🔴 WARNING: Token is marked as RUGGED');
+    }
+    console.log(`Risk Score: ${token.score}/100`);
+    console.log(`Status: ${token.score > 70 ? '🔴 HIGH RISK' : token.score > 40 ? '🟡 MEDIUM RISK' : '🟢 LOW RISK'}`);
+
+    return {
+      safe: token.score < 50 && !token.rugged,
+      score: token.score,
+      risks: token.risks
+    };
+
+  } catch (error: any) {
+    console.error('Error checking token:', error.message);
+    if (error.response) {
+      console.error('Response data:', error.response.data);
+    }
+    return null;
+  }
+}
+
+// Example usage
+async function main() {
+  // Example token mint address - you can change this to any token you want to check
+  const tokenMint = '225QF1wTNQBFCS9VKh4cRiWkPnb2VhurNVJ7Tf4Qpump';
+  await checkToken(tokenMint);
+}
+
+main();
+
+    In the Replit shell (bottom panel), run these commands:
+
+bash
+
+npm install
+npm start
+
+To test different tokens, just change the tokenMint value in the main() function.
+
+Example valid token addresses you can try:
+TypeScript
+
+// BONK
+const tokenMint = 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263';
+
+// SAMO
+const tokenMint = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU';
+
+Let me know if you run into any issues! I can help you troubleshoot them.
