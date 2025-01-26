@@ -6,6 +6,14 @@ import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import TokenChart from "@/components/TokenChart";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RugcheckButton } from "@/components/ui/rugcheck-button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast";
 
 interface TokenRowProps {
   token: any;
@@ -13,30 +21,77 @@ interface TokenRowProps {
 }
 
 const TokenCard: FC<TokenRowProps> = ({ token, onClick }) => {
+  const { toast } = useToast();
+  const [riskScore, setRiskScore] = useState<number | null>(null);
+
+  const handleRiskUpdate = useCallback((score: number) => {
+    setRiskScore(score);
+    const riskLevel = score <= 200 ? "Low" : score <= 500 ? "Medium" : "High";
+    const riskColor = score <= 200 ? "green" : score <= 500 ? "yellow" : "red";
+
+    toast({
+      title: `Risk Level: ${riskLevel}`,
+      description: `Token ${token.symbol} has a risk score of ${score}`,
+      variant: riskColor === "red" ? "destructive" : "default",
+    });
+  }, [token.symbol, toast]);
+
   return (
     <Card 
       className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
       onClick={onClick}
     >
       <div className="p-4">
-        <div className="flex items-center gap-3 mb-4">
-          <img
-            src={token.imageLink || 'https://via.placeholder.com/150'}
-            alt={`${token.symbol} logo`}
-            className="w-10 h-10 rounded-full object-cover bg-purple-500/20"
-            loading="lazy"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150';
-            }}
-          />
-          <div>
-            <div className="font-medium group-hover:text-purple-400 transition-colors">
-              {token.symbol}
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {token.name}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <img
+              src={token.imageLink || 'https://via.placeholder.com/150'}
+              alt={`${token.symbol} logo`}
+              className="w-10 h-10 rounded-full object-cover bg-purple-500/20"
+              loading="lazy"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150';
+              }}
+            />
+            <div>
+              <div className="font-medium group-hover:text-purple-400 transition-colors">
+                {token.symbol}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {token.name}
+              </div>
             </div>
           </div>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div onClick={e => e.stopPropagation()} className="relative">
+                  <RugcheckButton 
+                    mint={token.address} 
+                    onRiskUpdate={handleRiskUpdate}
+                  />
+                  {riskScore && (
+                    <div 
+                      className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${
+                        riskScore <= 200 ? 'bg-green-500' :
+                        riskScore <= 500 ? 'bg-yellow-500' :
+                        'bg-red-500'
+                      }`}
+                    />
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Click to check token risk score</p>
+                {riskScore && (
+                  <p className="mt-1 font-semibold">
+                    Current Risk Score: {riskScore}
+                  </p>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
