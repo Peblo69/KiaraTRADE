@@ -4,7 +4,7 @@
     <div className="text-sm text-muted-foreground">💎 Price</div>
     <div className="font-medium">${formatNumber(token.price)}</div>
 
-    <TokenSecurityButton tokenAddress={token.address} className="mt-2" />
+    {/* Security button will be re-added with new implementation */}
 
     {analytics && (
       <TokenDetails analytics={analytics} />
