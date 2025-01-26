@@ -1,7 +1,7 @@
 import { useUnifiedTokenStore } from './unified-token-store';
 import { Connection, PublicKey } from '@solana/web3.js';
 
-const HELIUS_API_KEY = '004f9b13-f526-4952-9998-52f5c7bec6ee';
+const HELIUS_API_KEY = 'your_api_key_here';
 const HELIUS_WS_URL = `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
