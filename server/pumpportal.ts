@@ -47,25 +47,30 @@ export const initializePumpPortalWebSocket = () => {
         // Handle token creation events
         if (data.txType === 'create' && data.mint) {
           log('[PumpPortal] New token created:', data.mint);
+          console.log('[PumpPortal] Setting creator wallet:', data.traderPublicKey);
 
-          // Get rug check data
-          const rugReport = await rugcheckService.getTokenReport(data.mint);
+          // Only check rug risk if token is being actively viewed
+          if (activeTokens.has(data.mint)) {
+            const rugReport = await rugcheckService.getTokenReport(data.mint);
 
-          // Prepare token data with risk indicators
-          const tokenData: TokenWithRisk = {
-            mint: data.mint,
-            name: data.name || 'Unknown',
-            symbol: data.symbol || 'Unknown',
-            riskScore: rugReport?.score || 0,
-            riskIndicators: rugReport ? rugcheckService.getDetailedRiskInfo(rugReport) : '',
-            detailedRisk: rugReport || undefined
-          };
+            if (rugReport) {
+              // Prepare token data with risk indicators
+              const tokenData: TokenWithRisk = {
+                mint: data.mint,
+                name: data.name || 'Unknown',
+                symbol: data.symbol || 'Unknown',
+                riskScore: rugReport.score,
+                riskIndicators: rugcheckService.getDetailedRiskInfo(rugReport),
+                detailedRisk: rugReport
+              };
 
-          // Broadcast to all connected clients
-          wsManager.broadcast({ 
-            type: 'newToken',
-            data: tokenData
-          });
+              // Broadcast to all connected clients
+              wsManager.broadcast({ 
+                type: 'tokenUpdate',
+                data: tokenData
+              });
+            }
+          }
 
           // Subscribe to trades for the new token
           ws?.send(JSON.stringify({
@@ -76,13 +81,7 @@ export const initializePumpPortalWebSocket = () => {
 
         // Handle trade events
         else if (['buy', 'sell'].includes(data.txType) && data.mint) {
-          // Broadcast trade data
-          wsManager.broadcast({ 
-            type: 'trade',
-            data: data
-          });
-
-          // If this token is being actively viewed, update its risk data
+          // Only check rug risk if token is being actively viewed
           if (activeTokens.has(data.mint)) {
             const rugReport = await rugcheckService.getTokenReport(data.mint);
             if (rugReport) {
@@ -126,7 +125,7 @@ export const initializePumpPortalWebSocket = () => {
   return ws;
 };
 
-// Add methods to manage active tokens
+// Methods to manage active tokens
 export const addActiveToken = (mint: string) => {
   activeTokens.add(mint);
 };
