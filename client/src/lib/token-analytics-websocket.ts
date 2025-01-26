@@ -167,20 +167,108 @@ export const useTokenAnalyticsStore = create<TokenAnalyticsStore>((set, get) => 
       const response = await fetch(`/api/token-analytics/${tokenAddress}`);
       const data = await response.json();
 
-      const rugScore = calculateRugScore({
-        hasUnlockedMint: !!data.mintAuthority,
-        hasUnlockedFreeze: !!data.freezeAuthority,
-        topHolderConcentration: data.topHolders?.[0]?.pct || 0,
-        liquidityValue: data.markets?.reduce((acc, m) => acc + m.totalLiquidity, 0) || 0,
-        sniperCount: data.analytics?.sniperCount || 0
-      });
+      // Get initial data from analytics store
+      const analytics = get().analytics[tokenAddress];
+      const creationTime = get().creationTimes[tokenAddress];
+      const currentTime = Date.now();
+
+      // Calculate critical risk factors
+      let score = 0;
+      const risks = [];
+
+      // 1. Check Mint Authority - Can new tokens be minted?
+      if (data.mintAuthority) {
+        score += 30;
+        risks.push({
+          name: 'Mint Risk',
+          value: 'High',
+          description: 'Token supply can be increased by mint authority',
+          score: 30,
+          level: 'high'
+        });
+      }
+
+      // 2. Check Freeze Authority - Can transfers be frozen?
+      if (data.freezeAuthority) {
+        score += 20;
+        risks.push({
+          name: 'Freeze Risk',
+          value: 'Medium',
+          description: 'Token transfers can be frozen by authority',
+          score: 20,
+          level: 'medium'
+        });
+      }
+
+      // 3. Check Top Holder Concentration
+      const topHolderPct = data.topHolders?.[0]?.pct || 0;
+      if (topHolderPct > 50) {
+        score += 25;
+        risks.push({
+          name: 'Holder Concentration',
+          value: 'High',
+          description: 'Single wallet holds over 50% of tokens',
+          score: 25,
+          level: 'high'
+        });
+      } else if (topHolderPct > 30) {
+        score += 15;
+        risks.push({
+          name: 'Holder Concentration',
+          value: 'Medium',
+          description: 'Single wallet holds over 30% of tokens',
+          score: 15,
+          level: 'medium'
+        });
+      }
+
+      // 4. Check Liquidity Value
+      const totalLiquidity = data.markets?.reduce((acc: number, m: any) => acc + m.totalLiquidity, 0) || 0;
+      if (totalLiquidity < 1) {
+        score += 15;
+        risks.push({
+          name: 'Low Liquidity',
+          value: 'High',
+          description: 'Very low liquidity, high price impact on trades',
+          score: 15,
+          level: 'high'
+        });
+      }
+
+      // 5. Check Sniper Activity
+      const sniperCount = analytics?.analytics?.sniperCount || 0;
+      if (sniperCount > 10) {
+        score += 10;
+        risks.push({
+          name: 'High Sniper Activity',
+          value: 'Medium',
+          description: 'Unusual number of early buyers detected',
+          score: 10,
+          level: 'medium'
+        });
+      }
+
+      // 6. Check Token Age
+      if (creationTime && (currentTime - creationTime < 3600000)) { // Less than 1 hour old
+        score += 10;
+        risks.push({
+          name: 'New Token',
+          value: 'Medium',
+          description: 'Token created less than 1 hour ago',
+          score: 10,
+          level: 'medium'
+        });
+      }
+
+      // Cap total score at 100
+      score = Math.min(score, 100);
 
       set((state) => ({
         rugCheck: {
           ...state.rugCheck,
           [tokenAddress]: {
-            score: rugScore,
-            risks: generateRiskReport(rugScore),
+            score,
+            risks,
             mintAuthority: data.mintAuthority,
             freezeAuthority: data.freezeAuthority,
             topHolders: data.topHolders,
@@ -194,53 +282,3 @@ export const useTokenAnalyticsStore = create<TokenAnalyticsStore>((set, get) => 
     }
   }
 }));
-
-function calculateRugScore(factors: {
-  hasUnlockedMint: boolean;
-  hasUnlockedFreeze: boolean;
-  topHolderConcentration: number;
-  liquidityValue: number;
-  sniperCount: number;
-}): number {
-  let score = 0;
-
-  if (factors.hasUnlockedMint) score += 30;
-  if (factors.hasUnlockedFreeze) score += 20;
-  if (factors.topHolderConcentration > 50) score += 25;
-  if (factors.liquidityValue < 1000) score += 15;
-  if (factors.sniperCount > 10) score += 10;
-
-  return Math.min(score, 100);
-}
-
-function generateRiskReport(score: number) {
-  const risks = [];
-
-  if (score >= 75) {
-    risks.push({
-      name: 'Critical Risk',
-      value: 'High rug pull probability',
-      description: 'Multiple high-risk factors detected',
-      score: score,
-      level: 'high'
-    });
-  } else if (score >= 40) {
-    risks.push({
-      name: 'Medium Risk',
-      value: 'Exercise caution',
-      description: 'Some concerning factors present',
-      score: score,
-      level: 'medium'
-    });
-  } else {
-    risks.push({
-      name: 'Low Risk',
-      value: 'Basic checks passed',
-      description: 'No major red flags detected',
-      score: score,
-      level: 'low'
-    });
-  }
-
-  return risks;
-}

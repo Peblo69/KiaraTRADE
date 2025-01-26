@@ -670,71 +670,95 @@ export function registerRoutes(app: Express): Server {
       const { mint } = req.params;
       console.log(`[Routes] Getting token analytics for ${mint}`);
 
-      // Get token metadata and holders
-      const holdersResponse = await axios.post(HELIUS_RPC_URL, {
-        jsonrpc: '2.0',
-        id: 'holders-request',
-        method: 'getAssetsByGroup',
-        params: {
-          groupKey: 'collection',
-          groupValue: mint,
-          page: 1,
-          limit: 1000
-        }
-      });
+      // Get token metadata and authority info
+      const [tokenInfoResponse, holdersResponse, txResponse] = await Promise.all([
+        axios.post(HELIUS_RPC_URL, {
+          jsonrpc: '2.0',
+          id: 'token-info',
+          method: 'getAssetBatch',
+          params: [{
+            ids: [mint],
+            options: { showFungible: true }
+          }]
+        }),
+        axios.post(HELIUS_RPC_URL, {
+          jsonrpc: '2.0',
+          id: 'holders-request',
+          method: 'searchAssets',
+          params: {
+            ownerAddress: mint,
+            page: 1,
+            limit: 1000
+          }
+        }),
+        axios.post(HELIUS_RPC_URL, {
+          jsonrpc: '2.0',
+          id: 'tx-request',
+          method: 'getAssetTransfers',
+          params: {
+            asset: mint,
+            page: 1,
+            limit: 100
+          }
+        })
+      ]);
 
-      // Get recent transactions
-      const txResponse = await axios.post(HELIUS_RPC_URL, {
-        jsonrpc: '2.0',
-        id: 'tx-request',
-        method: 'getAssetTransfers',
-        params: {
-          asset: mint,
-          page: 1,
-          limit: 100
-        }
-      });
+      // Extract token information
+      const tokenInfo = tokenInfoResponse.data.result[0];
+      const mintAuthority = tokenInfo?.authorities?.find(a => a.type === 'mint')?.address;
+      const freezeAuthority = tokenInfo?.authorities?.find(a => a.type === 'freeze')?.address;
 
+      // Calculate holder distribution
       const holders = holdersResponse.data.result || [];
-      const transactions = txResponse.data.result || [];
-
-      // Calculate total supply and identify top holders
       const totalSupply = holders.reduce((sum, h) => sum + (h.tokenAmount || 0), 0);
-      const tenPercentThreshold = totalSupply * 0.1;
 
-      // Sort holders by balance to identify top 10%
-      const topHolders = holders
-        .filter(h => h.tokenAmount >= tenPercentThreshold)
+      const holdersBySize = holders
         .map(h => ({
           address: h.owner,
-          balance: h.tokenAmount,
-          percentage: (h.tokenAmount / totalSupply) * 100
+          amount: h.tokenAmount,
+          pct: (h.tokenAmount / totalSupply) * 100
         }))
-        .sort((a, b) => b.balance - a.balance);
+        .sort((a, b) => b.amount - a.amount);
 
-      // First transaction timestamp will be creation time
+      // Analyze transactions for patterns
+      const transactions = txResponse.data.result || [];
       const creationTime = transactions[transactions.length - 1]?.timestamp || Date.now();
-      const sniperWindow = 30000; // 30 seconds
 
-      // Identify snipers (transactions within first 30 seconds)
+      // Identify early buyer patterns (snipers)
+      const sniperWindow = 30000; // 30 seconds
       const snipers = transactions
         .filter(tx => tx.timestamp - creationTime <= sniperWindow)
         .map(tx => ({
           address: tx.owner,
           timestamp: tx.timestamp,
           amount: tx.tokenAmount
-        }))
-        .sort((a, b) => b.amount - a.amount);
+        }));
+
+      // Check for liquidity changes
+      const liquidityTx = transactions.filter(tx => 
+        tx.type === 'TRANSFER' && 
+        (tx.source.includes('liquidity') || tx.destination.includes('liquidity'))
+      );
+
+      const liquidityAnalysis = {
+        totalLiquidity: liquidityTx.reduce((sum, tx) => sum + tx.tokenAmount, 0),
+        recentChanges: liquidityTx.slice(0, 5)
+      };
 
       console.log('[Routes] Analytics response:', {
-        topHoldersCount: topHolders.length,
+        topHoldersCount: holdersBySize.length,
         snipersCount: snipers.length,
-        totalHolders: holders.length
+        liquidityStatus: liquidityAnalysis.totalLiquidity > 0 ? 'present' : 'absent'
       });
 
       res.json({
-        topHolders,
+        mintAuthority,
+        freezeAuthority,
+        topHolders: holdersBySize,
         snipers,
+        markets: [{
+          totalLiquidity: liquidityAnalysis.totalLiquidity
+        }],
         analytics: {
           totalHolders: holders.length,
           averageBalance: totalSupply / holders.length,
