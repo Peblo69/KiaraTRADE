@@ -1,12 +1,12 @@
 import { create } from 'zustand';
-import { Connection, PublicKey } from '@solana/web3.js';
-import { useUnifiedTokenStore } from './unified-token-store';
+import { useTokenAnalyticsStore } from './token-analytics-websocket';
 
 // Constants
-const HELIUS_API_KEY = '004f9b13-f526-4952-9998-52f5c7bec6ee';
+const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY || '004f9b13-f526-4952-9998-52f5c7bec6ee';
 const HELIUS_WS_URL = `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
+const SPL_TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 
 interface TokenTrade {
   signature: string;
@@ -35,13 +35,26 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
   isConnected: false,
   subscribedTokens: new Set(),
 
-  addTrade: (tokenAddress, trade) => 
+  addTrade: (tokenAddress, trade) => {
     set((state) => ({
       trades: {
         ...state.trades,
         [tokenAddress]: [trade, ...(state.trades[tokenAddress] || [])].slice(0, 100),
       },
-    })),
+    }));
+
+    // Update analytics in token analytics store
+    const analyticsStore = useTokenAnalyticsStore.getState();
+
+    // Check if it's a sniper (within 30s of creation)
+    const creationTime = analyticsStore.creationTimes[tokenAddress];
+    if (creationTime && trade.timestamp - creationTime <= 30000 && trade.type === 'buy') {
+      analyticsStore.addSniper(tokenAddress, trade.buyer, trade.amount, trade.timestamp);
+    }
+
+    // Update holder balance
+    analyticsStore.updateHolder(tokenAddress, trade.buyer, trade.amount);
+  },
 
   setConnected: (connected) => set({ isConnected: connected }),
 
@@ -65,18 +78,32 @@ function subscribeToTokenUpdates(tokenAddress: string) {
       return;
     }
 
+    // Subscribe to SPL Token program with filter for our token
     ws.send(JSON.stringify({
       jsonrpc: '2.0',
       id: 1,
-      method: 'accountSubscribe',
+      method: 'programSubscribe',
       params: [
-        tokenAddress,
-        { encoding: 'jsonParsed', commitment: 'confirmed' }
+        SPL_TOKEN_PROGRAM_ID,
+        {
+          encoding: 'jsonParsed',
+          filters: [
+            {
+              memcmp: {
+                offset: 0,
+                bytes: tokenAddress
+              }
+            }
+          ]
+        }
       ]
     }));
 
     store.subscribedTokens.add(tokenAddress);
     console.log(`[Helius] Subscribed to token: ${tokenAddress}`);
+
+    // Set creation time for snipers tracking
+    useTokenAnalyticsStore.getState().setCreationTime(tokenAddress, Date.now());
   } catch (error) {
     console.error('[Helius] Subscribe error:', error);
   }
@@ -119,17 +146,34 @@ export function initializeHeliusWebSocket() {
       try {
         const data = JSON.parse(event.data);
 
-        if (data.method === 'accountNotification') {
-          const signature = data.params.result.signature;
-          const tokenAddress = data.params.result.value.account.data.parsed.info.mint;
+        if (data.method === 'programNotification') {
+          const accountInfo = data.params.result.value.account;
+          if (!accountInfo.data.parsed) return;
 
-          console.log('[Helius] Processing transaction:', {
-            signature,
+          const info = accountInfo.data.parsed.info;
+          const tokenAddress = info.mint;
+          const amount = parseFloat(info.amount || 0);
+          const type = info.type === 'mintTo' ? 'buy' : 'sell';
+          const timestamp = Date.now();
+
+          console.log('[Helius] Token transfer:', {
             tokenAddress,
-            data: data.params.result
+            amount,
+            type,
+            timestamp
           });
 
-          await processTransaction(signature, tokenAddress);
+          useHeliusStore.getState().addTrade(tokenAddress, {
+            signature: data.params.result.signature,
+            timestamp,
+            tokenAddress,
+            amount,
+            price: 0, // We'll need market data for this
+            priceUsd: 0,
+            buyer: info.destination || info.newAuthority,
+            seller: info.source || info.owner,
+            type
+          });
         }
       } catch (error) {
         console.error('[Helius] Message processing error:', error);
@@ -142,66 +186,6 @@ export function initializeHeliusWebSocket() {
       reconnectAttempts++;
       setTimeout(initializeHeliusWebSocket, RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts));
     }
-  }
-}
-
-async function processTransaction(signature: string, tokenAddress: string) {
-  try {
-    const connection = new Connection(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`);
-    const tx = await connection.getTransaction(signature, { 
-      maxSupportedTransactionVersion: 0,
-      commitment: 'confirmed'
-    });
-
-    if (!tx?.meta) return;
-
-    // Get pre and post token balances
-    const preBalances = tx.meta.preTokenBalances || [];
-    const postBalances = tx.meta.postTokenBalances || [];
-
-    if (preBalances.length === 0 || postBalances.length === 0) return;
-
-    // Get SOL transfers (in lamports)
-    const solTransfers = tx.meta.preBalances.map((pre: number, i: number) => {
-      const post = tx.meta.postBalances[i];
-      return (post - pre) / 1e9; // Convert lamports to SOL
-    });
-
-    // Calculate token amount change
-    const preAmount = preBalances[0]?.uiTokenAmount.uiAmount || 0;
-    const postAmount = postBalances[0]?.uiTokenAmount.uiAmount || 0;
-    const tokenAmount = Math.abs(postAmount - preAmount);
-
-    if (tokenAmount === 0) return; // Skip if no token transfer
-
-    // Determine if it's a buy or sell
-    const isBuy = postAmount > preAmount;
-
-    // Get the SOL amount from the largest transfer
-    const solAmount = Math.abs(Math.max(...solTransfers.filter(t => t !== 0)));
-
-    // Calculate price in SOL per token
-    const price = solAmount / tokenAmount;
-
-    // Get buyer and seller addresses
-    const accountKeys = tx.transaction.message.accountKeys;
-    const addresses = accountKeys.map(key => key.toString());
-
-    const store = useHeliusStore.getState();
-    store.addTrade(tokenAddress, {
-      signature,
-      timestamp: tx.blockTime ? tx.blockTime * 1000 : Date.now(),
-      tokenAddress,
-      amount: tokenAmount,
-      price,
-      priceUsd: price * (useUnifiedTokenStore.getState().solPrice || 0),
-      buyer: isBuy ? addresses[0] : addresses[1],
-      seller: isBuy ? addresses[1] : addresses[0],
-      type: isBuy ? 'buy' : 'sell'
-    });
-
-  } catch (error) {
-    console.error('[Helius] Process transaction error:', error);
   }
 }
 

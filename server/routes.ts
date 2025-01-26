@@ -692,12 +692,15 @@ export function registerRoutes(app: Express): Server {
       const sniperTxResponse = await axios.post(HELIUS_RPC_URL, {
         jsonrpc: '2.0',
         id: 'sniper-tx-request',
-        method: 'getAssetTransfers',
+        method: 'getTransactions',
         params: {
-          asset: mint,
           options: {
-            from: mintTimestamp,
-            to: mintTimestamp + sniperWindow
+            commitment: "confirmed",
+            limit: 100,
+            transcationType: ["TRANSFER"],
+            startTime: mintTimestamp,
+            endTime: mintTimestamp + sniperWindow,
+            account: mint
           }
         }
       });
@@ -706,13 +709,12 @@ export function registerRoutes(app: Express): Server {
       const holdersResponse = await axios.post(HELIUS_RPC_URL, {
         jsonrpc: '2.0',
         id: 'holders-request',
-        method: 'searchAssets',
+        method: 'getAssetsByOwner',
         params: {
-          ownerAddress: null,
-          tokenAddress: mint,
-          displayOptions: {
-            showUnverifiedCollections: true,
-            showZeroBalance: false
+          ownerAddress: mint,
+          options: {
+            showFungible: true,
+            showNativeBalance: false
           }
         }
       });
@@ -740,6 +742,12 @@ export function registerRoutes(app: Express): Server {
           amount: tx.amount
         }))
         .sort((a: any, b: any) => b.amount - a.amount);
+
+      console.log('[Routes] Analytics response:', {
+        topHoldersCount: topHolders.length,
+        snipersCount: snipers.length,
+        totalHolders: holders.length
+      });
 
       res.json({
         topHolders,
