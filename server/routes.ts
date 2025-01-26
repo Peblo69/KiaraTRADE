@@ -443,12 +443,13 @@ export function registerRoutes(app: Express): Server {
       const txResponse = await axios.post(HELIUS_RPC_URL, {
         jsonrpc: '2.0',
         id: 'tx-history',
-        method: 'getAssetTransfers',
+        method: 'getSignaturesForAsset',
         params: {
-          asset: mint,
+          assetId: mint,
           limit: 100,
           sortBy: {
-            timestamp: "desc"
+            value: "blockTime",
+            order: "desc"
           }
         }
       });
@@ -471,25 +472,25 @@ export function registerRoutes(app: Express): Server {
         const sniperWindow = 30000; // 30 seconds after creation
 
         transactions.forEach(tx => {
-          if (tx.timestamp && tx.timestamp < creationTime) {
-            creationTime = tx.timestamp;
+          if (tx.blockTime && tx.blockTime < creationTime) {
+            creationTime = tx.blockTime;
           }
 
           // Track trades
-          if (tx.amount && tx.timestamp) {
+          if (tx.amount && tx.blockTime) {
             trades.push({
               type: tx.type || 'unknown',
               amount: tx.amount,
-              timestamp: tx.timestamp,
+              timestamp: tx.blockTime,
               address: tx.owner
             });
 
             // Track potential snipers
-            if (tx.timestamp - creationTime <= sniperWindow) {
+            if (tx.blockTime - creationTime <= sniperWindow) {
               snipers.add({
                 address: tx.owner,
                 amount: tx.amount,
-                timestamp: tx.timestamp
+                timestamp: tx.blockTime
               });
             }
           }
@@ -904,12 +905,13 @@ function calculateRiskMetrics(data: any) {
         axios.post(HELIUS_RPC_URL, {
           jsonrpc: '2.0',
           id: 'transfers',
-          method: 'getAssetTransfers',
+          method: 'getSignaturesForAsset',
           params: {
-            asset: mint,
+            assetId: mint,
             limit: 100,
             sortBy: {
-              timestamp: 'desc'
+              value: 'blockTime',
+              order: 'desc'
             }
           }
         })
@@ -931,12 +933,12 @@ function calculateRiskMetrics(data: any) {
       const holders = new Map();
       const snipers = new Set();
       const trades = [];
-      const creationTime = transfers[transfers.length - 1]?.timestamp || Date.now();
-      constsniperWindow = 30000; // 30 seconds
+      const creationTime = transfers[transfers.length - 1]?.blockTime || Date.now();
+      const sniperWindow = 30000; // 30 seconds
 
       transfers.forEach(transfer => {
         // Track holders
-        const { fromAddress, toAddress, amount, timestamp } = transfer;
+        const { fromAddress, toAddress, amount, blockTime } = transfer;
 
         if (fromAddress) {
           const currentFromBalance = holders.get(fromAddress) || 0;
@@ -948,11 +950,11 @@ function calculateRiskMetrics(data: any) {
           holders.set(toAddress, currentToBalance + amount);
 
           // Check for snipers (early buyers)
-          if (timestamp - creationTime <= sniperWindow) {
+          if (blockTime - creationTime <= sniperWindow) {
             snipers.add({
               address: toAddress,
               amount,
-              timestamp
+              timestamp: blockTime
             });
           }
         }
@@ -962,7 +964,7 @@ function calculateRiskMetrics(data: any) {
           type: fromAddress ? 'sell' : 'buy',
           address: fromAddress || toAddress,
           amount,
-          timestamp,
+          timestamp: blockTime,
           price: jupiterData?.price || 0
         });
       });
