@@ -100,8 +100,6 @@ export const useTokenAnalyticsStore = create<TokenAnalyticsStore>((set, get) => 
           snipers.push({ address, amount, timestamp, type: 'buy' });
         }
 
-        snipers.sort((a, b) => b.amount - a.amount);
-
         return {
           analytics: {
             ...state.analytics,
@@ -136,14 +134,11 @@ export const useTokenAnalyticsStore = create<TokenAnalyticsStore>((set, get) => 
     }
 
     const totalSupply = holders.reduce((sum, h) => sum + h.balance, 0);
-
-    const tenPercentThreshold = totalSupply * 0.1;
     const topHolders = holders
       .map(h => ({
         ...h,
         percentage: (h.balance / totalSupply) * 100
       }))
-      .filter(h => h.balance >= tenPercentThreshold)
       .sort((a, b) => b.balance - a.balance);
 
     return {
@@ -164,17 +159,30 @@ export const useTokenAnalyticsStore = create<TokenAnalyticsStore>((set, get) => 
 
   performRugCheck: async (tokenAddress: string) => {
     try {
+      console.log(`[Token Analytics] Performing rug check for ${tokenAddress}`);
       const response = await fetch(`/api/token-analytics/${tokenAddress}`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch token analytics: ${response.status}`);
+      }
+
       const data = await response.json();
+      console.log(`[Token Analytics] Received data:`, data);
 
       // Get initial data from analytics store
       const analytics = get().analytics[tokenAddress];
       const creationTime = get().creationTimes[tokenAddress];
       const currentTime = Date.now();
 
-      // Calculate critical risk factors
+      // Calculate critical risk factors based on Solana Sniper logic
       let score = 0;
-      const risks = [];
+      const risks: Array<{
+        name: string;
+        value: string;
+        description: string;
+        score: number;
+        level: 'low' | 'medium' | 'high';
+      }> = [];
 
       // 1. Check Mint Authority - Can new tokens be minted?
       if (data.mintAuthority) {
@@ -223,7 +231,7 @@ export const useTokenAnalyticsStore = create<TokenAnalyticsStore>((set, get) => 
       }
 
       // 4. Check Liquidity Value
-      const totalLiquidity = data.markets?.reduce((acc: number, m: any) => acc + m.totalLiquidity, 0) || 0;
+      const totalLiquidity = data.markets?.[0]?.totalLiquidity || 0;
       if (totalLiquidity < 1) {
         score += 15;
         risks.push({
@@ -236,7 +244,7 @@ export const useTokenAnalyticsStore = create<TokenAnalyticsStore>((set, get) => 
       }
 
       // 5. Check Sniper Activity
-      const sniperCount = analytics?.analytics?.sniperCount || 0;
+      const sniperCount = data.analytics?.sniperCount || 0;
       if (sniperCount > 10) {
         score += 10;
         risks.push({
@@ -263,6 +271,8 @@ export const useTokenAnalyticsStore = create<TokenAnalyticsStore>((set, get) => 
       // Cap total score at 100
       score = Math.min(score, 100);
 
+      console.log(`[Token Analytics] Calculated rug score: ${score}`);
+
       set((state) => ({
         rugCheck: {
           ...state.rugCheck,
@@ -278,7 +288,7 @@ export const useTokenAnalyticsStore = create<TokenAnalyticsStore>((set, get) => 
       }));
 
     } catch (error) {
-      console.error('Rug check failed:', error);
+      console.error('[Token Analytics] Rug check failed:', error);
     }
   }
 }));

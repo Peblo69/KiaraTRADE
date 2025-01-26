@@ -670,53 +670,52 @@ export function registerRoutes(app: Express): Server {
       const { mint } = req.params;
       console.log(`[Routes] Getting token analytics for ${mint}`);
 
-      // Get token metadata and authority info
+      // Get token metadata and authority info using correct Helius API methods
       const [tokenInfoResponse, holdersResponse, txResponse] = await Promise.all([
         axios.post(HELIUS_RPC_URL, {
           jsonrpc: '2.0',
           id: 'token-info',
-          method: 'getAssetBatch',
-          params: [{
-            ids: [mint],
-            options: { showFungible: true }
-          }]
+          method: 'getToken',  // Changed from getAssetBatch to getToken
+          params: [mint]
         }),
         axios.post(HELIUS_RPC_URL, {
           jsonrpc: '2.0',
           id: 'holders-request',
-          method: 'searchAssets',
-          params: {
-            ownerAddress: mint,
-            page: 1,
-            limit: 1000
-          }
+          method: 'getTokenHolders',  // Changed from searchAssets to getTokenHolders
+          params: [mint]
         }),
         axios.post(HELIUS_RPC_URL, {
           jsonrpc: '2.0',
           id: 'tx-request',
-          method: 'getAssetTransfers',
+          method: 'searchTransactions',  // Changed from getAssetTransfers to searchTransactions
           params: {
-            asset: mint,
-            page: 1,
-            limit: 100
+            commitment: "finalized",
+            limit: 100,
+            query: {
+              accounts: [mint]
+            }
           }
         })
       ]);
 
+      console.log('[DEBUG] Token Info Response:', tokenInfoResponse.data);
+      console.log('[DEBUG] Holders Response:', holdersResponse.data);
+      console.log('[DEBUG] Transactions Response:', txResponse.data);
+
       // Extract token information
-      const tokenInfo = tokenInfoResponse.data.result[0];
-      const mintAuthority = tokenInfo?.authorities?.find(a => a.type === 'mint')?.address;
-      const freezeAuthority = tokenInfo?.authorities?.find(a => a.type === 'freeze')?.address;
+      const tokenInfo = tokenInfoResponse.data.result;
+      const mintAuthority = tokenInfo?.mintAuthority || null;
+      const freezeAuthority = tokenInfo?.freezeAuthority || null;
 
       // Calculate holder distribution
       const holders = holdersResponse.data.result || [];
-      const totalSupply = holders.reduce((sum, h) => sum + (h.tokenAmount || 0), 0);
+      const totalSupply = tokenInfo.supply || 0;
 
       const holdersBySize = holders
         .map(h => ({
-          address: h.owner,
-          amount: h.tokenAmount,
-          pct: (h.tokenAmount / totalSupply) * 100
+          address: h.address,
+          amount: h.amount,
+          pct: (h.amount / totalSupply) * 100
         }))
         .sort((a, b) => b.amount - a.amount);
 
@@ -729,19 +728,22 @@ export function registerRoutes(app: Express): Server {
       const snipers = transactions
         .filter(tx => tx.timestamp - creationTime <= sniperWindow)
         .map(tx => ({
-          address: tx.owner,
+          address: tx.source,
           timestamp: tx.timestamp,
-          amount: tx.tokenAmount
+          amount: tx.tokenTransfers?.[0]?.tokenAmount || 0
         }));
 
-      // Check for liquidity changes
+      // Check for liquidity changes using Raydium program ID
       const liquidityTx = transactions.filter(tx => 
-        tx.type === 'TRANSFER' && 
-        (tx.source.includes('liquidity') || tx.destination.includes('liquidity'))
+        tx.tokenTransfers?.some(transfer => 
+          transfer.source.includes('liquidity') || 
+          transfer.destination.includes('liquidity')
+        )
       );
 
       const liquidityAnalysis = {
-        totalLiquidity: liquidityTx.reduce((sum, tx) => sum + tx.tokenAmount, 0),
+        totalLiquidity: liquidityTx.reduce((sum, tx) => 
+          sum + (tx.tokenTransfers?.[0]?.tokenAmount || 0), 0),
         recentChanges: liquidityTx.slice(0, 5)
       };
 
