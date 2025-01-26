@@ -1,0 +1,77 @@
+[Routes] Getting token analytics for 7CvQFVvKTSwsZQYvPHVDTk2FYcNZdoSNhSbkVXwBpump
+[DEBUG] Token Info Response: {
+  jsonrpc: '2.0',
+  error: {
+    code: -32000,
+    message: 'Database Error: RecordNotFound Error: Asset Not Found'
+  },
+  id: 'token-info'
+}
+[DEBUG] Balances Response: {
+  jsonrpc: '2.0',
+  result: { total: 0, limit: 100, page: 1, items: [] },
+  id: 'balances-request'
+}
+[DEBUG] Transactions Response: {
+  jsonrpc: '2.0',
+  result: { total: 0, limit: 100, page: 1, items: [] },
+  id: 'tx-request'
+}
+[Routes] Token analytics error: {
+  message: "Cannot read properties of undefined (reading 'supply')",
+  response: undefined,
+  status: undefined
+}
+[Routes] Getting token analytics for 7CvQFVvKTSwsZQYvPHVDTk2FYcNZdoSNhSbkVXwBpump
+[DEBUG] Token Info Response: {
+  jsonrpc: '2.0',
+  result: {
+    interface: 'FungibleToken',
+    id: '7CvQFVvKTSwsZQYvPHVDTk2FYcNZdoSNhSbkVXwBpump',
+    content: {
+      '$schema': 'https://schema.metaplex.com/nft1.0.json',
+      json_uri: 'https://ipfs.io/ipfs/QmQdaM2VGZxwCiQJiR54qkwh9BmgGG8hqxNsR3A56ccx1q',
+      files: [],
+      metadata: [Object],
+      links: {}
+    },
+    authorities: [ [Object] ],
+    compression: {
+      eligible: false,
+      compressed: false,
+      data_hash: '',
+      creator_hash: '',
+      asset_hash: '',
+      tree: '',
+      seq: 0,
+      leaf_id: 0
+    },
+    grouping: [],
+    royalty: {
+      royalty_model: 'creators',
+      target: null,
+      percent: 0,
+      basis_points: 0,
+      primary_sale_happened: false,
+      locked: false
+    },
+    creators: [],
+    ownership: {
+      frozen: false,
+      delegated: false,
+      delegate: null,
+      ownership_model: 'token',
+      owner: ''
+    },
+    supply: null,
+    mutable: false,
+    burnt: false,
+    token_info: {
+      supply: 1000000000000000,
+      decimals: 6,
+      token_program: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
+    }
+  },
+  id: 'token-info'
+}
+[DEBUG] Balances Response: {
