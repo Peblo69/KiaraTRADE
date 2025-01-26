@@ -670,8 +670,40 @@ export function registerRoutes(app: Express): Server {
       const { mint } = req.params;
       console.log(`[Routes] Getting token analytics for ${mint}`);
 
-      // Get token holders
-      const holdersResponse = await axios.post(`${HELIUS_RPC_URL}`, {
+      // Get token creation transaction
+      const mintTxResponse = await axios.post(HELIUS_RPC_URL, {
+        jsonrpc: '2.0',
+        id: 'mint-tx-request',
+        method: 'searchAssets',
+        params: {
+          ownerAddress: null,
+          tokenAddress: mint,
+          options: {
+            limit: 1,
+            showMints: true
+          }
+        }
+      });
+
+      const mintTimestamp = mintTxResponse.data.result?.[0]?.created_at || Date.now();
+      const sniperWindow = 1000 * 30; // 30 seconds after creation
+
+      // Get early transactions (snipers)
+      const sniperTxResponse = await axios.post(HELIUS_RPC_URL, {
+        jsonrpc: '2.0',
+        id: 'sniper-tx-request',
+        method: 'getAssetTransfers',
+        params: {
+          asset: mint,
+          options: {
+            from: mintTimestamp,
+            to: mintTimestamp + sniperWindow
+          }
+        }
+      });
+
+      // Get all current holders
+      const holdersResponse = await axios.post(HELIUS_RPC_URL, {
         jsonrpc: '2.0',
         id: 'holders-request',
         method: 'searchAssets',
@@ -687,110 +719,44 @@ export function registerRoutes(app: Express): Server {
 
       const holders = holdersResponse.data.result || [];
       const totalSupply = holders.reduce((sum: number, holder: any) => sum + (holder.token_info?.balance || 0), 0);
+      const tenPercentThreshold = totalSupply * 0.1;
 
       // Sort holders by balance to identify top 10%
-      const sortedHolders = holders
-        .sort((a: any, b: any) => (b.token_info?.balance || 0) - (a.token_info?.balance || 0))
+      const topHolders = holders
+        .filter((holder: any) => (holder.token_info?.balance || 0) >= tenPercentThreshold)
         .map((holder: any) => ({
           address: holder.owner,
           balance: holder.token_info?.balance || 0,
           percentage: ((holder.token_info?.balance || 0) / totalSupply) * 100
-        }));
+        }))
+        .sort((a: any, b: any) => b.balance - a.balance);
 
-      // Get top 10% holders
-      const topHoldersCount = Math.max(1, Math.ceil(sortedHolders.length * 0.1));
-      const topHolders = sortedHolders.slice(0, topHoldersCount);
-
-      // Get token creation transaction
-      const mintTxResponse = await axios.post(`${HELIUS_RPC_URL}`, {
-        jsonrpc: '2.0',
-        id: 'mint-tx-request',
-        method: 'searchAssets',
-        params: {
-          ownerAddress: null,
-          tokenAddress: mint,
-          options: {
-            limit: 1,
-            showMints: true
-          }
-        }
-      });
-
-      const mintTimestamp = mintTxResponse.data.result?.[0]?.created_at || Date.now();
-      const sniperWindow = 1000 * 60 * 5; // 5 minutes after creation
-
-      // Get early transactions (snipers)
-      const sniperTxResponse = await axios.post(`${HELIUS_RPC_URL}`, {
-        jsonrpc: '2.0',
-        id: 'sniper-tx-request',
-        method: 'getAssetTransfers',
-        params: {
-          asset: mint,
-          options: {
-            from: mintTimestamp,
-            to: mintTimestamp + sniperWindow
-          }
-        }
-      });
-
-      // Identify snipers (first buyers within 5 minutes)
+      // Identify snipers (first buyers within 30 seconds)
       const snipers = (sniperTxResponse.data.result || [])
         .filter((tx: any) => tx.type === 'TRANSFER')
         .map((tx: any) => ({
           address: tx.to,
           timestamp: tx.timestamp,
           amount: tx.amount
-        }));
-
-      // Get dev wallet interactions
-      const devResponse = await axios.post(`${HELIUS_RPC_URL}`, {
-        jsonrpc: '2.0',
-        id: 'dev-tx-request',
-        method: 'getAssetTransfers',
-        params: {
-          asset: mint,
-          options: {
-            limit: 100
-          }
-        }
-      });
-
-      // Count interactions with dev wallet to identify insiders
-      const transactions = devResponse.data.result || [];
-      const walletInteractions: Record<string, number> = {};
-
-      transactions.forEach((tx: any) => {
-        if (tx.type === 'TRANSFER') {
-          [tx.from, tx.to].forEach(address => {
-            if (address) {
-              walletInteractions[address] = (walletInteractions[address] || 0) + 1;
-            }
-          });
-        }
-      });
-
-      // Consider wallets with high interaction count as insiders
-      const insiders = Object.entries(walletInteractions)
-        .filter(([_, count]) => count >= 5) // Wallets with 5+ interactions
-        .map(([address, count]) => ({
-          address,
-          interactions: count
-        }));
+        }))
+        .sort((a: any, b: any) => b.amount - a.amount);
 
       res.json({
         topHolders,
         snipers,
-        insiders,
         analytics: {
           totalHolders: holders.length,
           averageBalance: totalSupply / holders.length,
-          sniperCount: snipers.length,
-          insiderCount: insiders.length
+          sniperCount: snipers.length
         }
       });
 
     } catch (error: any) {
-      console.error('[Routes] Token analytics error:', error);
+      console.error('[Routes] Token analytics error:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       res.status(500).json({
         error: 'Failed to fetch token analytics',
         details: error.message
