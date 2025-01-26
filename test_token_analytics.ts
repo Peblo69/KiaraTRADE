@@ -1,160 +1,157 @@
 import axios from 'axios';
+import { format } from 'date-fns';
+import dotenv from 'dotenv';
 
-// Using existing HELIUS_API_KEY from environment
-const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
+dotenv.config();
+
+const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
+const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+// Updated Jupiter API endpoint
+const JUP_PRICE_URL = 'https://price.jup.ag/v4/price';
+
+// Print startup info
+console.log(`Current Date and Time (UTC): ${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}`);
+console.log(`Current User's Login: ${process.env.USER || 'Peblo69'}\n`);
+
+async function getTokenPrice(tokenMint: string) {
+    try {
+        // Add timeout and proper error handling
+        const response = await axios.get(`${JUP_PRICE_URL}?ids=${tokenMint}`, {
+            timeout: 5000,
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        return response.data.data[tokenMint]?.price || 0;
+    } catch (error) {
+        console.log('Unable to fetch price data');
+        return 0;
+    }
+}
 
 async function checkToken(tokenMint: string) {
-  try {
-    console.log(`\n🔍 Analyzing token: ${tokenMint}`);
+    try {
+        console.log(`\n🔍 Analyzing token: ${tokenMint}`);
 
-    // Get token data from Helius
-    const tokenResponse = await axios.post(HELIUS_RPC_URL, {
-      jsonrpc: '2.0',
-      id: 'token-info',
-      method: 'getAsset',
-      params: [tokenMint]
-    });
+        // Fetch data with better error handling
+        const [rugCheckResponse, heliusResponse] = await Promise.all([
+            axios.get(`https://api.rugcheck.xyz/v1/tokens/${tokenMint}/report`, {
+                timeout: 5000
+            }).catch(() => ({ data: null })),
+            axios.post(HELIUS_RPC_URL, {
+                jsonrpc: '2.0',
+                id: 'token-info',
+                method: 'getAsset',
+                params: [tokenMint]
+            }, {
+                timeout: 5000
+            }).catch(() => ({ data: { result: null } }))
+        ]);
 
-    const token = tokenResponse.data?.result;
-
-    if (!token) {
-      throw new Error('No data received from Helius API');
-    }
-
-    // Print basic info
-    console.log('\n📊 Token Information:');
-    console.log('-------------------');
-    console.log(`Name: ${token.content?.metadata?.name || 'Unknown'}`);
-    console.log(`Symbol: ${token.content?.metadata?.symbol || 'Unknown'}`);
-    console.log(`Supply: ${token.token_info?.supply || 'Unknown'}`);
-    console.log(`Decimals: ${token.token_info?.decimals || 'Unknown'}`);
-
-    // Check for risks
-    console.log('\n🚨 Risk Analysis:');
-    console.log('---------------');
-
-    let riskScore = 0;
-
-    if (token.authorities?.find((a: any) => a.type === 'mint')) {
-      console.log('⚠️  Has mint authority - Can create more tokens');
-      riskScore += 30;
-    }
-
-    if (token.authorities?.find((a: any) => a.type === 'freeze')) {
-      console.log('⚠️  Has freeze authority - Can freeze transfers');
-      riskScore += 30;
-    }
-
-    if (token.content?.metadata?.mutable) {
-      console.log('⚠️  Token metadata is mutable - Can be changed');
-      riskScore += 20;
-    }
-
-    // Final verdict
-    console.log('\n📝 Final Assessment:');
-    console.log('-----------------');
-    console.log(`Risk Score: ${riskScore}/100`);
-    console.log(`Status: ${riskScore > 70 ? '🔴 HIGH RISK' : riskScore > 40 ? '🟡 MEDIUM RISK' : '🟢 LOW RISK'}`);
-
-    return {
-      safe: riskScore < 50,
-      score: riskScore,
-      tokenInfo: {
-        name: token.content?.metadata?.name,
-        symbol: token.content?.metadata?.symbol,
-        supply: token.token_info?.supply,
-        decimals: token.token_info?.decimals
-      }
-    };
-
-  } catch (error: any) {
-    console.error('Error checking token:', error.message);
-    if (error.response) {
-      console.error('Response data:', error.response.data);
-    }
-    return null;
-  }
-}
-
-// New advanced analysis function
-async function detailedAnalysis(tokenMint: string) {
-  try {
-    console.log(`\n🔬 Detailed Analysis for token: ${tokenMint}`);
-
-    // Get transfers history
-    const transfersResponse = await axios.post(HELIUS_RPC_URL, {
-      jsonrpc: '2.0',
-      id: 'transfers',
-      method: 'getSignaturesForAsset',
-      params: {
-        assetId: tokenMint,
-        limit: 100,
-        sortBy: {
-          sortBy: 'blockTime',
-          sortDirection: 'desc'
+        if (!rugCheckResponse.data) {
+            throw new Error('Failed to fetch RugCheck data');
         }
-      }
-    });
 
-    const transfers = transfersResponse.data?.result || [];
-    console.log(`\n📈 Transfer Analysis (Last ${transfers.length} transfers):`);
-    console.log('----------------------------------------');
+        const token = rugCheckResponse.data;
+        const heliusData = heliusResponse.data?.result;
 
-    // Analyze holder distribution
-    const holders = new Map<string, number>();
-    const snipers = new Set<string>();
-    const creationTime = transfers[transfers.length - 1]?.blockTime || Date.now();
-    const sniperWindow = 30000; // 30 seconds after creation
+        // Risk Scoring
+        const riskFactors = {
+            mintAuthority: token.token?.mintAuthority ? 30 : 0,
+            freezeAuthority: token.token?.freezeAuthority ? 20 : 0,
+            mutable: token.tokenMeta?.mutable ? 10 : 0,
+            lowLiquidity: token.totalLPProviders < 3 ? 20 : 0,
+            highConcentration: token.topHolders?.[0]?.pct > 50 ? 20 : 0
+        };
 
-    transfers.forEach((transfer: any) => {
-      if (transfer.blockTime - creationTime <= sniperWindow) {
-        snipers.add(transfer.toUserAccount);
-      }
-    });
+        const totalRiskScore = Object.values(riskFactors).reduce((a, b) => a + b, 0);
 
-    console.log(`Early Buyers (First 30s): ${snipers.size}`);
+        // Enhanced Output
+        console.log('\n📊 Token Information:');
+        console.log('===================');
+        console.log(`Name: ${token.tokenMeta?.name || 'Unknown'}`);
+        console.log(`Symbol: ${token.tokenMeta?.symbol || 'Unknown'}`);
+        console.log(`Supply: ${Number(token.token?.supply).toLocaleString()}`);
+        console.log(`Decimals: ${token.token?.decimals}`);
+        console.log(`Created: ${format(new Date(heliusData?.createdAt || Date.now()), 'yyyy-MM-dd HH:mm:ss')}`);
 
-    // Get current holders
-    const holdersResponse = await axios.post(HELIUS_RPC_URL, {
-      jsonrpc: '2.0',
-      id: 'holders',
-      method: 'getAssetHolders',
-      params: [tokenMint]
-    });
+        if (heliusData?.content?.metadata?.description) {
+            console.log('\n📝 Description:');
+            console.log('=============');
+            console.log(heliusData.content.metadata.description);
+        }
 
-    const currentHolders = holdersResponse.data?.result || [];
-    console.log(`Current Holders: ${currentHolders.length}`);
+        console.log('\n🔐 Security Analysis:');
+        console.log('===================');
+        console.log(`Mint Authority: ${token.token?.mintAuthority ? '⚠️ ENABLED' : '✅ DISABLED'}`);
+        console.log(`Freeze Authority: ${token.token?.freezeAuthority ? '⚠️ ENABLED' : '✅ DISABLED'}`);
+        console.log(`Metadata Mutable: ${token.tokenMeta?.mutable ? '⚠️ YES' : '✅ NO'}`);
 
-    // Calculate concentration
-    if (currentHolders.length > 0) {
-      const top10 = currentHolders.slice(0, 10);
-      const totalSupply = currentHolders.reduce((sum: number, h: any) => sum + (h.amount || 0), 0);
-      const top10Percentage = (top10.reduce((sum: number, h: any) => sum + (h.amount || 0), 0) / totalSupply) * 100;
+        console.log('\n💰 Market Data:');
+        console.log('=============');
+        console.log(`Total Markets: ${token.markets?.length || 0}`);
+        console.log(`LP Providers: ${token.totalLPProviders}`);
+        console.log(`Total Liquidity: ${token.totalMarketLiquidity.toFixed(3)} SOL`);
 
-      console.log(`\n👥 Top 10 Holders Control: ${top10Percentage.toFixed(2)}% of supply`);
-      console.log('Risk Level:', top10Percentage > 80 ? '🔴 HIGH' : top10Percentage > 50 ? '🟡 MEDIUM' : '🟢 LOW');
+        if (token.markets?.length > 0) {
+            console.log('\n🏦 Active Markets:');
+            token.markets.forEach((market: any) => {
+                console.log(`• ${market.market || 'Unknown Market'}`);
+                if (market.liquidityA) console.log(`  - Pool A: ${market.liquidityA}`);
+                if (market.liquidityB) console.log(`  - Pool B: ${market.liquidityB}`);
+            });
+        }
+
+        console.log('\n👥 Holder Analysis:');
+        console.log('=================');
+        if (token.topHolders?.length > 0) {
+            const totalHeld = token.topHolders.reduce((sum: number, h: any) => sum + h.pct, 0);
+            console.log(`Top Holders Control: ${totalHeld.toFixed(2)}%`);
+
+            token.topHolders.forEach((holder: any, idx: number) => {
+                const warning = holder.pct > 20 ? '⚠️' : '✅';
+                console.log(`${warning} Holder #${idx + 1}: ${holder.pct.toFixed(2)}%`);
+                if (holder.insider) console.log(`   🚨 INSIDER DETECTED`);
+            });
+        }
+
+        console.log('\n⚠️ Risk Assessment:');
+        console.log('=================');
+        Object.entries(riskFactors).forEach(([factor, score]) => {
+            if (score > 0) {
+                console.log(`• ${factor}: ${score} points`);
+            }
+        });
+
+        const riskLevel = totalRiskScore > 70 ? '🔴 HIGH' :
+            totalRiskScore > 40 ? '🟡 MEDIUM' :
+                '🟢 LOW';
+
+        console.log('\n📊 Final Verdict:');
+        console.log('===============');
+        console.log(`Risk Score: ${totalRiskScore}/100`);
+        console.log(`Risk Level: ${riskLevel}`);
+
+        if (token.rugged) {
+            console.log('\n🚨 WARNING: TOKEN IS MARKED AS RUGGED 🚨');
+        }
+
+        return {
+            safe: totalRiskScore < 50 && !token.rugged,
+            score: totalRiskScore,
+            risks: riskFactors
+        };
+
+    } catch (error: any) {
+        console.error('Error during analysis:', error.message);
+        return null;
     }
-
-    // Transaction velocity
-    const last24h = transfers.filter((t: any) => t.blockTime > Date.now() - 24 * 60 * 60 * 1000).length;
-    console.log(`\n🔄 24h Transactions: ${last24h}`);
-    console.log('Activity Level:', last24h > 1000 ? '🟢 HIGH' : last24h > 100 ? '🟡 MEDIUM' : '🔴 LOW');
-
-  } catch (error: any) {
-    console.error('\n❌ Error in detailed analysis:', error.message);
-    if (error.response) {
-      console.error('API Response:', error.response.data);
-    }
-  }
 }
 
-// Example token to test
+// Example usage
 async function main() {
-  // Using the token address provided
-  const tokenMint = '87asvmcpuXLVgUMVKvcskmZ6pgq3hK8QsQKBncApump';
-  await checkToken(tokenMint);
-  console.log('\n===========================================\n');
-  await detailedAnalysis(tokenMint);
+    const tokenMint = 'Dd87RAN4Yc7sdbYTDYDGHayF3XukVtTjfqiABpbtpump';
+    await checkToken(tokenMint);
 }
 
 main();

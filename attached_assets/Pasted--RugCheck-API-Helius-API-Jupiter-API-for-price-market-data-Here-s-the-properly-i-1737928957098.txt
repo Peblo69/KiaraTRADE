@@ -1,0 +1,227 @@
+
+    RugCheck API
+    Helius API
+    Jupiter API (for price/market data)
+
+Here's the properly integrated version:
+TypeScript
+
+import axios from 'axios';
+import { format } from 'date-fns';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
+const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+const JUP_PRICE_URL = 'https://price.jup.ag/v4/price';
+
+// Print startup info
+console.log(`Current Date and Time (UTC): ${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}`);
+console.log(`Current User's Login: ${process.env.USER || 'Peblo69'}\n`);
+
+async function getTokenPrice(tokenMint: string) {
+    try {
+        const response = await axios.get(`${JUP_PRICE_URL}?ids=${tokenMint}`);
+        return response.data.data[tokenMint]?.price || null;
+    } catch (error) {
+        console.log('Price fetch error:', error);
+        return null;
+    }
+}
+
+async function getHeliusTokenData(tokenMint: string) {
+    try {
+        const response = await axios.post(HELIUS_RPC_URL, {
+            jsonrpc: '2.0',
+            id: 'token-info',
+            method: 'getAsset',
+            params: [tokenMint]
+        });
+        return response.data.result;
+    } catch (error) {
+        console.log('Helius data fetch error:', error);
+        return null;
+    }
+}
+
+async function checkToken(tokenMint: string) {
+    try {
+        console.log(`\n🔍 Analyzing token: ${tokenMint}`);
+
+        // Fetch data from all APIs in parallel
+        const [rugCheckResponse, heliusData, tokenPrice] = await Promise.all([
+            axios.get(`https://api.rugcheck.xyz/v1/tokens/${tokenMint}/report`),
+            getHeliusTokenData(tokenMint),
+            getTokenPrice(tokenMint)
+        ]);
+
+        const token = rugCheckResponse.data;
+
+        // Token Basic Info
+        console.log('\n📊 Token Information:');
+        console.log('===================');
+        console.log(`Name: ${token.tokenMeta?.name || 'Unknown'}`);
+        console.log(`Symbol: ${token.tokenMeta?.symbol || 'Unknown'}`);
+        console.log(`Supply: ${Number(token.token?.supply).toLocaleString()}`);
+        console.log(`Decimals: ${token.token?.decimals}`);
+        console.log(`Creator: ${token.creator || 'Unknown'}`);
+        if (tokenPrice) {
+            console.log(`Current Price: $${tokenPrice.toFixed(6)}`);
+        }
+
+        // Helius Additional Data
+        if (heliusData) {
+            console.log('\n🔄 Token Metadata:');
+            console.log('================');
+            console.log(`Collection: ${heliusData.grouping?.collection?.name || 'N/A'}`);
+            console.log(`Royalty: ${heliusData.royalty?.percent || 0}%`);
+            if (heliusData.content?.metadata?.description) {
+                console.log(`Description: ${heliusData.content.metadata.description}`);
+            }
+        }
+
+        // Authority Analysis
+        console.log('\n🔐 Authority Analysis:');
+        console.log('====================');
+        console.log(`Mint Authority: ${token.token?.mintAuthority ? '⚠️ EXISTS' : '✅ None'}`);
+        if (token.token?.mintAuthority) {
+            console.log(`Mint Authority Address: ${token.token.mintAuthority}`);
+        }
+        console.log(`Freeze Authority: ${token.token?.freezeAuthority ? '⚠️ EXISTS' : '✅ None'}`);
+        if (token.token?.freezeAuthority) {
+            console.log(`Freeze Authority Address: ${token.token.freezeAuthority}`);
+        }
+        console.log(`Metadata Mutable: ${token.tokenMeta?.mutable ? '⚠️ YES' : '✅ NO'}`);
+
+        // Market Analysis
+        console.log('\n📈 Market Analysis:');
+        console.log('=================');
+        console.log(`Total Markets: ${token.markets?.length || 0}`);
+        console.log(`LP Providers: ${token.totalLPProviders}`);
+        console.log(`Market Liquidity: ${token.totalMarketLiquidity.toLocaleString()} SOL`);
+        if (tokenPrice) {
+            console.log(`Market Cap: $${(tokenPrice * Number(token.token.supply)).toLocaleString()}`);
+        }
+
+        if (token.markets && token.markets.length > 0) {
+            console.log('\nActive Markets:');
+            token.markets.forEach((market: any, index: number) => {
+                console.log(`${index + 1}. ${market.market}`);
+                if (market.liquidityA) console.log(`   Pool A: ${market.liquidityA}`);
+                if (market.liquidityB) console.log(`   Pool B: ${market.liquidityB}`);
+            });
+        }
+
+        // Holder Analysis
+        console.log('\n👥 Holder Distribution:');
+        console.log('====================');
+        if (token.topHolders && token.topHolders.length > 0) {
+            const totalTopHoldersPct = token.topHolders.reduce((sum: number, holder: any) => sum + holder.pct, 0);
+            console.log(`Top Holders Total: ${totalTopHoldersPct.toFixed(2)}%`);
+            
+            token.topHolders.forEach((holder: any, index: number) => {
+                const insiderTag = holder.insider ? ' 🚨 INSIDER' : '';
+                const warningEmoji = holder.pct > 5 ? '⚠️' : '✅';
+                console.log(`${warningEmoji} ${index + 1}. ${holder.address}`);
+                console.log(`   Holdings: ${holder.pct.toFixed(2)}%${insiderTag}`);
+                if (tokenPrice) {
+                    const holderValue = (holder.pct/100) * Number(token.token.supply) * tokenPrice;
+                    console.log(`   Value: $${holderValue.toLocaleString()}`);
+                }
+            });
+        }
+
+        // Risk Analysis
+        console.log('\n🚨 Risk Analysis:');
+        console.log('===============');
+        if (token.risks && token.risks.length > 0) {
+            token.risks.forEach((risk: any) => {
+                const riskEmoji = risk.level === 'danger' ? '🔴' : 
+                                risk.level === 'warning' ? '🟡' : '🟢';
+                console.log(`${riskEmoji} ${risk.name}: ${risk.score}/100`);
+                if (risk.description) console.log(`   ${risk.description}`);
+            });
+        }
+
+        // Final Assessment
+        console.log('\n📝 Final Assessment:');
+        console.log('==================');
+        if (token.rugged) {
+            console.log('🔴 WARNING: TOKEN IS MARKED AS RUGGED');
+        }
+        
+        console.log(`\nOverall Risk Score: ${token.score}/100`);
+        const riskLevel = token.score > 70 ? '🔴 HIGH RISK' : 
+                         token.score > 40 ? '🟡 MEDIUM RISK' : 
+                         '🟢 LOW RISK';
+        console.log(`Risk Level: ${riskLevel}`);
+
+        // Summary and Recommendations
+        console.log('\n💡 Key Findings:');
+        console.log('==============');
+        const findings = [];
+        if (token.token?.mintAuthority) 
+            findings.push('⚠️ Mint authority exists - new tokens can be created');
+        if (token.token?.freezeAuthority) 
+            findings.push('⚠️ Freeze authority exists - transfers can be blocked');
+        if (token.tokenMeta?.mutable) 
+            findings.push('⚠️ Metadata is mutable - can be changed');
+        if (token.totalLPProviders < 3) 
+            findings.push('⚠️ Low liquidity provider count - potential liquidity risks');
+        
+        findings.forEach(finding => console.log(finding));
+
+        return {
+            safe: token.score < 50 && !token.rugged,
+            score: token.score,
+            risks: token.risks
+        };
+
+    } catch (error: any) {
+        console.error('Error analyzing token:', error.message);
+        if (error.response) {
+            console.error('API Error:', error.response.data);
+        }
+        return null;
+    }
+}
+
+// Example usage
+async function main() {
+    // Example token to check (you can change this to any token mint address)
+    const tokenMint = '87asvmcpuXLVgUMVKvcskmZ6pgq3hK8QsQKBncApump';
+    await checkToken(tokenMint);
+}
+
+main();
+
+To use this:
+
+    Make sure your .env file has:
+
+env
+
+HELIUS_API_KEY=your_helius_api_key_here
+USER=Peblo69
+
+    Install dependencies:
+
+bash
+
+npm install axios date-fns dotenv
+
+    Run:
+
+bash
+
+npx tsx index.ts
+
+This version includes:
+
+    Proper error handling for all API calls
+    Price data from Jupiter
+    Detailed token metadata from Helius
+    Market cap calculations
+    Holder value calculations
+    More detailed risk analysis
