@@ -1,6 +1,6 @@
-import WebSocket from "ws"; // Node.js websocket library
-import { WebSocketRequest } from "./types"; // Typescript Types for type safety
-import { config } from "./config"; // Configuration parameters for our bot
+import WebSocket from "ws";
+import { WebSocketRequest } from "./types";
+import { config } from "./config";
 import { fetchTransactionDetails, createSwapTransaction, getRugCheckConfirmed, fetchAndSaveSwapDetails } from "./transactions";
 import { validateEnv } from "./utils/env-validator";
 
@@ -8,7 +8,6 @@ import { validateEnv } from "./utils/env-validator";
 let activeTransactions = 0;
 const MAX_CONCURRENT = config.tx.concurrent_transactions;
 
-// Function used to open our websocket connection
 function sendSubscribeRequest(ws: WebSocket): void {
   const request: WebSocketRequest = {
     jsonrpc: "2.0",
@@ -19,7 +18,7 @@ function sendSubscribeRequest(ws: WebSocket): void {
         mentions: [config.liquidity_pool.radiyum_program_id],
       },
       {
-        commitment: "processed", // Can use finalized to be more accurate.
+        commitment: "processed",
       },
     ],
   };
@@ -94,97 +93,110 @@ async function processTransaction(signature: string): Promise<void> {
   }
 }
 
-// Websocket Handler for listening to the Solana logSubscribe method
-let init = false;
 async function websocketHandler(): Promise<void> {
-  // Load environment variables from the .env file
-  const env = validateEnv();
+  try {
+    // Load and validate environment variables
+    console.log("Loading environment variables...");
+    const env = validateEnv();
 
-  // Create a WebSocket connection
-  let ws: WebSocket | null = new WebSocket(env.HELIUS_WSS_URI);
-  if (!init) console.clear();
+    // Log the URL (without API key) for debugging
+    const sanitizedUrl = env.HELIUS_WSS_URI.replace(/api-key=([^&]*)/, 'api-key=****');
+    console.log("Connecting to WebSocket URL:", sanitizedUrl);
 
-  // @TODO, test with hosting our app on a Cloud instance closer to the RPC nodes physical location for minimal latency
-  // @TODO, test with different RPC and API nodes (free and paid) from quicknode and shyft to test speed
-
-  // Send subscription to the websocket once the connection is open
-  ws.on("open", () => {
-    // Subscribe
-    if (ws) sendSubscribeRequest(ws); // Send a request once the WebSocket is open
-    console.log("\n🔓 WebSocket is open and listening.");
-    init = true;
-  });
-
-  // Logic for the message event for the .on event listener
-  ws.on("message", async (data: WebSocket.Data) => {
+    // Create WebSocket connection with explicit error handling
+    let ws: WebSocket | null = null;
     try {
-      const jsonString = data.toString(); // Convert data to a string
-      const parsedData = JSON.parse(jsonString); // Parse the JSON string
-
-      // Handle subscription response
-      if (parsedData.result !== undefined && !parsedData.error) {
-        console.log("✅ Subscription confirmed");
-        return;
-      }
-
-      // Only log RPC errors for debugging
-      if (parsedData.error) {
-        console.error("🚫 RPC Error:", parsedData.error);
-        return;
-      }
-
-      // Safely access the nested structure
-      const logs = parsedData?.params?.result?.value?.logs;
-      const signature = parsedData?.params?.result?.value?.signature;
-
-      // Validate `logs` is an array and if we have a signtature
-      if (!Array.isArray(logs) || !signature) return;
-
-      // Verify if this is a new pool creation
-      const containsCreate = logs.some((log: string) => typeof log === "string" && log.includes("Program log: initialize2: InitializeInstruction2"));
-      if (!containsCreate || typeof signature !== "string") return;
-
-      // Verify if we have reached the max concurrent transactions
-      if (activeTransactions >= MAX_CONCURRENT) {
-        console.log("⏳ Max concurrent transactions reached, skipping...");
-        return;
-      }
-
-      // Add additional concurrent transaction
-      activeTransactions++;
-
-      // Process transaction asynchronously
-      processTransaction(signature)
-        .catch((error) => {
-          console.error("Error processing transaction:", error);
-        })
-        .finally(() => {
-          activeTransactions--;
-        });
+      ws = new WebSocket(env.HELIUS_WSS_URI);
     } catch (error) {
-      console.error("💥 Error processing message:", {
-        error: error instanceof Error ? error.message : "Unknown error",
-        timestamp: new Date().toISOString(),
-      });
+      console.error("WebSocket initialization error:", error);
+      throw error;
     }
-  });
 
-  ws.on("error", (err: Error) => {
-    console.error("WebSocket error:", err);
-  });
-
-  ws.on("close", () => {
-    console.log("📴 WebSocket connection closed, cleaning up...");
-    if (ws) {
-      ws.removeAllListeners();
-      ws = null;
+    if (!ws) {
+      throw new Error("Failed to create WebSocket connection");
     }
-    console.log("🔄 Attempting to reconnect in 5 seconds...");
-    setTimeout(websocketHandler, 5000);
-  });
+
+    ws.on("open", () => {
+      console.log("\n🔓 WebSocket connection opened successfully");
+      if (ws) sendSubscribeRequest(ws);
+    });
+
+    ws.on("message", async (data: WebSocket.Data) => {
+      try {
+        const jsonString = data.toString();
+        const parsedData = JSON.parse(jsonString);
+
+        // Handle subscription response
+        if (parsedData.result !== undefined && !parsedData.error) {
+          console.log("✅ Subscription confirmed");
+          return;
+        }
+
+        // Only log RPC errors for debugging
+        if (parsedData.error) {
+          console.error("🚫 RPC Error:", parsedData.error);
+          return;
+        }
+
+        // Safely access the nested structure
+        const logs = parsedData?.params?.result?.value?.logs;
+        const signature = parsedData?.params?.result?.value?.signature;
+
+        // Validate `logs` is an array and if we have a signtature
+        if (!Array.isArray(logs) || !signature) return;
+
+        // Verify if this is a new pool creation
+        const containsCreate = logs.some((log: string) => typeof log === "string" && log.includes("Program log: initialize2: InitializeInstruction2"));
+        if (!containsCreate || typeof signature !== "string") return;
+
+        // Verify if we have reached the max concurrent transactions
+        if (activeTransactions >= MAX_CONCURRENT) {
+          console.log("⏳ Max concurrent transactions reached, skipping...");
+          return;
+        }
+
+        // Add additional concurrent transaction
+        activeTransactions++;
+
+        // Process transaction asynchronously
+        processTransaction(signature)
+          .catch((error) => {
+            console.error("Error processing transaction:", error);
+          })
+          .finally(() => {
+            activeTransactions--;
+          });
+      } catch (error) {
+        console.error("💥 Error processing message:", {
+          error: error instanceof Error ? error.message : "Unknown error",
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
+
+    ws.on("error", (err: Error) => {
+      console.error("WebSocket error:", err);
+    });
+
+    ws.on("close", () => {
+      console.log("📴 WebSocket connection closed, cleaning up...");
+      if (ws) {
+        ws.removeAllListeners();
+        ws = null;
+      }
+      console.log("🔄 Attempting to reconnect in 5 seconds...");
+      setTimeout(websocketHandler, 5000);
+    });
+
+  } catch (error) {
+    console.error("websocketHandler error:", error);
+    throw error;
+  }
 }
 
-// Start Socket Handler
+// Start Socket Handler with error logging
+console.log("Starting WebSocket handler...");
 websocketHandler().catch((err) => {
-  console.error(err.message);
+  console.error("Fatal error in websocketHandler:", err);
+  process.exit(1);
 });
