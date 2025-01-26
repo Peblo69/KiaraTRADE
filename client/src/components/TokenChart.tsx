@@ -267,7 +267,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           </div>
         </div>
 
-        {/* Security Analysis Button */}
         <div className="mb-4">
           <Button
             onClick={() => setShowSecurityPanel(true)}
@@ -278,9 +277,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           </Button>
         </div>
 
-        {/* Main content grid */}
-        <div className="grid grid-cols-[1fr,300px] gap-4">
-          {/* Chart column */}
+        <div className="grid grid-cols-[1fr,300px] gap-4 relative">
           <div className="space-y-4">
             <div className="h-[500px] bg-[#111] rounded-lg">
               <div className="p-4">
@@ -288,7 +285,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
               </div>
             </div>
 
-            {/* Recent trades section */}
             <div className="bg-[#111] rounded-lg p-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-sm font-semibold">Recent Trades</h3>
@@ -344,7 +340,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
             </div>
           </div>
 
-          {/* Trading panel column */}
           <div className="space-y-4">
             <Card className="bg-[#111] border-none p-4">
               <Tabs defaultValue="market" className="w-full">
@@ -406,39 +401,41 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
               </Tabs>
             </Card>
           </div>
-        </div>
 
-        {/* Sliding Security Panel */}
-        <AnimatePresence>
-          {showSecurityPanel && (
-            <motion.div
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="fixed top-0 right-0 w-[350px] h-full z-50 bg-black/95 text-white"
-            >
-              <TokenSecurityPanel
-                isOpen={showSecurityPanel}
-                onClose={() => setShowSecurityPanel(false)}
-                onRefresh={() => {
-                  // Refresh logic here
+          <AnimatePresence>
+            {showSecurityPanel && (
+              <motion.div
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="absolute top-0 right-[-350px] w-[350px] h-[500px] z-50"
+                style={{
+                  transform: showSecurityPanel ? "translateX(-350px)" : "translateX(0)",
                 }}
-                tokenData={{
-                  name: token?.name || "",
-                  symbol: token?.symbol || "",
-                  mintAuthority: true,
-                  freezeAuthority: false,
-                  liquidity: token?.liquidity || 0,
-                  lpCount: 2,
-                  topHolderPct: 97.86,
-                  holderCount: 4,
-                  riskScore: 75
-                }}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+              >
+                <TokenSecurityPanel
+                  isOpen={showSecurityPanel}
+                  onClose={() => setShowSecurityPanel(false)}
+                  onRefresh={() => {
+                    // Refresh logic here
+                  }}
+                  tokenData={{
+                    name: token?.name || "",
+                    symbol: token?.symbol || "",
+                    mintAuthority: true,
+                    freezeAuthority: false,
+                    liquidity: token?.vSolInBondingCurve || 0,
+                    lpCount: 2,
+                    topHolderPct: 97.86,
+                    holderCount: 4,
+                    riskScore: 75
+                  }}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );
