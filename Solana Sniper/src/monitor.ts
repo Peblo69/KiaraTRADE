@@ -1,4 +1,4 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import dotenv from "dotenv";
 import { config } from "./config";
 import { fetchTransactionDetails, getRugCheckConfirmed } from "./transactions";
@@ -31,18 +31,65 @@ async function monitorTokens() {
     `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`
   );
 
+  // Track processed signatures to avoid duplicates
+  const processedSignatures = new Set<string>();
+  let activeTransactions = 0;
+  const MAX_CONCURRENT = 2; // Reduced to 2 concurrent API calls
+  const THROTTLE_DELAY = 2000; // Increased to 2 seconds delay between batches
+
   // Subscribe to new token launches
   connection.onProgramAccountChange(
     new PublicKey(config.liquidity_pool.radiyum_program_id),
     async (keyedAccountInfo, context) => {
       try {
-        const signature = context.slot.toString();
+        // Wait if too many active transactions
+        while (activeTransactions >= MAX_CONCURRENT) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Get latest block signatures from the slot 
+        const signatures = await connection.getSignaturesForAddress(
+          new PublicKey(config.liquidity_pool.radiyum_program_id),
+          { limit: 1 },
+          'confirmed'
+        );
+
+        if (!signatures || signatures.length === 0) {
+          console.log("⚠️ No recent signatures found");
+          return;
+        }
+
+        const signature = signatures[0].signature;
+
+        // Skip if already processed
+        if (processedSignatures.has(signature)) {
+          return;
+        }
+
+        // Validate signature format (base58 check)
+        if (!signature.match(/^[1-9A-HJ-NP-Za-km-z]{88,98}$/)) {
+          console.log("⚠️ Invalid transaction signature format");
+          return;
+        }
+
+        processedSignatures.add(signature);
+
+        // Add delay between batches and longer initial delay
+        if (activeTransactions > 0) {
+          await new Promise(resolve => setTimeout(resolve, THROTTLE_DELAY));
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 5000)); // 5s initial delay
+        }
+
+        activeTransactions++;
         console.log(`\n🔔 [${formatTime()}] New Token Event Detected!`);
         console.log("   Analyzing transaction...");
 
         const mints = await fetchTransactionDetails(signature);
         if (!mints || !mints.tokenMint) {
           console.log("❌ Invalid transaction data");
+          console.log("🟢 Resuming looking for new tokens..\n");
+          activeTransactions--;
           return;
         }
 
@@ -75,12 +122,24 @@ async function monitorTokens() {
         console.log("\n-----------------------------------");
       } catch (error) {
         console.error("Error processing token:", error);
+      } finally {
+        activeTransactions--;
       }
     }
   );
 
   console.log("\n👀 Monitoring for new tokens...");
   console.log("Press Ctrl+C to stop\n");
+
+  // Clear old signatures periodically
+  setInterval(() => {
+    const now = Date.now();
+    for (const sig of processedSignatures) {
+      if (now - Number(new Date(sig)) > 1800000) { // Clear signatures older than 30 mins
+        processedSignatures.delete(sig);
+      }
+    }
+  }, 300000); // Run every 5 minutes
 }
 
 monitorTokens().catch(console.error);
