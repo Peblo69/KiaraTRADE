@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { ArrowLeft, DollarSign, Coins, Shield } from "lucide-react";
+import { ArrowLeft, DollarSign, Coins, Shield, ArrowRight } from "lucide-react";
 import { createChart, IChartApi } from 'lightweight-charts';
 import { ErrorBoundary } from './ErrorBoundary';
 import { TokenSecurityPanel } from "./TokenSecurityPanel";
@@ -205,7 +205,14 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       <div className="p-4 bg-black/90 text-white rounded-lg">
         <h3 className="text-lg font-semibold mb-2">Chart Error</h3>
         <p className="text-sm text-gray-400">{error.message}</p>
-        <Button onClick={() => setError(null)} className="mt-4">
+        <Button
+          onClick={() => {
+            setError(null);
+            cleanupChart();
+            initializeChart();
+          }}
+          className="mt-4"
+        >
           Retry
         </Button>
       </div>
@@ -213,7 +220,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   }
 
   return (
-    <div className="flex-1 h-screen bg-black text-white">
+    <div className="flex-1 h-screen bg-black text-white relative">
       <div className="absolute top-4 left-4 z-10">
         <Button
           variant="ghost"
@@ -260,6 +267,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           </div>
         </div>
 
+        {/* Security Analysis Button */}
         <div className="mb-4">
           <Button
             onClick={() => setShowSecurityPanel(true)}
@@ -270,46 +278,17 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           </Button>
         </div>
 
-        <div className="grid grid-cols-[1fr,300px] gap-4 relative">
+        {/* Main content grid */}
+        <div className="grid grid-cols-[1fr,300px] gap-4">
+          {/* Chart column */}
           <div className="space-y-4">
-            <div className="h-[500px] bg-[#111] rounded-lg relative" id="chart-container">
+            <div className="h-[500px] bg-[#111] rounded-lg">
               <div className="p-4">
                 <div ref={chartContainerRef} className="h-[450px]" />
               </div>
-
-              <AnimatePresence>
-                {showSecurityPanel && (
-                  <motion.div
-                    initial={{ x: "100%" }}
-                    animate={{ x: 0 }}
-                    exit={{ x: "100%" }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="absolute right-0 w-[300px] z-50"
-                    style={{ bottom: "calc(100% - 500px)" }}
-                  >
-                    <TokenSecurityPanel
-                      isOpen={showSecurityPanel}
-                      onClose={() => setShowSecurityPanel(false)}
-                      onRefresh={() => {
-                        // Refresh logic here
-                      }}
-                      tokenData={{
-                        name: token?.name || "",
-                        symbol: token?.symbol || "",
-                        mintAuthority: true,
-                        freezeAuthority: false,
-                        liquidity: token?.vSolInBondingCurve || 0,
-                        lpCount: 2,
-                        topHolderPct: 97.86,
-                        holderCount: 4,
-                        riskScore: 75
-                      }}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
 
+            {/* Recent trades section */}
             <div className="bg-[#111] rounded-lg p-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-sm font-semibold">Recent Trades</h3>
@@ -324,26 +303,48 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
               </div>
 
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                {token.recentTrades?.map((trade, idx) => (
-                  <div
-                    key={trade.signature || idx}
-                    className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
-                      trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span>{formatTimestamp(trade.timestamp)}</span>
-                      <span>{formatAddress(trade.traderPublicKey)}</span>
+                {token.recentTrades?.map((trade, idx) => {
+                  const isDevWallet = trade.traderPublicKey === devWallet ||
+                    trade.counterpartyPublicKey === devWallet;
+                  const isDevBuying = isDevWallet && trade.traderPublicKey === devWallet && trade.txType === 'buy';
+                  const isDevSelling = isDevWallet && (
+                    (trade.traderPublicKey === devWallet && trade.txType === 'sell') ||
+                    (trade.counterpartyPublicKey === devWallet && trade.txType === 'buy')
+                  );
+
+                  return (
+                    <div
+                      key={trade.signature || idx}
+                      className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
+                        isDevWallet ?
+                          isDevBuying ? 'text-amber-400' : 'text-orange-500' :
+                            trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{formatTimestamp(trade.timestamp)}</span>
+                        <span>
+                          {formatAddress(trade.traderPublicKey)}
+                          {isDevWallet && (
+                            <span className={`ml-1 text-xs px-1 rounded ${
+                              isDevBuying ? 'bg-amber-400/20 text-amber-400' : 'bg-orange-500/20 text-orange-500'
+                            }`}>
+                              DEV
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        {formatPrice(trade.solAmount * solPrice)}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      {formatPrice(trade.solAmount * solPrice)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
 
+          {/* Trading panel column */}
           <div className="space-y-4">
             <Card className="bg-[#111] border-none p-4">
               <Tabs defaultValue="market" className="w-full">
@@ -406,15 +407,49 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
             </Card>
           </div>
         </div>
+
+        {/* Sliding Security Panel */}
+        <AnimatePresence>
+          {showSecurityPanel && (
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed top-0 right-0 w-[350px] h-full z-50 bg-black/95 text-white"
+            >
+              <TokenSecurityPanel
+                isOpen={showSecurityPanel}
+                onClose={() => setShowSecurityPanel(false)}
+                onRefresh={() => {
+                  // Refresh logic here
+                }}
+                tokenData={{
+                  name: token?.name || "",
+                  symbol: token?.symbol || "",
+                  mintAuthority: true,
+                  freezeAuthority: false,
+                  liquidity: token?.liquidity || 0,
+                  lpCount: 2,
+                  topHolderPct: 97.86,
+                  holderCount: 4,
+                  riskScore: 75
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
 });
 
-const TokenChart: FC<TokenChartProps> = (props) => (
-  <ErrorBoundary>
-    <TokenChartContent {...props} />
-  </ErrorBoundary>
-);
+const TokenChart: FC<TokenChartProps> = (props) => {
+  return (
+    <ErrorBoundary>
+      <TokenChartContent {...props} />
+    </ErrorBoundary>
+  );
+};
 
 export default TokenChart;
