@@ -45,12 +45,12 @@ function logHeliusError(error: any, context: string) {
 }
 
 export function registerRoutes(app: Express): Server {
-  const httpServer = createServer(app);
+  const server = createServer(app);
 
-  // Initialize WebSocket manager
-  wsManager.initialize(httpServer);
+  // Initialize WebSocket manager with single server instance
+  wsManager.initialize(server);
 
-  // Initialize PumpPortal WebSocket
+  // Initialize PumpPortal WebSocket with same server instance
   initializePumpPortalWebSocket();
 
   // Add predictions endpoint for all tokens
@@ -801,7 +801,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  return httpServer;
+  return server;
 }
 
 // Helper functions
@@ -946,8 +946,7 @@ function calculatePriceImpact(trades: Array<{ amount: number }>) {
   return averageAmount ? (largestTrade.amount / averageAmount) - 1 : 0;
 }
 
-// Rest of the file remains unchanged
-
+// Rest of the file
 const chatHistory: Record<string, any[]> = {};
 
 // Basic coin metadata mapping
