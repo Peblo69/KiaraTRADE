@@ -467,32 +467,50 @@ export function registerRoutes(app: Express): Server {
       let trades = [];
 
       // Process transactions if available
-      if (txResponse.data?.result?.items) {
-        const transactions = txResponse.data.result.items;
+      if (txResponse.data?.result) {
+        const transactions = txResponse.data.result;
         const sniperWindow = 30000; // 30 seconds after creation
 
-        transactions.forEach(tx => {
-          if (tx.blockTime && tx.blockTime < creationTime) {
-            creationTime = tx.blockTime;
+        // Get parsed transaction details
+        const parsedTxResponse = await axios.post(HELIUS_RPC_URL, {
+          jsonrpc: '2.0',
+          id: 'parsed-tx',
+          method: 'getParsedTransactions',
+          params: {
+            signatures: transactions.map(tx => tx.signature)
+          }
+        });
+
+        const parsedTxs = parsedTxResponse.data.result || [];
+        parsedTxs.forEach(tx => {
+          const tokenTransfer = tx.tokenTransfers?.[0];
+          if (!tokenTransfer) return;
+
+          if (tx.timestamp && tx.timestamp < creationTime) {
+            creationTime = tx.timestamp;
           }
 
           // Track trades
-          if (tx.amount && tx.blockTime) {
-            trades.push({
-              type: tx.type || 'unknown',
-              amount: tx.amount,
-              timestamp: tx.blockTime,
-              address: tx.owner
-            });
+          trades.push({
+            type: tokenTransfer.fromUserAccount ? 'sell' : 'buy',
+            amount: tokenTransfer.tokenAmount,
+            timestamp: tx.timestamp,
+            address: tokenTransfer.fromUserAccount || tokenTransfer.toUserAccount
+          });
 
-            // Track potential snipers
-            if (tx.blockTime - creationTime <= sniperWindow) {
-              snipers.add({
-                address: tx.owner,
-                amount: tx.amount,
-                timestamp: tx.blockTime
-              });
-            }
+          // Track holders
+          if (tokenTransfer.toUserAccount) {
+            const currentBalance = holders.get(tokenTransfer.toUserAccount) || 0;
+            holders.set(tokenTransfer.toUserAccount, currentBalance + tokenTransfer.tokenAmount);
+          }
+
+          // Track potential snipers
+          if (tx.timestamp - creationTime <= sniperWindow && tokenTransfer.tokenAmount > 0) {
+            snipers.add({
+              address: tokenTransfer.toUserAccount,
+              amount: tokenTransfer.tokenAmount,
+              timestamp: tx.timestamp
+            });
           }
         });
       }
