@@ -1,0 +1,85 @@
+console.log('[Routes] Analytics prepared:', {
+      holdersCount: analytics.holders.total,
+      snipersCount: analytics.snipers.total,
+      riskLevel: analytics.risk.level
+    });
+
+    res.json(analytics);
+
+  } catch (error: any) {
+    console.error('[Routes] Token analytics error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch token analytics',
+      details: error.message,
+      tokenAddress: req.params.mint
+    });
+  }
+});
+
+// Helper functions
+function calculateHolderConcentration(topHolders: any[]) {
+  const top10Percentage = topHolders.reduce((sum, h) => sum + (h.pct || 0), 0);
+  return {
+    top10Percentage,
+    riskLevel: top10Percentage > 80 ? 'high' : top10Percentage > 50 ? 'medium' : 'low'
+  };
+}
+
+function calculateVolume24h(trades: any[]) {
+  return trades
+    .filter(t => t.timestamp > Date.now() - 86400000)
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+}
+
+function calculateRiskMetrics(data: any) {
+  let riskScore = 0;
+  const risks = [];
+
+  // Mint authority risk
+  if (data.tokenInfo.authorities?.length > 0) {
+    riskScore += 30;
+    risks.push({
+      type: 'mint_authority',
+      level: 'high',
+      description: 'Token has active mint authority'
+    });
+  }
+
+  // Holder concentration risk
+  const topHolderPct = data.topHolders[0]?.pct || 0;
+  if (topHolderPct > 50) {
+    riskScore += 30;
+    risks.push({
+      type: 'holder_concentration',
+      level: 'high',
+      description: 'Single wallet holds >50% of supply'
+    });
+  }
+
+  // Sniper activity risk
+  if (data.snipers.length > 10) {
+    riskScore += 20;
+    risks.push({
+      type: 'sniper_activity',
+      level: 'medium',
+      description: 'High sniper activity detected'
+    });
+  }
+
+  // Trading volume risk
+  const recentTrades = data.trades.filter(t => t.timestamp > Date.now() - 3600000);
+  if (recentTrades.length < 5) {
+    riskScore += 10;
+    risks.push({
+      type: 'low_activity',
+      level: 'medium',
+      description: 'Low trading activity in last hour'
+    });
+  }
+
+  return {
+    score: Math.min(100, riskScore),
+    level: riskScore > 70 ? 'high' : riskScore > 40 ? 'medium' : 'low',
+    risks
+  };
+}

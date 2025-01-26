@@ -1,0 +1,149 @@
+// Add token analytics endpoint
+app.get('/api/token-analytics/:mint', async (req, res) => {
+  try {
+    const { mint } = req.params;
+    console.log(`[Routes] Getting analytics for token ${mint}`);
+
+    // 1. Get Basic Token Info using getAsset
+    const tokenInfoResponse = await axios.post(HELIUS_RPC_URL, {
+      jsonrpc: '2.0',
+      id: 'token-info',
+      method: 'getAsset',
+      params: {
+        id: mint,
+        displayOptions: {
+          showFungible: true
+        }
+      }
+    });
+
+    if (!tokenInfoResponse.data?.result) {
+      throw new Error('Invalid token info response from Helius API');
+    }
+
+    const tokenInfo = tokenInfoResponse.data.result;
+
+    // 2. Get balance and holder information
+    const balanceResponse = await axios.post(HELIUS_RPC_URL, {
+      jsonrpc: '2.0',
+      id: 'balance-info',
+      method: 'getAssetsByOwner',
+      params: {
+        ownerAddress: mint,
+        page: 1,
+        limit: 1000
+      }
+    });
+
+    // 3. Get recent transactions
+    const txResponse = await axios.post(HELIUS_RPC_URL, {
+      jsonrpc: '2.0',
+      id: 'tx-history',
+      method: 'searchAssets',
+      params: {
+        ownerAddress: mint,
+        compressed: true,
+        page: 1,
+        limit: 100
+      }
+    });
+
+    // Process token information
+    const supply = tokenInfo.token_info?.supply || 0;
+    const decimals = tokenInfo.token_info?.decimals || 0;
+    const mintAuthority = tokenInfo.authorities?.[0]?.address;
+    const freezeAuthority = tokenInfo.authorities?.[1]?.address;
+
+    // Calculate creation time from transaction history or use current time
+    const creationTime = Date.now(); // Default to current time
+    let holders = new Map();
+    let snipers = new Set();
+    let trades = [];
+
+    // Process transactions if available
+    if (txResponse.data?.result?.items) {
+      const transactions = txResponse.data.result.items;
+      const sniperWindow = 30000; // 30 seconds after creation
+
+      transactions.forEach(tx => {
+        if (tx.timestamp && tx.timestamp < creationTime) {
+          creationTime = tx.timestamp;
+        }
+
+        // Track trades
+        if (tx.amount && tx.timestamp) {
+          trades.push({
+            type: tx.type || 'unknown',
+            amount: tx.amount,
+            timestamp: tx.timestamp,
+            address: tx.owner
+          });
+
+          // Track potential snipers
+          if (tx.timestamp - creationTime <= sniperWindow) {
+            snipers.add({
+              address: tx.owner,
+              amount: tx.amount,
+              timestamp: tx.timestamp
+            });
+          }
+        }
+      });
+    }
+
+    // Process holder information if available
+    if (balanceResponse.data?.result?.items) {
+      balanceResponse.data.result.items.forEach(item => {
+        if (item.ownership?.owner && item.ownership?.amount) {
+          holders.set(item.ownership.owner, item.ownership.amount);
+        }
+      });
+    }
+
+    // Calculate metrics
+    const topHolders = Array.from(holders.entries())
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([address, amount]) => ({
+        address,
+        amount,
+        pct: (amount / supply) * 100
+      }));
+
+    const holderConcentration = calculateHolderConcentration(topHolders);
+    const snipersArray = Array.from(snipers).slice(0, 10);
+    
+    // Prepare analytics response
+    const analytics = {
+      token: {
+        address: mint,
+        name: tokenInfo.content?.metadata?.name || 'Unknown',
+        symbol: tokenInfo.content?.metadata?.symbol || 'Unknown',
+        decimals,
+        totalSupply: supply,
+        mintAuthority,
+        freezeAuthority,
+        createdAt: creationTime
+      },
+      holders: {
+        total: holders.size,
+        top10: topHolders,
+        concentration: holderConcentration
+      },
+      snipers: {
+        total: snipers.size,
+        details: snipersArray,
+        volume: Array.from(snipers).reduce((sum: number, s: any) => sum + (s.amount || 0), 0)
+      },
+      trading: {
+        volume24h: calculateVolume24h(trades),
+        transactions24h: trades.filter(t => t.timestamp > Date.now() - 86400000).length,
+        averageAmount: trades.length ? trades.reduce((sum, t) => sum + (t.amount || 0), 0) / trades.length : 0
+      },
+      risk: calculateRiskMetrics({
+        tokenInfo,
+        topHolders,
+        snipers: snipersArray,
+        trades
+      })
+    };
