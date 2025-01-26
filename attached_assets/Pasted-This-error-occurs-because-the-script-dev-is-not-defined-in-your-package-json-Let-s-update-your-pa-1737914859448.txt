@@ -1,0 +1,92 @@
+This error occurs because the script "dev" is not defined in your package.json. Let's update your package.json to include all necessary scripts:
+JSON
+
+{
+  "name": "sol_token_sniper",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:tracker": "node dist/tracker/index.js",
+    "dev": "tsx watch src/index.ts",
+    "dev:monitor": "tsx watch src/monitor.ts",
+    "dev:ws": "tsx watch src/ws-monitor.ts",
+    "monitor": "tsx src/monitor.ts",
+    "ws-monitor": "tsx src/ws-monitor.ts",
+    "test": "tsx src/test.ts",
+    "clean": "rm -rf dist",
+    "rebuild": "node-gyp rebuild"
+  },
+  "keywords": [],
+  "author": "https://x.com/digbenjamins",
+  "license": "ISC",
+  "description": "Solana Token Sniper with Enhanced Monitoring",
+  "devDependencies": {
+    "@types/luxon": "^3.4.2",
+    "@types/node": "^22.10.1",
+    "@types/ws": "^8.5.13",
+    "@types/date-fns": "^2.6.0",
+    "eslint": "^9.15.0",
+    "globals": "^15.12.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.16.0"
+  },
+  "dependencies": {
+    "@project-serum/anchor": "^0.26.0",
+    "@solana/web3.js": "^1.95.5",
+    "axios": "^1.7.8",
+    "bs58": "^6.0.0",
+    "chalk": "^5.3.0",
+    "date-fns": "^3.3.1",
+    "dotenv": "^16.4.5",
+    "luxon": "^3.5.0",
+    "tsx": "^4.7.0",
+    "ws": "^8.18.0",
+    "sqlite3": "^5.1.7",
+    "sqlite": "^5.1.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
+
+After updating your package.json, run:
+bash
+
+npm install
+
+Now you can run any of these commands:
+
+    npm run dev - Run the main application in development mode with hot reload
+    npm run monitor - Run the token monitor
+    npm run ws-monitor - Run the WebSocket monitor
+    npm start - Run the built application
+    npm run build - Build the application
+    npm run test - Run tests
+
+For your specific case, since you're trying to run in dev mode, use:
+bash
+
+npm run dev
+
+Or if you want to run the monitor in dev mode:
+bash
+
+npm run dev:monitor
+
+Or for the WebSocket monitor:
+bash
+
+npm run dev:ws
+
+The error you're seeing is because the "dev" script wasn't defined in your package.json. This update adds all the necessary scripts and ensures they're properly configured for your application.
+
+Make sure you have all the required files in your src directory:
+
+    src/index.ts
+    src/monitor.ts
+    src/ws-monitor.ts
+    src/test.ts
