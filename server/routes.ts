@@ -52,8 +52,8 @@ if (!process.env.HELIUS_API_KEY) {
   throw new Error("HELIUS_API_KEY must be set in environment variables");
 }
 
-// Updated Helius API base URL and endpoint for RPC
-const HELIUS_RPC_URL = `https://api.helius.xyz/v0/rpc?api-key=${process.env.HELIUS_API_KEY}`;
+// Update the Helius RPC URL to use the correct endpoint
+const HELIUS_RPC_URL = `https://rpc.helius.xyz/?api-key=${process.env.HELIUS_API_KEY}`;
 
 // Add error logging helper
 function logHeliusError(error: any, context: string) {
@@ -670,78 +670,61 @@ export function registerRoutes(app: Express): Server {
       const { mint } = req.params;
       console.log(`[Routes] Getting token analytics for ${mint}`);
 
-      // Get token creation transaction
-      const mintTxResponse = await axios.post(HELIUS_RPC_URL, {
-        jsonrpc: '2.0',
-        id: 'mint-tx-request',
-        method: 'searchAssets',
-        params: {
-          ownerAddress: null,
-          tokenAddress: mint,
-          options: {
-            limit: 1,
-            showMints: true
-          }
-        }
-      });
-
-      const mintTimestamp = mintTxResponse.data.result?.[0]?.created_at || Date.now();
-      const sniperWindow = 1000 * 30; // 30 seconds after creation
-
-      // Get early transactions (snipers)
-      const sniperTxResponse = await axios.post(HELIUS_RPC_URL, {
-        jsonrpc: '2.0',
-        id: 'sniper-tx-request',
-        method: 'getTransactions',
-        params: {
-          options: {
-            commitment: "confirmed",
-            limit: 100,
-            transcationType: ["TRANSFER"],
-            startTime: mintTimestamp,
-            endTime: mintTimestamp + sniperWindow,
-            account: mint
-          }
-        }
-      });
-
-      // Get all current holders
+      // Get token metadata and holders
       const holdersResponse = await axios.post(HELIUS_RPC_URL, {
         jsonrpc: '2.0',
         id: 'holders-request',
-        method: 'getAssetsByOwner',
+        method: 'getAssetsByGroup',
         params: {
-          ownerAddress: mint,
-          options: {
-            showFungible: true,
-            showNativeBalance: false
-          }
+          groupKey: 'collection',
+          groupValue: mint,
+          page: 1,
+          limit: 1000
+        }
+      });
+
+      // Get recent transactions
+      const txResponse = await axios.post(HELIUS_RPC_URL, {
+        jsonrpc: '2.0',
+        id: 'tx-request',
+        method: 'getAssetTransfers',
+        params: {
+          asset: mint,
+          page: 1,
+          limit: 100
         }
       });
 
       const holders = holdersResponse.data.result || [];
-      const totalSupply = holders.reduce((sum: number, holder: any) => sum + (holder.token_info?.balance || 0), 0);
+      const transactions = txResponse.data.result || [];
+
+      // Calculate total supply and identify top holders
+      const totalSupply = holders.reduce((sum, h) => sum + (h.tokenAmount || 0), 0);
       const tenPercentThreshold = totalSupply * 0.1;
 
       // Sort holders by balance to identify top 10%
       const topHolders = holders
-        .filter((holder: any) => (holder.token_info?.balance || 0) >= tenPercentThreshold)
-        .map((holder: any) => ({
-          address: holder.owner,
-          balance: holder.token_info?.balance || 0,
-          percentage: ((holder.token_info?.balance || 0) / totalSupply) * 100
+        .filter(h => h.tokenAmount >= tenPercentThreshold)
+        .map(h => ({
+          address: h.owner,
+          balance: h.tokenAmount,
+          percentage: (h.tokenAmount / totalSupply) * 100
         }))
-        .sort((a: any, b: any) => b.balance - a.balance);
+        .sort((a, b) => b.balance - a.balance);
 
-      // Identify snipers (first buyers within 30 seconds)
-      const snipers = (sniperTxResponse.data.result || [])
-        .filter((tx: any) => tx.type === 'TRANSFER')
-        .map((tx: any) => ({
-          address: tx.to,
+      // First transaction timestamp will be creation time
+      const creationTime = transactions[transactions.length - 1]?.timestamp || Date.now();
+      const sniperWindow = 30000; // 30 seconds
+
+      // Identify snipers (transactions within first 30 seconds)
+      const snipers = transactions
+        .filter(tx => tx.timestamp - creationTime <= sniperWindow)
+        .map(tx => ({
+          address: tx.owner,
           timestamp: tx.timestamp,
-          amount: tx.amount
+          amount: tx.tokenAmount
         }))
-        .sort((a: any, b: any) => b.amount - a.amount);
+        .sort((a, b) => b.amount - a.amount);
 
       console.log('[Routes] Analytics response:', {
         topHoldersCount: topHolders.length,

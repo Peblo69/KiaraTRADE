@@ -2,8 +2,7 @@ import { create } from 'zustand';
 import { useTokenAnalyticsStore } from './token-analytics-websocket';
 
 // Constants
-const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY || '004f9b13-f526-4952-9998-52f5c7bec6ee';
-const HELIUS_WS_URL = `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+const HELIUS_WS_URL = 'wss://mainnet.helius-rpc.com/?api-key=004f9b13-f526-4952-9998-52f5c7bec6ee';
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const SPL_TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
