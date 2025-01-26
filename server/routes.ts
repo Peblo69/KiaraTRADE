@@ -52,10 +52,9 @@ if (!process.env.HELIUS_API_KEY) {
   throw new Error("HELIUS_API_KEY must be set in environment variables");
 }
 
-// Update the Helius RPC URL to use the correct endpoint
-const HELIUS_RPC_URL = `https://rpc.helius.xyz/?api-key=${process.env.HELIUS_API_KEY}`;
+// Update the Helius RPC URL to use the correct endpoint format
+const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
 
-// Add error logging helper
 function logHeliusError(error: any, context: string) {
   console.error(`[Helius ${context} Error]`, {
     message: error.message,
