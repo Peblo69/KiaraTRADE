@@ -1,0 +1,251 @@
+9:08:26 PM [Successfully subscribed to keys.] [PumpPortal] Subscription confirmed:
+[Routes] Getting analytics for token 5MtBnMZt55KeLocywQkeNwknXMNxzXNttfmVEzQVpump
+[Routes] Token Info Response: {
+  jsonrpc: '2.0',
+  result: {
+    interface: 'FungibleToken',
+    id: '5MtBnMZt55KeLocywQkeNwknXMNxzXNttfmVEzQVpump',
+    content: {
+      '$schema': 'https://schema.metaplex.com/nft1.0.json',
+      json_uri: 'https://ipfs.io/ipfs/QmcYJXjpYS7uuzexT1CXUMva8UfiZm7JRF4V5PRUcfixqS',
+      files: [Array],
+      metadata: [Object],
+      links: [Object]
+    },
+    authorities: [ [Object] ],
+    compression: {
+      eligible: false,
+      compressed: false,
+      data_hash: '',
+      creator_hash: '',
+      asset_hash: '',
+      tree: '',
+      seq: 0,
+      leaf_id: 0
+    },
+    grouping: [],
+    royalty: {
+      royalty_model: 'creators',
+      target: null,
+      percent: 0,
+      basis_points: 0,
+      primary_sale_happened: false,
+      locked: false
+    },
+    creators: [],
+    ownership: {
+      frozen: false,
+      delegated: false,
+      delegate: null,
+      ownership_model: 'token',
+      owner: ''
+    },
+    supply: null,
+    mutable: false,
+    burnt: false,
+    token_info: {
+      supply: 1000000000000000,
+      decimals: 6,
+      token_program: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
+    }
+  },
+  id: 'token-info'
+}
+[Routes] Transfers Response: {
+  jsonrpc: '2.0',
+  result: { total: 0, limit: 100, page: 1, items: [] },
+  id: 'transfers'
+}
+[Routes] Processing transfers: undefined
+[Routes] Token analytics error: TypeError: transfers.forEach is not a function
+    at <anonymous> (/home/runner/workspace/server/routes.ts:689:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[Routes] Getting analytics for token 5MtBnMZt55KeLocywQkeNwknXMNxzXNttfmVEzQVpump
+[Routes] Token Info Response: {
+  jsonrpc: '2.0',
+  result: {
+    interface: 'FungibleToken',
+    id: '5MtBnMZt55KeLocywQkeNwknXMNxzXNttfmVEzQVpump',
+    content: {
+      '$schema': 'https://schema.metaplex.com/nft1.0.json',
+      json_uri: 'https://ipfs.io/ipfs/QmcYJXjpYS7uuzexT1CXUMva8UfiZm7JRF4V5PRUcfixqS',
+      files: [Array],
+      metadata: [Object],
+      links: [Object]
+    },
+    authorities: [ [Object] ],
+    compression: {
+      eligible: false,
+      compressed: false,
+      data_hash: '',
+      creator_hash: '',
+      asset_hash: '',
+      tree: '',
+      seq: 0,
+      leaf_id: 0
+    },
+    grouping: [],
+    royalty: {
+      royalty_model: 'creators',
+      target: null,
+      percent: 0,
+      basis_points: 0,
+      primary_sale_happened: false,
+      locked: false
+    },
+    creators: [],
+    ownership: {
+      frozen: false,
+      delegated: false,
+      delegate: null,
+      ownership_model: 'token',
+      owner: ''
+    },
+    supply: null,
+    mutable: false,
+    burnt: false,
+    token_info: {
+      supply: 1000000000000000,
+      decimals: 6,
+      token_program: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
+    }
+  },
+  id: 'token-info'
+}
+[Routes] Transfers Response: {
+  jsonrpc: '2.0',
+  result: { total: 0, limit: 100, page: 1, items: [] },
+  id: 'transfers'
+}
+[Routes] Processing transfers: undefined
+[Routes] Token analytics error: TypeError: transfers.forEach is not a function
+    at <anonymous> (/home/runner/workspace/server/routes.ts:689:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+9:08:27 PM [35uWQrpeBg7TgBU2sLXeVdZZkD6r7vtDSwzdpS1dpump] [PumpPortal] New token created:
+9:08:27 PM [Successfully subscribed to keys.] [PumpPortal] Subscription confirmed:
+9:08:29 PM [EG5kXdV3sSyHdR9Noc4bkxFLipBAW61wxMP7Kzcjpump] [PumpPortal] New token created:
+9:08:29 PM [Successfully subscribed to keys.] [PumpPortal] Subscription confirmed:
+9:08:31 PM [3UEs6WGsfjkediAJc9fuqszbe5jd2YwktBYicCjBds5e] [PumpPortal] New token created:
+9:08:31 PM [Successfully subscribed to keys.] [PumpPortal] Subscription confirmed:
+[Routes] Getting analytics for token 5MtBnMZt55KeLocywQkeNwknXMNxzXNttfmVEzQVpump
+[Routes] Token Info Response: {
+  jsonrpc: '2.0',
+  result: {
+    interface: 'FungibleToken',
+    id: '5MtBnMZt55KeLocywQkeNwknXMNxzXNttfmVEzQVpump',
+    content: {
+      '$schema': 'https://schema.metaplex.com/nft1.0.json',
+      json_uri: 'https://ipfs.io/ipfs/QmcYJXjpYS7uuzexT1CXUMva8UfiZm7JRF4V5PRUcfixqS',
+      files: [Array],
+      metadata: [Object],
+      links: [Object]
+    },
+    authorities: [ [Object] ],
+    compression: {
+      eligible: false,
+      compressed: false,
+      data_hash: '',
+      creator_hash: '',
+      asset_hash: '',
+      tree: '',
+      seq: 0,
+      leaf_id: 0
+    },
+    grouping: [],
+    royalty: {
+      royalty_model: 'creators',
+      target: null,
+      percent: 0,
+      basis_points: 0,
+      primary_sale_happened: false,
+      locked: false
+    },
+    creators: [],
+    ownership: {
+      frozen: false,
+      delegated: false,
+      delegate: null,
+      ownership_model: 'token',
+      owner: ''
+    },
+    supply: null,
+    mutable: false,
+    burnt: false,
+    token_info: {
+      supply: 1000000000000000,
+      decimals: 6,
+      token_program: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
+    }
+  },
+  id: 'token-info'
+}
+[Routes] Transfers Response: {
+  jsonrpc: '2.0',
+  result: { total: 0, limit: 100, page: 1, items: [] },
+  id: 'transfers'
+}
+[Routes] Processing transfers: undefined
+[Routes] Token analytics error: TypeError: transfers.forEach is not a function
+    at <anonymous> (/home/runner/workspace/server/routes.ts:689:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[Routes] Getting analytics for token 5MtBnMZt55KeLocywQkeNwknXMNxzXNttfmVEzQVpump
+[Routes] Token Info Response: {
+  jsonrpc: '2.0',
+  result: {
+    interface: 'FungibleToken',
+    id: '5MtBnMZt55KeLocywQkeNwknXMNxzXNttfmVEzQVpump',
+    content: {
+      '$schema': 'https://schema.metaplex.com/nft1.0.json',
+      json_uri: 'https://ipfs.io/ipfs/QmcYJXjpYS7uuzexT1CXUMva8UfiZm7JRF4V5PRUcfixqS',
+      files: [Array],
+      metadata: [Object],
+      links: [Object]
+    },
+    authorities: [ [Object] ],
+    compression: {
+      eligible: false,
+      compressed: false,
+      data_hash: '',
+      creator_hash: '',
+      asset_hash: '',
+      tree: '',
+      seq: 0,
+      leaf_id: 0
+    },
+    grouping: [],
+    royalty: {
+      royalty_model: 'creators',
+      target: null,
+      percent: 0,
+      basis_points: 0,
+      primary_sale_happened: false,
+      locked: false
+    },
+    creators: [],
+    ownership: {
+      frozen: false,
+      delegated: false,
+      delegate: null,
+      ownership_model: 'token',
+      owner: ''
+    },
+    supply: null,
+    mutable: false,
+    burnt: false,
+    token_info: {
+      supply: 1000000000000000,
+      decimals: 6,
+      token_program: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
+    }
+  },
+  id: 'token-info'
+}
+[Routes] Transfers Response: {
+  jsonrpc: '2.0',
+  result: { total: 0, limit: 100, page: 1, items: [] },
+  id: 'transfers'
+}
+[Routes] Processing transfers: undefined
+[Routes] Token analytics error: TypeError: transfers.forEach is not a function
+    at <anonymous> (/home/runner/workspace/server/routes.ts:689:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
