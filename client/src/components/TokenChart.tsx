@@ -41,6 +41,8 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const [error, setError] = useState<Error | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
 
+  const { tokens, setActiveTokenView, addToViewedTokens } = usePumpPortalStore(); // Added import and destructuring
+
   const token = usePumpPortalStore(
     useCallback(state => state.tokens.find(t => t.address === tokenAddress), [tokenAddress])
   );
@@ -392,7 +394,11 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                     </div>
 
                     <Button
-                      onClick={() => setShowAnalysis(true)}
+                      onClick={() => {
+                        setShowAnalysis(true);
+                        addToViewedTokens(tokenAddress); //Added this line
+                        setActiveTokenView(tokenAddress); //Added this line
+                      }}
                       className="w-full bg-purple-600 hover:bg-purple-700 flex items-center justify-center gap-2"
                     >
                       <Shield className="w-4 h-4" />

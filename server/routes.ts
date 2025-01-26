@@ -727,7 +727,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // 4. Prepare response
-      const analytics = {
+      const analytics: TokenAnalytics = {
         token: {
           address: mint,
           name: tokenInfo.name || 'Unknown',
@@ -805,6 +805,57 @@ export function registerRoutes(app: Express): Server {
 }
 
 // Helper functions
+interface TokenAnalytics {
+  token: {
+    address: string;
+    name: string;
+    symbol: string;
+    decimals: number;
+    totalSupply: number;
+    mintAuthority: string | null;
+    freezeAuthority: string | null;
+    mutable: boolean;
+  };
+  holders: {
+    total: number;
+    unique: number;
+    top10: Array<{
+      address: string;
+      balance: number;
+      percentage: number;
+    }>;
+    concentration: {
+      top10Percentage: number;
+      riskLevel: 'low' | 'medium' | 'high';
+    };
+    distribution: Array<{
+      name: string;
+      holders: number;
+    }>;
+  };
+  snipers: {
+    total: number;
+    details: Array<{
+      address: string;
+      amount: number;
+      timestamp: number;
+    }>;
+    volume: number;
+    averageAmount: number;
+  };
+  trading: {
+    volume24h: number;
+    transactions24h: number;
+    averageTradeSize: number;
+    priceImpact: number;
+  };
+  risks: Array<{
+    name: string;
+    score: number;
+  }>;
+  rugScore: number;
+}
+
 function calculateRiskScore(tokenInfo: any, holderConcentration: any, snipers: any[]): number {
   let score = 0;
 
@@ -846,6 +897,8 @@ function calculateHolderMetrics(holders: Map<string, number>) {
 }
 
 function getTopHolders(holders: Map<string, number>, limit: number) {
+  const totalSupply = Array.from(holders.values()).reduce((a, b) => a + b, 0);
+
   return Array.from(holders.entries())
     .filter(([_, balance]) => balance > 0)
     .sort(([, a], [, b]) => b - a)
@@ -853,43 +906,48 @@ function getTopHolders(holders: Map<string, number>, limit: number) {
     .map(([address, balance]) => ({
       address,
       balance,
-      percentage: balance / Array.from(holders.values()).reduce((a, b) => a + b, 0) * 100
+      percentage: (balance / totalSupply) * 100
     }));
 }
 
-function calculateSniperVolume(snipers: any[]) {
+function calculateSniperVolume(snipers: Array<{ amount: number }>) {
   return snipers.reduce((sum, sniper) => sum + (sniper.amount || 0), 0);
 }
 
-function calculateAverageAmount(snipers: any[]) {
-  return snipers.length ? calculateSniperVolume(snipers) / snipers.length : 0;
+function calculateAverageAmount(snipers: Array<{ amount: number }>) {
+  if (!snipers.length) return 0;
+  return calculateSniperVolume(snipers) / snipers.length;
 }
 
-function calculateVolume24h(trades: any[]) {
+function calculateTransactions24h(trades: Array<{ timestamp: number }>) {
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  return trades.filter(trade => trade.timestamp >= oneDayAgo).length;
+}
+
+function calculateVolume24h(trades: Array<{ timestamp: number; amount: number }>) {
   const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
   return trades
     .filter(trade => trade.timestamp >= oneDayAgo)
     .reduce((sum, trade) => sum + (trade.amount || 0), 0);
 }
 
-function calculateTransactions24h(trades: any[]) {
-  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-  return trades.filter(trade => trade.timestamp >= oneDayAgo).length;
+function calculateAverageTradeSize(trades: Array<{ amount: number }>) {
+  if (!trades.length) return 0;
+  return trades.reduce((sum, trade) => sum + (trade.amount || 0), 0) / trades.length;
 }
 
-function calculateAverageTradeSize(trades: any[]) {
-  return trades.length ? trades.reduce((sum, trade) => sum + (trade.amount || 0), 0) / trades.length : 0;
-}
-
-function calculatePriceImpact(trades: any[]) {
+function calculatePriceImpact(trades: Array<{ amount: number }>) {
   if (trades.length < 2) return 0;
+
   const sortedTrades = [...trades].sort((a, b) => (b.amount || 0) - (a.amount || 0));
   const largestTrade = sortedTrades[0];
   const averageAmount = calculateAverageTradeSize(trades);
+
   return averageAmount ? (largestTrade.amount / averageAmount) - 1 : 0;
 }
 
-// In-memory data structure for chat history
+// Rest of the file remains unchanged
+
 const chatHistory: Record<string, any[]> = {};
 
 // Basic coin metadata mapping

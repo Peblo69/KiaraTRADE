@@ -1,0 +1,111 @@
+Set the Active Token View: Use the setActiveTokenView function in usePumpPortalStore to track the selected token.
+Trigger Analysis Component: When a token is selected, pass the mint address to the TokenAnalysis component.
+Example Code:
+In your PumpFunVision component:
+
+tsx
+Copy
+Edit
+const handleTokenSelect = (tokenAddress: string) => {
+  const store = usePumpPortalStore.getState();
+  store.setActiveTokenView(tokenAddress); // Set the selected token in the store
+};
+Update the token list display to include a button or click event:
+
+tsx
+Copy
+Edit
+{tokens.map((token) => (
+  <div key={token.address} onClick={() => handleTokenSelect(token.address)}>
+    <span>{token.symbol}</span>
+  </div>
+))}
+This will update the selected token in the store.
+
+2. Pass the Token Mint Address to the Backend
+Once the token is selected, the TokenAnalysis component should fetch the analysis data from /api/token-analytics/:mint.
+
+Modify TokenAnalysis:
+tsx
+Copy
+Edit
+import { useEffect, useState } from 'react';
+import { analyzeToken } from '@/lib/token-analysis'; // Reuse your existing logic
+
+export const TokenAnalysis: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const [analysis, setAnalysis] = useState<TokenData | null>(null);
+
+  useEffect(() => {
+    if (tokenAddress) {
+      analyzeToken(tokenAddress).then(setAnalysis); // Fetch data when token is selected
+    }
+  }, [tokenAddress]);
+
+  if (!analysis) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <div>
+      <h2>{analysis.tokenName} ({analysis.tokenSymbol})</h2>
+      <p>Mint Authority: {analysis.mintAuthority}</p>
+      <p>Freeze Authority: {analysis.freezeAuthority}</p>
+      <p>Supply: {analysis.supply}</p>
+      <p>Rug Score: {analysis.rugScore}</p>
+      <h3>Top Holders:</h3>
+      {analysis.topHolders.map(holder => (
+        <div key={holder.address}>
+          {holder.address}: {holder.pct}%
+        </div>
+      ))}
+      <h3>Risks:</h3>
+      {analysis.risks.map(risk => (
+        <div key={risk.name}>
+          {risk.name}: {risk.score}
+        </div>
+      ))}
+    </div>
+  );
+};
+3. Connect the TokenAnalysis Component to PumpFunVision
+In your main PumpFunVision component, render the TokenAnalysis component for the selected token.
+
+Example Code:
+tsx
+Copy
+Edit
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { TokenAnalysis } from './TokenAnalysis';
+
+const PumpFunVision = () => {
+  const selectedToken = usePumpPortalStore((state) => state.activeTokenView);
+
+  return (
+    <div>
+      <h1>PumpFun Vision</h1>
+      <div>
+        {selectedToken ? (
+          <TokenAnalysis tokenAddress={selectedToken} />
+        ) : (
+          <p>Select a token to analyze</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default PumpFunVision;
+4. Add Backend Support
+Ensure the /api/token-analytics/:mint endpoint is properly implemented as discussed earlier. It should process the mint address and return all the necessary data for TokenAnalysis.
+
+5. Test the Workflow
+Flow:
+Select a Token: When a token is clicked in PumpFunVision, its mint address is passed to the store.
+Trigger Analysis: The selected token's mint address is sent to the TokenAnalysis component.
+Fetch and Display Data: The TokenAnalysis component calls the /api/token-analytics/:mint endpoint and displays the returned data.
+Suggestions and Enhancements
+Fallback for Unselected Tokens: Ensure that a placeholder is shown if no token is selected.
+Error Handling: Add error states in case the /api/token-analytics/:mint endpoint fails.
+Loading State: Display a spinner or loading indicator while fetching data.
+Highlight Selected Token: Highlight the token in the token list when it's selected for better UX.
+Pagination for Tokens: If you have many tokens, implement a scroll or pagination system to avoid overwhelming the UI.

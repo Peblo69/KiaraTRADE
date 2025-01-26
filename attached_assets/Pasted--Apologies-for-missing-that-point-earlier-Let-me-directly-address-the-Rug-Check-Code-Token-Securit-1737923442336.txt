@@ -1,0 +1,119 @@
+
+Apologies for missing that point earlier. Let me directly address the Rug Check Code (Token Security Analysis) and how it needs to be integrated into your setup. Here's a detailed breakdown of the required changes and functionality based on the rugcheck logic you've provided:
+
+Understanding the Rug Check Code
+The rugcheck code evaluates a token for risks by analyzing:
+
+Mint Authority: Checks if the mint authority is enabled or revoked.
+Freeze Authority: Checks if the freeze authority is present or disabled.
+Mutable/Immutable Supply: Determines if the token metadata can be modified.
+Top Holders: Shows token concentration by top holders.
+Risk Factors: Evaluates risks like holder concentration, dev wallet activity, or sniper patterns.
+These details are critical for your Token Security Analysis page.
+
+What Needs to Be Done
+Integrate Rug Check Logic into the /api/token-analytics/:mint endpoint so it fetches and calculates all the required fields.
+Display these fields on your TokenAnalysis Drawer or Component when a user clicks "Analyze Token Security".
+Remove unnecessary "ifs" and ensure the code fetches all details for the token selected in the TokenChart.
+Changes in the Rug Check Code
+1. Update the /api/token-analytics/:mint Endpoint
+The endpoint currently calculates risks and analytics but doesn't explicitly connect to the rug check logic. Let's integrate it:
+
+typescript
+Copy
+Edit
+app.get('/api/token-analytics/:mint', async (req, res) => {
+  try {
+    const { mint } = req.params;
+    console.log(`[Routes] Analyzing token: ${mint}`);
+
+    // Fetch token information
+    const [tokenResponse, transfersResponse] = await Promise.all([
+      axios.post(HELIUS_RPC_URL, {
+        jsonrpc: '2.0',
+        id: 'token-info',
+        method: 'getAsset',
+        params: [mint],
+      }),
+      axios.post(HELIUS_RPC_URL, {
+        jsonrpc: '2.0',
+        id: 'transfers',
+        method: 'getSignaturesForAsset',
+        params: { assetId: mint, limit: 100 },
+      }),
+    ]);
+
+    const tokenInfo = tokenResponse.data.result;
+    const transfers = transfersResponse.data.result;
+
+    // Calculate Holder Concentration
+    const holders = new Map();
+    transfers.forEach(({ fromUserAccount, toUserAccount, amount }) => {
+      if (fromUserAccount) {
+        holders.set(fromUserAccount, (holders.get(fromUserAccount) || 0) - amount);
+      }
+      if (toUserAccount) {
+        holders.set(toUserAccount, (holders.get(toUserAccount) || 0) + amount);
+      }
+    });
+
+    const topHolders = Array.from(holders.entries())
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([address, balance]) => ({
+        address,
+        balance,
+        pct: ((balance / tokenInfo.supply) * 100).toFixed(2),
+      }));
+
+    const holderConcentration = {
+      top10Percentage: topHolders.reduce((sum, h) => sum + parseFloat(h.pct), 0),
+      riskLevel: topHolders.reduce((sum, h) => sum + parseFloat(h.pct), 0) > 80 ? 'High' : 'Low',
+    };
+
+    // Risk Factors
+    const risks = [
+      {
+        name: 'Holder Concentration',
+        score: holderConcentration.top10Percentage > 80 ? 100 : 50,
+      },
+      {
+        name: 'Mint Authority',
+        score: tokenInfo.authorities?.find((a) => a.type === 'mint') ? 100 : 0,
+      },
+      {
+        name: 'Freeze Authority',
+        score: tokenInfo.authorities?.find((a) => a.type === 'freeze') ? 100 : 0,
+      },
+    ];
+
+    // Rug Score Calculation
+    const rugScore =
+      (holderConcentration.top10Percentage > 80 ? 40 : 20) +
+      (tokenInfo.authorities?.find((a) => a.type === 'mint') ? 30 : 0) +
+      (tokenInfo.authorities?.find((a) => a.type === 'freeze') ? 30 : 0);
+
+    res.json({
+      token: {
+        address: mint,
+        name: tokenInfo.name || 'Unknown',
+        symbol: tokenInfo.symbol || 'Unknown',
+        supply: tokenInfo.supply,
+        mintAuthority: tokenInfo.authorities?.find((a) => a.type === 'mint')?.address || null,
+        freezeAuthority: tokenInfo.authorities?.find((a) => a.type === 'freeze')?.address || null,
+        mutable: tokenInfo.mutable || false,
+      },
+      holders: {
+        total: holders.size,
+        top10: topHolders,
+        concentration: holderConcentration,
+      },
+      risks,
+      rugScore,
+    });
+  } catch (error) {
+    console.error('[Routes] Error fetching token analytics:', error.message);
+    res.status(500).json({ error: 'Failed to analyze token.' });
+  }
+});
+2. Remove Unnecessary Conditions in rugcheck 

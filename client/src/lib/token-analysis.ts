@@ -47,12 +47,7 @@ export async function analyzeToken(tokenMint: string): Promise<TokenData | null>
 
   try {
     console.log(`[Token Analysis] Fetching fresh data for ${tokenMint}`);
-    const response = await axios.get(`/api/token-analytics/${tokenMint}`, {
-      timeout: 10000
-    });
-
-    console.log(`[Token Analysis] Response status:`, response.status);
-    console.log(`[Token Analysis] Raw response data:`, response.data);
+    const response = await axios.get(`/api/token-analytics/${tokenMint}`);
 
     if (!response.data) {
       console.log("[Token Analysis] No response received from token analytics API");
@@ -72,10 +67,10 @@ export async function analyzeToken(tokenMint: string): Promise<TokenData | null>
       mintAuthority: analytics.token?.mintAuthority || "N/A",
       freezeAuthority: analytics.token?.freezeAuthority || "N/A",
       isInitialized: true,
-      mutable: true,
-      rugged: false,
-      rugScore: analytics.risk?.score || 0,
-      topHolders: analytics.holders?.top10?.map(holder => ({
+      mutable: analytics.token?.mutable || false,
+      rugged: analytics.rugScore > 80,
+      rugScore: analytics.rugScore || 0,
+      topHolders: analytics.holders?.top10?.map((holder: any) => ({
         address: holder.address,
         pct: holder.percentage || 0
       })) || [],
@@ -86,13 +81,11 @@ export async function analyzeToken(tokenMint: string): Promise<TokenData | null>
       }] : [],
       totalLPProviders: analytics.holders?.total || 0,
       totalMarketLiquidity: analytics.trading?.volume24h || 0,
-      risks: analytics.risk?.risks?.map(risk => ({
-        name: risk.type,
+      risks: analytics.risks?.map((risk: any) => ({
+        name: risk.name,
         score: risk.score || 0
       })) || []
     };
-
-    console.log(`[Token Analysis] Processed token data:`, tokenData);
 
     // Cache the results
     analysisCache.set(tokenMint, {

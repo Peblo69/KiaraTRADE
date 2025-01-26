@@ -13,9 +13,20 @@ import { analyzeToken } from '../lib/token-analysis';
 
 interface Props {
   tokenAddress: string;
+  onAnalyze?: typeof analyzeToken;
 }
 
-export const TokenAnalysis: FC<Props> = ({ tokenAddress }) => {
+interface Holder {
+  address: string;
+  pct: number;
+}
+
+interface Risk {
+  name: string;
+  score: number;
+}
+
+export const TokenAnalysis: FC<Props> = ({ tokenAddress, onAnalyze = analyzeToken }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +36,7 @@ export const TokenAnalysis: FC<Props> = ({ tokenAddress }) => {
       console.log('[TokenAnalysis] Starting analysis for:', tokenAddress);
       setIsLoading(true);
       setError(null);
-      const data = await analyzeToken(tokenAddress);
+      const data = await onAnalyze(tokenAddress);
       console.log('[TokenAnalysis] Analysis result:', data);
       setAnalysis(data);
     } catch (err) {

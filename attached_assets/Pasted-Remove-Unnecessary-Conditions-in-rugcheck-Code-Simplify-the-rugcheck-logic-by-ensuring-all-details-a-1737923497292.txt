@@ -1,0 +1,85 @@
+Remove Unnecessary Conditions in rugcheck Code
+Simplify the rugcheck logic by ensuring all details are fetched without skipping fields (no "ifs"). If a field is missing, return a default value:
+
+typescript
+Copy
+Edit
+export async function analyzeToken(tokenMint: string): Promise<TokenData | null> {
+  try {
+    const response = await axios.get(`/api/token-analytics/${tokenMint}`);
+    const data = response.data;
+
+    return {
+      tokenMint,
+      tokenName: data.token?.name || 'Unknown',
+      tokenSymbol: data.token?.symbol || 'Unknown',
+      supply: data.token?.supply || '0',
+      mintAuthority: data.token?.mintAuthority || 'N/A',
+      freezeAuthority: data.token?.freezeAuthority || 'N/A',
+      rugged: data.rugScore > 80, // High rug score indicates a rugged token
+      rugScore: data.rugScore || 0,
+      topHolders: data.holders?.top10 || [],
+      risks: data.risks || [],
+    };
+  } catch (error) {
+    console.error('[TokenAnalysis] Error:', error.message);
+    return null;
+  }
+}
+3. Update the TokenAnalysis Component
+Integrate the simplified rugcheck logic into the TokenAnalysis component for display:
+
+tsx
+Copy
+Edit
+export const TokenAnalysis: FC<TokenAnalysisProps> = ({ tokenAddress, onAnalyze }) => {
+  const [tokenData, setTokenData] = useState<TokenData | null>(null);
+
+  useEffect(() => {
+    const fetchTokenData = async () => {
+      const data = await onAnalyze(tokenAddress);
+      setTokenData(data);
+    };
+    fetchTokenData();
+  }, [tokenAddress, onAnalyze]);
+
+  if (!tokenData) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <div>
+      <h3>{tokenData.tokenName} ({tokenData.tokenSymbol})</h3>
+      <p>Supply: {tokenData.supply}</p>
+      <p>Mint Authority: {tokenData.mintAuthority}</p>
+      <p>Freeze Authority: {tokenData.freezeAuthority}</p>
+      <p>Rug Score: {tokenData.rugScore}</p>
+
+      <h4>Top Holders</h4>
+      {tokenData.topHolders.map(holder => (
+        <div key={holder.address}>
+          {holder.address}: {holder.pct}%
+        </div>
+      ))}
+
+      <h4>Risk Factors</h4>
+      {tokenData.risks.map(risk => (
+        <div key={risk.name}>
+          {risk.name}: {risk.score}
+        </div>
+      ))}
+    </div>
+  );
+};
+Summary of Changes
+/api/token-analytics/:mint Endpoint:
+
+Add rug check logic directly into the backend.
+Include all fields (mint authority, freeze authority, holder concentration, etc.).
+Simplify analyzeToken Function:
+
+Ensure it returns all token fields without skipping any.
+Update TokenAnalysis Component:
+
+Display all rug check details (risks, top holders, rug score, etc.).
+With these updates, your Token Security Analysis page will fetch and display all relevant information for a token seamlessly. Let me know if you need further adjustments!
