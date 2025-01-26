@@ -647,7 +647,13 @@ export function registerRoutes(app: Express): Server {
       const { mint } = req.params;
       console.log(`[Routes] Getting analytics for token ${mint}`);
 
-      // 1. Get Basic Token Info and Transfers
+      // 1. Validate mint address format
+      if (!mint || mint.length < 32) {
+        throw new Error('Invalid token mint address');
+      }
+
+      // 2. Get Basic Token Info and Transfers with detailed logging
+      console.log(`[Routes] Fetching token info from Helius for ${mint}`);
       const [tokenResponse, transfersResponse] = await Promise.all([
         axios.post(HELIUS_RPC_URL, {
           jsonrpc: '2.0',
@@ -670,33 +676,49 @@ export function registerRoutes(app: Express): Server {
         })
       ]);
 
-      const tokenInfo = tokenResponse.data.result;
-      const transfers = transfersResponse.data.result || [];
+      console.log('[Routes] Token API Response:', {
+        hasTokenInfo: !!tokenResponse.data?.result,
+        transfersCount: transfersResponse.data?.result?.length || 0
+      });
 
-      // 2. Process transfers to identify holders and snipers
-      const holders = new Map();
-      const snipers = new Set();
-      const trades = [];
+      const tokenInfo = tokenResponse.data?.result;
+      if (!tokenInfo) {
+        throw new Error('Failed to fetch token information');
+      }
+
+      const transfers = transfersResponse.data?.result || [];
+      console.log(`[Routes] Processing ${transfers.length} transfers`);
+
+      // 3. Process transfers to identify holders and snipers with validation
+      const holders = new Map<string, number>();
+      const snipers = new Set<any>();
+      const trades: any[] = [];
       const creationTime = transfers[transfers.length - 1]?.blockTime || Date.now();
       const sniperWindow = 30000; // 30 seconds
 
-      transfers.forEach((transfer: any) => {
+      // Process transfers with validation
+      transfers.forEach((transfer: any, index: number) => {
+        if (!transfer) {
+          console.warn(`[Routes] Skipping invalid transfer at index ${index}`);
+          return;
+        }
+
         const { fromUserAccount, toUserAccount, amount, blockTime } = transfer;
 
         if (fromUserAccount) {
           const currentFromBalance = holders.get(fromUserAccount) || 0;
-          holders.set(fromUserAccount, currentFromBalance - amount);
+          holders.set(fromUserAccount, currentFromBalance - (amount || 0));
         }
 
         if (toUserAccount) {
           const currentToBalance = holders.get(toUserAccount) || 0;
-          holders.set(toUserAccount, currentToBalance + amount);
+          holders.set(toUserAccount, currentToBalance + (amount || 0));
 
           // Check for snipers (early buyers)
-          if (blockTime - creationTime <= sniperWindow) {
+          if (blockTime && blockTime - creationTime <= sniperWindow) {
             snipers.add({
               address: toUserAccount,
-              amount,
+              amount: amount || 0,
               timestamp: blockTime
             });
           }
@@ -704,29 +726,30 @@ export function registerRoutes(app: Express): Server {
 
         trades.push({
           type: fromUserAccount ? 'sell' : 'buy',
-          amount,
+          amount: amount || 0,
           timestamp: blockTime,
           address: fromUserAccount || toUserAccount
         });
       });
 
-      // 3. Calculate metrics
+      // 4. Calculate metrics with validation
       const holderMetrics = calculateHolderMetrics(holders);
       const snipersArray = Array.from(snipers);
       const topHolders = getTopHolders(holders, 10);
 
       const holderConcentration = {
-        top10Percentage: topHolders.reduce((sum, h) => sum + h.percentage, 0),
-        riskLevel: 'low'
+        top10Percentage: topHolders.reduce((sum, h) => sum + (h.percentage || 0), 0),
+        riskLevel: 'low' as 'low' | 'medium' | 'high'
       };
 
+      // Determine risk level based on concentration
       if (holderConcentration.top10Percentage > 80) {
         holderConcentration.riskLevel = 'high';
       } else if (holderConcentration.top10Percentage > 50) {
         holderConcentration.riskLevel = 'medium';
       }
 
-      // 4. Prepare response
+      // 5. Prepare response with validation
       const analytics: TokenAnalytics = {
         token: {
           address: mint,
@@ -747,7 +770,11 @@ export function registerRoutes(app: Express): Server {
         },
         snipers: {
           total: snipersArray.length,
-          details: snipersArray,
+          details: snipersArray.map(s => ({
+            address: s.address,
+            amount: s.amount,
+            timestamp: s.timestamp
+          })),
           volume: calculateSniperVolume(snipersArray),
           averageAmount: calculateAverageAmount(snipersArray)
         },
@@ -781,11 +808,15 @@ export function registerRoutes(app: Express): Server {
       console.log('[Routes] Analytics prepared:', {
         holdersCount: analytics.holders.total,
         snipersCount: analytics.snipers.total,
-        risks: analytics.risks
+        risks: analytics.risks,
+        tokenInfo: {
+          name: analytics.token.name,
+          symbol: analytics.token.symbol,
+          supply: analytics.token.totalSupply
+        }
       });
 
       res.json(analytics);
-
     } catch (error: any) {
       console.error('[Routes] Token analytics error:', error);
       if (error.response) {
