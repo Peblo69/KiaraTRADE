@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { ArrowLeft, DollarSign, Coins, Info } from "lucide-react";
+import { ArrowLeft, DollarSign, Coins, Info, AlertTriangle } from "lucide-react";
 import { createChart, IChartApi } from 'lightweight-charts';
 import { ErrorBoundary } from './ErrorBoundary';
 import {
@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useQuery } from "@tanstack/react-query";
+import { useTokenAnalyticsStore } from "@/lib/token-analytics-websocket";
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -34,6 +35,7 @@ interface TokenAnalytics {
     totalHolders: number;
     averageBalance: number;
     sniperCount: number;
+    totalVolume: number;
   };
 }
 
@@ -52,6 +54,9 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   );
   const solPrice = usePumpPortalStore(state => state.solPrice);
   const devWallet = token?.devWallet;
+
+  const analytics = useTokenAnalyticsStore((state) => state.analytics[tokenAddress]);
+  const rugCheck = useTokenAnalyticsStore((state) => state.rugCheck[tokenAddress]);
 
   const cleanupChart = useCallback(() => {
     if (resizeObserverRef.current && chartContainerRef.current) {
@@ -217,10 +222,10 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     new Date(timestamp).toLocaleString();
 
   // Fetch token analytics
-  const { data: analytics, isLoading: isLoadingAnalytics } = useQuery<TokenAnalytics>({
-    queryKey: [`/api/token-analytics/${tokenAddress}`],
-    enabled: showAnalytics,
-  });
+  //const { data: analytics, isLoading: isLoadingAnalytics } = useQuery<TokenAnalytics>({
+  //  queryKey: [`/api/token-analytics/${tokenAddress}`],
+  //  enabled: showAnalytics,
+  //});
 
   if (!token) return null;
 
@@ -282,8 +287,8 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
             {/* Analytics Info Button */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   size="icon"
                   className="hover:bg-purple-500/20"
                   onClick={() => setShowAnalytics(true)}
@@ -291,19 +296,69 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                   <Info className="h-4 w-4 text-purple-400" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80 bg-black/95 border-purple-500/20 text-white">
-                {isLoadingAnalytics ? (
-                  <div className="flex items-center justify-center p-4">
-                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-purple-500"></div>
+              <PopoverContent className="w-96 bg-black/95 border-purple-500/20 text-white">
+                <div className="space-y-4">
+                  {/* Token Details Section */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-purple-400 mb-2">Token Info</h3>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>Symbol: {token.symbol}</div>
+                      <div>Created: {new Date(token.createdAt || Date.now()).toLocaleString()}</div>
+                    </div>
                   </div>
-                ) : analytics ? (
-                  <div className="space-y-4">
-                    {/* Top Holders */}
+
+                  {/* Market Metrics */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-blue-400 mb-2">Market Metrics</h3>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>Price: {formatPrice(token.marketCapSol * solPrice)}</div>
+                      <div>Liquidity: {formatPrice(token.vSolInBondingCurve * solPrice)}</div>
+                      <div>Market Cap: {formatPriceScale(token.marketCapSol * solPrice)}</div>
+                      <div>24h Volume: {formatPrice(analytics?.analytics?.totalVolume || 0)}</div>
+                    </div>
+                  </div>
+
+                  {/* Analytics Data */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-amber-400 mb-2">Analytics</h3>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>Total Holders: {analytics?.analytics?.totalHolders || 0}</div>
+                      <div>Avg Balance: {formatBalance(analytics?.analytics?.averageBalance || 0)}</div>
+                      <div>Sniper Count: {analytics?.analytics?.sniperCount || 0}</div>
+                    </div>
+                  </div>
+
+                  {/* Rug Risk Analysis */}
+                  {rugCheck && (
                     <div>
-                      <h3 className="text-sm font-semibold text-purple-400 mb-2">Top 10% Holders 👑</h3>
-                      <div className="space-y-2">
-                        {analytics.topHolders.slice(0, 5).map((holder) => (
-                          <div key={holder.address} className="flex justify-between text-sm">
+                      <h3 className="text-sm font-semibold text-red-400 flex items-center gap-2 mb-2">
+                        <AlertTriangle className="h-4 w-4" />
+                        Rug Risk Analysis
+                      </h3>
+                      <div className="space-y-2 text-sm">
+                        <div className={`p-2 rounded ${
+                          rugCheck.score > 75 ? 'bg-red-500/20 text-red-300' :
+                            rugCheck.score > 40 ? 'bg-yellow-500/20 text-yellow-300' :
+                              'bg-green-500/20 text-green-300'
+                        }`}>
+                          Risk Score: {rugCheck.score}/100
+                        </div>
+                        {rugCheck.risks.map((risk, idx) => (
+                          <div key={idx} className="text-xs text-gray-400">
+                            • {risk.description}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Top Holders */}
+                  {analytics?.topHolders && analytics.topHolders.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-purple-400 mb-2">Top Holders</h3>
+                      <div className="space-y-1">
+                        {analytics.topHolders.slice(0, 5).map((holder, idx) => (
+                          <div key={idx} className="flex justify-between text-xs">
                             <a
                               href={`https://solscan.io/account/${holder.address}`}
                               target="_blank"
@@ -312,18 +367,20 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                             >
                               {formatAddress(holder.address)}
                             </a>
-                            <span>{formatBalance(holder.balance)}</span>
+                            <span>{formatPercentage(holder.percentage)}%</span>
                           </div>
                         ))}
                       </div>
                     </div>
+                  )}
 
-                    {/* Snipers */}
+                  {/* Early Snipers */}
+                  {analytics?.snipers && analytics.snipers.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-semibold text-amber-400 mb-2">Early Snipers 🎯</h3>
-                      <div className="space-y-2">
-                        {analytics.snipers.slice(0, 5).map((sniper) => (
-                          <div key={sniper.address} className="flex justify-between text-sm">
+                      <h3 className="text-sm font-semibold text-amber-400 mb-2">Early Snipers</h3>
+                      <div className="space-y-1">
+                        {analytics.snipers.slice(0, 5).map((sniper, idx) => (
+                          <div key={idx} className="flex justify-between text-xs">
                             <a
                               href={`https://solscan.io/account/${sniper.address}`}
                               target="_blank"
@@ -337,20 +394,8 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                         ))}
                       </div>
                     </div>
-
-                    {/* Summary */}
-                    <div className="pt-2 border-t border-purple-500/20">
-                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
-                        <div>Total Holders: {analytics.analytics.totalHolders}</div>
-                        <div>Avg Balance: {formatBalance(analytics.analytics.averageBalance)}</div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 text-sm text-gray-400">
-                    Failed to load analytics data
-                  </div>
-                )}
+                  )}
+                </div>
               </PopoverContent>
             </Popover>
 
@@ -406,7 +451,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                       className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
                         isDevWallet ?
                           isDevBuying ? 'text-amber-400' : 'text-orange-500' :
-                          trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
+                            trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
                       }`}
                     >
                       <div className="flex items-center gap-2">
