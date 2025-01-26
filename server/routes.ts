@@ -423,9 +423,9 @@ export function registerRoutes(app: Express): Server {
       const tokenInfoResponse = await axios.post(HELIUS_RPC_URL, {
         jsonrpc: '2.0',
         id: 'token-info',
-        method: 'getAsset',
+        method: 'searchAssets',
         params: {
-          id: mint,
+          ownerAddress: mint,
           displayOptions: {
             showFungible: true
           }
@@ -442,9 +442,10 @@ export function registerRoutes(app: Express): Server {
       const balanceResponse = await axios.post(HELIUS_RPC_URL, {
         jsonrpc: '2.0',
         id: 'balance-info',
-        method: 'getAssetsByOwner',
+        method: 'getAssetsByGroup',
         params: {
-          ownerAddress: mint,
+          groupKey: mint,
+          groupValue: "mint",
           page: 1,
           limit: 1000
         }
@@ -454,12 +455,13 @@ export function registerRoutes(app: Express): Server {
       const txResponse = await axios.post(HELIUS_RPC_URL, {
         jsonrpc: '2.0',
         id: 'tx-history',
-        method: 'searchAssets',
+        method: 'getTransactions',
         params: {
-          ownerAddress: mint,
-          compressed: true,
-          page: 1,
-          limit: 100
+          commitment: 'confirmed',
+          limit: 100,
+          before: '',
+          until: '',
+          accounts: [mint]
         }
       });
 
