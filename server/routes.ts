@@ -9,51 +9,15 @@ import { generateAIResponse } from './services/ai';
 import axios from 'axios';
 import { getTokenImage } from './image-worker';
 import { pricePredictionService } from './services/price-prediction';
-import { cryptoService } from './services/crypto'; // Import the crypto service
+import { cryptoService } from './services/crypto';
 
+// Constants
 const CACHE_DURATION = 30000; // 30 seconds cache
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
 const NEWSDATA_API_BASE = 'https://newsdata.io/api/1';
 
-// Configure axios with timeout and headers
-axios.defaults.timeout = 10000;
-axios.defaults.headers.common['accept'] = 'application/json';
-
-// Add request interceptor for rate limiting
-let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 20;
-
-axios.interceptors.request.use(async (config) => {
-  const now = Date.now();
-  const timeSinceLastRequest = now - lastRequestTime;
-
-  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
-    await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest));
-  }
-
-  lastRequestTime = Date.now();
-  return config;
-});
-
-// Cache structure for API data
-const cache = {
-  prices: { data: null, timestamp: 0 },
-  stats24h: { data: null, timestamp: 0 },
-  trending: { data: null, timestamp: 0 },
-  news: { data: null, timestamp: 0 }
-};
-
-import type { Express } from "express";
-import { createServer, type Server } from "http";
-import axios from 'axios';
-
-// Constants setup
-if (!process.env.HELIUS_API_KEY) {
-  throw new Error("HELIUS_API_KEY must be set in environment variables");
-}
-
-// Update the Helius RPC URL to use the correct endpoint format
-const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
+// Update Helius RPC URL with the working API key
+const HELIUS_RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=004f9b13-f526-4952-9998-52f5c7bec6ee';
 
 function logHeliusError(error: any, context: string) {
   console.error(`[Helius ${context} Error]`, {
