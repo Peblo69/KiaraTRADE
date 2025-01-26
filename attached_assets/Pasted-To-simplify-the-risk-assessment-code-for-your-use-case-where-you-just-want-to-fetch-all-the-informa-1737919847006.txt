@@ -1,0 +1,66 @@
+To simplify the risk assessment code for your use case, where you just want to fetch all the information for a token (without any conditional checks or filtering), I’ve extracted the essential data retrieval portion of the function. Below is the modified version that simply gathers and returns all the information without any if conditions:
+
+Simplified Code to Fetch Token Data
+typescript
+Copy
+Edit
+import axios from "axios";
+
+export async function getTokenDetails(tokenMint: string) {
+  try {
+    // Fetch token data from the rugcheck API
+    const response = await axios.get(`https://api.rugcheck.xyz/v1/tokens/${tokenMint}/report`, {
+      timeout: 10000, // Timeout set to 10 seconds
+    });
+
+    // Verify if a response was received
+    if (!response.data) {
+      console.log("No response received from the API.");
+      return null;
+    }
+
+    // Extract all information from the response
+    const tokenReport = response.data;
+
+    const tokenData = {
+      tokenMint: tokenMint,
+      tokenName: tokenReport.tokenMeta?.name || "N/A",
+      tokenSymbol: tokenReport.tokenMeta?.symbol || "N/A",
+      supply: tokenReport.token?.supply || "N/A",
+      decimals: tokenReport.token?.decimals || "N/A",
+      mintAuthority: tokenReport.token?.mintAuthority || "N/A",
+      freezeAuthority: tokenReport.token?.freezeAuthority || "N/A",
+      isInitialized: tokenReport.token?.isInitialized || false,
+      mutable: tokenReport.tokenMeta?.mutable || false,
+      rugged: tokenReport.rugged || false,
+      rugScore: tokenReport.score || 0,
+      topHolders: tokenReport.topHolders || [],
+      markets: tokenReport.markets || [],
+      totalLPProviders: tokenReport.totalLPProviders || 0,
+      totalMarketLiquidity: tokenReport.totalMarketLiquidity || 0,
+      risks: tokenReport.risks || [],
+    };
+
+    // Return the token data object
+    return tokenData;
+  } catch (error) {
+    console.error("Error fetching token details:", error.message);
+    return null;
+  }
+}
+How This Works
+Fetches All Token Data:
+
+Queries the rugcheck.xyz API using the token's mint address.
+Gathers all available data from the API response.
+Extracted Data:
+
+Metadata: Token name, symbol, decimals, supply.
+Authorities: Mint authority, freeze authority, initialization status, mutability.
+Market Information: Liquidity providers, total market liquidity, number of active markets.
+Top Holders: Wallets holding the most tokens.
+Risk Information: Rugged status, rug score, and specific risk descriptions.
+Returns an Object:
+
+The function returns a structured JavaScript object containing all the token details.
+No filtering or conditional checks are applied.
