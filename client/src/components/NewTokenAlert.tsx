@@ -12,7 +12,7 @@ export function NewTokenAlert() {
         const latestToken = tokens[0];
         toast({
           title: "New Token Created! 🚀",
-          description: `${latestToken.name || 'Unknown'} (${latestToken.symbol || 'Unknown'})\n${latestToken.address}`,
+          description: `${latestToken.name} (${latestToken.symbol})\nPrice: $${latestToken.price.toFixed(8)}\nMarket Cap: $${latestToken.marketCap.toFixed(2)}`,
           duration: 5000,
         });
       }

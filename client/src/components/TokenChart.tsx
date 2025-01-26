@@ -4,10 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { ArrowLeft, DollarSign, Coins } from "lucide-react";
+import { ArrowLeft, DollarSign, Coins, Info, AlertTriangle } from "lucide-react";
 import { createChart, IChartApi } from 'lightweight-charts';
 import { ErrorBoundary } from './ErrorBoundary';
-import { RugcheckButton } from "@/components/ui/rugcheck-button";
 import {
   Popover,
   PopoverContent,
@@ -15,7 +14,6 @@ import {
 } from "@/components/ui/popover";
 import { useQuery } from "@tanstack/react-query";
 import { useTokenAnalyticsStore } from "@/lib/token-analytics-websocket";
-import { motion } from "framer-motion";
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -134,12 +132,14 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       let lastTimestamp = 0;
       let offset = 0;
 
+      // Sort trades by timestamp ascending
       const sortedTrades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
 
       sortedTrades.forEach(trade => {
         const currentPrice = trade.marketCapSol * solPrice;
         let tradeTime = Math.floor(trade.timestamp / 1000);
 
+        // Add offset for trades in the same second
         if (tradeTime === lastTimestamp) {
           offset += 1;
         } else {
@@ -147,6 +147,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           lastTimestamp = tradeTime;
         }
 
+        // Add millisecond offset to ensure unique timestamps
         tradeTime = tradeTime + (offset * 0.001);
 
         const candle: Candle = {
@@ -223,11 +224,9 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const formatPercentage = (value: number) =>
     `${value.toFixed(2)}%`;
 
+
   const formatTimestamp = (timestamp: number) =>
     new Date(timestamp).toLocaleString();
-
-  const formatBalance = (balance: number) =>
-    balance.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
   if (!token) return null;
 
@@ -249,6 +248,9 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       </div>
     );
   }
+
+  const formatBalance = (balance: number) =>
+    balance.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
   return (
     <div className="flex-1 h-screen bg-black text-white">
@@ -283,88 +285,117 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           </div>
 
           <div className="flex gap-6 items-center">
+            {/* Analytics Info Button */}
             <Popover>
               <PopoverTrigger asChild>
-                <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="relative"
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hover:bg-purple-500/20"
+                  onClick={() => setShowAnalytics(true)}
                 >
-                  <RugcheckButton
-                    mint={token.address}
-                    onRiskUpdate={(score) => {
-                      // Handle score update if needed
-                    }}
-                  />
-                </motion.div>
+                  <Info className="h-4 w-4 text-purple-400" />
+                </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-96 bg-black/95 border-purple-500/20 text-white backdrop-blur-md">
-                <div className="space-y-4 p-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-bold">Risk Analysis</h3>
-                    <div className="text-sm text-gray-400">
-                      Last Updated: {new Date().toLocaleTimeString()}
+              <PopoverContent className="w-96 bg-black/95 border-purple-500/20 text-white">
+                <div className="space-y-4">
+                  {/* Token Details Section */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-purple-400 mb-2">Token Info</h3>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>Symbol: {token.symbol}</div>
+                      <div>Created: {new Date(token.createdAt || Date.now()).toLocaleString()}</div>
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    {rugCheck?.risks.map((risk, idx) => (
-                      <motion.div
-                        key={idx}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.1 }}
-                        className={`p-3 rounded-lg border ${
-                          risk.level === 'high'
-                            ? 'border-red-500/20 bg-red-500/10'
-                            : risk.level === 'medium'
-                            ? 'border-yellow-500/20 bg-yellow-500/10'
-                            : 'border-green-500/20 bg-green-500/10'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-semibold">{risk.name}</span>
-                          <span className={`px-2 py-0.5 rounded-full text-xs ${
-                            risk.level === 'high'
-                              ? 'bg-red-500/20 text-red-400'
-                              : risk.level === 'medium'
-                              ? 'bg-yellow-500/20 text-yellow-400'
-                              : 'bg-green-500/20 text-green-400'
-                          }`}>
-                            {risk.level.toUpperCase()}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-400">{risk.description}</p>
-                      </motion.div>
-                    ))}
+                  {/* Market Metrics */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-blue-400 mb-2">Market Metrics</h3>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>Price: {formatPrice(token.marketCapSol * solPrice)}</div>
+                      <div>Liquidity: {formatPrice(token.vSolInBondingCurve * solPrice)}</div>
+                      <div>Market Cap: {formatPriceScale(token.marketCapSol * solPrice)}</div>
+                      <div>24h Volume: {formatPrice(analytics?.analytics?.totalVolume || 0)}</div>
+                    </div>
+                  </div>
 
-                    <div className="mt-4 pt-4 border-t border-gray-800">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-400">Overall Risk Score</span>
-                        <span className={`text-lg font-bold ${
-                          (rugCheck?.score || 0) <= 200
-                            ? 'text-green-400'
-                            : (rugCheck?.score || 0) <= 500
-                            ? 'text-yellow-400'
-                            : 'text-red-400'
+                  {/* Analytics Data */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-amber-400 mb-2">Analytics</h3>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>Total Holders: {analytics?.analytics?.totalHolders || 0}</div>
+                      <div>Avg Balance: {formatBalance(analytics?.analytics?.averageBalance || 0)}</div>
+                      <div>Sniper Count: {analytics?.analytics?.sniperCount || 0}</div>
+                    </div>
+                  </div>
+
+                  {/* Rug Risk Analysis */}
+                  {rugCheck && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-red-400 flex items-center gap-2 mb-2">
+                        <AlertTriangle className="h-4 w-4" />
+                        Rug Risk Analysis
+                      </h3>
+                      <div className="space-y-2 text-sm">
+                        <div className={`p-2 rounded ${
+                          rugCheck.score > 75 ? 'bg-red-500/20 text-red-300' :
+                            rugCheck.score > 40 ? 'bg-yellow-500/20 text-yellow-300' :
+                              'bg-green-500/20 text-green-300'
                         }`}>
-                          {rugCheck?.score || 0}/1000
-                        </span>
-                      </div>
-                      <div className="mt-2 h-2 bg-gray-800 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full transition-all duration-500 ${
-                            (rugCheck?.score || 0) <= 200
-                              ? 'bg-green-500'
-                              : (rugCheck?.score || 0) <= 500
-                              ? 'bg-yellow-500'
-                              : 'bg-red-500'
-                          }`}
-                          style={{ width: `${((rugCheck?.score || 0) / 1000) * 100}%` }}
-                        />
+                          Risk Score: {rugCheck.score}/100
+                        </div>
+                        {rugCheck.risks.map((risk, idx) => (
+                          <div key={idx} className="text-xs text-gray-400">
+                            • {risk.description}
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Top Holders */}
+                  {analytics?.topHolders && analytics.topHolders.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-purple-400 mb-2">Top Holders</h3>
+                      <div className="space-y-1">
+                        {analytics.topHolders.slice(0, 5).map((holder, idx) => (
+                          <div key={idx} className="flex justify-between text-xs">
+                            <a
+                              href={`https://solscan.io/account/${holder.address}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:underline"
+                            >
+                              {formatAddress(holder.address)}
+                            </a>
+                            <span>{formatPercentage(holder.percentage)}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Early Snipers */}
+                  {analytics?.snipers && analytics.snipers.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-amber-400 mb-2">Early Snipers</h3>
+                      <div className="space-y-1">
+                        {analytics.snipers.slice(0, 5).map((sniper, idx) => (
+                          <div key={idx} className="flex justify-between text-xs">
+                            <a
+                              href={`https://solscan.io/account/${sniper.address}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:underline"
+                            >
+                              {formatAddress(sniper.address)}
+                            </a>
+                            <span>{formatBalance(sniper.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </PopoverContent>
             </Popover>
