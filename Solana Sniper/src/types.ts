@@ -342,31 +342,5 @@ export interface LastPriceDexReponse {
     };
   }[];
 }
+// Update to reflect an array of transactions
 export type TransactionDetailsResponseArray = TransactionDetailsResponse[];
-
-export interface RugReport {
-  score: number;
-  risks: {
-    name: string;
-    value: string;
-    description: string;
-    score: number;
-    level: string;
-  }[];
-  tokenType: string;
-  tokenProgram: string;
-}
-
-export interface TokenWithRisk {
-  mint: string;
-  name: string;
-  symbol: string;
-  riskScore: number;
-  riskIndicators: string;
-  detailedRisk?: RugResponseExtended;
-}
-
-export interface WebSocketMessage {
-  type: 'newToken' | 'tokenUpdate';
-  data: TokenWithRisk;
-}
