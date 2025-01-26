@@ -15,6 +15,9 @@ import {
 import { TokenAnalysis } from './TokenAnalysis';
 import { analyzeToken } from '@/lib/token-analysis';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
+import { TokenSecurityPanel } from "./TokenSecurityPanel";
+import { motion, AnimatePresence } from "framer-motion";
+
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -46,7 +49,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   const [error, setError] = useState<Error | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
 
-  const { tokens, setActiveTokenView, addToViewedTokens } = usePumpPortalStore(); 
+  const { tokens, setActiveTokenView, addToViewedTokens } = usePumpPortalStore();
 
   const token = usePumpPortalStore(
     useCallback(state => state.tokens.find(t => t.address === tokenAddress), [tokenAddress])
@@ -231,7 +234,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   }
 
   return (
-    <div className="flex-1 h-screen bg-black text-white">
+    <div className="flex-1 h-screen bg-black text-white relative">
       <div className="absolute top-4 left-4 z-10">
         <Button
           variant="ghost"
@@ -303,206 +306,111 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           </div>
         </div>
 
-        <div className="grid grid-cols-[1fr,300px] gap-4">
-          <div className="space-y-4">
-            <div className="h-[500px] bg-[#111] rounded-lg">
-              <div className="p-4">
-                <div ref={chartContainerRef} className="h-[450px]" />
-              </div>
+        <div className="flex gap-4">
+          <div className="flex-1">
+            <div className="mb-4">
+              <Button
+                onClick={() => setShowAnalysis(!showAnalysis)}
+                className="bg-[#0a0b1c] text-white hover:bg-gray-800/50 border border-gray-800"
+              >
+                <Shield className="w-4 h-4 mr-2" />
+                Security Analysis
+              </Button>
             </div>
 
-            <div className="bg-[#111] rounded-lg p-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-semibold">Recent Trades</h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowUsd(!showUsd)}
-                  className="text-xs"
-                >
-                  {showUsd ? <DollarSign className="h-4 w-4" /> : <Coins className="h-4 w-4" />}
-                </Button>
+            <div className="space-y-4">
+              <div className="h-[500px] bg-[#111] rounded-lg">
+                <div className="p-4">
+                  <div ref={chartContainerRef} className="h-[450px]" />
+                </div>
               </div>
 
-              <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                {token.recentTrades?.map((trade, idx) => {
-                  const isDevWallet = trade.traderPublicKey === devWallet ||
-                    trade.counterpartyPublicKey === devWallet;
-                  const isDevBuying = isDevWallet && trade.traderPublicKey === devWallet && trade.txType === 'buy';
-                  const isDevSelling = isDevWallet && (
-                    (trade.traderPublicKey === devWallet && trade.txType === 'sell') ||
-                    (trade.counterpartyPublicKey === devWallet && trade.txType === 'buy')
-                  );
+              <div className="bg-[#111] rounded-lg p-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-sm font-semibold">Recent Trades</h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowUsd(!showUsd)}
+                    className="text-xs"
+                  >
+                    {showUsd ? <DollarSign className="h-4 w-4" /> : <Coins className="h-4 w-4" />}
+                  </Button>
+                </div>
 
-                  return (
-                    <div
-                      key={trade.signature || idx}
-                      className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
-                        isDevWallet ?
-                          isDevBuying ? 'text-amber-400' : 'text-orange-500' :
-                            trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{formatTimestamp(trade.timestamp)}</span>
-                        <span>
-                          {formatAddress(trade.traderPublicKey)}
-                          {isDevWallet && (
-                            <span className={`ml-1 text-xs px-1 rounded ${
-                              isDevBuying ? 'bg-amber-400/20 text-amber-400' : 'bg-orange-500/20 text-orange-500'
-                            }`}>
-                              DEV
-                            </span>
-                          )}
-                        </span>
+                <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                  {token.recentTrades?.map((trade, idx) => {
+                    const isDevWallet = trade.traderPublicKey === devWallet ||
+                      trade.counterpartyPublicKey === devWallet;
+                    const isDevBuying = isDevWallet && trade.traderPublicKey === devWallet && trade.txType === 'buy';
+                    const isDevSelling = isDevWallet && (
+                      (trade.traderPublicKey === devWallet && trade.txType === 'sell') ||
+                      (trade.counterpartyPublicKey === devWallet && trade.txType === 'buy')
+                    );
+
+                    return (
+                      <div
+                        key={trade.signature || idx}
+                        className={`flex items-center justify-between p-2 rounded bg-black/20 text-sm ${
+                          isDevWallet ?
+                            isDevBuying ? 'text-amber-400' : 'text-orange-500' :
+                              trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>{formatTimestamp(trade.timestamp)}</span>
+                          <span>
+                            {formatAddress(trade.traderPublicKey)}
+                            {isDevWallet && (
+                              <span className={`ml-1 text-xs px-1 rounded ${
+                                isDevBuying ? 'bg-amber-400/20 text-amber-400' : 'bg-orange-500/20 text-orange-500'
+                              }`}>
+                                DEV
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          {formatPrice(trade.solAmount * solPrice)}
+                        </div>
                       </div>
-                      <div className="text-right">
-                        {formatPrice(trade.solAmount * solPrice)}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <Card className="bg-[#111] border-none p-4">
-              <Tabs defaultValue="market" className="w-full">
-                <TabsList className="grid grid-cols-3 mb-4">
-                  <TabsTrigger value="market">Market</TabsTrigger>
-                  <TabsTrigger value="limit">Limit</TabsTrigger>
-                  <TabsTrigger value="dca">DCA</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="market">
-                  <div className="space-y-4">
-                    <div>
-                      <div className="text-sm text-gray-400 mb-2">Amount (SOL)</div>
-                      <div className="grid grid-cols-4 gap-2">
-                        <Button variant="outline" size="sm">0.01</Button>
-                        <Button variant="outline" size="sm">0.02</Button>
-                        <Button variant="outline" size="sm">0.5</Button>
-                        <Button variant="outline" size="sm">1</Button>
-                      </div>
-                    </div>
-
-                    <Input
-                      type="number"
-                      placeholder="Enter SOL amount..."
-                      className="bg-black border-gray-800"
-                    />
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
-                      <Button variant="destructive">Sell</Button>
-                    </div>
-
-                    <Button
-                      onClick={() => {
-                        setShowAnalysis(true);
-                        addToViewedTokens(tokenAddress); 
-                        setActiveTokenView(tokenAddress); 
-                      }}
-                      className="w-full bg-purple-600 hover:bg-purple-700 flex items-center justify-center gap-2"
-                    >
-                      <Shield className="w-4 h-4" />
-                      Analyze Token Security
-                    </Button>
-
-                    <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Funds</Button>
-
-                    <div className="grid grid-cols-2 text-sm">
-                      <div>
-                        <div className="text-gray-400">Liquidity</div>
-                        <div>{formatPrice(token.vSolInBondingCurve * solPrice)}</div>
-                      </div>
-                      <div>
-                        <div className="text-gray-400">Market Cap</div>
-                        <div>{formatPriceScale(token.marketCapSol * solPrice)}</div>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="limit">
-                  <div className="space-y-4">
-                    <div>
-                      <div className="text-sm text-gray-400 mb-2">Amount (SOL)</div>
-                      <div className="grid grid-cols-4 gap-2">
-                        <Button variant="outline" size="sm">0.01</Button>
-                        <Button variant="outline" size="sm">0.02</Button>
-                        <Button variant="outline" size="sm">0.5</Button>
-                        <Button variant="outline" size="sm">1</Button>
-                      </div>
-                    </div>
-
-                    <Input
-                      type="number"
-                      placeholder="Enter SOL amount..."
-                      className="bg-black border-gray-800"
-                    />
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
-                      <Button variant="destructive">Sell</Button>
-                    </div>
-
-                    <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Funds</Button>
-
-                    <div className="grid grid-cols-2 text-sm">
-                      <div>
-                        <div className="text-gray-400">Liquidity</div>
-                        <div>{formatPrice(token.vSolInBondingCurve * solPrice)}</div>
-                      </div>
-                      <div>
-                        <div className="text-gray-400">Market Cap</div>
-                        <div>{formatPriceScale(token.marketCapSol * solPrice)}</div>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="dca">
-                  <div className="space-y-4">
-                    <div>
-                      <div className="text-sm text-gray-400 mb-2">Amount (SOL)</div>
-                      <div className="grid grid-cols-4 gap-2">
-                        <Button variant="outline" size="sm">0.01</Button>
-                        <Button variant="outline" size="sm">0.02</Button>
-                        <Button variant="outline" size="sm">0.5</Button>
-                        <Button variant="outline" size="sm">1</Button>
-                      </div>
-                    </div>
-
-                    <Input
-                      type="number"
-                      placeholder="Enter SOL amount..."
-                      className="bg-black border-gray-800"
-                    />
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
-                      <Button variant="destructive">Sell</Button>
-                    </div>
-
-                    <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Funds</Button>
-
-                    <div className="grid grid-cols-2 text-sm">
-                      <div>
-                        <div className="text-gray-400">Liquidity</div>
-                        <div>{formatPrice(token.vSolInBondingCurve * solPrice)}</div>
-                      </div>
-                      <div>
-                        <div className="text-gray-400">Market Cap</div>
-                        <div>{formatPriceScale(token.marketCapSol * solPrice)}</div>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </Card>
-          </div>
+          <AnimatePresence>
+            {showAnalysis && (
+              <motion.div
+                initial={{ x: "100%", opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: "100%", opacity: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="w-[350px] h-full"
+              >
+                <TokenSecurityPanel
+                  isOpen={showAnalysis}
+                  onClose={() => setShowAnalysis(false)}
+                  onRefresh={() => {
+                    // Refresh logic here
+                  }}
+                  tokenData={{
+                    name: token?.name || "",
+                    symbol: token?.symbol || "",
+                    mintAuthority: true,
+                    freezeAuthority: false,
+                    liquidity: token?.liquidity || 0,
+                    lpCount: 2,
+                    topHolderPct: 97.86,
+                    holderCount: 4,
+                    riskScore: 75
+                  }}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
         <Drawer open={showAnalysis} onOpenChange={setShowAnalysis}>
           <DrawerContent className="h-[90vh]">
