@@ -19,6 +19,9 @@ export function RugcheckButton({ mint, onRiskUpdate }: RugcheckButtonProps) {
   const [riskData, setRiskData] = useState<{
     score: number;
     risks: Array<{ name: string; description: string; level: string }>;
+    tokenProgram?: string;
+    tokenType?: string;
+    timestamp?: number;
   } | null>(null);
   const lastCheckRef = useRef<number>(0);
   const cooldownPeriod = 10000; // 10 seconds
@@ -66,6 +69,15 @@ export function RugcheckButton({ mint, onRiskUpdate }: RugcheckButtonProps) {
     }
   };
 
+  const formatTimestamp = (timestamp: number) => {
+    return new Date(timestamp).toLocaleString('en-US', {
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: true
+    });
+  };
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -103,23 +115,46 @@ export function RugcheckButton({ mint, onRiskUpdate }: RugcheckButtonProps) {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-4 bg-black/95 border-purple-500/20 backdrop-blur-md">
+      <PopoverContent className="w-[400px] p-4 bg-black/95 border-purple-500/20 backdrop-blur-md">
         {error ? (
           <p className="text-red-500">{error}</p>
         ) : riskData ? (
           <div className="space-y-4">
+            {/* Header with Risk Score */}
             <div className="flex items-center justify-between border-b border-gray-800 pb-2">
               <div className="flex items-center gap-2">
                 <span className="text-xl">{getRiskIcon(riskData.score)}</span>
                 <span className={`font-bold text-lg ${getRiskColor(riskData.score)}`}>
-                  Risk Score: {riskData.score}
+                  Risk Score: {riskData.score}/1000
                 </span>
               </div>
-              <div className="text-xs text-gray-400">
-                {new Date().toLocaleTimeString()}
-              </div>
+              {riskData.timestamp && (
+                <div className="text-xs text-gray-400">
+                  {formatTimestamp(riskData.timestamp)}
+                </div>
+              )}
             </div>
 
+            {/* Token Info Section */}
+            {(riskData.tokenProgram || riskData.tokenType) && (
+              <div className="space-y-2 text-sm border-b border-gray-800/50 pb-3">
+                <h3 className="text-purple-400 font-semibold">Token Details</h3>
+                {riskData.tokenProgram && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400">Program:</span>
+                    <span className="font-mono text-xs">{riskData.tokenProgram}</span>
+                  </div>
+                )}
+                {riskData.tokenType && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400">Type:</span>
+                    <span>{riskData.tokenType || 'Standard'}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Risk Progress Bar */}
             <div className="relative h-3 bg-gray-800 rounded-full overflow-hidden">
               <div
                 className="absolute top-0 left-0 h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 transition-all duration-500"
@@ -131,6 +166,7 @@ export function RugcheckButton({ mint, onRiskUpdate }: RugcheckButtonProps) {
               </div>
             </div>
 
+            {/* Risk Details */}
             <div className="space-y-3 mt-2">
               {riskData.risks.map((risk, i) => (
                 <div 
@@ -165,6 +201,11 @@ export function RugcheckButton({ mint, onRiskUpdate }: RugcheckButtonProps) {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Footer with Timestamp */}
+            <div className="text-xs text-gray-500 text-right pt-2 border-t border-gray-800/50">
+              Last checked: {formatTimestamp(riskData.timestamp || Date.now())}
             </div>
           </div>
         ) : (
