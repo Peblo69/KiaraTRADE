@@ -205,14 +205,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       <div className="p-4 bg-black/90 text-white rounded-lg">
         <h3 className="text-lg font-semibold mb-2">Chart Error</h3>
         <p className="text-sm text-gray-400">{error.message}</p>
-        <Button
-          onClick={() => {
-            setError(null);
-            cleanupChart();
-            initializeChart();
-          }}
-          className="mt-4"
-        >
+        <Button onClick={() => setError(null)} className="mt-4">
           Retry
         </Button>
       </div>
@@ -220,7 +213,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   }
 
   return (
-    <div className="flex-1 h-screen bg-black text-white relative">
+    <div className="flex-1 h-screen bg-black text-white">
       <div className="absolute top-4 left-4 z-10">
         <Button
           variant="ghost"
@@ -409,7 +402,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
                 animate={{ x: 0 }}
                 exit={{ x: "100%" }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="absolute top-0 right-[-350px] w-[350px] h-[500px] z-50"
+                className="absolute top-[-64px] right-[-350px] w-[350px] h-[564px] z-50"
                 style={{
                   transform: showSecurityPanel ? "translateX(-350px)" : "translateX(0)",
                 }}
