@@ -1,0 +1,65 @@
+1. Review of Your Current Logic
+1.1. Top 10% Holders Logic
+ts
+Copy
+Edit
+// In server/routes.ts
+const totalSupply = holders.reduce((sum, h) => sum + (h.tokenAmount || 0), 0);
+const tenPercentThreshold = totalSupply * 0.1;
+const topHolders = holders
+  .filter(h => h.tokenAmount >= tenPercentThreshold)
+  .map(h => ({
+    address: h.owner,
+    balance: h.tokenAmount,
+    percentage: (h.tokenAmount / totalSupply) * 100
+  }))
+  .sort((a, b) => b.balance - a.balance);
+Potential Issue
+One big holder might exceed the 10% threshold alone, so you might end up with only 1 or 2 addresses in that array. Is that truly the “top 10% of supply,” or do you want the top N addresses that cumulatively hold 10% or more?
+Often, “top 10% holders” is interpreted as “the smallest set of addresses whose combined balance is >= 10%.”
+Your approach is “any address that individually has >= 10%.” That might be too narrow.
+Alternative Approach
+ts
+Copy
+Edit
+const sorted = holders.slice().sort((a, b) => b.tokenAmount - a.tokenAmount);
+let cumulative = 0;
+const topHolders = [];
+for (const h of sorted) {
+  cumulative += h.tokenAmount;
+  topHolders.push(h);
+  if (cumulative >= totalSupply * 0.1) break;
+}
+This ensures you get the smallest group of holders that collectively hold >= 10% of the supply.
+
+1.2. Snipers Logic
+ts
+Copy
+Edit
+// In server/routes.ts
+const creationTime = transactions[transactions.length - 1]?.timestamp || Date.now();
+const sniperWindow = 30000; // 30 seconds
+const snipers = transactions
+  .filter(tx => tx.timestamp - creationTime <= sniperWindow)
+  .map(tx => ({
+    address: tx.owner,
+    timestamp: tx.timestamp,
+    amount: tx.tokenAmount
+  }))
+  .sort((a, b) => b.amount - a.amount);
+Potential Issue
+creationTime is derived from transactions[transactions.length - 1].
+
+If your array is sorted earliest→latest, then transactions.length - 1 is the latest transaction, not the earliest. Possibly you want transactions[0]?.timestamp if the first transaction is the creation event.
+Or if your array is reversed, check carefully.
+The 30-second window might be correct for your definition of sniping, but some tokens might want a 60-second or 5-second window. Just be sure you know how you want to define it.
+
+If your data feed doesn’t actually contain the “creation event” as the earliest transaction, creationTime might not be accurate.
+
+Alternative
+Ensure your transactions array is sorted ascending by time. Then transactions[0].timestamp is presumably the earliest event.
+ts
+Copy
+Edit
+const sortedTx = transactions.sort((a, b) => a.timestamp - b.timestamp);
+const creationTime = sortedTx[0]?.timestamp ?? Date.now();

@@ -23,7 +23,6 @@ interface HeliusStore {
   trades: Record<string, TokenTrade[]>;
   isConnected: boolean;
   subscribedTokens: Set<string>;
-
   addTrade: (tokenAddress: string, trade: TokenTrade) => void;
   setConnected: (connected: boolean) => void;
   subscribeToToken: (tokenAddress: string) => void;
@@ -51,8 +50,20 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
       analyticsStore.addSniper(tokenAddress, trade.buyer, trade.amount, trade.timestamp);
     }
 
-    // Update holder balance
-    analyticsStore.updateHolder(tokenAddress, trade.buyer, trade.amount);
+    // Update holder balances
+    if (trade.type === 'buy') {
+      analyticsStore.updateHolder(tokenAddress, trade.buyer, trade.amount);
+      if (trade.seller) {
+        // Decrease seller's balance
+        analyticsStore.updateHolder(tokenAddress, trade.seller, -trade.amount);
+      }
+    } else {
+      analyticsStore.updateHolder(tokenAddress, trade.seller, -trade.amount);
+      if (trade.buyer) {
+        // Increase buyer's balance
+        analyticsStore.updateHolder(tokenAddress, trade.buyer, trade.amount);
+      }
+    }
   },
 
   setConnected: (connected) => set({ isConnected: connected }),
@@ -152,13 +163,40 @@ export function initializeHeliusWebSocket() {
           const info = accountInfo.data.parsed.info;
           const tokenAddress = info.mint;
           const amount = parseFloat(info.amount || 0);
-          const type = info.type === 'mintTo' ? 'buy' : 'sell';
+
+          // Determine transaction type based on instruction type
+          let type: 'buy' | 'sell';
+          let buyer: string;
+          let seller: string;
+
+          switch (info.type) {
+            case 'mintTo':
+              type = 'buy';
+              buyer = info.newAuthority || info.owner;
+              seller = '';
+              break;
+            case 'burn':
+              type = 'sell';
+              seller = info.authority || info.owner;
+              buyer = '';
+              break;
+            case 'transfer':
+              type = 'buy'; // From perspective of destination
+              buyer = info.destination;
+              seller = info.source;
+              break;
+            default:
+              return; // Skip other instruction types
+          }
+
           const timestamp = Date.now();
 
           console.log('[Helius] Token transfer:', {
             tokenAddress,
             amount,
             type,
+            buyer,
+            seller,
             timestamp
           });
 
@@ -169,8 +207,8 @@ export function initializeHeliusWebSocket() {
             amount,
             price: 0, // We'll need market data for this
             priceUsd: 0,
-            buyer: info.destination || info.newAuthority,
-            seller: info.source || info.owner,
+            buyer,
+            seller,
             type
           });
         }
