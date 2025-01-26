@@ -675,7 +675,7 @@ export function registerRoutes(app: Express): Server {
       console.log('[Routes] Transfers Response:', transfersResponse.data);
 
       const tokenInfo = tokenResponse.data.result;
-      // Ensure transfers is always an array
+      // FIXED: Correct path to transfers array
       const transfers = transfersResponse.data.result?.items || [];
 
       // 2. Process transfers to identify holders and snipers
@@ -998,13 +998,14 @@ const COIN_METADATA: Record<string, { name: string, image: string }> = {
 };
 
 // Helper function to get coin metadata
-const getCoinMetadata = (symbol: string) => {
-  const cleanSymbol = symbol.replace('-USDT', '');
-  return COIN_METADATA[cleanSymbol] || {
-    name: cleanSymbol,
-    image: `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/${cleanSymbol.toLowerCase()}.png`
-  };
-};
+function getCoinMetadata(symbol: string) {
+  return (
+    COIN_METADATA[symbol] || {
+      name: symbol,
+      image: `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/32/color/${symbol.toLowerCase()}.png`
+    }
+  );
+}
 
 // Helper function to format KuCoin data to match our frontend expectations
 const formatKuCoinData = (markets: any[]) => {
