@@ -2,9 +2,9 @@ import { FC, useEffect, useRef, useState, useCallback, memo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { ArrowLeft, DollarSign, Coins, Info, AlertTriangle } from "lucide-react";
+import { ArrowLeft, DollarSign, Coins, Info } from "lucide-react";
 import { createChart, IChartApi } from 'lightweight-charts';
 import { ErrorBoundary } from './ErrorBoundary';
 import {
@@ -12,35 +12,25 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useQuery } from "@tanstack/react-query";
-import { useTokenAnalyticsStore } from "@/lib/token-analytics-websocket";
+import { TokenAnalysis } from './TokenAnalysis';
+import { analyzeToken } from '@/lib/token-analysis';
 
 interface TokenChartProps {
   tokenAddress: string;
   onBack: () => void;
 }
 
-interface TokenAnalytics {
-  topHolders: Array<{
-    address: string;
-    balance: number;
-    percentage: number;
-  }>;
-  snipers: Array<{
-    address: string;
-    timestamp: number;
-    amount: number;
-  }>;
-  analytics: {
-    totalHolders: number;
-    averageBalance: number;
-    sniperCount: number;
-    totalVolume: number;
-  };
+interface Candle {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  color?: string;
 }
 
 const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) => {
-  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
@@ -54,9 +44,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
   );
   const solPrice = usePumpPortalStore(state => state.solPrice);
   const devWallet = token?.devWallet;
-
-  const analytics = useTokenAnalyticsStore((state) => state.analytics[tokenAddress]);
-  const rugCheck = useTokenAnalyticsStore((state) => state.rugCheck[tokenAddress]);
 
   const cleanupChart = useCallback(() => {
     if (resizeObserverRef.current && chartContainerRef.current) {
@@ -104,7 +91,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         },
         mode: 1,
         autoScale: true,
-        formatter: formatPriceScale,
       },
       timeScale: {
         timeVisible: true,
@@ -132,14 +118,12 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       let lastTimestamp = 0;
       let offset = 0;
 
-      // Sort trades by timestamp ascending
       const sortedTrades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
 
       sortedTrades.forEach(trade => {
         const currentPrice = trade.marketCapSol * solPrice;
         let tradeTime = Math.floor(trade.timestamp / 1000);
 
-        // Add offset for trades in the same second
         if (tradeTime === lastTimestamp) {
           offset += 1;
         } else {
@@ -147,7 +131,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           lastTimestamp = tradeTime;
         }
 
-        // Add millisecond offset to ensure unique timestamps
         tradeTime = tradeTime + (offset * 0.001);
 
         const candle: Candle = {
@@ -204,13 +187,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
     };
   }, [token?.recentTrades, initializeChart, cleanupChart]);
 
-  useEffect(() => {
-    if (tokenAddress) {
-      useTokenAnalyticsStore.getState().performRugCheck(tokenAddress);
-    }
-  }, [tokenAddress]);
-
-
   const formatPrice = (value: number) => {
     if (!value || isNaN(value)) return showUsd ? '$0.00' : '0 SOL';
     return showUsd
@@ -220,10 +196,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
 
   const formatAddress = (address: string) =>
     `${address.slice(0, 6)}...${address.slice(-4)}`;
-
-  const formatPercentage = (value: number) =>
-    `${value.toFixed(2)}%`;
-
 
   const formatTimestamp = (timestamp: number) =>
     new Date(timestamp).toLocaleString();
@@ -248,9 +220,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
       </div>
     );
   }
-
-  const formatBalance = (balance: number) =>
-    balance.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
   return (
     <div className="flex-1 h-screen bg-black text-white">
@@ -285,117 +254,27 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           </div>
 
           <div className="flex gap-6 items-center">
-            {/* Analytics Info Button */}
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="hover:bg-purple-500/20"
-                  onClick={() => setShowAnalytics(true)}
+                  onClick={() => setShowInfo(true)}
                 >
                   <Info className="h-4 w-4 text-purple-400" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-96 bg-black/95 border-purple-500/20 text-white">
                 <div className="space-y-4">
-                  {/* Token Details Section */}
                   <div>
-                    <h3 className="text-sm font-semibold text-purple-400 mb-2">Token Info</h3>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>Symbol: {token.symbol}</div>
-                      <div>Created: {new Date(token.createdAt || Date.now()).toLocaleString()}</div>
-                    </div>
-                  </div>
-
-                  {/* Market Metrics */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-blue-400 mb-2">Market Metrics</h3>
+                    <h3 className="text-sm font-semibold text-purple-400 mb-2">Market Info</h3>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>Price: {formatPrice(token.marketCapSol * solPrice)}</div>
                       <div>Liquidity: {formatPrice(token.vSolInBondingCurve * solPrice)}</div>
                       <div>Market Cap: {formatPriceScale(token.marketCapSol * solPrice)}</div>
-                      <div>24h Volume: {formatPrice(analytics?.analytics?.totalVolume || 0)}</div>
                     </div>
                   </div>
-
-                  {/* Analytics Data */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-amber-400 mb-2">Analytics</h3>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>Total Holders: {analytics?.analytics?.totalHolders || 0}</div>
-                      <div>Avg Balance: {formatBalance(analytics?.analytics?.averageBalance || 0)}</div>
-                      <div>Sniper Count: {analytics?.analytics?.sniperCount || 0}</div>
-                    </div>
-                  </div>
-
-                  {/* Rug Risk Analysis */}
-                  {rugCheck && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-red-400 flex items-center gap-2 mb-2">
-                        <AlertTriangle className="h-4 w-4" />
-                        Rug Risk Analysis
-                      </h3>
-                      <div className="space-y-2 text-sm">
-                        <div className={`p-2 rounded ${
-                          rugCheck.score > 75 ? 'bg-red-500/20 text-red-300' :
-                            rugCheck.score > 40 ? 'bg-yellow-500/20 text-yellow-300' :
-                              'bg-green-500/20 text-green-300'
-                        }`}>
-                          Risk Score: {rugCheck.score}/100
-                        </div>
-                        {rugCheck.risks.map((risk, idx) => (
-                          <div key={idx} className="text-xs text-gray-400">
-                            • {risk.description}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Top Holders */}
-                  {analytics?.topHolders && analytics.topHolders.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-purple-400 mb-2">Top Holders</h3>
-                      <div className="space-y-1">
-                        {analytics.topHolders.slice(0, 5).map((holder, idx) => (
-                          <div key={idx} className="flex justify-between text-xs">
-                            <a
-                              href={`https://solscan.io/account/${holder.address}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-400 hover:underline"
-                            >
-                              {formatAddress(holder.address)}
-                            </a>
-                            <span>{formatPercentage(holder.percentage)}%</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Early Snipers */}
-                  {analytics?.snipers && analytics.snipers.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-amber-400 mb-2">Early Snipers</h3>
-                      <div className="space-y-1">
-                        {analytics.snipers.slice(0, 5).map((sniper, idx) => (
-                          <div key={idx} className="flex justify-between text-xs">
-                            <a
-                              href={`https://solscan.io/account/${sniper.address}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-400 hover:underline"
-                            >
-                              {formatAddress(sniper.address)}
-                            </a>
-                            <span>{formatBalance(sniper.amount)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </PopoverContent>
             </Popover>
@@ -481,47 +360,133 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           <div className="space-y-4">
             <Card className="bg-[#111] border-none p-4">
               <Tabs defaultValue="market" className="w-full">
-                <TabsList className="grid grid-cols-3 mb-4">
+                <TabsList className="grid grid-cols-4 mb-4">
                   <TabsTrigger value="market">Market</TabsTrigger>
                   <TabsTrigger value="limit">Limit</TabsTrigger>
                   <TabsTrigger value="dca">DCA</TabsTrigger>
+                  <TabsTrigger value="analysis">Analysis</TabsTrigger>
                 </TabsList>
 
-                <div className="space-y-4">
-                  <div>
-                    <div className="text-sm text-gray-400 mb-2">Amount (SOL)</div>
-                    <div className="grid grid-cols-4 gap-2">
-                      <Button variant="outline" size="sm">0.01</Button>
-                      <Button variant="outline" size="sm">0.02</Button>
-                      <Button variant="outline" size="sm">0.5</Button>
-                      <Button variant="outline" size="sm">1</Button>
+                <TabsContent value="market">
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-sm text-gray-400 mb-2">Amount (SOL)</div>
+                      <div className="grid grid-cols-4 gap-2">
+                        <Button variant="outline" size="sm">0.01</Button>
+                        <Button variant="outline" size="sm">0.02</Button>
+                        <Button variant="outline" size="sm">0.5</Button>
+                        <Button variant="outline" size="sm">1</Button>
+                      </div>
+                    </div>
+
+                    <Input
+                      type="number"
+                      placeholder="Enter SOL amount..."
+                      className="bg-black border-gray-800"
+                    />
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
+                      <Button variant="destructive">Sell</Button>
+                    </div>
+
+                    <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Funds</Button>
+
+                    <div className="grid grid-cols-2 text-sm">
+                      <div>
+                        <div className="text-gray-400">Liquidity</div>
+                        <div>{formatPrice(token.vSolInBondingCurve * solPrice)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400">Market Cap</div>
+                        <div>{formatPriceScale(token.marketCapSol * solPrice)}</div>
+                      </div>
                     </div>
                   </div>
+                </TabsContent>
 
-                  <Input
-                    type="number"
-                    placeholder="Enter SOL amount..."
-                    className="bg-black border-gray-800"
+                <TabsContent value="limit">
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-sm text-gray-400 mb-2">Amount (SOL)</div>
+                      <div className="grid grid-cols-4 gap-2">
+                        <Button variant="outline" size="sm">0.01</Button>
+                        <Button variant="outline" size="sm">0.02</Button>
+                        <Button variant="outline" size="sm">0.5</Button>
+                        <Button variant="outline" size="sm">1</Button>
+                      </div>
+                    </div>
+
+                    <Input
+                      type="number"
+                      placeholder="Enter SOL amount..."
+                      className="bg-black border-gray-800"
+                    />
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
+                      <Button variant="destructive">Sell</Button>
+                    </div>
+
+                    <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Funds</Button>
+
+                    <div className="grid grid-cols-2 text-sm">
+                      <div>
+                        <div className="text-gray-400">Liquidity</div>
+                        <div>{formatPrice(token.vSolInBondingCurve * solPrice)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400">Market Cap</div>
+                        <div>{formatPriceScale(token.marketCapSol * solPrice)}</div>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="dca">
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-sm text-gray-400 mb-2">Amount (SOL)</div>
+                      <div className="grid grid-cols-4 gap-2">
+                        <Button variant="outline" size="sm">0.01</Button>
+                        <Button variant="outline" size="sm">0.02</Button>
+                        <Button variant="outline" size="sm">0.5</Button>
+                        <Button variant="outline" size="sm">1</Button>
+                      </div>
+                    </div>
+
+                    <Input
+                      type="number"
+                      placeholder="Enter SOL amount..."
+                      className="bg-black border-gray-800"
+                    />
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
+                      <Button variant="destructive">Sell</Button>
+                    </div>
+
+                    <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Funds</Button>
+
+                    <div className="grid grid-cols-2 text-sm">
+                      <div>
+                        <div className="text-gray-400">Liquidity</div>
+                        <div>{formatPrice(token.vSolInBondingCurve * solPrice)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400">Market Cap</div>
+                        <div>{formatPriceScale(token.marketCapSol * solPrice)}</div>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="analysis">
+                  <TokenAnalysis
+                    tokenAddress={tokenAddress}
+                    onAnalyze={analyzeToken}
                   />
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
-                    <Button variant="destructive">Sell</Button>
-                  </div>
-
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Funds</Button>
-
-                  <div className="grid grid-cols-2 text-sm">
-                    <div>
-                      <div className="text-gray-400">Liquidity</div>
-                      <div>{formatPrice(token.vSolInBondingCurve * solPrice)}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-400">Market Cap</div>
-                      <div>{formatPriceScale(token.marketCapSol * solPrice)}</div>
-                    </div>
-                  </div>
-                </div>
+                </TabsContent>
               </Tabs>
             </Card>
           </div>
@@ -540,11 +505,3 @@ const TokenChart: FC<TokenChartProps> = (props) => {
 };
 
 export default TokenChart;
-interface Candle {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  color?: string;
-}
