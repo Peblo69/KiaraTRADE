@@ -39,7 +39,7 @@ localPort = 5004
 externalPort = 5000
 
 [workflows]
-runButton = "Project"
+runButton = "Run Kiara"
 
 [[workflows.workflow]]
 name = "Project"
@@ -64,3 +64,11 @@ task = "packager.installForAll"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Run Kiara"
+author = 38878337
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
