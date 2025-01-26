@@ -10,11 +10,15 @@ interface TokenAnalytics {
     address: string;
     timestamp: number;
     amount: number;
+    type: 'buy' | 'sell';
+    profit?: number;
   }>;
   analytics: {
     totalHolders: number;
     averageBalance: number;
     sniperCount: number;
+    totalVolume: number;
+    rugPullRisk: 'low' | 'medium' | 'high';
   };
 }
 

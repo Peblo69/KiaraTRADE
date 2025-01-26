@@ -43,6 +43,21 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
       return;
     }
 
+    // Check for sniper behavior (large buys within first 30 seconds)
+    const analytics = useTokenAnalyticsStore.getState();
+    const creationTime = analytics.creationTimes[tokenAddress];
+    const isSniper = creationTime && trade.timestamp - creationTime <= 30000;
+    
+    if (isSniper && trade.type === 'buy') {
+      const riskLevel = trade.amount > 5 ? 'high' : trade.amount > 2 ? 'medium' : 'low';
+      analytics.updateAnalytics(tokenAddress, {
+        analytics: {
+          rugPullRisk: riskLevel,
+          sniperCount: (analytics.analytics[tokenAddress]?.sniperCount || 0) + 1
+        }
+      });
+    }
+
     activeTransactions++;
 
     try {
