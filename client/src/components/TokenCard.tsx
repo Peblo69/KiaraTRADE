@@ -82,6 +82,30 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
               <span className="text-xs text-purple-400">Last Trade: </span>
               <span className="text-xs">{token.recentTrades?.[0]?.timestamp ? new Date(token.recentTrades[0].timestamp).toLocaleTimeString() : 'No trades'}</span>
             </div>
+            
+            {analytics && (
+              <div className="col-span-2 mt-2 space-y-2">
+                <div className="text-sm font-medium">Analytics:</div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>Mint Authority: {analytics.mintAuthority || 'Unknown'}</div>
+                  <div>Freeze Authority: {analytics.freezeAuthority || 'Unknown'}</div>
+                </div>
+              </div>
+            )}
+
+            {rugCheck && (
+              <div className="col-span-2 mt-2 space-y-2">
+                <div className="text-sm font-medium">Rug Risk Analysis:</div>
+                <div className="text-xs space-y-1">
+                  <div>Score: {rugCheck.score}%</div>
+                  {rugCheck.risks?.map((risk, i) => (
+                    <div key={i} className={`text-${risk.level === 'high' ? 'red' : risk.level === 'medium' ? 'yellow' : 'green'}-400`}>
+                      {risk.name}: {risk.value}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           <div>
             <div className="text-sm text-muted-foreground">💎 Price</div>
             <div className="font-medium">${formatNumber(token.price)}</div>
