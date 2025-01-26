@@ -633,103 +633,113 @@ export function registerRoutes(app: Express): Server {
       const { mint } = req.params;
       console.log(`[Routes] Getting token analytics for ${mint}`);
 
-      // Get token metadata and authority info using correct Helius API methods
-      const [tokenInfoResponse, holdersResponse, txResponse] = await Promise.all([
+      // Using correct Helius API methods according to their documentation
+      const [tokenInfoResponse, balancesResponse, txResponse] = await Promise.all([
+        // Get Token Metadata
         axios.post(HELIUS_RPC_URL, {
           jsonrpc: '2.0',
           id: 'token-info',
-          method: 'getToken',  // Correct method name
-          params: [mint]
+          method: 'getAsset',  // Changed from getToken to getAsset
+          params: {
+            id: mint
+          }
         }),
+
+        // Get Token Balances
         axios.post(HELIUS_RPC_URL, {
           jsonrpc: '2.0',
-          id: 'holders-request',
-          method: 'getTokenHolders',  // Correct method name
-          params: [mint]
+          id: 'balances-request',
+          method: 'getAssetsByOwner', // Changed from getTokenHolders to getAssetsByOwner
+          params: {
+            ownerAddress: mint,
+            page: 1,
+            limit: 100
+          }
         }),
+
+        // Get Token Transactions
         axios.post(HELIUS_RPC_URL, {
           jsonrpc: '2.0',
           id: 'tx-request',
-          method: 'searchTransactions',  // Correct method name
+          method: 'searchAssets',  // Changed to searchAssets
           params: {
-            commitment: "finalized",
-            limit: 100,
-            query: {
-              accounts: [mint]
-            }
+            ownerAddress: mint,
+            compressed: true,
+            page: 1,
+            limit: 100
           }
         })
       ]);
 
       console.log('[DEBUG] Token Info Response:', tokenInfoResponse.data);
-      console.log('[DEBUG] Holders Response:', holdersResponse.data);
+      console.log('[DEBUG] Balances Response:', balancesResponse.data);
       console.log('[DEBUG] Transactions Response:', txResponse.data);
 
       // Extract token information
       const tokenInfo = tokenInfoResponse.data.result;
-      const mintAuthority = tokenInfo?.mintAuthority || null;
-      const freezeAuthority = tokenInfo?.freezeAuthority || null;
+      const mintAuthority = tokenInfo?.authorities?.[0]?.address || null;
+      const freezeAuthority = tokenInfo?.authorities?.[1]?.address || null;
 
       // Calculate holder distribution
-      const holders = holdersResponse.data.result || [];
+      const holders = balancesResponse.data.result || [];
       const totalSupply = tokenInfo.supply || 0;
 
       const holdersBySize = holders
+        .filter(h => h.ownership?.owner) // Make sure we have valid holder data
         .map(h => ({
-          address: h.address,
-          amount: h.amount,
-          pct: (h.amount / totalSupply) * 100
+          address: h.ownership.owner,
+          amount: h.ownership.amount || 0,
+          pct: ((h.ownership.amount || 0) / totalSupply) * 100
         }))
         .sort((a, b) => b.amount - a.amount);
 
-      // Analyze transactions for patterns
+      // Analyze transactions
       const transactions = txResponse.data.result || [];
       const creationTime = transactions[transactions.length - 1]?.timestamp || Date.now();
 
-      // Identify early buyer patterns (snipers)
-      const sniperWindow = 30000; // 30 seconds
-      const snipers = transactions
-        .filter(tx => tx.timestamp - creationTime <= sniperWindow)
-        .map(tx => ({
-          address: tx.source,
-          timestamp: tx.timestamp,
-          amount: tx.tokenTransfers?.[0]?.tokenAmount || 0
-        }));
-
-      // Check for liquidity changes using Raydium program ID
-      const liquidityTx = transactions.filter(tx => 
-        tx.tokenTransfers?.some(transfer => 
-          transfer.source.includes('liquidity') || 
-          transfer.destination.includes('liquidity')
-        )
-      );
-
-      const liquidityAnalysis = {
-        totalLiquidity: liquidityTx.reduce((sum, tx) => 
-          sum + (tx.tokenTransfers?.[0]?.tokenAmount || 0), 0),
-        recentChanges: liquidityTx.slice(0, 5)
-      };
-
-      console.log('[Routes] Analytics response:', {
-        topHoldersCount: holdersBySize.length,
-        snipersCount: snipers.length,
-        liquidityStatus: liquidityAnalysis.totalLiquidity > 0 ? 'present' : 'absent'
-      });
-
-      res.json({
-        mintAuthority,
-        freezeAuthority,
-        topHolders: holdersBySize,
-        snipers,
-        markets: [{
-          totalLiquidity: liquidityAnalysis.totalLiquidity
-        }],
-        analytics: {
-          totalHolders: holders.length,
-          averageBalance: totalSupply / holders.length,
-          sniperCount: snipers.length
+      // Additional alternative method to get detailed token data
+      const detailedTokenData = await axios.post(HELIUS_RPC_URL, {
+        jsonrpc: '2.0',
+        id: 'detailed-token',
+        method: 'getAssetsByGroup',
+        params: {
+          groupKey: 'collection',
+          groupValue: mint,
+          page: 1,
+          limit: 1000
         }
       });
+
+      // Prepare analytics response
+      const analytics = {
+        token: {
+          address: mint,
+          name: tokenInfo.name || 'Unknown',
+          symbol: tokenInfo.symbol || 'Unknown',
+          decimals: tokenInfo.decimals || 0,
+          totalSupply: totalSupply,
+          mintAuthority: mintAuthority,
+          freezeAuthority: freezeAuthority
+        },
+        holders: {
+          total: holdersBySize.length,
+          distribution: holdersBySize.slice(0, 10), // Top 10 holders
+          averageBalance: totalSupply / (holdersBySize.length || 1)
+        },
+        activity: {
+          transactions: transactions.length,
+          uniqueHolders: new Set(holdersBySize.map(h => h.address)).size,
+          creationTime: creationTime
+        }
+      };
+
+      console.log('[Routes] Analytics response prepared:', {
+        hasTokenInfo: !!analytics.token,
+        holdersCount: analytics.holders.total,
+        transactionCount: analytics.activity.transactions
+      });
+
+      res.json(analytics);
 
     } catch (error: any) {
       console.error('[Routes] Token analytics error:', {
@@ -815,4 +825,11 @@ const priorityQueue: string[] = [];
 const addPriorityToken = (symbol: string) => {
   priorityQueue.push(symbol);
   console.log(`Added ${symbol} to priority queue.`);
+};
+
+// Cache for frequently accessed data
+const cache = {
+  news: { data: null, timestamp: 0 },
+  prices: { data: null, timestamp: 0 },
+  trending: { data: null, timestamp: 0 }
 };
