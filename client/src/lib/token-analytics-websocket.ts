@@ -1,4 +1,29 @@
 
+interface RugCheckResult {
+  score: number;
+  risks: {
+    name: string;
+    value: string;
+    description: string;
+    score: number;
+    level: 'low' | 'medium' | 'high';
+  }[];
+  mintAuthority: string | null;
+  freezeAuthority: string | null;
+  topHolders: {
+    address: string;
+    amount: number;
+    pct: number;
+    insider: boolean;
+  }[];
+  markets: {
+    liquidityA: string;
+    liquidityB: string;
+    totalLiquidity: number;
+  }[];
+}
+
+
 import { create } from 'zustand';
 
 interface TokenAnalytics {
@@ -56,6 +81,24 @@ interface RugCheckResult {
     liquidityB: string;
     totalLiquidity: number;
   }[];
+}
+
+function calculateRugScore(factors: {
+  hasUnlockedMint: boolean;
+  hasUnlockedFreeze: boolean;
+  topHolderConcentration: number;
+  liquidityValue: number;
+  sniperCount: number;
+}): number {
+  let score = 0;
+  
+  if (factors.hasUnlockedMint) score += 30;
+  if (factors.hasUnlockedFreeze) score += 20;
+  if (factors.topHolderConcentration > 50) score += 25;
+  if (factors.liquidityValue < 1000) score += 15;
+  if (factors.sniperCount > 10) score += 10;
+
+  return Math.min(score, 100);
 }
 
 export const useTokenAnalyticsStore = create<TokenAnalyticsStore>((set, get) => ({

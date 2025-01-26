@@ -11,6 +11,7 @@ interface TokenCardProps {
 
 export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
   const analytics = useTokenAnalyticsStore(state => state.analytics[token.address]);
+  const rugCheck = useTokenAnalyticsStore(state => state.rugCheck[token.address]);
 
   const getRugRiskEmoji = (risk: string) => {
     switch(risk) {
@@ -31,6 +32,11 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
   const getLiquidityEmoji = (liquidity: number) => {
     return liquidity > 100000 ? '💰' : liquidity > 10000 ? '💵' : '💸';
   };
+
+  const rugRiskColor = !rugCheck ? 'gray' : 
+    rugCheck?.score > 75 ? 'red' : 
+    rugCheck?.score > 40 ? 'yellow' : 'green';
+
 
   return (
     <Card 
@@ -103,6 +109,19 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
                 <span className="font-medium">{token.recentTrades?.length || 0}</span>
               </div>
             </div>
+          </div>
+        )}
+
+        {rugCheck && (
+          <div className={`rug-risk ${rugRiskColor}`}>
+            <span>Rug Risk: {rugCheck.score}%</span>
+            {rugCheck.mintAuthority && <div>Mint Authority: {rugCheck.mintAuthority}</div>}
+            {rugCheck.freezeAuthority && <div>Freeze Authority: {rugCheck.freezeAuthority}</div>}
+            {rugCheck.risks && rugCheck.risks.map((risk, i) => (
+              <div key={i} className={`risk-item ${risk.level}`}>
+                {risk.name}: {risk.value}
+              </div>
+            ))}
           </div>
         )}
       </div>
