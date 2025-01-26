@@ -80,7 +80,7 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         horzLines: { color: '#1a1a1a' },
       },
       width: chartContainerRef.current.clientWidth,
-      height: chartContainerRef.current.clientHeight,
+      height: chartContainerRef.clientHeight,
       rightPriceScale: {
         borderColor: '#333333',
         scaleMargins: {
@@ -232,7 +232,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         </Button>
       </div>
 
-      {/* Token info and stats section */}
       <div className="p-4">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -253,31 +252,6 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
           </div>
 
           <div className="flex gap-6 items-center">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hover:bg-purple-500/20"
-                  onClick={() => setShowInfo(true)}
-                >
-                  <Info className="h-4 w-4 text-purple-400" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-96 bg-black/95 border-purple-500/20 text-white">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-purple-400 mb-2">Market Info</h3>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>Price: {formatPrice(token.marketCapSol * solPrice)}</div>
-                      <div>Liquidity: {formatPrice(token.vSolInBondingCurve * solPrice)}</div>
-                      <div>Market Cap: {formatPriceScale(token.marketCapSol * solPrice)}</div>
-                    </div>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-
             <div className="text-right">
               <div className="text-sm text-gray-400">Price</div>
               <div className="font-bold">{formatPrice(token.marketCapSol * solPrice)}</div>
@@ -376,27 +350,57 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
               <Tabs defaultValue="market" className="w-full">
                 <TabsList>
                   <TabsTrigger value="market">Market</TabsTrigger>
-                  <TabsTrigger value="trades">Trades</TabsTrigger>
+                  <TabsTrigger value="limit">Limit</TabsTrigger>
+                  <TabsTrigger value="dca">DCA</TabsTrigger>
                 </TabsList>
+
                 <TabsContent value="market">
                   <div className="space-y-4">
                     <div>
-                      <div className="text-sm font-medium">Price</div>
-                      <div className="text-lg font-bold">{formatPrice(token.marketCapSol * solPrice)}</div>
+                      <div className="text-sm text-gray-400 mb-2">Amount (SOL)</div>
+                      <div className="grid grid-cols-4 gap-2">
+                        <Button variant="outline" size="sm">0.01</Button>
+                        <Button variant="outline" size="sm">0.02</Button>
+                        <Button variant="outline" size="sm">0.5</Button>
+                        <Button variant="outline" size="sm">1</Button>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-sm font-medium">Liquidity</div>
-                      <div className="text-lg font-bold">{formatPrice(token.vSolInBondingCurve * solPrice)}</div>
+
+                    <Input
+                      type="number"
+                      placeholder="Enter SOL amount..."
+                      className="bg-black border-gray-800"
+                    />
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button className="bg-green-600 hover:bg-green-700">Buy</Button>
+                      <Button variant="destructive">Sell</Button>
                     </div>
-                    <div>
-                      <div className="text-sm font-medium">Market Cap</div>
-                      <div className="text-lg font-bold">{formatPriceScale(token.marketCapSol * solPrice)}</div>
+
+                    <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Funds</Button>
+
+                    <div className="grid grid-cols-2 text-sm">
+                      <div>
+                        <div className="text-gray-400">Liquidity</div>
+                        <div>{formatPrice(token.vSolInBondingCurve * solPrice)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400">Market Cap</div>
+                        <div>{formatPriceScale(token.marketCapSol * solPrice)}</div>
+                      </div>
                     </div>
                   </div>
                 </TabsContent>
-                <TabsContent value="trades">
+
+                <TabsContent value="limit">
                   <div className="h-64 overflow-y-auto">
-                    {/*  Add your trades here */}
+                    {/* Add your limit orders here */}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="dca">
+                  <div className="h-64 overflow-y-auto">
+                    {/* Add your DCA settings here */}
                   </div>
                 </TabsContent>
               </Tabs>
