@@ -158,6 +158,20 @@ export const token_statistics = pgTable("token_statistics", {
   sell_count: integer("sell_count").notNull(),
 });
 
+// Add new rugcheck_results table
+export const rugcheck_results = pgTable("rugcheck_results", {
+  id: serial("id").primaryKey(),
+  token_address: text("token_address").notNull(),
+  token_program: text("token_program"),
+  token_type: text("token_type"),
+  risk_score: integer("risk_score"),
+  risks_json: text("risks_json"),  // Store risks as JSON string
+  last_checked_at: timestamp("last_checked_at").defaultNow().notNull(),
+}, (table) => ({
+  token_address_idx: index("rugcheck_results_token_address_idx").on(table.token_address),
+  last_checked_idx: index("rugcheck_results_last_checked_idx").on(table.last_checked_at),
+}));
+
 // Create schemas for new tables
 export const insertTokenSchema = createInsertSchema(tokens);
 export const selectTokenSchema = createSelectSchema(tokens);
@@ -168,6 +182,10 @@ export const selectTokenTradeSchema = createSelectSchema(token_trades);
 export const insertTokenStatisticsSchema = createInsertSchema(token_statistics);
 export const selectTokenStatisticsSchema = createSelectSchema(token_statistics);
 
+// Add schemas for rugcheck results
+export const insertRugcheckResultSchema = createInsertSchema(rugcheck_results);
+export const selectRugcheckResultSchema = createSelectSchema(rugcheck_results);
+
 // Export types for new tables
 export type InsertToken = z.infer<typeof insertTokenSchema>;
 export type SelectToken = z.infer<typeof selectTokenSchema>;
@@ -175,3 +193,7 @@ export type InsertTokenTrade = z.infer<typeof insertTokenTradeSchema>;
 export type SelectTokenTrade = z.infer<typeof selectTokenTradeSchema>;
 export type InsertTokenStatistics = z.infer<typeof insertTokenStatisticsSchema>;
 export type SelectTokenStatistics = z.infer<typeof selectTokenStatisticsSchema>;
+
+// Add types for rugcheck results
+export type InsertRugcheckResult = z.infer<typeof insertRugcheckResultSchema>;
+export type SelectRugcheckResult = z.infer<typeof selectRugcheckResultSchema>;

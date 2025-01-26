@@ -1,0 +1,212 @@
+	
+Returns a RugCheck Score
+
+Example Value
+Model
+{
+  "creator": "string",
+  "detectedAt": "string",
+  "events": [
+    {
+      "createdAt": "string",
+      "event": 0,
+      "newValue": "string",
+      "oldValue": "string"
+    }
+  ],
+  "fileMeta": {
+    "description": "string",
+    "image": "string",
+    "name": "string",
+    "symbol": "string"
+  },
+  "freezeAuthority": "string",
+  "graphInsiderReport": {
+    "blacklisted": true,
+    "rawGraphData": [
+      {
+        "address": "string",
+        "sent": [
+          {
+            "amount": 0,
+            "mint": "string",
+            "receiver": {
+              "address": "string"
+            }
+          }
+        ]
+      }
+    ],
+    "receivers": [
+      {
+        "address": "string",
+        "amount": 0
+      }
+    ],
+    "senders": [
+      {
+        "address": "string",
+        "amount": 0
+      }
+    ],
+    "totalSent": 0
+  },
+  "knownAccounts": {
+    "additionalProp1": {
+      "name": "string",
+      "type": "string"
+    },
+    "additionalProp2": {
+      "name": "string",
+      "type": "string"
+    },
+    "additionalProp3": {
+      "name": "string",
+      "type": "string"
+    }
+  },
+  "lockerOwners": {
+    "additionalProp1": true,
+    "additionalProp2": true,
+    "additionalProp3": true
+  },
+  "lockers": {
+    "additionalProp1": {
+      "owner": "string",
+      "programID": "string",
+      "tokenAccount": "string",
+      "type": "string",
+      "unlockDate": 0,
+      "uri": "string",
+      "usdcLocked": 0
+    },
+    "additionalProp2": {
+      "owner": "string",
+      "programID": "string",
+      "tokenAccount": "string",
+      "type": "string",
+      "unlockDate": 0,
+      "uri": "string",
+      "usdcLocked": 0
+    },
+    "additionalProp3": {
+      "owner": "string",
+      "programID": "string",
+      "tokenAccount": "string",
+      "type": "string",
+      "unlockDate": 0,
+      "uri": "string",
+      "usdcLocked": 0
+    }
+  },
+  "lpLockers": "Unknown Type: any",
+  "markets": [
+    {
+      "liquidityA": "string",
+      "liquidityAAccount": "string",
+      "liquidityB": "string",
+      "liquidityBAccount": "string",
+      "lp": {
+        "base": 0,
+        "baseMint": "string",
+        "basePrice": 0,
+        "baseUSD": 0,
+        "currentSupply": 0,
+        "holders": [
+          {
+            "address": "string",
+            "amount": 0,
+            "decimals": 0,
+            "insider": true,
+            "owner": "string",
+            "pct": 0,
+            "uiAmount": 0,
+            "uiAmountString": "string"
+          }
+        ],
+        "lpCurrentSupply": 0,
+        "lpLocked": 0,
+        "lpLockedPct": 0,
+        "lpLockedUSD": 0,
+        "lpMaxSupply": 0,
+        "lpMint": "string",
+        "lpTotalSupply": 0,
+        "lpUnlocked": 0,
+        "pctReserve": 0,
+        "pctSupply": 0,
+        "quote": 0,
+        "quoteMint": "string",
+        "quotePrice": 0,
+        "quoteUSD": 0,
+        "reserveSupply": 0,
+        "tokenSupply": 0,
+        "totalTokensUnlocked": 0
+      },
+      "marketType": "string",
+      "mintA": "string",
+      "mintAAccount": "string",
+      "mintB": "string",
+      "mintBAccount": "string",
+      "mintLP": "string",
+      "mintLPAccount": "string",
+      "pubkey": "string"
+    }
+  ],
+  "mint": "string",
+  "mintAuthority": "string",
+  "risks": [
+    {
+      "description": "string",
+      "level": "string",
+      "name": "string",
+      "score": 0,
+      "value": "string"
+    }
+  ],
+  "rugged": true,
+  "score": 0,
+  "token": "string",
+  "tokenMeta": {
+    "mutable": true,
+    "name": "string",
+    "symbol": "string",
+    "updateAuthority": "string",
+    "uri": "string"
+  },
+  "tokenProgram": "string",
+  "tokenType": "string",
+  "token_extensions": "string",
+  "topHolders": [
+    {
+      "address": "string",
+      "amount": 0,
+      "decimals": 0,
+      "insider": true,
+      "owner": "string",
+      "pct": 0,
+      "uiAmount": 0,
+      "uiAmountString": "string"
+    }
+  ],
+  "totalLPProviders": 0,
+  "totalMarketLiquidity": 0,
+  "transferFee": {
+    "authority": "string",
+    "maxAmount": 0,
+    "pct": 0
+  },
+  "verification": {
+    "description": "string",
+    "jup_verified": true,
+    "links": [
+      {
+        "provider": "string",
+        "value": "string"
+      }
+    ],
+    "mint": "string",
+    "name": "string",
+    "payer": "string",
+    "symbol": "string"
+  }
+}
