@@ -65,7 +65,10 @@ export function RugcheckButton({ mint, onRiskUpdate }: RugcheckButtonProps) {
           <Button
             variant="outline"
             size="sm"
-            onClick={checkRisk}
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent card click event
+              checkRisk();
+            }}
             disabled={loading || Date.now() - lastCheckRef.current < cooldownPeriod}
             className={`gap-2 ${
               riskData ? getRiskColor(riskData.score) : "text-gray-500"
