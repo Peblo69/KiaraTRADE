@@ -658,13 +658,13 @@ export function registerRoutes(app: Express): Server {
         axios.post(HELIUS_RPC_URL, {
           jsonrpc: '2.0',
           id: 'transfers',
-          method: 'getSignaturesForAsset',
+          method: 'searchAssets',
           params: {
-            assetId: mint,
+            ownerAddress: mint,
             limit: 100,
             sortBy: {
-              value: 'blockTime',
-              order: 'desc'
+              sortBy: "created",
+              sortDirection: "desc"
             }
           }
         })
@@ -723,34 +723,26 @@ export function registerRoutes(app: Express): Server {
       const snipersArray = Array.from(snipers);
       const topHolders = getTopHolders(holders, 10);
 
-      const holderConcentration = {
-        top10Percentage: topHolders.reduce((sum, h) => sum + h.percentage, 0),
-        riskLevel: 'low' as const
-      };
-
-      if (holderConcentration.top10Percentage > 80) {
-        holderConcentration.riskLevel = 'high';
-      } else if (holderConcentration.top10Percentage > 50) {
-        holderConcentration.riskLevel = 'medium';
-      }
-
       // 4. Prepare response
       const analytics = {
         token: {
           address: mint,
-          name: tokenInfo.name || 'Unknown',
-          symbol: tokenInfo.symbol || 'Unknown',
-          decimals: tokenInfo.decimals || 0,
-          supply: tokenInfo.supply || 0,
+          name: tokenInfo.content?.metadata?.name || 'Unknown',
+          symbol: tokenInfo.content?.metadata?.symbol || 'Unknown',
+          decimals: tokenInfo.token_info?.decimals || 0,
+          supply: tokenInfo.token_info?.supply || 0,
           mintAuthority: tokenInfo.authorities?.find((a: any) => a.type === 'mint')?.address || null,
           freezeAuthority: tokenInfo.authorities?.find((a: any) => a.type === 'freeze')?.address || null,
-          mutable: true
+          mutable: tokenInfo.mutable || false
         },
         holders: {
           total: holderMetrics.totalHolders,
           unique: holderMetrics.uniqueHolders,
           top10: topHolders,
-          concentration: holderConcentration,
+          concentration: {
+            top10Percentage: topHolders.reduce((sum, h) => sum + h.percentage, 0),
+            riskLevel: 'low' as const
+          },
           distribution: holderMetrics.distribution
         },
         snipers: {
@@ -763,12 +755,14 @@ export function registerRoutes(app: Express): Server {
           volume24h: calculateVolume24h(trades),
           transactions24h: calculateTransactions24h(trades),
           averageTradeSize: calculateAverageTradeSize(trades),
-          priceImpact: calculatePriceImpact(trades)
+          priceImpact: calculatePriceImpact(trades),
+          markets: []
         },
         risks: [
           {
             name: 'Holder Concentration',
-            score: holderConcentration.top10Percentage > 80 ? 100 : holderConcentration.top10Percentage > 50 ? 50 : 0
+            score: topHolders.reduce((sum, h) => sum + h.percentage, 0) > 80 ? 100 : 
+                   topHolders.reduce((sum, h) => sum + h.percentage, 0) > 50 ? 50 : 0
           },
           {
             name: 'Mint Authority',
@@ -783,7 +777,9 @@ export function registerRoutes(app: Express): Server {
             score: snipersArray.length > 20 ? 100 : snipersArray.length > 10 ? 50 : 0
           }
         ],
-        rugScore: calculateRiskScore(tokenInfo, holderConcentration, snipersArray)
+        rugScore: calculateRiskScore(tokenInfo, {
+          top10Percentage: topHolders.reduce((sum, h) => sum + h.percentage, 0)
+        }, snipersArray)
       };
 
       console.log('[Routes] Analytics prepared:', {
@@ -812,6 +808,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Add token analytics endpoint
+
 
   return server;
 }
@@ -860,6 +857,7 @@ interface TokenAnalytics {
     transactions24h: number;
     averageTradeSize: number;
     priceImpact: number;
+    markets: any[];
   };
   risks: Array<{
     name: string;
