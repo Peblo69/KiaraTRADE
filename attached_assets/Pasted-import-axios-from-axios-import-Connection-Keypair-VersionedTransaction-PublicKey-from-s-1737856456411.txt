@@ -1,0 +1,327 @@
+import axios from "axios";
+import { Connection, Keypair, VersionedTransaction, PublicKey } from "@solana/web3.js";
+import { Wallet } from "@project-serum/anchor";
+import bs58 from "bs58";
+import dotenv from "dotenv";
+import { config } from "./config";
+import {
+  TransactionDetailsResponseArray,
+  MintsDataReponse,
+  QuoteResponse,
+  SerializedQuoteResponse,
+  SwapEventDetailsResponse,
+  HoldingRecord,
+  RugResponseExtended,
+  NewTokenRecord,
+  createSellTransactionResponse,
+} from "./types";
+import { insertHolding, insertNewToken, removeHolding, selectTokenByMint, selectTokenByNameAndCreator } from "./tracker/db";
+
+// Load environment variables from the .env file
+dotenv.config();
+
+const heliusRpcUrl = process.env.HELIUS_HTTPS_URI || "";
+const heliusTxUrl = process.env.HELIUS_HTTPS_URI_TX || "";
+
+const connection = new Connection(heliusRpcUrl);
+
+export async function fetchTransactionDetails(signature: string): Promise<MintsDataReponse | null> {
+  // Set function constants
+  const maxRetries = config.tx.fetch_tx_max_retries;
+  let retryCount = 0;
+
+  // Add longer initial delay to allow transaction to be processed
+  console.log("Waiting " + config.tx.fetch_tx_initial_delay / 1000 + " seconds for transaction to be confirmed...");
+  await new Promise((resolve) => setTimeout(resolve, config.tx.fetch_tx_initial_delay));
+
+  while (retryCount < maxRetries) {
+    try {
+      // Output logs
+      console.log(`Attempt ${retryCount + 1} of ${maxRetries} to fetch transaction details...`);
+
+      const response = await axios.post<any>(
+        heliusTxUrl,
+        {
+          transactions: [signature],
+          commitment: "finalized",
+          encoding: "jsonParsed",
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          timeout: config.tx.get_timeout,
+        }
+      );
+
+      // Verify if a response was received
+      if (!response.data) {
+        throw new Error("No response data received");
+      }
+
+      // Verify if the response was in the correct format and not empty
+      if (!Array.isArray(response.data) || response.data.length === 0) {
+        throw new Error("Response data array is empty");
+      }
+
+      // Access the `data` property which contains the array of transactions
+      const transactions: TransactionDetailsResponseArray = response.data;
+
+      // Verify if transaction details were found
+      if (!transactions[0]) {
+        throw new Error("Transaction not found");
+      }
+
+      // Access the `instructions` property which contains account instructions
+      const instructions = transactions[0].instructions;
+      if (!instructions || !Array.isArray(instructions) || instructions.length === 0) {
+        throw new Error("No instructions found in transaction");
+      }
+
+      // Verify and find the instructions for the correct market maker id
+      const instruction = instructions.find((ix) => ix.programId === config.liquidity_pool.radiyum_program_id);
+      if (!instruction || !instruction.accounts) {
+        throw new Error("No market maker instruction found");
+      }
+      if (!Array.isArray(instruction.accounts) || instruction.accounts.length < 10) {
+        throw new Error("Invalid accounts array in instruction");
+      }
+
+      // Store quote and token mints
+      const accountOne = instruction.accounts[8];
+      const accountTwo = instruction.accounts[9];
+
+      // Verify if we received both quote and token mints
+      if (!accountOne || !accountTwo) {
+        throw new Error("Required accounts not found");
+      }
+
+      // Set new token and SOL mint
+      let solTokenAccount = "";
+      let newTokenAccount = "";
+      if (accountOne === config.liquidity_pool.wsol_pc_mint) {
+        solTokenAccount = accountOne;
+        newTokenAccount = accountTwo;
+      } else {
+        solTokenAccount = accountTwo;
+        newTokenAccount = accountOne;
+      }
+
+      // Output logs
+      console.log("Successfully fetched transaction details!");
+      console.log(`SOL Token Account: ${solTokenAccount}`);
+      console.log(`New Token Account: ${newTokenAccount}`);
+
+      const displayData: MintsDataReponse = {
+        tokenMint: newTokenAccount,
+        solMint: solTokenAccount,
+      };
+
+      return displayData;
+    } catch (error: any) {
+      console.log(`Attempt ${retryCount + 1} failed: ${error.message}`);
+
+      retryCount++;
+
+      if (retryCount < maxRetries) {
+        const delay = Math.min(4000 * Math.pow(1.5, retryCount), 15000);
+        console.log(`Waiting ${delay / 1000} seconds before next attempt...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  console.log("All attempts to fetch transaction details failed");
+  return null;
+}
+
+export async function createSwapTransaction(solMint: string, tokenMint: string): Promise<string | null> {
+  const quoteUrl = process.env.JUP_HTTPS_QUOTE_URI || "";
+  const swapUrl = process.env.JUP_HTTPS_SWAP_URI || "";
+  const myWallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIV_KEY_WALLET || "")));
+
+  // Get Swap Quote
+  let retryCount = 0;
+  while (retryCount < config.swap.token_not_tradable_400_error_retries) {
+    try {
+      // Request a quote in order to swap SOL for new token
+      const quoteResponse = await axios.get<QuoteResponse>(quoteUrl, {
+        params: {
+          inputMint: solMint,
+          outputMint: tokenMint,
+          amount: config.swap.amount,
+          slippageBps: config.swap.slippageBps,
+        },
+        timeout: config.tx.get_timeout,
+      });
+
+      if (!quoteResponse.data) return null;
+
+      if (config.swap.verbose_log && config.swap.verbose_log === true) {
+        console.log("\nVerbose log:");
+        console.log(quoteResponse.data);
+      }
+
+      quoteResponseData = quoteResponse.data; // Store the successful response
+      break;
+    } catch (error: any) {
+      // Retry when error is TOKEN_NOT_TRADABLE
+      if (error.response && error.response.status === 400) {
+        const errorData = error.response.data;
+        if (errorData.errorCode === "TOKEN_NOT_TRADABLE") {
+          retryCount++;
+          await new Promise((resolve) => setTimeout(resolve, config.swap.token_not_tradable_400_error_delay));
+          continue; // Retry
+        }
+      }
+
+      // Throw error (null) when error is not TOKEN_NOT_TRADABLE
+      console.error("Error while requesting a new swap quote:", error.message);
+      if (config.swap.verbose_log && config.swap.verbose_log === true) {
+        console.log("Verbose Error Message:");
+        if (error.response) {
+          // Server responded with a status other than 2xx
+          console.error("Error Status:", error.response.status);
+          console.error("Error Status Text:", error.response.statusText);
+          console.error("Error Data:", error.response.data); // API error message
+          console.error("Error Headers:", error.response.headers);
+        } else if (error.request) {
+          // Request was made but no response was received
+          console.error("No Response:", error.request);
+        } else {
+          // Other errors
+          console.error("Error Message:", error.message);
+        }
+      }
+      return null;
+    }
+  }
+
+  if (quoteResponseData) console.log("✅ Swap quote recieved.");
+
+  // Serialize the quote into a swap transaction that can be submitted on chain
+  try {
+    if (!quoteResponseData) return null;
+
+    const swapResponse = await axios.post<SerializedQuoteResponse>(
+      swapUrl,
+      JSON.stringify({
+        // quoteResponse from /quote api
+        quoteResponse: quoteResponseData,
+        // user public key to be used for the swap
+        userPublicKey: myWallet.publicKey.toString(),
+        // auto wrap and unwrap SOL. default is true
+        wrapAndUnwrapSol: true,
+        //dynamicComputeUnitLimit: true, // allow dynamic compute limit instead of max 1,400,000
+        dynamicSlippage: {
+          // This will set an optimized slippage to ensure high success rate
+          maxBps: 300, // Make sure to set a reasonable cap here to prevent MEV
+        },
+        prioritizationFeeLamports: {
+          priorityLevelWithMaxLamports: {
+            maxLamports: config.swap.prio_fee_max_lamports,
+            priorityLevel: config.swap.prio_level,
+          },
+        },
+      }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        timeout: config.tx.get_timeout,
+      }
+    );
+    if (!swapResponse.data) return null;
+
+    if (config.swap.verbose_log && config.swap.verbose_log === true) {
+      console.log(swapResponse.data);
+    }
+
+    serializedQuoteResponseData = swapResponse.data; // Store the successful response
+  } catch (error: any) {
+    console.error("Error while sending the swap quote:", error.message);
+    if (config.swap.verbose_log && config.swap.verbose_log === true) {
+      console.log("Verbose Error Message:");
+      if (error.response) {
+        // Server responded with a status other than 2xx
+        console.error("Error Status:", error.response.status);
+        console.error("Error Status Text:", error.response.statusText);
+        console.error("Error Data:", error.response.data); // API error message
+        console.error("Error Headers:", error.response.headers);
+      } else if (error.request) {
+        // Request was made but no response was received
+        console.error("No Response:", error.request);
+      } else {
+        // Other errors
+        console.error("Error Message:", error.message);
+      }
+    }
+    return null;
+  }
+
+  if (serializedQuoteResponseData) console.log("✅ Swap quote serialized.");
+
+  // deserialize, sign and send the transaction
+  try {
+    if (!serializedQuoteResponseData) return null;
+    const swapTransactionBuf = Buffer.from(serializedQuoteResponseData.swapTransaction, "base64");
+    var transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+
+    // sign the transaction
+    transaction.sign([myWallet.payer]);
+
+    // get the latest block hash
+    const latestBlockHash = await connection.getLatestBlockhash();
+
+    // Execute the transaction
+    const rawTransaction = transaction.serialize();
+    const txid = await connection.sendRawTransaction(rawTransaction, {
+      skipPreflight: true, // If True, This will skip transaction simulation entirely.
+      maxRetries: 2,
+    });
+
+    // Return null when no tx was returned
+    if (!txid) {
+      console.log("🚫 No id received for sent raw transaction.");
+      return null;
+    }
+
+    if (txid) console.log("✅ Raw transaction id received.");
+
+    // Fetch the current status of a transaction signature (processed, confirmed, finalized).
+    const conf = await connection.confirmTransaction({
+      blockhash: latestBlockHash.blockhash,
+      lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+      signature: txid,
+    });
+
+    if (txid) console.log("🔎 Checking transaction confirmation ...");
+
+    // Return null when an error occured when confirming the transaction
+    if (conf.value.err || conf.value.err !== null) {
+      console.log("🚫 Transaction confirmation failed.");
+      return null;
+    }
+
+    return txid;
+  } catch (error: any) {
+    console.error("Error while signing and sending the transaction:", error.message);
+    if (config.swap.verbose_log && config.swap.verbose_log === true) {
+      console.log("Verbose Error Message:");
+      if (error.response) {
+        // Server responded with a status other than 2xx
+        console.error("Error Status:", error.response.status);
+        console.error("Error Status Text:", error.response.statusText);
+        console.error("Error Data:", error.response.data); // API error message
+        console.error("Error Headers:", error.response.headers);
+      } else if (error.request) {
+        // Request was made but no response was received
+        console.error("No Response:", error.request);
+      } else {
+        // Other errors
+        console.error("Error Message:", error.message);
+      }
+    }
+    return null;
+  }
+}

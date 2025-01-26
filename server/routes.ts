@@ -719,11 +719,50 @@ export function registerRoutes(app: Express): Server {
         }))
         .sort((a, b) => b.amount - a.amount);
 
-      // Analyze transactions for patterns
+      // Calculate risk score based on multiple factors
+      let riskScore = 100; // Start with perfect score
+      const riskFactors = [];
+
+      // 1. Check mint authority
+      if (mintAuthority) {
+        riskScore -= 15;
+        riskFactors.push({
+          name: 'Mint Authority',
+          value: 'Active',
+          description: 'Token supply can be increased',
+          score: -15,
+          level: 'high'
+        });
+      }
+
+      // 2. Check freeze authority
+      if (freezeAuthority) {
+        riskScore -= 10;
+        riskFactors.push({
+          name: 'Freeze Authority',
+          value: 'Active',
+          description: 'Token transfers can be frozen',
+          score: -10,
+          level: 'medium'
+        });
+      }
+
+      // 3. Analyze holder concentration
+      const topHolder = holdersBySize[0];
+      if (topHolder && topHolder.pct > 50) {
+        riskScore -= 25;
+        riskFactors.push({
+          name: 'Holder Concentration',
+          value: `${topHolder.pct.toFixed(2)}%`,
+          description: 'Single holder owns majority',
+          score: -25,
+          level: 'high'
+        });
+      }
+
+      // 4. Check for sniper patterns in early trades
       const transactions = txResponse.data.result || [];
       const creationTime = transactions[transactions.length - 1]?.timestamp || Date.now();
-
-      // Identify early buyer patterns (snipers)
       const sniperWindow = 30000; // 30 seconds
       const snipers = transactions
         .filter(tx => tx.timestamp - creationTime <= sniperWindow)
@@ -732,6 +771,30 @@ export function registerRoutes(app: Express): Server {
           timestamp: tx.timestamp,
           amount: tx.tokenTransfers?.[0]?.tokenAmount || 0
         }));
+
+      if (snipers.length > 5) {
+        riskScore -= 15;
+        riskFactors.push({
+          name: 'Sniper Activity',
+          value: `${snipers.length} snipers`,
+          description: 'High early trading activity',
+          score: -15,
+          level: 'high'
+        });
+      }
+
+      // 5. Analyze trading pattern distribution
+      const uniqueTraders = new Set(transactions.map(tx => tx.source)).size;
+      if (uniqueTraders < 10) {
+        riskScore -= 10;
+        riskFactors.push({
+          name: 'Trading Distribution',
+          value: `${uniqueTraders} traders`,
+          description: 'Low number of unique traders',
+          score: -10,
+          level: 'medium'
+        });
+      }
 
       // Check for liquidity changes using Raydium program ID
       const liquidityTx = transactions.filter(tx => 
@@ -747,7 +810,26 @@ export function registerRoutes(app: Express): Server {
         recentChanges: liquidityTx.slice(0, 5)
       };
 
+      if (liquidityAnalysis.totalLiquidity === 0) {
+        riskScore -= 25;
+        riskFactors.push({
+          name: 'Liquidity',
+          value: 'None',
+          description: 'No liquidity provided',
+          score: -25,
+          level: 'critical'
+        });
+      }
+
+      // Determine overall risk level
+      let rugPullRisk = 'low';
+      if (riskScore < 40) rugPullRisk = 'critical';
+      else if (riskScore < 60) rugPullRisk = 'high';
+      else if (riskScore < 80) rugPullRisk = 'medium';
+
       console.log('[Routes] Analytics response:', {
+        riskScore,
+        rugPullRisk,
         topHoldersCount: holdersBySize.length,
         snipersCount: snipers.length,
         liquidityStatus: liquidityAnalysis.totalLiquidity > 0 ? 'present' : 'absent'
@@ -756,15 +838,18 @@ export function registerRoutes(app: Express): Server {
       res.json({
         mintAuthority,
         freezeAuthority,
-        topHolders: holdersBySize,
-        snipers,
+        topHolders: holdersBySize.slice(0, 10),
+        snipers: snipers.slice(0, 5),
         markets: [{
           totalLiquidity: liquidityAnalysis.totalLiquidity
         }],
         analytics: {
           totalHolders: holders.length,
           averageBalance: totalSupply / holders.length,
-          sniperCount: snipers.length
+          sniperCount: snipers.length,
+          riskScore,
+          rugPullRisk,
+          riskFactors
         }
       });
 
