@@ -1,0 +1,157 @@
+Markdown
+
+# PumpPortal Frontend Enhancement Summary
+
+## 1. Main Layout Updates (TokenView.tsx)
+Replace or update the main token view page with this enhanced layout:
+
+```typescript
+// pages/TokenView.tsx
+import { FC } from 'react';
+import { 
+  TradingViewChart,
+  WalletIntelligence,
+  TradeHistory,
+  TokenStats,
+  WalletNetwork,
+  ProfitLossChart 
+} from '@/components';
+
+const TokenView: FC = () => {
+  return (
+    <div className="min-h-screen bg-background p-4">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-4">
+        <div className="text-2xl font-bold">Token Name (SYMBOL)</div>
+        <div className="flex items-center gap-4">
+          <div className="text-muted-foreground">
+            {new Date().toUTCString()}
+          </div>
+          <div className="px-4 py-2 bg-card rounded-lg">
+            {currentUser}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-12 gap-4">
+        {/* Chart Section */}
+        <div className="col-span-8 space-y-4">
+          <div className="h-[500px] rounded-lg border border-border bg-card p-4">
+            <TradingViewChart tokenAddress={tokenAddress} />
+          </div>
+          <div className="h-[200px] rounded-lg border border-border bg-card p-4">
+            <ProfitLossChart walletAddress={selectedWallet} />
+          </div>
+        </div>
+
+        {/* Trade Info Section */}
+        <div className="col-span-4 space-y-4">
+          <TokenStats tokenAddress={tokenAddress} />
+          <TradeHistory tokenAddress={tokenAddress} />
+        </div>
+
+        {/* Wallet Section */}
+        <div className="col-span-12 grid grid-cols-2 gap-4">
+          <WalletIntelligence address={selectedWallet} />
+          <WalletNetwork address={selectedWallet} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+2. Trade History Component
+
+Add this new component to show real-time trades:
+TypeScript
+
+// components/TradeHistory.tsx
+import { FC } from 'react';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+
+export const TradeHistory: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const trades = usePumpPortalStore(state => 
+    state.getToken(tokenAddress)?.recentTrades || []
+  );
+
+  return (
+    <div className="h-[400px] overflow-y-auto">
+      <table className="w-full">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Type</th>
+            <th>Price</th>
+            <th>Amount</th>
+            <th>Total</th>
+            <th>Wallet</th>
+          </tr>
+        </thead>
+        <tbody>
+          {trades.map(trade => (
+            <tr 
+              key={trade.signature}
+              className={trade.txType === 'buy' ? 'text-green-500' : 'text-red-500'}
+            >
+              <td>{new Date(trade.timestamp).toLocaleTimeString()}</td>
+              <td>{trade.txType.toUpperCase()}</td>
+              <td>${trade.priceInUsd.toFixed(8)}</td>
+              <td>{trade.tokenAmount.toLocaleString()}</td>
+              <td>${(trade.priceInUsd * trade.tokenAmount).toFixed(2)}</td>
+              <td>{`${trade.traderPublicKey.slice(0,4)}...${trade.traderPublicKey.slice(-4)}`}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+3. Wallet Intelligence Component
+
+Add this component for wallet analysis:
+TypeScript
+
+// components/WalletIntelligence.tsx
+import { FC, useState, useEffect } from 'react';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+
+export const WalletIntelligence: FC<{ address: string }> = ({ address }) => {
+  const [stats, setStats] = useState<WalletStats | null>(null);
+  const trades = usePumpPortalStore(state => state.getAllTradesForWallet(address));
+
+  useEffect(() => {
+    // Calculate wallet stats
+    const newStats = {
+      totalVolume: trades.reduce((sum, t) => sum + t.tokenAmount * t.priceInUsd, 0),
+      tradeCount: trades.length,
+      buyCount: trades.filter(t => t.txType === 'buy').length,
+      sellCount: trades.filter(t => t.txType === 'sell').length,
+      averageTradeSize: trades.reduce((sum, t) => sum + t.tokenAmount, 0) / trades.length
+    };
+    setStats(newStats);
+  }, [trades]);
+
+  return (
+    <div className="p-4 rounded-lg bg-card">
+      <h3 className="text-lg font-semibold mb-4">Wallet Intelligence</h3>
+      {stats && (
+        <div className="grid grid-cols-2 gap-4">
+          <StatCard
+            title="Total Volume"
+            value={`$${stats.totalVolume.toLocaleString()}`}
+          />
+          <StatCard
+            title="Trade Count"
+            value={`${stats.tradeCount} (${stats.buyCount}/${stats.sellCount})`}
+          />
+          <StatCard
+            title="Avg Trade Size"
+            value={`$${stats.averageTradeSize.toFixed(2)}`}
+          />
+        </div>
+      )}
+    </div>
+  );
+};

@@ -1,0 +1,113 @@
+Since the main goal is to show real-time buy/sells with wallets and USD values, let's start with implementing the Trade History component first as it's the most important for displaying that information. Here's the specific implementation order:
+
+    First, let's implement the Trade History component since you already have the WebSocket data coming in:
+
+TypeScript
+
+// components/TradeHistory.tsx
+import { FC } from 'react';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+
+export const TradeHistory: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const trades = usePumpPortalStore(state => 
+    state.getToken(tokenAddress)?.recentTrades || []
+  );
+
+  return (
+    <div className="h-[400px] overflow-y-auto bg-card rounded-lg border border-border">
+      <div className="sticky top-0 bg-card border-b border-border p-3">
+        <h3 className="font-semibold">Recent Trades</h3>
+      </div>
+      
+      <div className="p-2">
+        <table className="w-full">
+          <thead className="text-xs text-muted-foreground">
+            <tr>
+              <th className="text-left p-2">Time</th>
+              <th className="text-left p-2">Type</th>
+              <th className="text-right p-2">Price USD</th>
+              <th className="text-right p-2">Amount</th>
+              <th className="text-right p-2">Total USD</th>
+              <th className="text-left p-2">Wallet</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trades.map(trade => {
+              const totalUsd = trade.priceInUsd * trade.tokenAmount;
+              
+              return (
+                <tr 
+                  key={trade.signature}
+                  className={`text-sm border-t border-border
+                    ${trade.txType === 'buy' ? 'text-green-400' : 'text-red-400'}
+                  `}
+                >
+                  <td className="p-2 text-muted-foreground">
+                    {new Date(trade.timestamp).toLocaleTimeString()}
+                  </td>
+                  <td className="p-2">
+                    {trade.txType.toUpperCase()}
+                  </td>
+                  <td className="p-2 text-right">
+                    ${trade.priceInUsd.toFixed(8)}
+                  </td>
+                  <td className="p-2 text-right">
+                    {Number(trade.tokenAmount).toLocaleString()}
+                  </td>
+                  <td className="p-2 text-right">
+                    ${totalUsd.toFixed(2)}
+                  </td>
+                  <td className="p-2 font-mono text-xs">
+                    <a 
+                      href={`https://solscan.io/account/${trade.traderPublicKey}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline"
+                    >
+                      {`${trade.traderPublicKey.slice(0,4)}...${trade.traderPublicKey.slice(-4)}`}
+                    </a>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+    Then update your main token page to include this component:
+
+TypeScript
+
+// pages/token/[address].tsx or your existing token page
+import { TradeHistory } from '@/components/TradeHistory';
+
+// Inside your existing page component:
+return (
+  <div className="min-h-screen bg-background p-4">
+    <div className="max-w-[1400px] mx-auto">
+      {/* Your existing chart */}
+      <div className="grid grid-cols-[1fr_400px] gap-4 mt-4">
+        <div>
+          {/* Your existing chart component */}
+          <div ref={chartContainerRef} className="w-full h-[500px]" />
+        </div>
+        
+        {/* New trade history panel */}
+        <div>
+          <TradeHistory tokenAddress={tokenAddress} />
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+This implementation will:
+
+    Show real-time trades as they come in
+    Display USD values for each trade
+    Show wallet addresses with links to Solscan
+    Color-code buys and sells
+    Show time, price, amount, and total value

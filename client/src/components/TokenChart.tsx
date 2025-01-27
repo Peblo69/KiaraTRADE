@@ -5,6 +5,7 @@ import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { createChart, IChartApi } from 'lightweight-charts';
 import debounce from 'lodash/debounce';
 import TokenMarketStats from "./TokenMarketStats";
+import TradeHistory from "./TradeHistory";
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -217,9 +218,10 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
         <div className="grid gap-4">
           <TokenMarketStats tokenAddress={tokenAddress} />
-          <div className="p-4 rounded-lg border border-purple-500/20 bg-card">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
+
+          <div className="grid grid-cols-[1fr_400px] gap-4">
+            <div className="p-4 rounded-lg border border-purple-500/20 bg-card">
+              <div className="mb-4">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
                   {token.symbol}
                   <span className="text-sm font-normal text-muted-foreground">
@@ -230,8 +232,10 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                   Current Price: ${token.priceInUsd?.toFixed(8) || '0.00000000'}
                 </p>
               </div>
+              <div ref={chartContainerRef} className="w-full h-[400px]" />
             </div>
-            <div ref={chartContainerRef} className="w-full h-[400px]" />
+
+            <TradeHistory tokenAddress={tokenAddress} />
           </div>
         </div>
       </div>
