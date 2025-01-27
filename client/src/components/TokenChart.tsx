@@ -149,12 +149,13 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
   // Chart initialization with safety checks
   useEffect(() => {
+    let cancelled = false;
+
     // Only initialize if we don't have a chart and container exists
     if (!chartContainerRef.current || chartRef.current) return;
 
-    // Wrap in requestAnimationFrame to ensure DOM is ready
-    requestAnimationFrame(() => {
-      if (!chartContainerRef.current) return;
+    const initChart = () => {
+      if (cancelled || !chartContainerRef.current) return;
 
       const containerWidth = chartContainerRef.current.clientWidth || 800;
       const chart = createChart(chartContainerRef.current, {
@@ -199,10 +200,13 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       chartRef.current = chart;
       candleSeriesRef.current = candleSeries;
       volumeSeriesRef.current = volumeSeries;
-    });
+    };
+
+    requestAnimationFrame(initChart);
 
     // Cleanup
     return () => {
+      cancelled = true;  // Set the flag on cleanup
       if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
