@@ -1,58 +1,34 @@
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 
-// Define token security schema to match our working backend implementation
+// Update schema to match our working backend implementation
 const tokenAnalyticsSchema = z.object({
   token: z.object({
     address: z.string(),
     name: z.string(),
     symbol: z.string(),
-    decimals: z.number(),
-    totalSupply: z.number(),
-    mintAuthority: z.string().nullable(),
-    freezeAuthority: z.string().nullable(),
-    mutable: z.boolean(),
-    created: z.number(),
-    supply: z.number()
-  }),
+    decimals: z.number().optional(),
+    supply: z.number().optional(),
+    mutable: z.boolean().optional(),
+    created: z.number().optional()
+  }).optional(),
   holders: z.object({
     total: z.number(),
-    unique: z.number(),
-    top10: z.array(z.object({
-      address: z.string(),
-      balance: z.number(),
-      percentage: z.number()
-    })),
+    unique: z.number().optional(),
     concentration: z.object({
-      top10Percentage: z.number(),
-      riskLevel: z.enum(['low', 'medium', 'high'])
-    }),
-    distribution: z.array(z.object({
-      name: z.string(),
-      holders: z.number()
-    }))
-  }),
+      top10Percentage: z.number().optional(),
+      riskLevel: z.enum(['low', 'medium', 'high']).optional()
+    }).optional()
+  }).optional(),
   snipers: z.object({
     total: z.number(),
-    details: z.array(z.object({
-      address: z.string(),
-      amount: z.number(),
-      timestamp: z.number()
-    })),
-    volume: z.number(),
-    averageAmount: z.number()
-  }),
-  trading: z.object({
-    volume24h: z.number(),
-    transactions24h: z.number(),
-    averageTradeSize: z.number(),
-    priceImpact: z.number()
-  }),
+    volume: z.number().optional(),
+    averageAmount: z.number().optional()
+  }).optional(),
   risks: z.array(z.object({
     name: z.string(),
     score: z.number()
-  })),
-  rugScore: z.number()
+  }))
 });
 
 export type TokenAnalysis = z.infer<typeof tokenAnalyticsSchema>;

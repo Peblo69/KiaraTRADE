@@ -55,12 +55,16 @@ export function TokenSecurityPanel({
     );
   }
 
-  // Determine overall risk level based on rug score
-  const getRiskLevel = (score: number) => {
-    if (score > 70) return "HIGH RISK";
-    if (score > 40) return "MEDIUM RISK";
+  // Determine overall risk level based on risk scores
+  const getRiskLevel = (risks: Array<{ name: string; score: number }>) => {
+    const avgScore = risks.reduce((acc, risk) => acc + risk.score, 0) / risks.length;
+    if (avgScore > 70) return "HIGH RISK";
+    if (avgScore > 40) return "MEDIUM RISK";
     return "LOW RISK";
   };
+
+  const riskLevel = getRiskLevel(analytics.risks);
+  const avgRiskScore = Math.round(analytics.risks.reduce((acc, risk) => acc + risk.score, 0) / analytics.risks.length);
 
   return (
     <Card className="h-full bg-[#0a0b1c] border-l border-gray-800 rounded-none overflow-y-auto">
@@ -68,7 +72,7 @@ export function TokenSecurityPanel({
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
-            <ShieldAlert className="h-5 w-5 text-purple-500"/>
+            <ShieldAlert className="h-5 w-5 text-purple-500" />
             <span className="font-semibold text-white">Security Analysis</span>
           </div>
           <div className="flex gap-2">
@@ -100,27 +104,33 @@ export function TokenSecurityPanel({
         </div>
 
         {/* Token Info */}
-        <div className="mb-6 p-4 bg-gray-900/20 rounded-lg">
-          <h3 className="text-sm font-medium text-gray-400 mb-3">Token Information</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Name:</span>
-              <span className="text-white">{analytics.token.name}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Symbol:</span>
-              <span className="text-white">{analytics.token.symbol}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Supply:</span>
-              <span className="text-white">{analytics.token.supply}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Created:</span>
-              <span className="text-white">{new Date(analytics.token.created).toLocaleDateString()}</span>
+        {analytics.token && (
+          <div className="mb-6 p-4 bg-gray-900/20 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-400 mb-3">Token Information</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Name:</span>
+                <span className="text-white">{analytics.token.name || 'Unknown'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Symbol:</span>
+                <span className="text-white">{analytics.token.symbol || 'Unknown'}</span>
+              </div>
+              {analytics.token.supply !== undefined && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Supply:</span>
+                  <span className="text-white">{analytics.token.supply.toLocaleString()}</span>
+                </div>
+              )}
+              {analytics.token.created && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Created:</span>
+                  <span className="text-white">{new Date(analytics.token.created).toLocaleDateString()}</span>
+                </div>
+              )}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Security Status */}
         <div className="mb-6">
@@ -155,75 +165,85 @@ export function TokenSecurityPanel({
 
 
         {/* Trading Metrics */}
-        <div className="mb-6">
-          <h3 className="text-sm font-medium text-gray-400 mb-3">Trading Metrics (24h)</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-900/20 p-3 rounded-lg">
-              <div className="text-xs text-gray-500 mb-1">Volume</div>
-              <div className="text-white font-medium">{analytics.trading.volume24h.toFixed(2)} SOL</div>
-            </div>
-            <div className="bg-gray-900/20 p-3 rounded-lg">
-              <div className="text-xs text-gray-500 mb-1">Transactions</div>
-              <div className="text-white font-medium">{analytics.trading.transactions24h}</div>
+        {analytics.trading && (
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-gray-400 mb-3">Trading Metrics (24h)</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gray-900/20 p-3 rounded-lg">
+                <div className="text-xs text-gray-500 mb-1">Volume</div>
+                <div className="text-white font-medium">{analytics.trading.volume24h.toFixed(2)} SOL</div>
+              </div>
+              <div className="bg-gray-900/20 p-3 rounded-lg">
+                <div className="text-xs text-gray-500 mb-1">Transactions</div>
+                <div className="text-white font-medium">{analytics.trading.transactions24h}</div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Holder Analysis */}
-        <div className="mb-6">
-          <h3 className="text-sm font-medium text-gray-400 mb-3">Holder Analysis</h3>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">Top 10 Holders %</span>
-              <div className={cn(
-                "px-2 py-1 rounded text-xs font-medium",
-                analytics.holders.concentration.top10Percentage > 80
-                  ? "bg-red-500/20 text-red-400"
-                  : analytics.holders.concentration.top10Percentage > 50
-                    ? "bg-yellow-500/20 text-yellow-400"
-                    : "bg-green-500/20 text-green-400"
-              )}>
-                {analytics.holders.concentration.top10Percentage.toFixed(1)}%
+        {analytics.holders && (
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-gray-400 mb-3">Holder Analysis</h3>
+            <div className="space-y-3">
+              {analytics.holders.concentration?.top10Percentage !== undefined && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Top 10 Holders %</span>
+                  <div className={cn(
+                    "px-2 py-1 rounded text-xs font-medium",
+                    analytics.holders.concentration.top10Percentage > 80
+                      ? "bg-red-500/20 text-red-400"
+                      : analytics.holders.concentration.top10Percentage > 50
+                        ? "bg-yellow-500/20 text-yellow-400"
+                        : "bg-green-500/20 text-green-400"
+                  )}>
+                    {analytics.holders.concentration.top10Percentage.toFixed(1)}%
+                  </div>
+                </div>
+              )}
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500">Total Holders</span>
+                <span className="text-white text-sm">{analytics.holders.total}</span>
+              </div>
+              <div className="mt-2 space-y-1">
+                {analytics.holders.top10.slice(0, 3).map((holder, idx) => (
+                  <div key={idx} className="flex justify-between text-xs text-gray-400">
+                    <span>{holder.address.slice(0, 4)}...{holder.address.slice(-4)}</span>
+                    <span>{holder.percentage.toFixed(1)}%</span>
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">Total Holders</span>
-              <span className="text-white text-sm">{analytics.holders.total}</span>
-            </div>
-            <div className="mt-2 space-y-1">
-              {analytics.holders.top10.slice(0, 3).map((holder, idx) => (
-                <div key={idx} className="flex justify-between text-xs text-gray-400">
-                  <span>{holder.address.slice(0, 4)}...{holder.address.slice(-4)}</span>
-                  <span>{holder.percentage.toFixed(1)}%</span>
-                </div>
-              ))}
-            </div>
           </div>
-        </div>
+        )}
 
         {/* Sniper Activity */}
-        <div className="mb-6">
-          <h3 className="text-sm font-medium text-gray-400 mb-3">Sniper Activity</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-900/20 p-3 rounded-lg">
-              <div className="text-xs text-gray-500 mb-1">Count</div>
-              <div className={cn(
-                "text-white font-medium",
-                analytics.snipers.total > 20
-                  ? "text-red-400"
-                  : analytics.snipers.total > 10
-                    ? "text-yellow-400"
-                    : "text-green-400"
-              )}>
-                {analytics.snipers.total}
+        {analytics.snipers && (
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-gray-400 mb-3">Sniper Activity</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gray-900/20 p-3 rounded-lg">
+                <div className="text-xs text-gray-500 mb-1">Count</div>
+                <div className={cn(
+                  "text-white font-medium",
+                  analytics.snipers.total > 20
+                    ? "text-red-400"
+                    : analytics.snipers.total > 10
+                      ? "text-yellow-400"
+                      : "text-green-400"
+                )}>
+                  {analytics.snipers.total}
+                </div>
               </div>
-            </div>
-            <div className="bg-gray-900/20 p-3 rounded-lg">
-              <div className="text-xs text-gray-500 mb-1">Volume</div>
-              <div className="text-white font-medium">{analytics.snipers.volume.toFixed(2)} SOL</div>
+              {analytics.snipers.volume !== undefined && (
+                <div className="bg-gray-900/20 p-3 rounded-lg">
+                  <div className="text-xs text-gray-500 mb-1">Volume</div>
+                  <div className="text-white font-medium">{analytics.snipers.volume.toFixed(2)} SOL</div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Risk Assessment */}
         <div>
@@ -234,21 +254,21 @@ export function TokenSecurityPanel({
               <div className="flex items-center gap-2">
                 <div className={cn(
                   "px-2 py-1 rounded text-xs font-medium",
-                  analytics.rugScore > 70
+                  avgRiskScore > 70
                     ? "bg-red-500/20 text-red-400"
-                    : analytics.rugScore > 40
+                    : avgRiskScore > 40
                       ? "bg-yellow-500/20 text-yellow-400"
                       : "bg-green-500/20 text-green-400"
                 )}>
-                  {analytics.rugScore}/100
+                  {avgRiskScore}/100
                 </div>
                 <span className={cn(
                   "text-xs font-medium",
-                  analytics.rugScore > 70 ? "text-red-400" :
-                  analytics.rugScore > 40 ? "text-yellow-400" :
-                  "text-green-400"
+                  avgRiskScore > 70 ? "text-red-400" :
+                    avgRiskScore > 40 ? "text-yellow-400" :
+                      "text-green-400"
                 )}>
-                  {getRiskLevel(analytics.rugScore)}
+                  {riskLevel}
                 </span>
               </div>
             </div>
@@ -259,8 +279,8 @@ export function TokenSecurityPanel({
                   <div className={cn(
                     "px-2 py-1 rounded font-medium",
                     risk.score > 70 ? "text-red-400" :
-                    risk.score > 40 ? "text-yellow-400" :
-                    "text-green-400"
+                      risk.score > 40 ? "text-yellow-400" :
+                        "text-green-400"
                   )}>
                     {risk.score}%
                   </div>
