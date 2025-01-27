@@ -37,6 +37,18 @@ const INTERVALS = [
   { label: '1h', value: '1h' },
 ];
 
+function getTimeframeMs(timeframe: string): number {
+  const value = parseInt(timeframe.slice(0, -1));
+  const unit = timeframe.slice(-1);
+
+  switch (unit) {
+    case 's': return value * 1000;
+    case 'm': return value * 60 * 1000;
+    case 'h': return value * 60 * 60 * 1000;
+    default: return 1000;
+  }
+}
+
 const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   debugLog('TokenChart', 'render start', { tokenAddress });
 
@@ -46,22 +58,22 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   const volumeSeriesRef = useRef<any>(null);
   const [timeframe, setTimeframe] = useState('1s');
 
-  // Get store data with useCallback to prevent unnecessary re-renders
-  const token = usePumpPortalStore(useCallback(state => state.getToken(tokenAddress), [tokenAddress]));
-  const { currentTime, currentUser } = usePumpPortalStore(useCallback(state => ({
+  // Memoized selectors
+  const tokenData = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const { currentTime, currentUser } = usePumpPortalStore(state => ({
     currentTime: state.currentTime,
     currentUser: state.currentUser
-  }), []));
+  }));
 
   // Process trade data into candles
   const { candleData, volumeData } = useMemo(() => {
-    if (!token?.recentTrades?.length) {
+    if (!tokenData?.recentTrades?.length) {
       debugLog('TokenChart', 'no trade data', { tokenAddress });
       return { candleData: [], volumeData: [] };
     }
 
     debugLog('TokenChart', 'processing trades', { 
-      tradeCount: token.recentTrades.length,
+      tradeCount: tokenData.recentTrades.length,
       timeframe 
     });
 
@@ -69,7 +81,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     const groupedTrades: Record<number, any[]> = {};
 
     // Group trades by timeframe
-    token.recentTrades.forEach(trade => {
+    tokenData.recentTrades.forEach(trade => {
       const timestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
       if (!groupedTrades[timestamp]) {
         groupedTrades[timestamp] = [];
@@ -83,7 +95,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     // Create candle and volume data
     Object.entries(groupedTrades).forEach(([time, trades]) => {
       const prices = trades.map(t => t.priceInUsd);
-      const tokenVolumes = trades.map(t => t.tokenAmount || 0);
+      const tokenVolumes = trades.map(t => t.tokenAmount);
       const totalVolume = tokenVolumes.reduce((a, b) => a + b, 0);
 
       const candlePoint = {
@@ -114,9 +126,9 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       candleData: candles.sort((a, b) => a.time - b.time),
       volumeData: volumes.sort((a, b) => a.time - b.time)
     };
-  }, [token?.recentTrades, timeframe]);
+  }, [tokenData?.recentTrades, timeframe]);
 
-  // Initialize chart once
+  // Initialize chart
   useEffect(() => {
     if (!chartContainerRef.current || chartRef.current) return;
 
@@ -157,10 +169,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       color: '#26a69a',
       priceFormat: { type: 'volume' },
       priceScaleId: '',
-      scaleMargins: {
-        top: 0.8,
-        bottom: 0,
-      },
     });
 
     chartRef.current = chart;
@@ -169,7 +177,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
     debugLog('TokenChart', 'chart initialized');
 
-    // Cleanup
     return () => {
       debugLog('TokenChart', 'cleanup chart');
       chart.remove();
@@ -211,7 +218,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   }, []);
 
   // Error state if no token found
-  if (!token) {
+  if (!tokenData) {
     debugLog('TokenChart', 'token not found', { tokenAddress });
     return (
       <div className="min-h-screen bg-background p-4">
@@ -265,13 +272,13 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold flex items-center gap-2">
-                  {token.symbol} 
+                  {tokenData.symbol} 
                   <span className="text-sm font-normal text-muted-foreground">
                     Price Chart
                   </span>
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Current Price: ${token.priceInUsd?.toFixed(8) || '0.00000000'}
+                  Current Price: ${tokenData.priceInUsd?.toFixed(8) || '0.00000000'}
                 </p>
               </div>
               <div className="text-sm text-muted-foreground">
@@ -285,17 +292,5 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     </div>
   );
 };
-
-function getTimeframeMs(timeframe: string): number {
-  const value = parseInt(timeframe.slice(0, -1));
-  const unit = timeframe.slice(-1);
-
-  switch (unit) {
-    case 's': return value * 1000;
-    case 'm': return value * 60 * 1000;
-    case 'h': return value * 60 * 60 * 1000;
-    default: return 1000;
-  }
-}
 
 export default TokenChart;
