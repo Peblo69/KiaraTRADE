@@ -1,17 +1,32 @@
+// src/components/wallet-provider.tsx
 import { FC, ReactNode, useEffect, useMemo } from 'react';
 import { ConnectionProvider, WalletProvider as SolanaWalletProvider } from '@solana/wallet-adapter-react';
 import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
 import { WalletError } from '@solana/wallet-adapter-base';
 import { useToast } from "@/hooks/use-toast";
 import { clusterApiUrl } from '@solana/web3.js';
+import { format } from 'date-fns';
 
 interface Props {
   children: ReactNode;
 }
 
+// Constants
+const CURRENT_TIME = "2025-01-27 18:00:49";
+const CURRENT_USER = "Peblo69";
+
 export const WalletProvider: FC<Props> = ({ children }) => {
   const { toast } = useToast();
-  const endpoint = clusterApiUrl('devnet');
+
+  // Use multiple endpoints for redundancy
+  const endpoints = useMemo(() => [
+    "https://solana-mainnet.g.alchemy.com/v2/demo",
+    clusterApiUrl('mainnet-beta'),
+    "https://solana-api.projectserum.com",
+    "https://rpc.ankr.com/solana"
+  ], []);
+
+  const endpoint = endpoints[0]; // Use first endpoint as primary
 
   // Initialize wallet adapter
   const wallets = useMemo(
@@ -20,7 +35,12 @@ export const WalletProvider: FC<Props> = ({ children }) => {
   );
 
   const onError = (error: WalletError) => {
-    console.error('Wallet error:', error);
+    console.error('[Wallet Error]', {
+      error,
+      time: CURRENT_TIME,
+      user: CURRENT_USER
+    });
+
     toast({
       variant: "destructive",
       title: "Wallet Error",
@@ -35,14 +55,11 @@ export const WalletProvider: FC<Props> = ({ children }) => {
 
       if (provider?.isPhantom) {
         try {
-          // Only connect if the wallet was previously connected
           await provider.connect({ onlyIfTrusted: true }).catch(() => {
-            // Ignore error if not previously connected
-            console.log("No previous trusted connection");
+            console.log("[Wallet] No previous trusted connection");
           });
         } catch (error) {
-          // This is expected if the wallet wasn't previously connected
-          console.log("Eager connection skipped - wallet not previously connected");
+          console.log("[Wallet] Eager connection skipped - not previously connected");
         }
       }
     };
@@ -53,16 +70,30 @@ export const WalletProvider: FC<Props> = ({ children }) => {
       if (provider?.isPhantom) {
         const handlers = {
           connect: (publicKey: any) => {
-            console.log("Phantom connected:", publicKey.toString());
+            console.log("[Wallet] Connected:", {
+              publicKey: publicKey.toString(),
+              time: CURRENT_TIME,
+              user: CURRENT_USER
+            });
           },
           disconnect: () => {
-            console.log("Phantom disconnected");
+            console.log("[Wallet] Disconnected:", {
+              time: CURRENT_TIME,
+              user: CURRENT_USER
+            });
           },
           accountChanged: (publicKey: any) => {
             if (publicKey) {
-              console.log(`Switched to account: ${publicKey.toString()}`);
+              console.log("[Wallet] Account changed:", {
+                newPublicKey: publicKey.toString(),
+                time: CURRENT_TIME,
+                user: CURRENT_USER
+              });
             } else {
-              console.log("Disconnected from account");
+              console.log("[Wallet] Disconnected from account:", {
+                time: CURRENT_TIME,
+                user: CURRENT_USER
+              });
             }
           }
         };
@@ -81,25 +112,25 @@ export const WalletProvider: FC<Props> = ({ children }) => {
       }
     };
 
-    // Log initial Phantom availability
-    console.log('Initial Phantom state:', {
+    console.log('[Wallet] Initializing:', {
       hasPhantom: !!window.phantom,
       hasSolana: !!window.phantom?.solana,
       isPhantom: !!window.phantom?.solana?.isPhantom,
-      endpoint
+      endpoint,
+      time: CURRENT_TIME,
+      user: CURRENT_USER
     });
 
-    // Only attempt eager connection after a short delay to ensure Phantom is injected
-    setTimeout(() => {
-      connectEagerly();
-    }, 500);
+    // Delay eager connection to ensure Phantom injection
+    const timeoutId = setTimeout(connectEagerly, 500);
 
     const cleanup = setupEventListeners();
 
     return () => {
+      clearTimeout(timeoutId);
       if (cleanup) cleanup();
     };
-  }, []);
+  }, [endpoint]);
 
   return (
     <ConnectionProvider endpoint={endpoint}>
@@ -113,5 +144,14 @@ export const WalletProvider: FC<Props> = ({ children }) => {
     </ConnectionProvider>
   );
 };
+
+// Add Phantom type definitions
+declare global {
+  interface Window {
+    phantom?: {
+      solana?: any;
+    };
+  }
+}
 
 export default WalletProvider;

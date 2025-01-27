@@ -1,0 +1,89 @@
+// In pump-portal-websocket.ts, update these constants first
+const CURRENT_TIME = "2025-01-27 18:49:08";
+const CURRENT_USER = "Peblo69";
+
+// Then update the addTradeToHistory function in the store:
+addTradeToHistory: (address: string, tradeData: TokenTrade) => set((state) => {
+  debugLog('addTradeToHistory', {
+    token: address,
+    type: tradeData.txType,
+    amount: tradeData.solAmount,
+    time: state.currentTime
+  });
+
+  const existingToken = state.viewedTokens[address] || 
+                       state.tokens.find(t => t.address === address);
+
+  // If token doesn't exist, create a new basic token from trade data
+  if (!existingToken) {
+    debugLog('Creating new token from trade', { address });
+    
+    const newToken: PumpPortalToken = {
+      symbol: address.slice(0, 6),
+      name: `Token ${address.slice(0, 8)}`,
+      address: address,
+      imageLink: 'https://via.placeholder.com/150',
+      bondingCurveKey: tradeData.bondingCurveKey,
+      vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
+      vSolInBondingCurve: tradeData.vSolInBondingCurve,
+      marketCapSol: tradeData.marketCapSol,
+      priceInSol: tradeData.priceInSol,
+      priceInUsd: tradeData.priceInUsd,
+      recentTrades: [tradeData],
+      lastAnalyzedAt: CURRENT_TIME,
+      analyzedBy: CURRENT_USER,
+      createdAt: format(new Date(), UTC_DATE_FORMAT)
+    };
+
+    // Add new token to the store
+    return {
+      tokens: [newToken, ...state.tokens].slice(0, MAX_TOKENS_IN_LIST),
+      lastUpdate: Date.now()
+    };
+  }
+
+  // For existing tokens, update with new trade data
+  const updateToken = (token: PumpPortalToken): PumpPortalToken => ({
+    ...token,
+    recentTrades: [tradeData, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN),
+    bondingCurveKey: tradeData.bondingCurveKey,
+    vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
+    vSolInBondingCurve: tradeData.vSolInBondingCurve,
+    marketCapSol: tradeData.marketCapSol,
+    priceInSol: tradeData.priceInSol,
+    priceInUsd: tradeData.priceInUsd
+  });
+
+  // Update existing token in both tokens list and viewedTokens if present
+  const isViewed = state.activeTokenView === address;
+  const updatedTokens = state.tokens.map(t => 
+    t.address === address ? updateToken(t) : t
+  );
+
+  const updates: Partial<PumpPortalStore> = {
+    tokens: updatedTokens,
+    lastUpdate: Date.now()
+  };
+
+  if (isViewed) {
+    updates.viewedTokens = {
+      ...state.viewedTokens,
+      [address]: updateToken(existingToken)
+    };
+  }
+
+  // Trigger metadata fetch for new tokens
+  if (!existingToken.metadata) {
+    get().getTokenMetadata(address)
+      .then(metadata => {
+        if (metadata) {
+          get().addToken({ ...existingToken, metadata });
+        }
+      })
+      .catch(error => {
+        console.error('[PumpPortal] Failed to fetch token metadata:', error);
+      });
+  }
+
+  return updates;
+}),

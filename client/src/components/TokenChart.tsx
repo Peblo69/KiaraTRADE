@@ -1,9 +1,11 @@
+// client/src/components/TokenChart.tsx
 import { FC, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { format } from 'date-fns';
 import { createChart, IChartApi } from 'lightweight-charts';
+import debounce from 'lodash/debounce';
 
 // Debug helper
 const DEBUG = true;
@@ -58,14 +60,23 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   const volumeSeriesRef = useRef<any>(null);
   const [timeframe, setTimeframe] = useState('1s');
 
-  // Memoized selectors
-  const tokenData = usePumpPortalStore(state => state.getToken(tokenAddress));
-  const { currentTime, currentUser } = usePumpPortalStore(state => ({
-    currentTime: state.currentTime,
-    currentUser: state.currentUser
-  }));
+  // Memoized token data
+  const tokenData = useMemo(() => {
+    return usePumpPortalStore.getState().getToken(tokenAddress);
+  }, [tokenAddress]);
 
-  // Process trade data into candles
+  // Memoized store values
+  const { currentTime, currentUser } = usePumpPortalStore(
+    useCallback(state => ({
+      currentTime: state.currentTime,
+      currentUser: state.currentUser
+    }), [])
+  );
+
+  // Memoized timeframe calculation
+  const timeframeMs = useMemo(() => getTimeframeMs(timeframe), [timeframe]);
+
+  // Memoized chart data processing
   const { candleData, volumeData } = useMemo(() => {
     if (!tokenData?.recentTrades?.length) {
       debugLog('TokenChart', 'no trade data', { tokenAddress });
@@ -77,10 +88,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       timeframe 
     });
 
-    const timeframeMs = getTimeframeMs(timeframe);
     const groupedTrades: Record<number, any[]> = {};
-
-    // Group trades by timeframe
     tokenData.recentTrades.forEach(trade => {
       const timestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
       if (!groupedTrades[timestamp]) {
@@ -92,7 +100,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     const candles: CandleData[] = [];
     const volumes: any[] = [];
 
-    // Create candle and volume data
     Object.entries(groupedTrades).forEach(([time, trades]) => {
       const prices = trades.map(t => t.priceInUsd);
       const tokenVolumes = trades.map(t => t.tokenAmount);
@@ -117,104 +124,124 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       volumes.push(volumePoint);
     });
 
-    debugLog('TokenChart', 'processed data', {
-      candleCount: candles.length,
-      volumeCount: volumes.length
-    });
-
     return {
       candleData: candles.sort((a, b) => a.time - b.time),
       volumeData: volumes.sort((a, b) => a.time - b.time)
     };
-  }, [tokenData?.recentTrades, timeframe]);
+  }, [tokenData?.recentTrades, timeframeMs]);
 
-  // Initialize chart
+  // Debounced chart update function
+  const debouncedChartUpdate = useMemo(
+    () => debounce((candleData, volumeData) => {
+      if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
+
+      requestAnimationFrame(() => {
+        candleSeriesRef.current.setData(candleData);
+        volumeSeriesRef.current.setData(volumeData);
+
+        if (chartRef.current && candleData.length > 0) {
+          chartRef.current.timeScale().fitContent();
+        }
+      });
+    }, 100),
+    []
+  );
+
+  // Chart initialization with safety checks
   useEffect(() => {
     if (!chartContainerRef.current || chartRef.current) return;
 
-    debugLog('TokenChart', 'initializing chart');
+    const initChart = () => {
+      if (!chartContainerRef.current) {
+        console.warn('[TokenChart] Chart container not ready');
+        return;
+      }
 
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { color: '#0A0A0A' },
-        textColor: '#d1d4dc',
-      },
-      grid: {
-        vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
-        horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: 400,
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: true,
-      },
-    });
+      // Get container width or use default
+      const containerWidth = chartContainerRef.current?.clientWidth || 800;
 
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderUpColor: '#26a69a',
-      borderDownColor: '#ef5350',
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
-      priceFormat: {
-        type: 'price',
-        precision: 8,
-        minMove: 0.00000001,
-      },
-    });
+      const chart = createChart(chartContainerRef.current, {
+        layout: {
+          background: { color: '#0A0A0A' },
+          textColor: '#d1d4dc',
+        },
+        grid: {
+          vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
+          horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
+        },
+        width: containerWidth,
+        height: 400,
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: true,
+        },
+      });
 
-    const volumeSeries = chart.addHistogramSeries({
-      color: '#26a69a',
-      priceFormat: { type: 'volume' },
-      priceScaleId: '',
-    });
+      const candleSeries = chart.addCandlestickSeries({
+        upColor: '#26a69a',
+        downColor: '#ef5350',
+        borderUpColor: '#26a69a',
+        borderDownColor: '#ef5350',
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350',
+        priceFormat: {
+          type: 'price',
+          precision: 8,
+          minMove: 0.00000001,
+        },
+      });
 
-    chartRef.current = chart;
-    candleSeriesRef.current = candleSeries;
-    volumeSeriesRef.current = volumeSeries;
+      const volumeSeries = chart.addHistogramSeries({
+        color: '#26a69a',
+        priceFormat: { type: 'volume' },
+        priceScaleId: '',
+      });
 
-    debugLog('TokenChart', 'chart initialized');
+      chartRef.current = chart;
+      candleSeriesRef.current = candleSeries;
+      volumeSeriesRef.current = volumeSeries;
+
+      // Initial resize to ensure proper dimensions
+      chart.applyOptions({
+        width: containerWidth,
+        height: 400
+      });
+    };
+
+    requestAnimationFrame(initChart);
 
     return () => {
-      debugLog('TokenChart', 'cleanup chart');
-      chart.remove();
-      chartRef.current = null;
-      candleSeriesRef.current = null;
-      volumeSeriesRef.current = null;
+      if (chartRef.current) {
+        chartRef.current.remove();
+        chartRef.current = null;
+        candleSeriesRef.current = null;
+        volumeSeriesRef.current = null;
+      }
     };
   }, []);
 
-  // Update chart data
+  // Chart data update
   useEffect(() => {
-    if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
+    debouncedChartUpdate(candleData, volumeData);
+    return () => debouncedChartUpdate.cancel();
+  }, [candleData, volumeData, debouncedChartUpdate]);
 
-    debugLog('TokenChart', 'updating chart data', {
-      candleCount: candleData.length,
-      volumeCount: volumeData.length
-    });
-
-    candleSeriesRef.current.setData(candleData);
-    volumeSeriesRef.current.setData(volumeData);
-
-    if (chartRef.current && candleData.length > 0) {
-      chartRef.current.timeScale().fitContent();
-    }
-  }, [candleData, volumeData]);
-
-  // Handle window resize
+  // Window resize handler with safety check
   useEffect(() => {
-    const handleResize = () => {
+    const handleResize = debounce(() => {
       if (chartRef.current && chartContainerRef.current) {
+        const newWidth = chartContainerRef.current.clientWidth || 800;
         chartRef.current.applyOptions({
-          width: chartContainerRef.current.clientWidth,
+          width: newWidth,
         });
       }
-    };
+    }, 100);
 
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      handleResize.cancel();
+    };
   }, []);
 
   // Error state if no token found
