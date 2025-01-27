@@ -1,0 +1,308 @@
+4. Token Stats Component
+TypeScript
+
+// components/TokenStats.tsx
+import { FC } from 'react';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+
+export const TokenStats: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const trades = token?.recentTrades || [];
+  
+  // Calculate 24h stats
+  const last24h = trades.filter(t => 
+    t.timestamp > Date.now() - 24 * 60 * 60 * 1000
+  );
+
+  const stats = {
+    price: token?.priceInUsd || 0,
+    volume24h: last24h.reduce((sum, t) => sum + (t.tokenAmount * t.priceInUsd), 0),
+    trades24h: last24h.length,
+    marketCap: (token?.totalSupply || 0) * (token?.priceInUsd || 0),
+    priceChange24h: calculatePriceChange(last24h),
+    holders: calculateUniqueHolders(trades)
+  };
+
+  return (
+    <div className="p-4 rounded-lg bg-card">
+      <h3 className="text-lg font-semibold mb-4">Token Statistics</h3>
+      <div className="grid grid-cols-2 gap-4">
+        <StatCard
+          title="Price"
+          value={`$${stats.price.toFixed(8)}`}
+          change={stats.priceChange24h}
+        />
+        <StatCard
+          title="24h Volume"
+          value={`$${stats.volume24h.toLocaleString()}`}
+        />
+        <StatCard
+          title="Market Cap"
+          value={`$${stats.marketCap.toLocaleString()}`}
+        />
+        <StatCard
+          title="24h Trades"
+          value={stats.trades24h.toString()}
+        />
+        <StatCard
+          title="Holders"
+          value={stats.holders.toString()}
+        />
+      </div>
+    </div>
+  );
+};
+
+5. Enhanced Wallet Network Visualization
+TypeScript
+
+// components/WalletNetwork.tsx
+import { FC, useRef, useEffect } from 'react';
+import * as d3 from 'd3';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+
+export const WalletNetwork: FC<{ address: string }> = ({ address }) => {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const trades = usePumpPortalStore(state => state.getAllTradesForWallet(address));
+  
+  useEffect(() => {
+    if (!svgRef.current || !trades.length) return;
+
+    // Create network data
+    const nodes = new Set<string>();
+    const links: Array<{source: string, target: string, value: number}> = [];
+    
+    // Add connected wallets
+    trades.forEach(trade => {
+      nodes.add(trade.traderPublicKey);
+      if (trade.relatedWallets) {
+        trade.relatedWallets.forEach(related => {
+          nodes.add(related);
+          links.push({
+            source: trade.traderPublicKey,
+            target: related,
+            value: 1
+          });
+        });
+      }
+    });
+
+    // D3 force-directed graph setup
+    const simulation = d3.forceSimulation(Array.from(nodes).map(id => ({id})))
+      .force('link', d3.forceLink(links).id(d => d.id))
+      .force('charge', d3.forceManyBody())
+      .force('center', d3.forceCenter(width / 2, height / 2));
+
+    // Render network
+    const svg = d3.select(svgRef.current);
+    // ... D3 rendering code
+  }, [trades, address]);
+
+  return (
+    <div className="p-4 rounded-lg bg-card">
+      <h3 className="text-lg font-semibold mb-4">Wallet Network</h3>
+      <svg ref={svgRef} className="w-full h-[400px]" />
+    </div>
+  );
+};
+
+6. Advanced P&L Chart
+TypeScript
+
+// components/ProfitLossChart.tsx
+import { FC, useRef, useEffect } from 'react';
+import { createChart, IChartApi } from 'lightweight-charts';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+
+export const ProfitLossChart: FC<{ address: string }> = ({ address }) => {
+  const chartRef = useRef<HTMLDivElement>(null);
+  const trades = usePumpPortalStore(state => state.getAllTradesForWallet(address));
+  
+  useEffect(() => {
+    if (!chartRef.current || !trades.length) return;
+
+    const chart = createChart(chartRef.current, {
+      height: 200,
+      layout: {
+        background: { color: 'transparent' },
+        textColor: '#D9D9D9',
+      },
+      grid: {
+        vertLines: { color: 'rgba(197, 203, 206, 0.1)' },
+        horzLines: { color: 'rgba(197, 203, 206, 0.1)' },
+      },
+    });
+
+    const series = chart.addAreaSeries({
+      lineColor: '#2962FF',
+      topColor: 'rgba(41, 98, 255, 0.3)',
+      bottomColor: 'rgba(41, 98, 255, 0)',
+    });
+
+    // Calculate P&L data points
+    const plData = calculatePLData(trades);
+    series.setData(plData);
+
+    return () => chart.remove();
+  }, [trades]);
+
+  return (
+    <div className="p-4 rounded-lg bg-card">
+      <h3 className="text-lg font-semibold mb-4">Profit/Loss Chart</h3>
+      <div ref={chartRef} />
+    </div>
+  );
+};
+
+7. Real-time Price Alerts
+TypeScript
+
+// components/PriceAlerts.tsx
+import { FC, useState } from 'react';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+
+export const PriceAlerts: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+
+  const addAlert = (price: number, type: 'above' | 'below') => {
+    setAlerts([...alerts, { price, type, id: Date.now() }]);
+  };
+
+  return (
+    <div className="p-4 rounded-lg bg-card">
+      <h3 className="text-lg font-semibold mb-4">Price Alerts</h3>
+      <div className="space-y-2">
+        <input
+          type="number"
+          placeholder="Alert Price"
+          className="input"
+        />
+        <button onClick={() => addAlert(price, 'above')}>
+          Alert when above
+        </button>
+        <button onClick={() => addAlert(price, 'below')}>
+          Alert when below
+        </button>
+      </div>
+      <div className="mt-4">
+        {alerts.map(alert => (
+          <AlertCard key={alert.id} alert={alert} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+8. Store Updates
+
+Add these methods to your existing store:
+TypeScript
+
+// lib/pump-portal-websocket.ts
+interface PumpPortalStore {
+  // ... existing interface
+  getAllTradesForWallet: (address: string) => Trade[];
+  getWalletStats: (address: string) => WalletStats;
+  getPriceHistory: (tokenAddress: string) => PricePoint[];
+  addPriceAlert: (alert: Alert) => void;
+  removePriceAlert: (alertId: number) => void;
+}
+
+export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
+  // ... existing store
+  getAllTradesForWallet: (address) => {
+    const allTrades: Trade[] = [];
+    get().tokens.forEach(token => {
+      allTrades.push(...token.recentTrades.filter(t => 
+        t.traderPublicKey === address
+      ));
+    });
+    return allTrades;
+  },
+
+  getWalletStats: (address) => {
+    const trades = get().getAllTradesForWallet(address);
+    // Calculate stats...
+    return stats;
+  },
+
+  getPriceHistory: (tokenAddress) => {
+    const token = get().getToken(tokenAddress);
+    return token?.priceHistory || [];
+  },
+
+  addPriceAlert: (alert) => {
+    set(state => ({
+      priceAlerts: [...state.priceAlerts, alert]
+    }));
+  },
+
+  removePriceAlert: (alertId) => {
+    set(state => ({
+      priceAlerts: state.priceAlerts.filter(a => a.id !== alertId)
+    }));
+  },
+}));
+
+9. Types
+TypeScript
+
+// types/index.ts
+export interface WalletStats {
+  totalVolume: number;
+  tradeCount: number;
+  buyCount: number;
+  sellCount: number;
+  averageTradeSize: number;
+  profitLoss: number;
+  lastActive: Date;
+  isWhale: boolean;
+}
+
+export interface Alert {
+  id: number;
+  price: number;
+  type: 'above' | 'below';
+  tokenAddress: string;
+  created: Date;
+}
+
+export interface PricePoint {
+  timestamp: number;
+  price: number;
+  volume: number;
+}
+
+10. Utility Functions
+TypeScript
+
+// utils/calculations.ts
+export const calculatePriceChange = (trades: Trade[]): number => {
+  if (trades.length < 2) return 0;
+  const oldest = trades[trades.length - 1];
+  const newest = trades[0];
+  return ((newest.priceInUsd - oldest.priceInUsd) / oldest.priceInUsd) * 100;
+};
+
+export const calculateUniqueHolders = (trades: Trade[]): number => {
+  return new Set(trades.map(t => t.traderPublicKey)).size;
+};
+
+export const calculatePLData = (trades: Trade[]): PLDataPoint[] => {
+  let balance = 0;
+  let pl = 0;
+  return trades.map(trade => {
+    if (trade.txType === 'buy') {
+      balance += trade.tokenAmount;
+      pl -= trade.tokenAmount * trade.priceInUsd;
+    } else {
+      balance -= trade.tokenAmount;
+      pl += trade.tokenAmount * trade.priceInUsd;
+    }
+    return {
+      time: trade.timestamp,
+      value: pl
+    };
+  });
+};
