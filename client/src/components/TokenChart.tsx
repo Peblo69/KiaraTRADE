@@ -190,51 +190,62 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-[1400px] mx-auto">
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <Button
-            variant="ghost"
-            onClick={onBack}
-            className="gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
           <div className="flex items-center gap-4">
-            <div className="flex gap-2">
-              {INTERVALS.map((interval) => (
-                <Button
-                  key={interval.value}
-                  variant={timeframe === interval.value ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setTimeframe(interval.value)}
-                  className={timeframe === interval.value ? 'bg-purple-500 text-white' : ''}
-                >
-                  {interval.label}
-                </Button>
-              ))}
+            <Button
+              variant="ghost"
+              onClick={onBack}
+              className="gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">{token.symbol}</h1>
+              <p className="text-sm text-muted-foreground">{token.name || 'Unknown Token'}</p>
             </div>
+          </div>
+
+          <div className="flex gap-2">
+            {INTERVALS.map((interval) => (
+              <Button
+                key={interval.value}
+                variant={timeframe === interval.value ? "default" : "outline"}
+                size="sm"
+                onClick={() => setTimeframe(interval.value)}
+                className={timeframe === interval.value ? 'bg-purple-500 text-white' : ''}
+              >
+                {interval.label}
+              </Button>
+            ))}
           </div>
         </div>
 
+        {/* Content Grid */}
         <div className="grid gap-4">
+          {/* Stats Bar */}
           <TokenStats tokenAddress={tokenAddress} />
 
+          {/* Main Content */}
           <div className="grid grid-cols-[1fr_400px] gap-4">
+            {/* Chart Section */}
             <div className="p-4 rounded-lg border border-purple-500/20 bg-card">
               <div className="mb-4">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                  {token.symbol}
-                  <span className="text-sm font-normal text-muted-foreground">
-                    Price Chart
-                  </span>
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Current Price: ${token.priceInUsd?.toFixed(8) || '0.00000000'}
-                </p>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">Price Chart</h2>
+                  <div className="text-2xl font-bold text-right">
+                    ${token.priceInUsd?.toFixed(8) || '0.00000000'}
+                  </div>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {new Date().toLocaleString()}
+                </div>
               </div>
               <div ref={chartContainerRef} className="w-full h-[400px]" />
             </div>
 
+            {/* Trade History */}
             <TradeHistory tokenAddress={tokenAddress} />
           </div>
         </div>
