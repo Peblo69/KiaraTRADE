@@ -55,9 +55,9 @@ const tokenAnalyticsSchema = z.object({
   rugScore: z.number()
 });
 
-export type TokenAnalytics = z.infer<typeof tokenAnalyticsSchema>;
+export type TokenAnalysis = z.infer<typeof tokenAnalyticsSchema>;
 
-export async function analyzeToken(tokenAddress: string): Promise<TokenAnalytics> {
+export async function analyzeToken(tokenAddress: string): Promise<TokenAnalysis> {
   try {
     const response = await fetch(`/api/token-analytics/${tokenAddress}`);
     if (!response.ok) {

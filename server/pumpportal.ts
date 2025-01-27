@@ -2,7 +2,6 @@ import { WebSocket } from 'ws';
 import axios from 'axios';
 import { log } from './vite';
 import { wsManager } from './services/websocket';
-import { analyzeToken } from './services/token-analyzer';
 
 const PUMP_PORTAL_WS_URL = 'wss://pumpportal.fun/api/data';
 const TOTAL_SUPPLY = 1_000_000_000;
@@ -45,16 +44,10 @@ export const initializePumpPortalWebSocket = () => {
                 if (data.txType === 'create' && data.mint) {
                     log('[PumpPortal] New token created:', data.mint);
 
-                    // Analyze the token
-                    const analysis = await analyzeToken(data.mint);
-
-                    // Broadcast to all connected clients with analysis results
+                    // Broadcast to all connected clients
                     wsManager.broadcast({ 
                         type: 'newToken',
-                        data: {
-                            ...data,
-                            analysis // Include security analysis results
-                        }
+                        data: data
                     });
 
                     // Subscribe to trades for the new token

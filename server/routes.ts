@@ -832,7 +832,7 @@ export function registerRoutes(app: Express): Server {
   return server;
 }
 
-// Helper functions from your test code
+// Helper functions
 function calculateRiskScore(tokenInfo: any, holderConcentration: any, snipers: any[]): number {
   let score = 0;
 
