@@ -7,13 +7,24 @@ import TokenChart from "@/components/TokenChart";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Badge } from "@/components/ui/badge";
 
+// Debug helper
+const DEBUG = true;
+function debugLog(component: string, action: string, data?: any) {
+  if (DEBUG) {
+    console.log(`[DEBUG][${component}][${action}]`, data || '');
+  }
+}
+
 interface TokenRowProps {
   token: any;
   onClick: () => void;
 }
 
 const TokenCard: FC<TokenRowProps> = ({ token, onClick }) => {
+  debugLog('TokenCard', 'render', { tokenAddress: token.address });
+
   const priceChange = useMemo(() => {
+    debugLog('TokenCard', 'calculating price change', { trades: token.recentTrades?.length });
     if (token.recentTrades && token.recentTrades.length > 1) {
       const current = token.priceInUsd;
       const previous = token.recentTrades[token.recentTrades.length - 2].priceInUsd;
@@ -102,76 +113,113 @@ const TokenCard: FC<TokenRowProps> = ({ token, onClick }) => {
 
 // Main token list content
 const TokenListContent: FC = () => {
+  debugLog('TokenListContent', 'render start');
+
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'newest' | 'volume' | 'liquidity'>('newest');
 
-  // Memoized selectors
-  const tokens = usePumpPortalStore(useCallback((state) => {
-    return [...state.tokens].sort((a, b) => {
-      switch (sortBy) {
-        case 'volume':
-          const volumeA = a.recentTrades?.reduce((acc, trade) => acc + trade.solAmount, 0) || 0;
-          const volumeB = b.recentTrades?.reduce((acc, trade) => acc + trade.solAmount, 0) || 0;
-          return volumeB - volumeA;
-        case 'liquidity':
-          return (b.vSolInBondingCurve || 0) - (a.vSolInBondingCurve || 0);
-        case 'newest':
-        default:
-          return (b.createdAt ? new Date(b.createdAt).getTime() : 0) - 
-                 (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-      }
-    });
-  }, [sortBy]));
+  // Memoized selectors with debug
+  const tokens = usePumpPortalStore(
+    useCallback((state) => {
+      debugLog('TokenListContent', 'tokens selector', { 
+        tokenCount: state.tokens.length,
+        sortBy 
+      });
 
-  const isConnected = usePumpPortalStore(useCallback(state => state.isConnected, []));
-  const lastUpdate = usePumpPortalStore(useCallback(state => state.lastUpdate, []));
-  const addToViewedTokens = usePumpPortalStore(useCallback(state => state.addToViewedTokens, []));
-  const setActiveTokenView = usePumpPortalStore(useCallback(state => state.setActiveTokenView, []));
+      return [...state.tokens].sort((a, b) => {
+        switch (sortBy) {
+          case 'volume':
+            const volumeA = a.recentTrades?.reduce((acc, trade) => acc + trade.solAmount, 0) || 0;
+            const volumeB = b.recentTrades?.reduce((acc, trade) => acc + trade.solAmount, 0) || 0;
+            return volumeB - volumeA;
+          case 'liquidity':
+            return (b.vSolInBondingCurve || 0) - (a.vSolInBondingCurve || 0);
+          case 'newest':
+          default:
+            return (b.createdAt ? new Date(b.createdAt).getTime() : 0) - 
+                   (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        }
+      });
+    }, [sortBy])
+  );
+
+  const isConnected = usePumpPortalStore(
+    useCallback(state => {
+      debugLog('TokenListContent', 'connection check', { isConnected: state.isConnected });
+      return state.isConnected;
+    }, [])
+  );
+
+  const lastUpdate = usePumpPortalStore(
+    useCallback(state => {
+      debugLog('TokenListContent', 'last update check', { lastUpdate: state.lastUpdate });
+      return state.lastUpdate;
+    }, [])
+  );
+
+  const addToViewedTokens = usePumpPortalStore(
+    useCallback(state => state.addToViewedTokens, [])
+  );
+
+  const setActiveTokenView = usePumpPortalStore(
+    useCallback(state => state.setActiveTokenView, [])
+  );
   const getToken = usePumpPortalStore(useCallback(state => state.getToken, []));
 
-  // Handle token selection
+  // Handle token selection with debug
   const handleTokenSelect = useCallback((address: string) => {
+    debugLog('TokenListContent', 'token select', { address });
     setSelectedToken(address);
     setActiveTokenView(address);
     addToViewedTokens(address);
   }, [addToViewedTokens, setActiveTokenView]);
 
-  // Handle back navigation
+  // Handle back navigation with debug
   const handleBack = useCallback(() => {
+    debugLog('TokenListContent', 'navigation back');
     setSelectedToken(null);
     setActiveTokenView(null);
   }, [setActiveTokenView]);
 
   useEffect(() => {
+    debugLog('TokenListContent', 'connection monitor effect', {
+      isConnected,
+      lastUpdate
+    });
+
     if (!isConnected) return;
 
     const healthCheck = setInterval(() => {
       const now = Date.now();
       if (now - lastUpdate > 30000) {
-        console.log('[PumpFunVision] Connection stale, refreshing...');
+        console.warn('[PumpFunVision] Connection stale, refreshing...');
         window.location.reload();
       }
     }, 10000);
 
-    return () => clearInterval(healthCheck);
+    return () => {
+      debugLog('TokenListContent', 'cleanup connection monitor');
+      clearInterval(healthCheck);
+    };
   }, [isConnected, lastUpdate]);
 
   // Reset on unmount
   useEffect(() => {
     return () => {
+      debugLog('TokenListContent', 'unmount cleanup');
       setSelectedToken(null);
       setActiveTokenView(null);
     };
   }, [setActiveTokenView]);
 
   if (selectedToken) {
+    debugLog('TokenListContent', 'rendering token view', { selectedToken });
     const token = getToken(selectedToken);
     if (!token) {
       console.error('[PumpFunVision] Selected token not found:', selectedToken);
       handleBack();
       return null;
     }
-
     return (
       <Suspense fallback={
         <div className="flex items-center justify-center h-screen">
@@ -187,6 +235,12 @@ const TokenListContent: FC = () => {
       </Suspense>
     );
   }
+
+  debugLog('TokenListContent', 'render token list', { 
+    tokenCount: tokens.length,
+    sortBy,
+    isConnected 
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -247,8 +301,9 @@ const TokenListContent: FC = () => {
   );
 };
 
-// Wrap with error boundary
+// Wrap with error boundary and add debug logging
 const PumpFunVision: FC = () => {
+  debugLog('PumpFunVision', 'render');
   return (
     <ErrorBoundary>
       <TokenListContent />
