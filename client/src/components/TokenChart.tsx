@@ -1,31 +1,13 @@
-// client/src/components/TokenChart.tsx
-import { FC, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { FC, useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { createChart, IChartApi } from 'lightweight-charts';
 import debounce from 'lodash/debounce';
 
-// Debug helper
-const DEBUG = true;
-function debugLog(component: string, action: string, data?: any) {
-  if (DEBUG) {
-    console.log(`[DEBUG][${component}][${action}]`, data || '');
-  }
-}
-
 interface TokenChartProps {
   tokenAddress: string;
   onBack: () => void;
-}
-
-interface CandleData {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
 }
 
 const INTERVALS = [
@@ -51,43 +33,26 @@ function getTimeframeMs(timeframe: string): number {
 }
 
 const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
-  debugLog('TokenChart', 'render start', { tokenAddress });
-
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
   const [timeframe, setTimeframe] = useState('1s');
 
-  // Memoized token data
-  const tokenData = useMemo(() => {
-    return usePumpPortalStore.getState().getToken(tokenAddress);
-  }, [tokenAddress]);
+  // Get token data
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
 
-  // Memoized store values
-  const { currentUser } = usePumpPortalStore(
-    useCallback(state => ({
-      currentUser: state.currentUser
-    }), [])
-  );
-
-  // Memoized timeframe calculation
-  const timeframeMs = useMemo(() => getTimeframeMs(timeframe), [timeframe]);
-
-  // Memoized chart data processing
+  // Process trade data into candles
   const { candleData, volumeData } = useMemo(() => {
-    if (!tokenData?.recentTrades?.length) {
-      debugLog('TokenChart', 'no trade data', { tokenAddress });
+    if (!token?.recentTrades?.length) {
       return { candleData: [], volumeData: [] };
     }
 
-    debugLog('TokenChart', 'processing trades', { 
-      tradeCount: tokenData.recentTrades.length,
-      timeframe 
-    });
-
+    const timeframeMs = getTimeframeMs(timeframe);
     const groupedTrades: Record<number, any[]> = {};
-    tokenData.recentTrades.forEach(trade => {
+
+    // Group trades by timeframe
+    token.recentTrades.forEach(trade => {
       const timestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
       if (!groupedTrades[timestamp]) {
         groupedTrades[timestamp] = [];
@@ -95,9 +60,10 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       groupedTrades[timestamp].push(trade);
     });
 
-    const candles: CandleData[] = [];
-    const volumes: any[] = [];
+    const candles = [];
+    const volumes = [];
 
+    // Create candle and volume data
     Object.entries(groupedTrades).forEach(([time, trades]) => {
       const prices = trades.map(t => t.priceInUsd);
       const tokenVolumes = trades.map(t => t.tokenAmount);
@@ -109,7 +75,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         high: Math.max(...prices),
         low: Math.min(...prices),
         close: prices[prices.length - 1],
-        volume: totalVolume
       };
 
       const volumePoint = {
@@ -126,121 +91,85 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       candleData: candles.sort((a, b) => a.time - b.time),
       volumeData: volumes.sort((a, b) => a.time - b.time)
     };
-  }, [tokenData?.recentTrades, timeframeMs]);
+  }, [token?.recentTrades, timeframe]);
 
-  // Debounced chart update function
-  const debouncedChartUpdate = useMemo(
-    () => debounce((candleData, volumeData) => {
-      if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
-
-      requestAnimationFrame(() => {
-        candleSeriesRef.current.setData(candleData);
-        volumeSeriesRef.current.setData(volumeData);
-
-        if (chartRef.current && candleData.length > 0) {
-          chartRef.current.timeScale().fitContent();
-        }
-      });
-    }, 100),
-    []
-  );
-
-  // Chart initialization with safety checks
+  // Initialize chart
   useEffect(() => {
-    let cancelled = false;
-
-    // Only initialize if we don't have a chart and container exists
     if (!chartContainerRef.current || chartRef.current) return;
 
-    const initChart = () => {
-      if (cancelled || !chartContainerRef.current) return;
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { color: '#0A0A0A' },
+        textColor: '#d1d4dc',
+      },
+      grid: {
+        vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: 400,
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: true,
+      },
+    });
 
-      const containerWidth = chartContainerRef.current.clientWidth || 800;
-      const chart = createChart(chartContainerRef.current, {
-        layout: {
-          background: { color: '#0A0A0A' },
-          textColor: '#d1d4dc',
-        },
-        grid: {
-          vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
-          horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
-        },
-        width: containerWidth,
-        height: 400,
-        timeScale: {
-          timeVisible: true,
-          secondsVisible: true,
-        },
-      });
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderUpColor: '#26a69a',
+      borderDownColor: '#ef5350',
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+    });
 
-      // Create series only once
-      const candleSeries = chart.addCandlestickSeries({
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-        borderUpColor: '#26a69a',
-        borderDownColor: '#ef5350',
-        wickUpColor: '#26a69a',
-        wickDownColor: '#ef5350',
-        priceFormat: {
-          type: 'price',
-          precision: 8,
-          minMove: 0.00000001,
-        },
-      });
+    const volumeSeries = chart.addHistogramSeries({
+      color: '#26a69a',
+      priceFormat: { type: 'volume' },
+      priceScaleId: '',
+    });
 
-      const volumeSeries = chart.addHistogramSeries({
-        color: '#26a69a',
-        priceFormat: { type: 'volume' },
-        priceScaleId: '',
-      });
+    chartRef.current = chart;
+    candleSeriesRef.current = candleSeries;
+    volumeSeriesRef.current = volumeSeries;
 
-      // Store refs
-      chartRef.current = chart;
-      candleSeriesRef.current = candleSeries;
-      volumeSeriesRef.current = volumeSeries;
-    };
-
-    requestAnimationFrame(initChart);
-
-    // Cleanup
     return () => {
-      cancelled = true;  // Set the flag on cleanup
-      if (chartRef.current) {
-        chartRef.current.remove();
-        chartRef.current = null;
-        candleSeriesRef.current = null;
-        volumeSeriesRef.current = null;
-      }
+      chart.remove();
+      chartRef.current = null;
+      candleSeriesRef.current = null;
+      volumeSeriesRef.current = null;
     };
-  }, []); // Empty dependency array - only run once on mount
+  }, []);
 
-  // Chart data update
+  // Update chart data
   useEffect(() => {
-    debouncedChartUpdate(candleData, volumeData);
-    return () => debouncedChartUpdate.cancel();
-  }, [candleData, volumeData, debouncedChartUpdate]);
+    if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
 
-  // Window resize handler with safety check
+    requestAnimationFrame(() => {
+      candleSeriesRef.current.setData(candleData);
+      volumeSeriesRef.current.setData(volumeData);
+
+      if (chartRef.current && candleData.length > 0) {
+        chartRef.current.timeScale().fitContent();
+      }
+    });
+  }, [candleData, volumeData]);
+
+  // Handle window resize
   useEffect(() => {
     const handleResize = debounce(() => {
       if (chartRef.current && chartContainerRef.current) {
-        const newWidth = chartContainerRef.current.clientWidth || 800;
         chartRef.current.applyOptions({
-          width: newWidth,
+          width: chartContainerRef.current.clientWidth,
         });
       }
     }, 100);
 
     window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      handleResize.cancel();
-    };
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Error state if no token found
-  if (!tokenData) {
-    debugLog('TokenChart', 'token not found', { tokenAddress });
+  if (!token) {
     return (
       <div className="min-h-screen bg-background p-4">
         <div className="max-w-[1400px] mx-auto">
@@ -290,17 +219,14 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold flex items-center gap-2">
-                  {tokenData.symbol} 
+                  {token.symbol} 
                   <span className="text-sm font-normal text-muted-foreground">
                     Price Chart
                   </span>
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Current Price: ${tokenData.priceInUsd?.toFixed(8) || '0.00000000'}
+                  Current Price: ${token.priceInUsd?.toFixed(8) || '0.00000000'}
                 </p>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                User: {currentUser}
               </div>
             </div>
             <div ref={chartContainerRef} className="w-full h-[400px]" />

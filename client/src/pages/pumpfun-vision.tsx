@@ -1,4 +1,4 @@
-import React, { FC, useState, useEffect, useCallback, Suspense } from "react";
+import React, { FC, useState, useCallback, Suspense } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, TrendingUp, TrendingDown, Activity } from "lucide-react";
@@ -6,14 +6,6 @@ import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import TokenChart from "@/components/TokenChart";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Badge } from "@/components/ui/badge";
-
-// Debug helper
-const DEBUG = true;
-function debugLog(component: string, action: string, data?: any) {
-  if (DEBUG) {
-    console.log(`[DEBUG][${component}][${action}]`, data || '');
-  }
-}
 
 interface TokenRowProps {
   token: any;
@@ -100,10 +92,7 @@ const TokenCard = React.memo<TokenRowProps>(({ token, onClick }) => {
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-2 text-muted-foreground">
               <Activity className="w-4 h-4" />
-              <span>24h Trades: {token.recentTrades?.length || 0}</span>
-            </div>
-            <div className="text-muted-foreground">
-              Created: {token.createdAt ? new Date(token.createdAt).toLocaleDateString() : 'Unknown'}
+              <span>Trades: {token.recentTrades?.length || 0}</span>
             </div>
           </div>
         </div>
@@ -115,8 +104,6 @@ const TokenCard = React.memo<TokenRowProps>(({ token, onClick }) => {
 TokenCard.displayName = 'TokenCard';
 
 const PumpFunVision: FC = () => {
-  debugLog('PumpFunVision', 'render start');
-
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'newest' | 'volume' | 'liquidity'>('newest');
 
@@ -127,18 +114,12 @@ const PumpFunVision: FC = () => {
 
   // Handlers
   const handleTokenSelect = useCallback((address: string) => {
-    debugLog('PumpFunVision', 'token select', { address });
     setSelectedToken(address);
-    // Defer store updates to prevent immediate re-renders
-    setTimeout(() => setActiveTokenView(address), 0);
-  }, [setActiveTokenView]);
+  }, []);
 
   const handleBack = useCallback(() => {
-    debugLog('PumpFunVision', 'back');
     setSelectedToken(null);
-    // Defer store updates to prevent immediate re-renders
-    setTimeout(() => setActiveTokenView(null), 0);
-  }, [setActiveTokenView]);
+  }, []);
 
   // Sort tokens
   const sortedTokens = React.useMemo(() => {
@@ -150,16 +131,12 @@ const PumpFunVision: FC = () => {
           return volumeB - volumeA;
         case 'liquidity':
           return (b.vSolInBondingCurve || 0) - (a.vSolInBondingCurve || 0);
-        case 'newest':
         default:
-          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return timeB - timeA;
+          return 0;
       }
     });
   }, [tokens, sortBy]);
 
-  // Loading state
   if (!isConnected) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -168,7 +145,6 @@ const PumpFunVision: FC = () => {
     );
   }
 
-  // Token detail view
   if (selectedToken) {
     return (
       <Suspense fallback={
@@ -186,7 +162,6 @@ const PumpFunVision: FC = () => {
     );
   }
 
-  // Token list view
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-[1400px] mx-auto p-4">
@@ -194,7 +169,7 @@ const PumpFunVision: FC = () => {
           <div>
             <h1 className="text-2xl font-bold">PumpFun Vision</h1>
             <p className="text-sm text-muted-foreground">
-              Track newly created tokens and their performance
+              Track tokens and their performance
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -236,10 +211,4 @@ const PumpFunVision: FC = () => {
   );
 };
 
-export default function PumpFunVisionWrapper() {
-  return (
-    <ErrorBoundary>
-      <PumpFunVision />
-    </ErrorBoundary>
-  );
-}
+export default PumpFunVision;
