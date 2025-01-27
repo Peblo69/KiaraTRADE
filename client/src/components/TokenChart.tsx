@@ -9,7 +9,8 @@ import { createChart, IChartApi } from 'lightweight-charts';
 import { ErrorBoundary } from './ErrorBoundary';
 import { TokenSecurityPanel } from "./TokenSecurityPanel";
 import { motion, AnimatePresence } from "framer-motion";
-import { toast } from "@/components/ui/toast"; // Added import for toast
+import { useToast } from "@/hooks/use-toast"; // Fixed import
+
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -26,6 +27,7 @@ interface Candle {
 }
 
 const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) => {
+  const { toast } = useToast(); // Initialize useToast hook
   const [showInfo, setShowInfo] = useState(false);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
