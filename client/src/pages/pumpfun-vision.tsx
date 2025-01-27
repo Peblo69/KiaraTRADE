@@ -1,11 +1,13 @@
+// src/pages/pumpfun-vision.tsx
 import { FC, useState, useEffect, useCallback, Suspense } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, Activity } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import TokenChart from "@/components/TokenChart";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 interface TokenRowProps {
   token: any;
@@ -13,29 +15,60 @@ interface TokenRowProps {
 }
 
 const TokenCard: FC<TokenRowProps> = ({ token, onClick }) => {
+  const [priceChange, setPriceChange] = useState<{
+    value: number;
+    isPositive: boolean;
+  }>({ value: 0, isPositive: false });
+
+  // Calculate price change
+  useEffect(() => {
+    if (token.tradeHistory && token.tradeHistory.length > 1) {
+      const current = token.price;
+      const previous = token.tradeHistory[token.tradeHistory.length - 2].priceInUsd;
+      const change = ((current - previous) / previous) * 100;
+      setPriceChange({
+        value: Math.abs(change),
+        isPositive: change >= 0
+      });
+    }
+  }, [token.price, token.tradeHistory]);
+
   return (
     <Card 
       className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
       onClick={onClick}
     >
       <div className="p-4">
-        <div className="flex items-center gap-3 mb-4">
-          <img
-            src={token.imageLink || 'https://via.placeholder.com/150'}
-            alt={`${token.symbol} logo`}
-            className="w-10 h-10 rounded-full object-cover bg-purple-500/20"
-            loading="lazy"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150';
-            }}
-          />
-          <div>
-            <div className="font-medium group-hover:text-purple-400 transition-colors">
-              {token.symbol}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <img
+              src={token.imageLink || 'https://via.placeholder.com/150'}
+              alt={`${token.symbol} logo`}
+              className="w-10 h-10 rounded-full object-cover bg-purple-500/20"
+              loading="lazy"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150';
+              }}
+            />
+            <div>
+              <div className="font-medium group-hover:text-purple-400 transition-colors flex items-center gap-2">
+                {token.symbol}
+                <Badge variant={token.isNew ? "default" : "outline"} className="h-5">
+                  {token.isNew ? "New" : "Listed"}
+                </Badge>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {token.name}
+              </div>
             </div>
-            <div className="text-sm text-muted-foreground">
-              {token.name}
-            </div>
+          </div>
+          <div className={`flex items-center gap-1 ${
+            priceChange.isPositive ? 'text-green-500' : 'text-red-500'
+          }`}>
+            {priceChange.isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+            <span className="text-sm font-medium">
+              {priceChange.value.toFixed(2)}%
+            </span>
           </div>
         </div>
 
@@ -58,14 +91,16 @@ const TokenCard: FC<TokenRowProps> = ({ token, onClick }) => {
           </div>
         </div>
 
-        <div className="mt-4">
-          <Tabs defaultValue="market" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="market">Market</TabsTrigger>
-              <TabsTrigger value="limit">Limit</TabsTrigger>
-              <TabsTrigger value="dca">DCA</TabsTrigger>
-            </TabsList>
-          </Tabs>
+        <div className="mt-4 border-t border-border/50 pt-4">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Activity className="w-4 h-4" />
+              <span>24h Trades: {token.tradeHistory?.length || 0}</span>
+            </div>
+            <div className="text-muted-foreground">
+              Created: {new Date(token.createdAt).toLocaleDateString()}
+            </div>
+          </div>
         </div>
       </div>
     </Card>
@@ -75,23 +110,48 @@ const TokenCard: FC<TokenRowProps> = ({ token, onClick }) => {
 // Helper functions
 const formatPrice = (price: number) => {
   if (!price) return '$0.00';
-  return `$${price.toFixed(8)}`;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 8,
+    maximumFractionDigits: 8
+  }).format(price);
 };
 
 const formatMarketCap = (value: number) => {
   if (!value) return '$0.00';
-  return `$${value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`;
+  if (value >= 1e9) {
+    return `$${(value / 1e9).toFixed(2)}B`;
+  } else if (value >= 1e6) {
+    return `$${(value / 1e6).toFixed(2)}M`;
+  } else if (value >= 1e3) {
+    return `$${(value / 1e3).toFixed(2)}K`;
+  }
+  return `$${value.toFixed(2)}`;
 };
 
 // Main token list content
 const TokenListContent: FC = () => {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'newest' | 'volume' | 'marketCap'>('newest');
 
-  // Use callbacks for store selectors to prevent unnecessary re-renders
-  const tokens = usePumpPortalStore(useCallback(state => state.tokens, []));
+  // Use callbacks for store selectors
+  const tokens = usePumpPortalStore(useCallback(state => {
+    let sortedTokens = [...state.tokens];
+    switch (sortBy) {
+      case 'volume':
+        sortedTokens.sort((a, b) => (b.volume || 0) - (a.volume || 0));
+        break;
+      case 'marketCap':
+        sortedTokens.sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0));
+        break;
+      case 'newest':
+      default:
+        sortedTokens.sort((a, b) => b.createdAt - a.createdAt);
+    }
+    return sortedTokens;
+  }, [sortBy]));
+
   const isConnected = usePumpPortalStore(useCallback(state => state.isConnected, []));
   const lastUpdate = usePumpPortalStore(useCallback(state => state.lastUpdate, []));
   const addToViewedTokens = usePumpPortalStore(useCallback(state => state.addToViewedTokens, []));
@@ -113,11 +173,12 @@ const TokenListContent: FC = () => {
     }
   }, [selectedToken, setActiveTokenView]);
 
-  // Monitor health
+  // Monitor connection health
   useEffect(() => {
     const healthCheck = setInterval(() => {
       const now = Date.now();
       if (now - lastUpdate > 30000) {
+        console.log('[PumpFunVision] Connection stale, refreshing...');
         window.location.reload();
       }
     }, 10000);
@@ -166,6 +227,29 @@ const TokenListContent: FC = () => {
             <p className="text-sm text-muted-foreground">
               Track newly created tokens and their performance
             </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={sortBy === 'newest' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSortBy('newest')}
+            >
+              Newest
+            </Button>
+            <Button
+              variant={sortBy === 'volume' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSortBy('volume')}
+            >
+              Volume
+            </Button>
+            <Button
+              variant={sortBy === 'marketCap' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSortBy('marketCap')}
+            >
+              Market Cap
+            </Button>
           </div>
         </div>
 

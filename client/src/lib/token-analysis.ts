@@ -44,11 +44,30 @@ export async function analyzeToken(tokenAddress: string): Promise<TokenAnalysis>
     }
     const data = await response.json();
 
-    // Update PumpPortal store with the analytics data
-    const pumpPortalStore = usePumpPortalStore.getState();
-    pumpPortalStore.updateTokenAnalysis(tokenAddress, data);
+    // Parse and validate the response
+    const parsedData = tokenAnalyticsSchema.parse(data);
 
-    return tokenAnalyticsSchema.parse(data);
+    // Update PumpPortal store
+    usePumpPortalStore.setState(state => {
+      const updatedTokens = state.tokens.map(token => 
+        token.address === tokenAddress 
+          ? { ...token, analysis: parsedData }
+          : token
+      );
+
+      return {
+        ...state,
+        tokens: updatedTokens,
+        viewedTokens: {
+          ...state.viewedTokens,
+          [tokenAddress]: state.viewedTokens[tokenAddress] 
+            ? { ...state.viewedTokens[tokenAddress], analysis: parsedData }
+            : undefined
+        }
+      };
+    });
+
+    return parsedData;
   } catch (error) {
     console.error("[TokenAnalysis] Error fetching token data:", error);
     throw error;
@@ -57,16 +76,23 @@ export async function analyzeToken(tokenAddress: string): Promise<TokenAnalysis>
 
 export function useTokenAnalysis(tokenAddress: string) {
   // Get token data from PumpPortal store
-  const token = usePumpPortalStore(
-    state => state.tokens.find(t => t.address === tokenAddress)
+  const token = usePumpPortalStore(state => 
+    state.tokens.find(t => t.address === tokenAddress)
   );
 
-  return useQuery({
+  const queryResult = useQuery({
     queryKey: ["tokenAnalysis", tokenAddress],
     queryFn: () => analyzeToken(tokenAddress),
     staleTime: 30000,
     refetchOnWindowFocus: true,
     // Only fetch if we have the token in PumpPortal store
-    enabled: !!token
+    enabled: !!token,
+    // Don't retry on error
+    retry: false
   });
+
+  return {
+    ...queryResult,
+    analyze: () => queryResult.refetch()
+  };
 }

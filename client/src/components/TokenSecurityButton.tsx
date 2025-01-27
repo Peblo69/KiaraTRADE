@@ -1,7 +1,6 @@
-// client/src/components/TokenSecurityButton.tsx
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { TokenSecurityPanel } from "./TokenSecurityPanel";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { useToast } from "@/hooks/use-toast";
@@ -19,12 +18,14 @@ export function TokenSecurityButton({
 }: TokenSecurityButtonProps) {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
-  const { analyze, data: analysisData, error, isLoading } = useTokenAnalysis(tokenAddress);
 
-  // Get token from PumpPortal store
+  // Get token from PumpPortal store with memoized selector
   const token = usePumpPortalStore(
     useCallback(state => state.tokens.find(t => t.address === tokenAddress), [tokenAddress])
   );
+
+  // Use the analytics hook
+  const { analyze, data: analysisData, error, isLoading } = useTokenAnalysis(tokenAddress);
 
   const handleAnalyze = async () => {
     if (isLoading) return;
@@ -47,7 +48,7 @@ export function TokenSecurityButton({
   const getRiskIndicatorColor = () => {
     if (!analysisData) return "bg-gray-500";
 
-    switch (analysisData.risks.level) {
+    switch (analysisData.risks?.level) {
       case 'HIGH':
         return "bg-red-500";
       case 'MEDIUM':

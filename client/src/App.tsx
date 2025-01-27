@@ -19,6 +19,13 @@ import { WalletContextProvider } from "@/lib/wallet";
 import MarketDataBar from "@/components/MarketDataBar";
 import Navbar from "@/components/Navbar";
 import { useLocation } from "wouter";
+import { format } from 'date-fns';
+import { wsManager, getCurrentUTCTime, getCurrentUser } from '@/lib/websocket-manager';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+
+// Constants
+const UPDATE_INTERVAL = 1000; // 1 second interval for time updates
+const INITIAL_CONNECTION_DELAY = 1000; // 1 second delay for initial connection
 
 function Router() {
   const [location] = useLocation();
@@ -57,11 +64,79 @@ function Router() {
 
 const App: React.FC = () => {
   const setConnected = useUnifiedTokenStore(state => state.setConnected);
+  const updateTimestamp = usePumpPortalStore(state => state.updateTimestamp);
 
+  // Initialize WebSocket connections and handle cleanup
   React.useEffect(() => {
-    initializeHeliusWebSocket();
+    let heliusInitialized = false;
+    let timeUpdateInterval: number;
+
+    const initializeConnections = async () => {
+      try {
+        // Initialize Helius WebSocket
+        await initializeHeliusWebSocket();
+        heliusInitialized = true;
+        console.log('[App] Helius WebSocket initialized');
+
+        // Initialize PumpPortal WebSocket
+        wsManager.connect();
+        console.log('[App] PumpPortal WebSocket initialized');
+
+        // Initialize store with current user and time
+        usePumpPortalStore.setState({
+          currentUser: getCurrentUser(),
+          currentTime: getCurrentUTCTime(),
+          isConnected: true
+        });
+
+        // Set up timestamp update interval
+        timeUpdateInterval = window.setInterval(() => {
+          updateTimestamp();
+        }, UPDATE_INTERVAL);
+
+      } catch (error) {
+        console.error('[App] Error initializing connections:', error);
+        setConnected(false);
+      }
+    };
+
+    // Delay initial connection to ensure proper initialization
+    const initTimeout = setTimeout(() => {
+      initializeConnections();
+    }, INITIAL_CONNECTION_DELAY);
+
+    // Cleanup function
     return () => {
-      setConnected(false);
+      clearTimeout(initTimeout);
+
+      if (heliusInitialized) {
+        setConnected(false);
+      }
+
+      if (timeUpdateInterval) {
+        clearInterval(timeUpdateInterval);
+      }
+
+      wsManager.disconnect();
+
+      usePumpPortalStore.setState({
+        isConnected: false,
+        currentTime: getCurrentUTCTime()
+      });
+    };
+  }, []);
+
+  // Monitor WebSocket connection status
+  React.useEffect(() => {
+    const checkConnection = () => {
+      const isConnected = wsManager.getStatus();
+      usePumpPortalStore.setState({ isConnected });
+    };
+
+    const connectionCheck = setInterval(checkConnection, UPDATE_INTERVAL);
+
+    return () => {
+      clearInterval(connectionCheck);
     };
   }, []);
 
