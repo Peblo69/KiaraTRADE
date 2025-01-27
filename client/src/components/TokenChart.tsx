@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { createChart, IChartApi } from 'lightweight-charts';
 import debounce from 'lodash/debounce';
+import TokenMarketStats from "./TokenMarketStats";
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -189,8 +190,8 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-[1400px] mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             onClick={onBack}
             className="gap-2"
           >
@@ -215,11 +216,12 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         </div>
 
         <div className="grid gap-4">
+          <TokenMarketStats tokenAddress={tokenAddress} />
           <div className="p-4 rounded-lg border border-purple-500/20 bg-card">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold flex items-center gap-2">
-                  {token.symbol} 
+                  {token.symbol}
                   <span className="text-sm font-normal text-muted-foreground">
                     Price Chart
                   </span>

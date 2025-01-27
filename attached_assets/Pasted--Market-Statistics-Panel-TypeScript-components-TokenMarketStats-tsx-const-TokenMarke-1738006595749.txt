@@ -1,0 +1,120 @@
+
+    Market Statistics Panel:
+
+TypeScript
+
+// components/TokenMarketStats.tsx
+const TokenMarketStats: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const solPrice = usePumpPortalStore(state => state.solPrice);
+
+  // Calculate 24h stats from recentTrades
+  const last24h = token?.recentTrades?.filter(
+    trade => trade.timestamp > Date.now() - 24 * 60 * 60 * 1000
+  ) || [];
+
+  const stats = useMemo(() => {
+    const volume24h = last24h.reduce((sum, trade) => 
+      sum + (trade.tokenAmount * trade.priceInUsd), 0);
+    
+    const marketCap = token?.priceInUsd * token?.totalSupply || 0;
+    
+    return { volume24h, marketCap };
+  }, [last24h, token]);
+
+  return (
+    <div className="grid grid-cols-3 gap-4 p-4 rounded-lg border border-purple-500/20 bg-card">
+      <StatCard
+        title="24h Volume"
+        value={`$${stats.volume24h.toLocaleString()}`}
+      />
+      <StatCard
+        title="Market Cap"
+        value={`$${stats.marketCap.toLocaleString()}`}
+      />
+      {/* Add more stats */}
+    </div>
+  );
+};
+
+    Order Book Visualization:
+
+TypeScript
+
+// components/TokenOrderBook.tsx
+const TokenOrderBook: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const trades = usePumpPortalStore(state => 
+    state.getToken(tokenAddress)?.recentTrades || []);
+
+  // Group trades by price level
+  const orderBook = useMemo(() => {
+    const buys = new Map();
+    const sells = new Map();
+    
+    trades.forEach(trade => {
+      const map = trade.txType === 'buy' ? buys : sells;
+      const price = trade.priceInUsd;
+      map.set(price, (map.get(price) || 0) + trade.tokenAmount);
+    });
+
+    return { buys, sells };
+  }, [trades]);
+
+  return (
+    <div className="flex gap-4">
+      {/* Render buy side */}
+      <div className="w-1/2 text-green-400">
+        {Array.from(orderBook.buys).map(([price, amount]) => (
+          <OrderBookRow price={price} amount={amount} type="buy" />
+        ))}
+      </div>
+      {/* Render sell side */}
+      <div className="w-1/2 text-red-400">
+        {Array.from(orderBook.sells).map(([price, amount]) => (
+          <OrderBookRow price={price} amount={amount} type="sell" />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+    Volume Chart (using your existing chart library):
+
+TypeScript
+
+// components/TokenVolumeChart.tsx
+const TokenVolumeChart: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const trades = usePumpPortalStore(state => 
+    state.getToken(tokenAddress)?.recentTrades || []);
+  
+  const volumeData = useMemo(() => {
+    // Group trades by timeframe and calculate volume
+    return trades.reduce((acc, trade) => {
+      const timestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
+      if (!acc[timestamp]) acc[timestamp] = 0;
+      acc[timestamp] += trade.tokenAmount * trade.priceInUsd;
+      return acc;
+    }, {});
+  }, [trades, timeframeMs]);
+
+  // Chart setup similar to your existing chart
+  useEffect(() => {
+    // Setup volume chart using lightweight-charts
+  }, []);
+
+  return <div ref={chartContainerRef} className="h-[200px]" />;
+};
+
+All these components use real data from your WebSocket and store:
+
+    They listen to trade updates via usePumpPortalStore
+    Process the data in real-time
+    Update automatically when new trades come in
+    Use your existing styling and theme
+
+To implement all of this, we would:
+
+    Add these components to your project
+    Update TokenChart.tsx to include them
+    Add any missing fields to your store if needed
+    Add proper types for all the data
