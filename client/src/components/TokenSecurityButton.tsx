@@ -25,19 +25,6 @@ export function TokenSecurityButton({
     }
   };
 
-  // In a real implementation, this would come from your API
-  const tokenData = {
-    name: "Example Token",
-    symbol: "EX",
-    mintAuthority: true, 
-    freezeAuthority: false,
-    liquidity: 5573.42,
-    lpCount: 2,
-    topHolderPct: 97.86,
-    holderCount: 4,
-    riskScore: 75
-  };
-
   return (
     <div className="w-full">
       <Button
@@ -54,12 +41,7 @@ export function TokenSecurityButton({
         <span>🔒</span>
         Security
         <span className={cn(
-          "absolute right-2 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full",
-          tokenData.riskScore > 70 
-            ? "bg-red-500" 
-            : tokenData.riskScore > 40 
-            ? "bg-yellow-500" 
-            : "bg-green-500"
+          "absolute right-2 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-gray-500"
         )} />
       </Button>
 
@@ -67,7 +49,7 @@ export function TokenSecurityButton({
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         onRefresh={handleRefresh}
-        tokenData={tokenData}
+        tokenAddress={tokenAddress}
       />
     </div>
   );

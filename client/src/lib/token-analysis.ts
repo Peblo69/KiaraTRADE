@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 
-// Update schema to match our working backend implementation
+// Schema matching our backend response
 const tokenAnalyticsSchema = z.object({
   token: z.object({
     address: z.string(),
@@ -9,6 +9,8 @@ const tokenAnalyticsSchema = z.object({
     symbol: z.string(),
     decimals: z.number().optional(),
     supply: z.number().optional(),
+    mintAuthority: z.boolean().optional(),
+    freezeAuthority: z.boolean().optional(),
     mutable: z.boolean().optional(),
     created: z.number().optional()
   }).optional(),
@@ -47,12 +49,11 @@ export async function analyzeToken(tokenAddress: string): Promise<TokenAnalysis>
   }
 }
 
-// Hook for using token analysis with React Query
 export function useTokenAnalysis(tokenAddress: string) {
   return useQuery({
     queryKey: ["tokenAnalysis", tokenAddress],
     queryFn: () => analyzeToken(tokenAddress),
-    staleTime: 30000, // Consider data fresh for 30 seconds
+    staleTime: 30000,
     refetchOnWindowFocus: true,
   });
 }

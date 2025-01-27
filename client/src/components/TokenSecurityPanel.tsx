@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useTokenAnalysis } from "@/lib/token-analysis";
 import { motion } from "framer-motion";
-import { ShieldAlert, Wallet, Activity, Users, AlertTriangle, Loader2 } from "lucide-react";
+import { ShieldAlert, Activity, AlertTriangle, Loader2 } from "lucide-react";
 
 interface TokenSecurityPanelProps {
   isOpen: boolean;
@@ -55,7 +55,7 @@ export function TokenSecurityPanel({
     );
   }
 
-  // Determine overall risk level based on risk scores
+  // Calculate overall risk level
   const getRiskLevel = (risks: Array<{ name: string; score: number }>) => {
     const avgScore = risks.reduce((acc, risk) => acc + risk.score, 0) / risks.length;
     if (avgScore > 70) return "HIGH RISK";
@@ -138,48 +138,31 @@ export function TokenSecurityPanel({
           <div className="flex gap-2 flex-wrap">
             <div className={cn(
               "px-3 py-1.5 rounded-full text-xs font-medium",
-              analytics.token.mintAuthority
+              analytics.token?.mintAuthority
                 ? "bg-red-500/20 text-red-400 border border-red-500/20"
                 : "bg-green-500/20 text-green-400 border border-green-500/20"
             )}>
-              {analytics.token.mintAuthority ? "⚠️ Mint Enabled" : "✅ Mint Locked"}
+              {analytics.token?.mintAuthority ? "⚠️ Mint Enabled" : "✅ Mint Locked"}
             </div>
             <div className={cn(
               "px-3 py-1.5 rounded-full text-xs font-medium",
-              analytics.token.freezeAuthority
+              analytics.token?.freezeAuthority
                 ? "bg-red-500/20 text-red-400 border border-red-500/20"
                 : "bg-green-500/20 text-green-400 border border-green-500/20"
             )}>
-              {analytics.token.freezeAuthority ? "⚠️ Freeze Enabled" : "✅ No Freeze"}
+              {analytics.token?.freezeAuthority ? "⚠️ Freeze Enabled" : "✅ No Freeze"}
             </div>
             <div className={cn(
               "px-3 py-1.5 rounded-full text-xs font-medium",
-              analytics.token.mutable
+              analytics.token?.mutable
                 ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/20"
                 : "bg-green-500/20 text-green-400 border border-green-500/20"
             )}>
-              {analytics.token.mutable ? "⚠️ Mutable" : "✅ Immutable"}
+              {analytics.token?.mutable ? "⚠️ Mutable" : "✅ Immutable"}
             </div>
           </div>
         </div>
 
-
-        {/* Trading Metrics */}
-        {analytics.trading && (
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-gray-400 mb-3">Trading Metrics (24h)</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-900/20 p-3 rounded-lg">
-                <div className="text-xs text-gray-500 mb-1">Volume</div>
-                <div className="text-white font-medium">{analytics.trading.volume24h.toFixed(2)} SOL</div>
-              </div>
-              <div className="bg-gray-900/20 p-3 rounded-lg">
-                <div className="text-xs text-gray-500 mb-1">Transactions</div>
-                <div className="text-white font-medium">{analytics.trading.transactions24h}</div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Holder Analysis */}
         {analytics.holders && (
@@ -204,14 +187,6 @@ export function TokenSecurityPanel({
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">Total Holders</span>
                 <span className="text-white text-sm">{analytics.holders.total}</span>
-              </div>
-              <div className="mt-2 space-y-1">
-                {analytics.holders.top10.slice(0, 3).map((holder, idx) => (
-                  <div key={idx} className="flex justify-between text-xs text-gray-400">
-                    <span>{holder.address.slice(0, 4)}...{holder.address.slice(-4)}</span>
-                    <span>{holder.percentage.toFixed(1)}%</span>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
