@@ -380,7 +380,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     }
   }
 }));
-}));
 
 export function mapTokenData(data: any): PumpPortalToken {
   return {
@@ -435,3 +434,34 @@ export function connectWebSocket() {
 
     ws.onerror = (error) => {
       console.error('[PumpPortal] WebSocket error:', error);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data as string);
+        if (message.type === 'newToken') {
+          usePumpPortalStore.getState().addToken(message.data);
+        } else if (message.type === 'newTrade') {
+          usePumpPortalStore.getState().addTradeToHistory(message.data.mint, message.data);
+        } else if (message.type === 'solPriceUpdate') {
+          usePumpPortalStore.getState().setSolPrice(message.data);
+        }
+      } catch (error) {
+        console.error('[PumpPortal] Error parsing WebSocket message:', error);
+      }
+    };
+  } catch (error) {
+    console.error('[PumpPortal] Error connecting to WebSocket:', error);
+  }
+}
+
+setInterval(() => {
+  usePumpPortalStore.getState().updateTimestamp();
+}, 1000);
+
+export function disconnectWebSocket() {
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
+}
