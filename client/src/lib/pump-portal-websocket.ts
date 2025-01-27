@@ -138,7 +138,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
 
       if (tokenData.analysis) {
         newToken.analysis = tokenData.analysis;
-        newToken.lastAnalyzedAt = state.currentUser; //Using currentUser as a placeholder since currentTime is removed.
+        newToken.lastAnalyzedAt = Date.now().toString();
         newToken.analyzedBy = state.currentUser;
       }
 
@@ -159,7 +159,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
               ...newToken,
               devWallet: t.devWallet || newToken.devWallet,
               analysis: t.analysis || newToken.analysis,
-              lastAnalyzedAt: t.lastAnalyzedAt || state.currentUser, //Using currentUser as a placeholder.
+              lastAnalyzedAt: t.lastAnalyzedAt || Date.now().toString(),
               analyzedBy: t.analyzedBy || state.currentUser,
               recentTrades: [...(t.recentTrades || []), ...(newToken.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN)
             };
@@ -237,9 +237,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
           priceInSol: tradeData.priceInSol,
           priceInUsd: tradeData.priceInUsd,
           recentTrades: [tradeData],
-          lastAnalyzedAt: CURRENT_USER, //Using currentUser as a placeholder.
+          lastAnalyzedAt: Date.now().toString(),
           analyzedBy: CURRENT_USER,
-          createdAt: undefined //Removed createdAt as it relied on UTC_DATE_FORMAT
+          createdAt: undefined 
         };
 
         // Add new token to the store
@@ -396,7 +396,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
         token.address === address ? {
           ...token,
           analysis,
-          lastAnalyzedAt: state.currentUser, //Using currentUser as a placeholder.
+          lastAnalyzedAt: Date.now().toString(),
           analyzedBy: state.currentUser
         } : token
       );
@@ -412,7 +412,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
           [address]: {
             ...state.viewedTokens[address],
             analysis,
-            lastAnalyzedAt: state.currentUser, //Using currentUser as a placeholder.
+            lastAnalyzedAt: Date.now().toString(),
             analyzedBy: state.currentUser
           }
         };
@@ -464,9 +464,9 @@ export function mapTokenData(data: any): PumpPortalToken {
     recentTrades: data.recentTrades || [],
     metadata: data.metadata,
     analysis: data.analysis,
-    lastAnalyzedAt: CURRENT_USER, //Using currentUser as a placeholder.
+    lastAnalyzedAt: Date.now().toString(),
     analyzedBy: CURRENT_USER,
-    createdAt: undefined //Removed createdAt as it relied on UTC_DATE_FORMAT
+    createdAt: undefined 
   };
 }
 

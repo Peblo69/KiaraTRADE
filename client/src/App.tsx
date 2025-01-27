@@ -132,12 +132,7 @@ const App: React.FC = () => {
           isConnected: true
         });
 
-        // Set up timestamp update interval
-        timeUpdateInterval = window.setInterval(() => {
-          updateTimestamp();
-        }, UPDATE_INTERVAL);
-
-      } catch (error) {
+        } catch (error) {
         console.error('[App] Error initializing connections:', error);
         setConnected(false);
       }
