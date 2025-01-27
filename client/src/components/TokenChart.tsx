@@ -3,7 +3,6 @@ import { FC, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { format } from 'date-fns';
 import { createChart, IChartApi } from 'lightweight-charts';
 import debounce from 'lodash/debounce';
 
