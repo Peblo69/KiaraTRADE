@@ -1,12 +1,12 @@
+
 import { FC, useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Settings, Maximize2 } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { createChart, IChartApi } from 'lightweight-charts';
-import debounce from 'lodash/debounce';
 import { motion } from "framer-motion";
 import TokenStats from "./TokenStats";
 import TradeHistory from "./TradeHistory";
+import { createChart, IChartApi } from 'lightweight-charts';
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -42,10 +42,8 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   const volumeSeriesRef = useRef<any>(null);
   const [timeframe, setTimeframe] = useState('1s');
 
-  // Get token data
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
 
-  // Process trade data into candles
   const { candleData, volumeData } = useMemo(() => {
     if (!token?.recentTrades?.length) {
       return { candleData: [], volumeData: [] };
@@ -54,7 +52,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     const timeframeMs = getTimeframeMs(timeframe);
     const groupedTrades: Record<number, any[]> = {};
 
-    // Group trades by timeframe
     token.recentTrades.forEach(trade => {
       const timestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
       if (!groupedTrades[timestamp]) {
@@ -92,7 +89,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     };
   }, [token?.recentTrades, timeframe]);
 
-  // Initialize chart
   useEffect(() => {
     if (!chartContainerRef.current || chartRef.current) return;
 
@@ -135,12 +131,9 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     return () => {
       chart.remove();
       chartRef.current = null;
-      candleSeriesRef.current = null;
-      volumeSeriesRef.current = null;
     };
   }, []);
 
-  // Update chart data
   useEffect(() => {
     if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
 
@@ -153,20 +146,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       }
     });
   }, [candleData, volumeData]);
-
-  // Handle window resize
-  useEffect(() => {
-    const handleResize = debounce(() => {
-      if (chartRef.current && chartContainerRef.current) {
-        chartRef.current.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-        });
-      }
-    }, 100);
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   if (!token) {
     return (
