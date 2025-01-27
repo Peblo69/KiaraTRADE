@@ -9,6 +9,7 @@ import { createChart, IChartApi } from 'lightweight-charts';
 import { ErrorBoundary } from './ErrorBoundary';
 import { TokenSecurityPanel } from "./TokenSecurityPanel";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "@/components/ui/toast"; // Added import for toast
 
 interface TokenChartProps {
   tokenAddress: string;
@@ -270,9 +271,32 @@ const TokenChartContent: FC<TokenChartProps> = memo(({ tokenAddress, onBack }) =
         <div className="pt-16">
           <div className="grid grid-cols-[1fr,300px] gap-4">
             <div className="space-y-4">
+              {/* Security Analysis Button */}
               <div className="mb-4">
                 <Button
-                  onClick={() => setShowSecurityPanel(true)}
+                  onClick={async () => {
+                    setShowSecurityPanel(true);
+                    // Trigger analysis when button clicked using the token's MINT address
+                    try {
+                      // Use token.address which is the mint address from PumpPortal
+                      const response = await fetch(`/api/token-analytics/${token.address}`);
+                      if (!response.ok) {
+                        throw new Error(`Failed to fetch token analytics: ${response.statusText}`);
+                      }
+                      const analysisData = await response.json();
+                      if (analysisData) {
+                        // Update token with analysis data in store
+                        usePumpPortalStore.getState().updateTokenAnalysis(token.address, analysisData);
+                      }
+                    } catch (error) {
+                      console.error("Error fetching token analysis:", error);
+                      toast({
+                        title: "Error",
+                        description: "Failed to fetch token analysis. Please try again.",
+                        variant: "destructive"
+                      });
+                    }
+                  }}
                   className="bg-[#0a0b1c] text-white hover:bg-gray-800/50 border border-gray-800"
                 >
                   <Shield className="w-4 h-4 mr-2" />

@@ -37,7 +37,7 @@ export interface PumpPortalToken {
   marketCapSol: number;
   devWallet?: string;
   recentTrades: TokenTrade[];
-  analysis?: TokenAnalysis; // Add analysis data
+  analysis?: TokenAnalysis; 
 }
 
 interface PumpPortalStore {
@@ -56,6 +56,7 @@ interface PumpPortalStore {
   addToViewedTokens: (address: string) => void;
   setActiveTokenView: (address: string | null) => void;
   getToken: (address: string) => PumpPortalToken | undefined;
+  updateTokenAnalysis: (address: string, analysis: TokenAnalysis) => void; 
 }
 
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
@@ -164,7 +165,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         if (!token.devWallet && tradeData.txType === 'buy' && token.recentTrades.length === 0) {
           console.log('[PumpPortal] Setting dev wallet from first buy:', {
             token: address,
-            wallet: tradeData.counterpartyPublicKey // First seller is likely the dev
+            wallet: tradeData.counterpartyPublicKey 
           });
           updatedToken.devWallet = tradeData.counterpartyPublicKey;
         }
@@ -257,7 +258,28 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   getToken: (address) => {
     const state = get();
     return state.viewedTokens[address] || state.tokens.find(t => t.address === address);
-  }
+  },
+
+  updateTokenAnalysis: (address, analysis) => set(state => {
+    const updatedTokens = state.tokens.map(token => 
+      token.address === address ? { ...token, analysis } : token
+    );
+
+    const updates: Partial<PumpPortalStore> = {
+      tokens: updatedTokens,
+      lastUpdate: Date.now()
+    };
+
+    // If token is being viewed, update viewedTokens as well
+    if (state.viewedTokens[address]) {
+      updates.viewedTokens = {
+        ...state.viewedTokens,
+        [address]: { ...state.viewedTokens[address], analysis }
+      };
+    }
+
+    return updates as any;
+  }),
 }));
 
 export function mapTokenData(data: any): PumpPortalToken {
@@ -270,7 +292,7 @@ export function mapTokenData(data: any): PumpPortalToken {
     vTokensInBondingCurve: data.vTokensInBondingCurve,
     vSolInBondingCurve: data.vSolInBondingCurve,
     marketCapSol: data.marketCapSol,
-    devWallet: data.devWallet, // Preserve devWallet if already set
+    devWallet: data.devWallet, 
     recentTrades: []
   };
 }
@@ -297,7 +319,7 @@ const fetchSolanaPrice = async (retries = 3): Promise<number> => {
       return fetchSolanaPrice(retries - 1);
     }
   }
-  return 100; // fallback price
+  return 100; 
 };
 
 // Cleanup function
