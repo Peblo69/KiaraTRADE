@@ -66,9 +66,8 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   }, [tokenAddress]);
 
   // Memoized store values
-  const { currentTime, currentUser } = usePumpPortalStore(
+  const { currentUser } = usePumpPortalStore(
     useCallback(state => ({
-      currentTime: state.currentTime,
       currentUser: state.currentUser
     }), [])
   );
@@ -271,9 +270,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
             Back
           </Button>
           <div className="flex items-center gap-4">
-            <div className="text-sm text-muted-foreground">
-              UTC: {currentTime}
-            </div>
             <div className="flex gap-2">
               {INTERVALS.map((interval) => (
                 <Button

@@ -6,20 +6,14 @@ import axios from 'axios';
 // Constants
 const MAX_TRADES_PER_TOKEN = 100;
 const MAX_TOKENS_IN_LIST = 50;
-const UTC_DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
-const CURRENT_TIME = "2025-01-27 18:56:54";
 const CURRENT_USER = "Peblo69";
 const BILLION = 1_000_000_000;
-
-function getUTCDateTime() {
-  return format(new Date(), UTC_DATE_FORMAT);
-}
 
 // Debug helper
 const DEBUG = true;
 function debugLog(action: string, data?: any) {
   if (DEBUG) {
-    console.log(`[PumpPortal][${action}][${CURRENT_TIME}]`, data || '');
+    console.log(`[PumpPortal][${action}]`, data || '');
   }
 }
 
@@ -114,7 +108,6 @@ interface PumpPortalStore {
   lastUpdate: number;
   activeTokenView: string | null;
   currentUser: string;
-  currentTime: string;
   addToken: (tokenData: any) => void;
   addTradeToHistory: (address: string, tradeData: TokenTrade) => void;
   setConnected: (connected: boolean) => void;
@@ -125,7 +118,6 @@ interface PumpPortalStore {
   getToken: (address: string) => PumpPortalToken | undefined;
   updateTokenAnalysis: (address: string, analysis: TokenAnalysis) => void;
   updateTokenPrice: (address: string, priceInUsd: number) => void;
-  updateTimestamp: () => void;
   getTokenMetadata: (address: string) => Promise<TokenMetadata | null>;
   fetchAnalysis: (address: string) => Promise<void>;
 }
@@ -139,7 +131,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
     lastUpdate: Date.now(),
     activeTokenView: null,
     currentUser: CURRENT_USER,
-    currentTime: CURRENT_TIME,
 
     addToken: (tokenData) => set((state) => {
       debugLog('addToken', { mint: tokenData.mint });
@@ -147,7 +138,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
 
       if (tokenData.analysis) {
         newToken.analysis = tokenData.analysis;
-        newToken.lastAnalyzedAt = state.currentTime;
+        newToken.lastAnalyzedAt = state.currentUser; //Using currentUser as a placeholder since currentTime is removed.
         newToken.analyzedBy = state.currentUser;
       }
 
@@ -168,7 +159,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
               ...newToken,
               devWallet: t.devWallet || newToken.devWallet,
               analysis: t.analysis || newToken.analysis,
-              lastAnalyzedAt: t.lastAnalyzedAt || state.currentTime,
+              lastAnalyzedAt: t.lastAnalyzedAt || state.currentUser, //Using currentUser as a placeholder.
               analyzedBy: t.analyzedBy || state.currentUser,
               recentTrades: [...(t.recentTrades || []), ...(newToken.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN)
             };
@@ -224,8 +215,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
       debugLog('addTradeToHistory', {
         token: address,
         type: tradeData.txType,
-        amount: tradeData.solAmount,
-        time: state.currentTime
+        amount: tradeData.solAmount
       });
 
       const existingToken = state.viewedTokens[address] ||
@@ -247,9 +237,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
           priceInSol: tradeData.priceInSol,
           priceInUsd: tradeData.priceInUsd,
           recentTrades: [tradeData],
-          lastAnalyzedAt: CURRENT_TIME,
+          lastAnalyzedAt: CURRENT_USER, //Using currentUser as a placeholder.
           analyzedBy: CURRENT_USER,
-          createdAt: format(new Date(), UTC_DATE_FORMAT)
+          createdAt: undefined //Removed createdAt as it relied on UTC_DATE_FORMAT
         };
 
         // Add new token to the store
@@ -307,7 +297,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
     // client/src/lib/pump-portal-websocket.ts - Part 4: Store Implementation Continued
 
     updateTokenPrice: (address: string, priceInUsd: number) => set(state => {
-      debugLog('updateTokenPrice', { address, priceInUsd, time: CURRENT_TIME });
+      debugLog('updateTokenPrice', { address, priceInUsd });
       const priceInSol = priceInUsd / state.solPrice;
 
       const updatedTokens = state.tokens.map(token =>
@@ -336,21 +326,20 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
     }),
 
     setConnected: (connected) => {
-      debugLog('setConnected', { connected, time: CURRENT_TIME });
+      debugLog('setConnected', { connected });
       set({
         isConnected: connected,
-        currentTime: CURRENT_TIME,
         lastUpdate: Date.now()
       });
     },
 
     setSolPrice: (price) => {
-      debugLog('setSolPrice', { price, time: CURRENT_TIME });
+      debugLog('setSolPrice', { price });
       set({ solPrice: price, lastUpdate: Date.now() });
     },
 
     resetTokens: () => {
-      debugLog('resetTokens', { time: CURRENT_TIME });
+      debugLog('resetTokens');
       set({
         tokens: [],
         viewedTokens: {},
@@ -360,7 +349,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
     },
 
     addToViewedTokens: (address) => set((state) => {
-      debugLog('addToViewedTokens', { address, time: CURRENT_TIME });
+      debugLog('addToViewedTokens', { address });
       const token = state.tokens.find(t => t.address === address);
       if (!token) return state;
 
@@ -374,7 +363,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
     }),
 
     setActiveTokenView: (address) => set((state) => {
-      debugLog('setActiveTokenView', { address, time: CURRENT_TIME });
+      debugLog('setActiveTokenView', { address });
       if (!address) {
         return {
           activeTokenView: null,
@@ -396,19 +385,19 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
     }),
 
     getToken: (address) => {
-      debugLog('getToken', { address, time: CURRENT_TIME });
+      debugLog('getToken', { address });
       const state = get();
       return state.viewedTokens[address] || state.tokens.find(t => t.address === address);
     },
 
     updateTokenAnalysis: (address, analysis) => set(state => {
-      debugLog('updateTokenAnalysis', { address, time: CURRENT_TIME });
+      debugLog('updateTokenAnalysis', { address });
       const updatedTokens = state.tokens.map(token =>
         token.address === address ? {
           ...token,
           analysis,
-          lastAnalyzedAt: CURRENT_TIME,
-          analyzedBy: CURRENT_USER
+          lastAnalyzedAt: state.currentUser, //Using currentUser as a placeholder.
+          analyzedBy: state.currentUser
         } : token
       );
 
@@ -423,8 +412,8 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
           [address]: {
             ...state.viewedTokens[address],
             analysis,
-            lastAnalyzedAt: CURRENT_TIME,
-            analyzedBy: CURRENT_USER
+            lastAnalyzedAt: state.currentUser, //Using currentUser as a placeholder.
+            analyzedBy: state.currentUser
           }
         };
       }
@@ -433,14 +422,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
     }),
     // client/src/lib/pump-portal-websocket.ts - Part 5: Final Implementation
 
-    updateTimestamp: () => {
-      debugLog('updateTimestamp', { time: CURRENT_TIME });
-      set({ currentTime: getUTCDateTime() });
-    },
-
     getTokenMetadata: async (address: string) => {
       try {
-        debugLog('getTokenMetadata', { address, time: CURRENT_TIME });
+        debugLog('getTokenMetadata', { address });
         const response = await axios.get(`/api/token/${address}/metadata`);
         return response.data;
       } catch (error) {
@@ -451,7 +435,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
 
     fetchAnalysis: async (address: string) => {
       try {
-        debugLog('fetchAnalysis', { address, time: CURRENT_TIME });
+        debugLog('fetchAnalysis', { address });
         const response = await axios.get(`/api/token/${address}/analysis`);
         if (response.data) {
           get().updateTokenAnalysis(address, response.data);
@@ -464,7 +448,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
 });
 
 export function mapTokenData(data: any): PumpPortalToken {
-  debugLog('mapTokenData', { mint: data.mint, time: CURRENT_TIME });
+  debugLog('mapTokenData', { mint: data.mint });
   return {
     symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
     name: data.name || `Token ${data.mint?.slice(0, 8)}`,
@@ -480,19 +464,15 @@ export function mapTokenData(data: any): PumpPortalToken {
     recentTrades: data.recentTrades || [],
     metadata: data.metadata,
     analysis: data.analysis,
-    lastAnalyzedAt: CURRENT_TIME,
+    lastAnalyzedAt: CURRENT_USER, //Using currentUser as a placeholder.
     analyzedBy: CURRENT_USER,
-    createdAt: data.createdAt ? format(new Date(data.createdAt), UTC_DATE_FORMAT) : undefined
+    createdAt: undefined //Removed createdAt as it relied on UTC_DATE_FORMAT
   };
 }
 
-// Initialize timestamp update interval
-if (typeof window !== 'undefined') {
-  setInterval(() => {
-    usePumpPortalStore.getState().updateTimestamp();
-  }, 1000);
 
-  // Make store available globally for debugging
+// Make store available globally for debugging
+if (typeof window !== 'undefined') {
   window.usePumpPortalStore = usePumpPortalStore;
 }
 
