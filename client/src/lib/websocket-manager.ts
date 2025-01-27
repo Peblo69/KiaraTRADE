@@ -243,8 +243,6 @@ class WebSocketManager {
         default:
           console.warn('[PumpPortal] Unknown message type:', message.type);
       }
-
-      store.updateTimestamp();
     } catch (error) {
       console.error('[PumpPortal] Error handling message:', error);
     }
