@@ -362,4 +362,4 @@ const RiskFactor = ({ name, score, max }: { name: string; score: number; max: nu
         "text-green-400"
       )}>
         {score} pts
-      </span>>
+      </span>
