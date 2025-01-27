@@ -1,0 +1,271 @@
+Here's the enhanced version:
+TypeScript
+
+// styles/animations.css
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes glowPurple {
+  0% { box-shadow: 0 0 5px rgba(168, 85, 247, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(168, 85, 247, 0.4); }
+  100% { box-shadow: 0 0 5px rgba(168, 85, 247, 0.2); }
+}
+
+// TokenChart.tsx with enhanced styling
+import { motion } from "framer-motion"; // Add this for smooth animations
+
+const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
+  // ... your existing state and refs
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="min-h-screen bg-[#0A0A0A] text-gray-100"
+    >
+      <div className="max-w-[1400px] mx-auto p-6">
+        {/* Header Section */}
+        <motion.div 
+          initial={{ y: -20 }}
+          animate={{ y: 0 }}
+          className="flex items-center justify-between mb-8 bg-[#111111] p-4 rounded-xl border border-purple-500/20"
+        >
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              onClick={onBack}
+              className="hover:bg-purple-500/20 transition-all duration-300"
+            >
+              <ArrowLeft className="h-5 w-5 text-purple-400" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+                {token?.symbol || 'Loading...'}
+              </h1>
+              <p className="text-sm text-gray-400">
+                ${token?.priceInUsd?.toFixed(8) || '0.00000000'}
+              </p>
+            </div>
+          </div>
+
+          {/* Timeframe Selector */}
+          <div className="flex gap-2 bg-[#1A1A1A] p-2 rounded-lg border border-purple-500/10">
+            {INTERVALS.map((interval) => (
+              <motion.button
+                key={interval.value}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setTimeframe(interval.value)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200
+                  ${timeframe === interval.value 
+                    ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' 
+                    : 'text-gray-400 hover:bg-purple-500/20'
+                  }`}
+              >
+                {interval.label}
+              </motion.button>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-[1fr_350px] gap-6">
+          {/* Chart Section */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="bg-[#111111] rounded-xl border border-purple-500/20 p-6 hover:border-purple-500/40 transition-all duration-300"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-200">Price Chart</h2>
+                <p className="text-sm text-gray-400">Real-time market data</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" className="hover:bg-purple-500/20">
+                  <Settings className="h-4 w-4" />
+                </Button>
+                <Button size="sm" variant="outline" className="hover:bg-purple-500/20">
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            
+            <div 
+              ref={chartContainerRef} 
+              className="w-full h-[500px] rounded-lg overflow-hidden"
+            />
+          </motion.div>
+
+          {/* Right Sidebar */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="space-y-6"
+          >
+            {/* Token Stats Card */}
+            <div className="bg-[#111111] rounded-xl border border-purple-500/20 p-6 hover:border-purple-500/40 transition-all duration-300">
+              <TokenStats tokenAddress={tokenAddress} />
+            </div>
+
+            {/* Trade History Card */}
+            <div className="bg-[#111111] rounded-xl border border-purple-500/20 p-6 hover:border-purple-500/40 transition-all duration-300 h-[calc(100vh-440px)]">
+              <TradeHistory tokenAddress={tokenAddress} />
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// Enhanced TokenStats component
+const TokenStats: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+
+  return (
+    <motion.div className="space-y-4">
+      <h3 className="text-lg font-semibold text-gray-200">Token Stats</h3>
+      <div className="grid grid-cols-2 gap-4">
+        {[
+          { label: 'Price', value: `$${token?.priceInUsd?.toFixed(8)}` },
+          { label: 'Volume 24h', value: `$${token?.volume24h?.toLocaleString()}` },
+          { label: 'Market Cap', value: `$${token?.marketCap?.toLocaleString()}` },
+          { label: 'Holders', value: token?.holders?.toLocaleString() }
+        ].map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            className="bg-[#1A1A1A] p-4 rounded-lg border border-purple-500/10 hover:border-purple-500/30 transition-all duration-300"
+          >
+            <p className="text-sm text-gray-400">{stat.label}</p>
+            <p className="text-lg font-semibold text-gray-200">{stat.value}</p>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+
+// Enhanced TradeHistory component
+const TradeHistory: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const trades = usePumpPortalStore(state => 
+    state.getToken(tokenAddress)?.recentTrades || []
+  );
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold text-gray-200">Live Trades</h3>
+      <div className="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar">
+        {trades.map((trade, i) => (
+          <motion.div
+            key={trade.signature}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className={`
+              flex items-center justify-between p-3 rounded-lg
+              ${trade.txType === 'buy' 
+                ? 'bg-green-500/10 border border-green-500/20' 
+                : 'bg-red-500/10 border border-red-500/20'}
+            `}
+          >
+            <div>
+              <p className={`text-sm font-semibold
+                ${trade.txType === 'buy' ? 'text-green-400' : 'text-red-400'}
+              `}>
+                {trade.txType.toUpperCase()}
+              </p>
+              <p className="text-xs text-gray-400">
+                {new Date(trade.timestamp).toLocaleTimeString()}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-medium text-gray-200">
+                ${(trade.priceInUsd * trade.tokenAmount).toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-400">
+                {trade.tokenAmount.toLocaleString()} tokens
+              </p>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+Also, add these styles to your global CSS:
+CSS
+
+/* globals.css */
+@layer base {
+  :root {
+    --background: 0 0% 4%;
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 267 100% 65%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 267 100% 65%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 100% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 12%;
+    --input: 0 0% 12%;
+    --ring: 267 100% 65%;
+  }
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168, 85, 247, 0.3) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(168, 85, 247, 0.3);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(168, 85, 247, 0.5);
+}
+
+This enhanced version includes:
+
+    Dark theme with purple accents
+    Smooth animations using Framer Motion
+    Hover effects and transitions
+    Better organized layout
+    Custom scrollbars
+    Gradient text effects
+    Card hover effects
+    Responsive design

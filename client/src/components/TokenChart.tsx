@@ -1,9 +1,10 @@
 import { FC, useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Settings, Maximize2 } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { createChart, IChartApi } from 'lightweight-charts';
 import debounce from 'lodash/debounce';
+import { motion } from "framer-motion";
 import TokenStats from "./TokenStats";
 import TradeHistory from "./TradeHistory";
 
@@ -65,28 +66,24 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
     const candles = [];
     const volumes = [];
 
-    // Create candle and volume data
     Object.entries(groupedTrades).forEach(([time, trades]) => {
       const prices = trades.map(t => t.priceInUsd);
       const tokenVolumes = trades.map(t => t.tokenAmount);
       const totalVolume = tokenVolumes.reduce((a, b) => a + b, 0);
 
-      const candlePoint = {
+      candles.push({
         time: parseInt(time) / 1000,
         open: prices[0],
         high: Math.max(...prices),
         low: Math.min(...prices),
         close: prices[prices.length - 1],
-      };
+      });
 
-      const volumePoint = {
+      volumes.push({
         time: parseInt(time) / 1000,
         value: totalVolume,
         color: prices[prices.length - 1] >= prices[0] ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)'
-      };
-
-      candles.push(candlePoint);
-      volumes.push(volumePoint);
+      });
     });
 
     return {
@@ -109,7 +106,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
       },
       width: chartContainerRef.current.clientWidth,
-      height: 400,
+      height: 500,
       timeScale: {
         timeVisible: true,
         secondsVisible: true,
@@ -173,8 +170,12 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
   if (!token) {
     return (
-      <div className="min-h-screen bg-background p-4">
-        <div className="max-w-[1400px] mx-auto">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-screen bg-[#0A0A0A] text-gray-100"
+      >
+        <div className="max-w-[1400px] mx-auto p-4">
           <Button variant="ghost" onClick={onBack} className="mb-6 gap-2">
             <ArrowLeft className="h-4 w-4" />
             Back
@@ -183,74 +184,107 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
             <p className="text-red-400">Token not found</p>
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-[1400px] mx-auto">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="min-h-screen bg-[#0A0A0A] text-gray-100"
+    >
+      <div className="max-w-[1400px] mx-auto p-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <motion.div 
+          initial={{ y: -20 }}
+          animate={{ y: 0 }}
+          className="flex items-center justify-between mb-8 bg-[#111111] p-4 rounded-xl border border-purple-500/20"
+        >
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
               onClick={onBack}
-              className="gap-2"
+              className="hover:bg-purple-500/20 transition-all duration-300"
             >
-              <ArrowLeft className="h-4 w-4" />
-              Back
+              <ArrowLeft className="h-5 w-5 text-purple-400" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">{token.symbol}</h1>
-              <p className="text-sm text-muted-foreground">{token.name || 'Unknown Token'}</p>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+                {token.symbol}
+              </h1>
+              <p className="text-sm text-gray-400">
+                ${token.priceInUsd?.toFixed(8) || '0.00000000'}
+              </p>
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 bg-[#1A1A1A] p-2 rounded-lg border border-purple-500/10">
             {INTERVALS.map((interval) => (
-              <Button
+              <motion.button
                 key={interval.value}
-                variant={timeframe === interval.value ? "default" : "outline"}
-                size="sm"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setTimeframe(interval.value)}
-                className={timeframe === interval.value ? 'bg-purple-500 text-white' : ''}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200
+                  ${timeframe === interval.value 
+                    ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' 
+                    : 'text-gray-400 hover:bg-purple-500/20'
+                  }`}
               >
                 {interval.label}
-              </Button>
+              </motion.button>
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* Content Grid */}
-        <div className="grid gap-4">
-          {/* Stats Bar */}
-          <TokenStats tokenAddress={tokenAddress} />
+        <div className="grid grid-cols-[1fr_350px] gap-6">
+          {/* Chart Section */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="space-y-6"
+          >
+            <TokenStats tokenAddress={tokenAddress} />
 
-          {/* Main Content */}
-          <div className="grid grid-cols-[1fr_400px] gap-4">
-            {/* Chart Section */}
-            <div className="p-4 rounded-lg border border-purple-500/20 bg-card">
-              <div className="mb-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold">Price Chart</h2>
-                  <div className="text-2xl font-bold text-right">
-                    ${token.priceInUsd?.toFixed(8) || '0.00000000'}
-                  </div>
+            <div className="bg-[#111111] rounded-xl border border-purple-500/20 p-6 hover:border-purple-500/40 transition-all duration-300">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-200">Price Chart</h2>
+                  <p className="text-sm text-gray-400">Real-time market data</p>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  {new Date().toLocaleString()}
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" className="hover:bg-purple-500/20">
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="outline" className="hover:bg-purple-500/20">
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-              <div ref={chartContainerRef} className="w-full h-[400px]" />
-            </div>
 
-            {/* Trade History */}
-            <TradeHistory tokenAddress={tokenAddress} />
-          </div>
+              <div 
+                ref={chartContainerRef} 
+                className="w-full h-[500px] rounded-lg overflow-hidden"
+              />
+            </div>
+          </motion.div>
+
+          {/* Right Sidebar */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="space-y-6"
+          >
+            {/* Trade History Card */}
+            <div className="bg-[#111111] rounded-xl border border-purple-500/20 p-6 hover:border-purple-500/40 transition-all duration-300 h-[calc(100vh-160px)]">
+              <TradeHistory tokenAddress={tokenAddress} />
+            </div>
+          </motion.div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
