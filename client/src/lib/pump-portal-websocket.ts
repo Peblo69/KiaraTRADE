@@ -380,6 +380,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     }
   }
 }));
+}));
 
 export function mapTokenData(data: any): PumpPortalToken {
   return {
