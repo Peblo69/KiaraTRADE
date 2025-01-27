@@ -149,17 +149,14 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
 
   // Chart initialization with safety checks
   useEffect(() => {
+    // Only initialize if we don't have a chart and container exists
     if (!chartContainerRef.current || chartRef.current) return;
 
-    const initChart = () => {
-      if (!chartContainerRef.current) {
-        console.warn('[TokenChart] Chart container not ready');
-        return;
-      }
+    // Wrap in requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+      if (!chartContainerRef.current) return;
 
-      // Get container width or use default
-      const containerWidth = chartContainerRef.current?.clientWidth || 800;
-
+      const containerWidth = chartContainerRef.current.clientWidth || 800;
       const chart = createChart(chartContainerRef.current, {
         layout: {
           background: { color: '#0A0A0A' },
@@ -177,6 +174,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         },
       });
 
+      // Create series only once
       const candleSeries = chart.addCandlestickSeries({
         upColor: '#26a69a',
         downColor: '#ef5350',
@@ -197,19 +195,13 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         priceScaleId: '',
       });
 
+      // Store refs
       chartRef.current = chart;
       candleSeriesRef.current = candleSeries;
       volumeSeriesRef.current = volumeSeries;
+    });
 
-      // Initial resize to ensure proper dimensions
-      chart.applyOptions({
-        width: containerWidth,
-        height: 400
-      });
-    };
-
-    requestAnimationFrame(initChart);
-
+    // Cleanup
     return () => {
       if (chartRef.current) {
         chartRef.current.remove();
@@ -218,7 +210,7 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
         volumeSeriesRef.current = null;
       }
     };
-  }, []);
+  }, []); // Empty dependency array - only run once on mount
 
   // Chart data update
   useEffect(() => {
