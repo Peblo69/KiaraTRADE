@@ -1,12 +1,10 @@
-// src/pages/pumpfun-vision.tsx
-import { FC, useState, useEffect, useCallback, Suspense } from "react";
+import { FC, useState, useEffect, useCallback, Suspense, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, TrendingUp, TrendingDown, Activity } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import TokenChart from "@/components/TokenChart";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 
 interface TokenRowProps {
@@ -15,23 +13,18 @@ interface TokenRowProps {
 }
 
 const TokenCard: FC<TokenRowProps> = ({ token, onClick }) => {
-  const [priceChange, setPriceChange] = useState<{
-    value: number;
-    isPositive: boolean;
-  }>({ value: 0, isPositive: false });
-
-  // Calculate price change
-  useEffect(() => {
-    if (token.tradeHistory && token.tradeHistory.length > 1) {
-      const current = token.price;
-      const previous = token.tradeHistory[token.tradeHistory.length - 2].priceInUsd;
+  const priceChange = useMemo(() => {
+    if (token.recentTrades && token.recentTrades.length > 1) {
+      const current = token.priceInUsd;
+      const previous = token.recentTrades[token.recentTrades.length - 2].priceInUsd;
       const change = ((current - previous) / previous) * 100;
-      setPriceChange({
+      return {
         value: Math.abs(change),
         isPositive: change >= 0
-      });
+      };
     }
-  }, [token.price, token.tradeHistory]);
+    return { value: 0, isPositive: false };
+  }, [token.priceInUsd, token.recentTrades]);
 
   return (
     <Card 
@@ -75,19 +68,19 @@ const TokenCard: FC<TokenRowProps> = ({ token, onClick }) => {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <div className="text-sm text-muted-foreground">Price</div>
-            <div className="font-medium">{formatPrice(token.price)}</div>
+            <div className="font-medium">${token.priceInUsd?.toFixed(8) || '0.00'}</div>
           </div>
           <div>
             <div className="text-sm text-muted-foreground">Market Cap</div>
-            <div className="font-medium">{formatMarketCap(token.marketCap)}</div>
+            <div className="font-medium">${(token.marketCapSol * token.solPrice)?.toFixed(2) || '0.00'}</div>
           </div>
           <div>
             <div className="text-sm text-muted-foreground">Liquidity</div>
-            <div className="font-medium">{formatMarketCap(token.liquidity)}</div>
+            <div className="font-medium">${(token.vSolInBondingCurve * token.solPrice)?.toFixed(2) || '0.00'}</div>
           </div>
           <div>
             <div className="text-sm text-muted-foreground">Volume</div>
-            <div className="font-medium">{formatMarketCap(token.volume)}</div>
+            <div className="font-medium">${token.recentTrades?.reduce((acc, trade) => acc + (trade.solAmount * token.solPrice), 0)?.toFixed(2) || '0.00'}</div>
           </div>
         </div>
 
@@ -95,10 +88,10 @@ const TokenCard: FC<TokenRowProps> = ({ token, onClick }) => {
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-2 text-muted-foreground">
               <Activity className="w-4 h-4" />
-              <span>24h Trades: {token.tradeHistory?.length || 0}</span>
+              <span>24h Trades: {token.recentTrades?.length || 0}</span>
             </div>
             <div className="text-muted-foreground">
-              Created: {new Date(token.createdAt).toLocaleDateString()}
+              Created: {token.createdAt ? new Date(token.createdAt).toLocaleDateString() : 'Unknown'}
             </div>
           </div>
         </div>
@@ -107,49 +100,27 @@ const TokenCard: FC<TokenRowProps> = ({ token, onClick }) => {
   );
 };
 
-// Helper functions
-const formatPrice = (price: number) => {
-  if (!price) return '$0.00';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 8,
-    maximumFractionDigits: 8
-  }).format(price);
-};
-
-const formatMarketCap = (value: number) => {
-  if (!value) return '$0.00';
-  if (value >= 1e9) {
-    return `$${(value / 1e9).toFixed(2)}B`;
-  } else if (value >= 1e6) {
-    return `$${(value / 1e6).toFixed(2)}M`;
-  } else if (value >= 1e3) {
-    return `$${(value / 1e3).toFixed(2)}K`;
-  }
-  return `$${value.toFixed(2)}`;
-};
-
 // Main token list content
 const TokenListContent: FC = () => {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'newest' | 'volume' | 'marketCap'>('newest');
+  const [sortBy, setSortBy] = useState<'newest' | 'volume' | 'liquidity'>('newest');
 
-  // Use callbacks for store selectors
-  const tokens = usePumpPortalStore(useCallback(state => {
-    let sortedTokens = [...state.tokens];
-    switch (sortBy) {
-      case 'volume':
-        sortedTokens.sort((a, b) => (b.volume || 0) - (a.volume || 0));
-        break;
-      case 'marketCap':
-        sortedTokens.sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0));
-        break;
-      case 'newest':
-      default:
-        sortedTokens.sort((a, b) => b.createdAt - a.createdAt);
-    }
-    return sortedTokens;
+  // Memoized selectors
+  const tokens = usePumpPortalStore(useCallback((state) => {
+    return [...state.tokens].sort((a, b) => {
+      switch (sortBy) {
+        case 'volume':
+          const volumeA = a.recentTrades?.reduce((acc, trade) => acc + trade.solAmount, 0) || 0;
+          const volumeB = b.recentTrades?.reduce((acc, trade) => acc + trade.solAmount, 0) || 0;
+          return volumeB - volumeA;
+        case 'liquidity':
+          return (b.vSolInBondingCurve || 0) - (a.vSolInBondingCurve || 0);
+        case 'newest':
+        default:
+          return (b.createdAt ? new Date(b.createdAt).getTime() : 0) - 
+                 (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      }
+    });
   }, [sortBy]));
 
   const isConnected = usePumpPortalStore(useCallback(state => state.isConnected, []));
@@ -167,14 +138,13 @@ const TokenListContent: FC = () => {
 
   // Handle back navigation
   const handleBack = useCallback(() => {
-    if (selectedToken) {
-      setSelectedToken(null);
-      setActiveTokenView(null);
-    }
-  }, [selectedToken, setActiveTokenView]);
+    setSelectedToken(null);
+    setActiveTokenView(null);
+  }, [setActiveTokenView]);
 
-  // Monitor connection health
   useEffect(() => {
+    if (!isConnected) return;
+
     const healthCheck = setInterval(() => {
       const now = Date.now();
       if (now - lastUpdate > 30000) {
@@ -184,7 +154,7 @@ const TokenListContent: FC = () => {
     }, 10000);
 
     return () => clearInterval(healthCheck);
-  }, [lastUpdate]);
+  }, [isConnected, lastUpdate]);
 
   // Reset on unmount
   useEffect(() => {
@@ -244,11 +214,11 @@ const TokenListContent: FC = () => {
               Volume
             </Button>
             <Button
-              variant={sortBy === 'marketCap' ? 'default' : 'outline'}
+              variant={sortBy === 'liquidity' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setSortBy('marketCap')}
+              onClick={() => setSortBy('liquidity')}
             >
-              Market Cap
+              Liquidity
             </Button>
           </div>
         </div>
