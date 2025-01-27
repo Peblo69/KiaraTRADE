@@ -6,10 +6,6 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
-if (!HELIUS_API_KEY) {
-    throw new Error("HELIUS_API_KEY must be set in environment variables");
-}
-
 const RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 
 interface TokenTrade {
@@ -24,18 +20,15 @@ class PumpFunTokenTracker {
     private trades: TokenTrade[] = [];
     private lastPrice: number = 0;
     private tokenMint: string;
-    private isMonitoring: boolean = false;
 
     constructor(tokenMint: string) {
         this.connection = new Connection(RPC_URL);
         this.tokenMint = tokenMint;
-        console.log(`[PumpFunTracker] Initialized for token: ${tokenMint}`);
     }
 
     async trackTransactions() {
         try {
-            console.log('[PumpFunTracker] Fetching recent transactions...');
-
+            // Get recent transactions for the token
             const response = await axios.post(RPC_URL, {
                 jsonrpc: '2.0',
                 id: 'my-id',
@@ -49,17 +42,11 @@ class PumpFunTokenTracker {
                 ]
             });
 
-            if (!response.data?.result) {
-                console.warn('[PumpFunTracker] No transactions found');
-                return null;
-            }
-
             // Process each transaction
             for (const tx of response.data.result) {
                 const txData = await this.getTransactionData(tx.signature);
                 if (txData) {
                     this.trades.push(txData);
-                    console.log(`[PumpFunTracker] New trade: ${txData.type.toUpperCase()} - ${txData.volume.toFixed(2)} tokens at ${txData.price.toFixed(9)} SOL`);
                 }
             }
 
@@ -68,12 +55,12 @@ class PumpFunTokenTracker {
 
             return {
                 currentPrice: this.lastPrice,
-                recentTrades: this.trades.slice(-10),
+                recentTrades: this.trades.slice(-10), // Last 10 trades
                 volumeLast24h: this.calculateVolume24h()
             };
 
         } catch (error) {
-            console.error('[PumpFunTracker] Error tracking transactions:', error);
+            console.error('Error tracking transactions:', error);
             return null;
         }
     }
@@ -91,12 +78,15 @@ class PumpFunTokenTracker {
             });
 
             const tx = response.data.result;
-            if (!tx?.meta?.preTokenBalances || !tx?.meta?.postTokenBalances) {
+            if (!tx || !tx.meta || !tx.meta.preTokenBalances || !tx.meta.postTokenBalances) {
                 return null;
             }
 
+            // Calculate price and volume from token balances
             const preBalances = tx.meta.preTokenBalances;
             const postBalances = tx.meta.postTokenBalances;
+            
+            // Calculate price based on SOL amount changes
             const solChange = tx.meta.postBalances[0] - tx.meta.preBalances[0];
             const tokenChange = this.calculateTokenChange(preBalances, postBalances);
 
@@ -114,7 +104,7 @@ class PumpFunTokenTracker {
             };
 
         } catch (error) {
-            console.error('[PumpFunTracker] Error getting transaction data:', error);
+            console.error('Error getting transaction data:', error);
             return null;
         }
     }
@@ -128,6 +118,7 @@ class PumpFunTokenTracker {
     private calculateCurrentPrice(): number {
         if (this.trades.length === 0) return 0;
 
+        // Use weighted average of recent trades
         const recentTrades = this.trades.slice(-5);
         const totalVolume = recentTrades.reduce((sum, trade) => sum + trade.volume, 0);
         const weightedPrice = recentTrades.reduce((sum, trade) => 
@@ -144,58 +135,36 @@ class PumpFunTokenTracker {
             .reduce((sum, trade) => sum + trade.volume, 0);
     }
 
+    // Live monitoring
     async startLiveMonitoring(updateCallback: (data: any) => void) {
-        if (this.isMonitoring) {
-            console.warn('[PumpFunTracker] Already monitoring');
-            return;
-        }
-
-        this.isMonitoring = true;
-        console.log('[PumpFunTracker] Starting live monitoring...');
-
         // Initial data fetch
         await this.trackTransactions();
 
-        try {
-            const tokenAccount = new PublicKey(this.tokenMint);
-            this.connection.onAccountChange(
-                tokenAccount,
-                async () => {
-                    if (!this.isMonitoring) return;
-
-                    await this.trackTransactions();
-                    const data = {
-                        price: this.lastPrice,
-                        recentTrades: this.trades.slice(-10),
-                        volume24h: this.calculateVolume24h(),
-                        timestamp: Date.now()
-                    };
-                    updateCallback(data);
-                },
-                'confirmed'
-            );
-
-            // Keep alive
-            process.on('SIGINT', () => {
-                console.log('\n[PumpFunTracker] Shutting down...');
-                this.isMonitoring = false;
-                process.exit(0);
-            });
-
-        } catch (error) {
-            console.error('[PumpFunTracker] Error in live monitoring:', error);
-            this.isMonitoring = false;
-        }
+        // Subscribe to account changes
+        const tokenAccount = new PublicKey(this.tokenMint);
+        this.connection.onAccountChange(
+            tokenAccount,
+            async () => {
+                await this.trackTransactions();
+                const data = {
+                    price: this.lastPrice,
+                    recentTrades: this.trades.slice(-10),
+                    volume24h: this.calculateVolume24h(),
+                    timestamp: Date.now()
+                };
+                updateCallback(data);
+            },
+            'confirmed'
+        );
     }
 }
 
-// Test the tracker with a token
+// Example usage:
 async function main() {
-    // Use a recent active token
-    const tokenMint = '87asvmcpuXLVgUMVKvcskmZ6pgq3hK8QsQKBncApump'; // Recent active token
-    console.log(`[Test] Starting token tracker for ${tokenMint}`);
-
+    const tokenMint = '87asvmcpuXLVgUMVKvcskmZ6pgq3hK8QsQKBncApump'; // Your Pump.fun token
     const tracker = new PumpFunTokenTracker(tokenMint);
+
+    // Start live monitoring
     tracker.startLiveMonitoring((data) => {
         console.log('\n=== Token Update ===');
         console.log(`Time: ${format(data.timestamp, 'yyyy-MM-dd HH:mm:ss')}`);
@@ -209,7 +178,4 @@ async function main() {
     });
 }
 
-main().catch(error => {
-    console.error('[Test] Fatal error:', error);
-    process.exit(1);
-});
+main();
