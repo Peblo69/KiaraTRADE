@@ -7,8 +7,8 @@ import axios from 'axios';
 const MAX_TRADES_PER_TOKEN = 100;
 const MAX_TOKENS_IN_LIST = 50;
 const UTC_DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
-const CURRENT_USER = 'Peblo69';
-const CURRENT_TIME = "2025-01-27 18:49:08";
+const CURRENT_TIME = "2025-01-27 18:56:54";
+const CURRENT_USER = "Peblo69";
 const BILLION = 1_000_000_000;
 
 function getUTCDateTime() {
