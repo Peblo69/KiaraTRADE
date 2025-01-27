@@ -26,6 +26,7 @@ export interface TokenTrade {
   marketCapSol: number;
 }
 
+// Update PumpPortalToken interface to include analysis
 export interface PumpPortalToken {
   symbol: string;
   name: string;
@@ -37,7 +38,7 @@ export interface PumpPortalToken {
   marketCapSol: number;
   devWallet?: string;
   recentTrades: TokenTrade[];
-  analysis?: TokenAnalysis; 
+  analysis?: TokenAnalysis;
 }
 
 interface PumpPortalStore {
@@ -56,7 +57,7 @@ interface PumpPortalStore {
   addToViewedTokens: (address: string) => void;
   setActiveTokenView: (address: string | null) => void;
   getToken: (address: string) => PumpPortalToken | undefined;
-  updateTokenAnalysis: (address: string, analysis: TokenAnalysis) => void; 
+  updateTokenAnalysis: (address: string, analysis: TokenAnalysis) => void;
 }
 
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
@@ -83,20 +84,30 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           console.log('[PumpPortal] Setting creator wallet:', tokenData.traderPublicKey);
           newToken.devWallet = tokenData.traderPublicKey;
         }
+
+        // Fetch security analysis for new tokens
+        fetch(`/api/token-analytics/${tokenData.mint}`)
+          .then(res => res.json())
+          .then(analysis => {
+            if (analysis) {
+              get().updateTokenAnalysis(tokenData.mint, analysis);
+            }
+          })
+          .catch(err => console.error('[PumpPortal] Failed to fetch token analysis:', err));
       }
 
       const existingTokenIndex = state.tokens.findIndex(t => t.address === newToken.address);
       const isViewed = state.activeTokenView === newToken.address;
 
-      // Update existing token while preserving dev wallet
+      // Update existing token while preserving dev wallet and analysis
       if (existingTokenIndex >= 0) {
         const updatedTokens = state.tokens.map((t, i) => {
           if (i === existingTokenIndex) {
-            // Keep existing devWallet if present, otherwise use new one
             return { 
               ...t, 
               ...newToken,
-              devWallet: t.devWallet || newToken.devWallet 
+              devWallet: t.devWallet || newToken.devWallet,
+              analysis: t.analysis || newToken.analysis 
             };
           }
           return t;
@@ -109,7 +120,8 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
               ...state.viewedTokens,
               [newToken.address]: { 
                 ...newToken,
-                devWallet: state.viewedTokens[newToken.address]?.devWallet || newToken.devWallet
+                devWallet: state.viewedTokens[newToken.address]?.devWallet || newToken.devWallet,
+                analysis: state.viewedTokens[newToken.address]?.analysis || newToken.analysis
               }
             },
             lastUpdate: Date.now()

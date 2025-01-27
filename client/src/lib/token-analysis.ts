@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
+import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 
 // Schema matching our backend response
 const tokenAnalyticsSchema = z.object({
@@ -42,6 +43,11 @@ export async function analyzeToken(tokenAddress: string): Promise<TokenAnalysis>
       throw new Error(`Failed to fetch token analytics: ${response.statusText}`);
     }
     const data = await response.json();
+
+    // Update PumpPortal store with the analytics data
+    const pumpPortalStore = usePumpPortalStore.getState();
+    pumpPortalStore.updateTokenAnalysis(tokenAddress, data);
+
     return tokenAnalyticsSchema.parse(data);
   } catch (error) {
     console.error("[TokenAnalysis] Error fetching token data:", error);
@@ -50,10 +56,17 @@ export async function analyzeToken(tokenAddress: string): Promise<TokenAnalysis>
 }
 
 export function useTokenAnalysis(tokenAddress: string) {
+  // Get token data from PumpPortal store
+  const token = usePumpPortalStore(
+    state => state.tokens.find(t => t.address === tokenAddress)
+  );
+
   return useQuery({
     queryKey: ["tokenAnalysis", tokenAddress],
     queryFn: () => analyzeToken(tokenAddress),
     staleTime: 30000,
     refetchOnWindowFocus: true,
+    // Only fetch if we have the token in PumpPortal store
+    enabled: !!token
   });
 }

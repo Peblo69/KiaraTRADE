@@ -163,13 +163,12 @@ export function TokenSecurityPanel({
           </div>
         </div>
 
-
         {/* Holder Analysis */}
         {analytics.holders && (
           <div className="mb-6">
             <h3 className="text-sm font-medium text-gray-400 mb-3">Holder Analysis</h3>
             <div className="space-y-3">
-              {analytics.holders.concentration?.top10Percentage !== undefined && (
+              {analytics.holders.concentration && analytics.holders.concentration.top10Percentage !== undefined && (
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-500">Top 10 Holders %</span>
                   <div className={cn(
