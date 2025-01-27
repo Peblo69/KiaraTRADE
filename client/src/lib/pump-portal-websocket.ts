@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { preloadTokenImages } from './token-metadata';
 import axios from 'axios';
+import { TokenAnalysis } from '@/lib/token-analysis';
 
 // Constants 
 const MAX_TRADES_PER_TOKEN = 100;
@@ -36,6 +37,7 @@ export interface PumpPortalToken {
   marketCapSol: number;
   devWallet?: string;
   recentTrades: TokenTrade[];
+  analysis?: TokenAnalysis; // Add analysis data
 }
 
 interface PumpPortalStore {
@@ -67,6 +69,11 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   addToken: (tokenData) => 
     set((state) => {
       const newToken = mapTokenData(tokenData);
+
+      // Include analysis data if available
+      if (tokenData.analysis) {
+        newToken.analysis = tokenData.analysis;
+      }
 
       // Track dev wallet from creation event
       if (tokenData.txType === 'create') {
