@@ -1,9 +1,12 @@
+// client/src/components/TokenSecurityButton.tsx
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState, useCallback } from "react";
 import { TokenSecurityPanel } from "./TokenSecurityPanel";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { useToast } from "@/hooks/use-toast";
+import { useTokenAnalysis } from "@/lib/token-analysis";
+import { Shield, AlertTriangle, Loader2 } from "lucide-react";
 
 interface TokenSecurityButtonProps {
   tokenAddress: string;
@@ -16,43 +19,45 @@ export function TokenSecurityButton({
 }: TokenSecurityButtonProps) {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const { analyze, data: analysisData, error, isLoading } = useTokenAnalysis(tokenAddress);
 
   // Get token from PumpPortal store
   const token = usePumpPortalStore(
     useCallback(state => state.tokens.find(t => t.address === tokenAddress), [tokenAddress])
   );
 
-  const handleRefresh = async () => {
-    setIsLoading(true);
+  const handleAnalyze = async () => {
+    if (isLoading) return;
+
+    setIsOpen(true);
     try {
-      const response = await fetch(`/api/token-analytics/${tokenAddress}`);
-      if (!response.ok) {
-        throw new Error('Failed to refresh token analysis');
-      }
-      const analysisData = await response.json();
-
-      // Update PumpPortal store with new analysis
-      usePumpPortalStore.getState().updateTokenAnalysis(tokenAddress, analysisData);
-
+      await analyze();
+    } catch (error: any) {
       toast({
-        title: "Updated",
-        description: "Token security analysis has been refreshed",
-      });
-    } catch (error) {
-      console.error("Error refreshing token analysis:", error);
-      toast({
-        title: "Error",
-        description: "Failed to refresh token analysis. Please try again.",
+        title: "Analysis Failed",
+        description: error.message || "Could not analyze token security. Please try again.",
         variant: "destructive"
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  // Only render if we have the token in PumpPortal store
+  // Don't render if we don't have the token in PumpPortal store
   if (!token) return null;
+
+  const getRiskIndicatorColor = () => {
+    if (!analysisData) return "bg-gray-500";
+
+    switch (analysisData.risks.level) {
+      case 'HIGH':
+        return "bg-red-500";
+      case 'MEDIUM':
+        return "bg-yellow-500";
+      case 'LOW':
+        return "bg-green-500";
+      default:
+        return "bg-gray-500";
+    }
+  };
 
   return (
     <div className="w-full">
@@ -64,27 +69,47 @@ export function TokenSecurityButton({
           isLoading && "opacity-70 cursor-not-allowed",
           className
         )}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleAnalyze}
         disabled={isLoading}
       >
-        <span>🔒</span>
+        {isLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Shield className="h-4 w-4" />
+        )}
         Security
         <span className={cn(
-          "absolute right-2 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full",
-          token.analysis?.risks ? 
-            token.analysis.risks.some(r => r.score > 70) ? "bg-red-500" :
-            token.analysis.risks.some(r => r.score > 40) ? "bg-yellow-500" :
-            "bg-green-500"
-          : "bg-gray-500"
+          "absolute right-2 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full transition-colors duration-200",
+          getRiskIndicatorColor()
         )} />
       </Button>
 
       <TokenSecurityPanel
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
-        onRefresh={handleRefresh}
         tokenAddress={tokenAddress}
+        analysisData={analysisData}
+        error={error}
+        isLoading={isLoading}
       />
     </div>
   );
 }
+
+// Wrapper component for token analysis section
+export const TokenAnalysisWrapper: React.FC<{ tokenAddress: string; className?: string }> = ({ 
+  tokenAddress, 
+  className 
+}) => {
+  return (
+    <div className={cn("p-4 bg-[#0a0b1c] rounded-lg border border-gray-800", className)}>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-white">Token Analysis</h3>
+        <div className="text-xs text-gray-400">
+          Analyzed by Peblo69
+        </div>
+      </div>
+      <TokenSecurityButton tokenAddress={tokenAddress} />
+    </div>
+  );
+};
