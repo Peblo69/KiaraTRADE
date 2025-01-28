@@ -5,21 +5,12 @@
 @tailwind components;
 @tailwind utilities;
 
-@keyframes shine {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 200% 50%; }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
-}
-
+/* Keep existing styles */
 @layer base {
   :root {
-    --theme-primary: 168, 85, 247; /* RGB values for purple */
+    --theme-primary: 168, 85, 247;
     --theme-accent: 139, 92, 246;
-    --theme-cyan: 34, 211, 238; /* RGB values for cyan */
+    --theme-cyan: 34, 211, 238;
   }
 
   * {
@@ -32,6 +23,7 @@
   }
 }
 
+/* Add new FuturisticText styles and keep existing styles*/
 @layer components {
   .chat-window-container {
     position: relative;
@@ -198,53 +190,67 @@
     text-shadow: 0 0 8px rgba(var(--theme-primary), 0.6);
     letter-spacing: 0.5px;
   }
+
+  .glitch-text {
+    position: relative;
+    animation: glitch 1s infinite;
+    text-shadow: 2px 0 0 rgba(var(--theme-primary), 0.3), -2px 0 0 rgba(var(--theme-cyan), 0.3);
+  }
+
+  .gradient-text {
+    background: linear-gradient(
+      45deg,
+      rgb(var(--theme-primary)),
+      rgb(var(--theme-cyan))
+    );
+    background-size: 200% auto;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: gradient 3s linear infinite;
+  }
+
+  .glow-text {
+    text-shadow: 0 0 10px rgba(var(--theme-primary), 0.5),
+                 0 0 20px rgba(var(--theme-primary), 0.3),
+                 0 0 30px rgba(var(--theme-primary), 0.1);
+  }
+
+  @keyframes glitch {
+    0% {
+      transform: translate(0);
+    }
+    20% {
+      transform: translate(-2px, 2px);
+    }
+    40% {
+      transform: translate(-2px, -2px);
+    }
+    60% {
+      transform: translate(2px, 2px);
+    }
+    80% {
+      transform: translate(2px, -2px);
+    }
+    100% {
+      transform: translate(0);
+    }
+  }
+
+  @keyframes gradient {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
 }
 
-/* Theme-based color utilities */
-.bg-purple-900\/10 {
-  background-color: rgb(var(--theme-primary));
-  @apply bg-opacity-10;
-}
-
-.border-purple-500\/20 {
-  border-color: rgba(var(--theme-primary), 0.2);
-}
-
-.hover\:border-purple-500\/40:hover {
-  border-color: rgba(var(--theme-primary), 0.4);
-}
-
-.text-purple-300 {
-  color: rgb(var(--theme-primary));
-  opacity: 0.9;
-}
-
-.text-purple-400 {
-  color: rgb(var(--theme-primary));
-}
-
-.bg-purple-500 {
-  background-color: rgb(var(--theme-primary));
-}
-
-.hover\:bg-purple-600:hover {
-  background-color: rgb(var(--theme-primary));
-  opacity: 0.8;
-}
-
-.bg-purple-900\/40 {
-  background-color: rgb(var(--theme-primary));
-  @apply bg-opacity-40;
-}
-
-/* Retro text styling */
-.retro-text {
-  font-family: 'VT323', monospace;
-  text-shadow: 0 0 5px rgba(var(--theme-primary), 0.5);
-  letter-spacing: 0.5px;
-  animation: textflicker 0.01s infinite;
-}
-
+/* Keep rest of existing styles */
 .chat-container {
   position: relative;
   animation: colorVibrate 4s infinite;
@@ -321,4 +327,48 @@ video {
 .animate-gradient-x {
   background-size: 200% auto;
   animation: gradient-x 3s linear infinite;
+}
+
+/* Retro text styling */
+.retro-text {
+  font-family: 'VT323', monospace;
+  text-shadow: 0 0 5px rgba(var(--theme-primary), 0.5);
+  letter-spacing: 0.5px;
+  animation: textflicker 0.01s infinite;
+}
+/* Theme-based color utilities */
+.bg-purple-900\/10 {
+  background-color: rgb(var(--theme-primary));
+  @apply bg-opacity-10;
+}
+
+.border-purple-500\/20 {
+  border-color: rgba(var(--theme-primary), 0.2);
+}
+
+.hover\:border-purple-500\/40:hover {
+  border-color: rgba(var(--theme-primary), 0.4);
+}
+
+.text-purple-300 {
+  color: rgb(var(--theme-primary));
+  opacity: 0.9;
+}
+
+.text-purple-400 {
+  color: rgb(var(--theme-primary));
+}
+
+.bg-purple-500 {
+  background-color: rgb(var(--theme-primary));
+}
+
+.hover\:bg-purple-600:hover {
+  background-color: rgb(var(--theme-primary));
+  opacity: 0.8;
+}
+
+.bg-purple-900\/40 {
+  background-color: rgb(var(--theme-primary));
+  @apply bg-opacity-40;
 }

@@ -1,7 +1,8 @@
-import { FC, useRef, useState, useEffect } from "react";
+import React, { FC, useRef, useState, useEffect } from 'react';
 import SpaceBackgroundEnhanced from "@/components/SpaceBackgroundEnhanced";
 import { useTypewriter } from "@/hooks/useTypewriter";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { FuturisticText } from "@/components/FuturisticText";
 
 const TITLE = "KIARA STAGE I";
 const CONTENT = `
@@ -45,15 +46,12 @@ const KiaraStageI: FC = () => {
     const video = videoRef.current;
     if (!video) return;
 
-    // Set up video to play once and freeze at the end
     video.muted = false;
     video.loop = false;
     video.addEventListener('ended', () => {
-      // Pause on the last frame
       video.currentTime = video.duration;
     });
 
-    // Start playing
     video.play().catch(console.error);
   }, []);
 
@@ -89,34 +87,23 @@ const KiaraStageI: FC = () => {
               </div>
             </div>
             <div className="col-span-1">
-              <h1
-                className="text-5xl md:text-7xl font-bold mb-12 bg-gradient-to-r from-purple-400 via-cyan-400 to-purple-400 bg-clip-text text-transparent animate-glitch"
-                style={{
-                  fontFamily: '"VT323", monospace',
-                  letterSpacing: '0.05em',
-                  fontWeight: '800',
-                  textShadow: '0 0 30px rgba(var(--theme-primary), 0.8)'
-                }}
+              <FuturisticText
+                variant="h1"
+                glitch
+                gradient
+                glow
+                className="text-5xl md:text-7xl font-bold mb-12"
               >
                 {TITLE}
-              </h1>
-              <div
-                style={{
-                  whiteSpace: 'pre-wrap',
-                  fontFamily: '"VT323", monospace',
-                  fontSize: '1.1rem',
-                  lineHeight: '1.5',
-                  textShadow: '0 0 10px rgba(var(--theme-primary), 0.5)',
-                  color: 'rgb(216, 180, 254)',
-                  backdropFilter: 'blur(4px)',
-                  padding: '1rem',
-                  opacity: isComplete ? 1 : 0.9,
-                  transition: 'opacity 0.3s ease-in-out'
-                }}
-                className="typing-text"
+              </FuturisticText>
+              <FuturisticText
+                variant="p"
+                reveal
+                parallax
+                className="text-cyber-purple text-lg"
               >
                 {displayText}
-              </div>
+              </FuturisticText>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto mt-12">
@@ -133,35 +120,21 @@ const KiaraStageI: FC = () => {
               />
             </div>
             <div className="col-span-1">
-              <div
-                style={{
-                  whiteSpace: 'pre-wrap',
-                  fontFamily: '"VT323", monospace',
-                  fontSize: '1.1rem',
-                  lineHeight: '1.5',
-                  textShadow: '0 0 10px rgba(34, 211, 238, 0.5)',
-                  color: 'rgb(34, 211, 238)',
-                  backdropFilter: 'blur(4px)',
-                  padding: '1rem',
-                  opacity: roleIsComplete ? 1 : 0.9,
-                  transition: 'opacity 0.3s ease-in-out',
-                  border: '1px solid rgba(34, 211, 238, 0.2)',
-                  borderRadius: '0.5rem',
-                  background: 'rgba(34, 211, 238, 0.05)',
-                }}
-                className="typing-text"
+              <FuturisticText
+                variant="div"
+                reveal
+                glow
+                className="text-cyber-blue bg-opacity-5 backdrop-blur-sm rounded-lg p-4 border border-cyber-blue border-opacity-20"
               >
-                <div
-                  style={{
-                    fontSize: '1.4rem',
-                    marginBottom: '1rem',
-                    fontWeight: '600'
-                  }}
+                <FuturisticText
+                  variant="h2"
+                  gradient
+                  className="text-2xl font-semibold mb-4"
                 >
                   Kiara's Role Today – Your AI Crypto Assistant
-                </div>
+                </FuturisticText>
                 {roleDisplayText.substring(roleDisplayText.indexOf('\n') + 1)}
-              </div>
+              </FuturisticText>
             </div>
           </div>
         </main>

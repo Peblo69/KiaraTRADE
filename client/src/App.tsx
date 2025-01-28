@@ -1,10 +1,12 @@
-// src/App.tsx
 import React from 'react';
 import { Switch, Route } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { format } from 'date-fns';
 import { Toaster } from "@/components/ui/toaster";
 import { useLocation } from "wouter";
+
+// Import fonts
+import "@fontsource/orbitron";
+import "@fontsource/exo-2";
 
 // Components
 import PumpFunVision from './pages/pumpfun-vision';
@@ -25,27 +27,25 @@ import { initializeHeliusWebSocket } from './lib/helius-websocket';
 import { useUnifiedTokenStore } from './lib/unified-token-store';
 import { queryClient } from "./lib/queryClient";
 import { WalletContextProvider } from "@/lib/wallet";
-import { wsManager, getCurrentUTCTime, getCurrentUser } from '@/lib/websocket-manager';
+import { wsManager } from '@/lib/websocket-manager';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
 // Constants
 const UPDATE_INTERVAL = 1000; // 1 second interval for time updates
 const INITIAL_CONNECTION_DELAY = 1000; // 1 second delay for initial connection
-const CURRENT_TIME = "2025-01-27 18:02:47";
-const CURRENT_USER = "Peblo69";
 
 function Router() {
   const [location] = useLocation();
   const isLandingPage = location === "/";
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#0A0A0A]">
       {!isLandingPage && (
         <div className="fixed top-0 left-0 right-0 z-50 shadow-sm">
-          <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40">
+          <div className="bg-[#111111]/95 backdrop-blur supports-[backdrop-filter]:bg-[#111111]/60 border-b border-purple-500/20">
             <MarketDataBar />
           </div>
-          <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40">
+          <div className="bg-[#111111]/95 backdrop-blur supports-[backdrop-filter]:bg-[#111111]/60 border-b border-purple-500/20">
             <Navbar />
           </div>
         </div>
@@ -84,16 +84,16 @@ class ErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('[ErrorBoundary]', { error, errorInfo, time: CURRENT_TIME, user: CURRENT_USER });
+    console.error('[ErrorBoundary]', { error, errorInfo });
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="flex items-center justify-center min-h-screen bg-[#0A0A0A]">
           <div className="p-4 rounded-lg border border-red-500/20 bg-red-500/10 max-w-md mx-auto">
             <h2 className="text-lg font-semibold text-red-400 mb-2">Something went wrong</h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-gray-400">
               Please refresh the page or contact support if the problem persists.
             </p>
           </div>
@@ -105,14 +105,17 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+interface PumpPortalState {
+  isConnected: boolean;
+  setConnected: (connected: boolean) => void;
+}
+
 const App: React.FC = () => {
   const setConnected = useUnifiedTokenStore(state => state.setConnected);
-  const updateTimestamp = usePumpPortalStore(state => state.updateTimestamp);
 
   // Initialize WebSocket connections and handle cleanup
   React.useEffect(() => {
     let heliusInitialized = false;
-    let timeUpdateInterval: number;
 
     const initializeConnections = async () => {
       try {
@@ -125,14 +128,10 @@ const App: React.FC = () => {
         wsManager.connect();
         console.log('[App] PumpPortal WebSocket initialized');
 
-        // Initialize store with current user and time
-        usePumpPortalStore.setState({
-          currentUser: CURRENT_USER,
-          currentTime: CURRENT_TIME,
-          isConnected: true
-        });
+        // Initialize store connection status
+        usePumpPortalStore.setState({ isConnected: true });
 
-        } catch (error) {
+      } catch (error) {
         console.error('[App] Error initializing connections:', error);
         setConnected(false);
       }
@@ -145,14 +144,10 @@ const App: React.FC = () => {
     return () => {
       clearTimeout(initTimeout);
       if (heliusInitialized) setConnected(false);
-      if (timeUpdateInterval) clearInterval(timeUpdateInterval);
       wsManager.disconnect();
-      usePumpPortalStore.setState({
-        isConnected: false,
-        currentTime: CURRENT_TIME
-      });
+      usePumpPortalStore.setState({ isConnected: false });
     };
-  }, [setConnected, updateTimestamp]);
+  }, [setConnected]);
 
   // Monitor WebSocket connection status
   React.useEffect(() => {
