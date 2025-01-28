@@ -1,8 +1,7 @@
 import { FC, useState, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
-import { ImageIcon, TrendingUp, TrendingDown } from 'lucide-react';
+import { ImageIcon, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import { validateImageUrl } from '@/utils/image-handler';
-import { formatNumber } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 interface TokenCardProps {
@@ -13,6 +12,9 @@ interface TokenCardProps {
     price?: number;
     marketCapSol?: number;
     priceInUsd?: number;
+    solPrice?: number; // Added for market cap calculation
+    vSolInBondingCurve?: number; // Added for liquidity calculation
+    recentTrades?: any[]; // Added for volume and trade count calculation
     metadata?: {
       name: string;
       symbol: string;
@@ -29,7 +31,7 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
   const [imageError, setImageError] = useState(false);
   const [validatedImageUrl, setValidatedImageUrl] = useState<string | null>(null);
 
-  // Price change calculation (for demo)
+  // Price change calculation (for demo -  needs to be replaced with actual data)
   const priceChange = {
     value: 5.2,
     isPositive: true
@@ -53,84 +55,70 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
 
   return (
     <Card 
+      className="hover:bg-purple-500/5 transition-all duration-300 cursor-pointer group border-purple-500/20"
       onClick={onClick}
-      className="group hover:scale-[1.02] transition-all duration-300 cursor-pointer overflow-hidden bg-black/20"
     >
-      <div className="relative">
-        {/* Image Section */}
-        <div className="aspect-square w-full overflow-hidden bg-gradient-to-br from-purple-900/10 to-purple-800/10">
-          {validatedImageUrl && !imageError ? (
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
             <img
-              src={validatedImageUrl}
-              alt={displayName}
-              className="w-full h-full object-cover transform group-hover:scale-105 transition-all duration-500"
-              onError={() => {
-                console.error('[TokenCard] Image failed to load:', validatedImageUrl);
-                setImageError(true);
-              }}
-              onLoad={() => {
-                console.log('[TokenCard] Image loaded successfully:', validatedImageUrl);
+              src={validatedImageUrl || 'https://via.placeholder.com/150'}
+              alt={`${token.symbol} logo`}
+              className="w-10 h-10 rounded-full object-cover bg-purple-500/20"
+              loading="lazy"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150';
               }}
             />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="w-20 h-20 rounded-full bg-purple-800/30 flex items-center justify-center backdrop-blur-sm">
-                <span className="text-3xl font-bold text-purple-500/50">
-                  {displaySymbol[0] || <ImageIcon className="w-10 h-10" />}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Content Section */}
-        <div className="p-4 space-y-4">
-          {/* Header */}
-          <div className="flex items-center justify-between">
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-lg text-purple-100 group-hover:text-purple-300 transition-colors">
-                  {displaySymbol}
-                </h3>
-                {token.isNew && (
-                  <Badge variant="default" className="bg-purple-500/20 text-purple-300">
-                    New
-                  </Badge>
-                )}
+              <div className="font-medium group-hover:text-purple-400 transition-colors flex items-center gap-2">
+                {token.symbol}
+                <Badge variant={token.isNew ? "default" : "outline"} className="h-5">
+                  {token.isNew ? "New" : "Listed"}
+                </Badge>
               </div>
-              <p className="text-sm text-gray-400 truncate max-w-[200px]">
-                {displayName}
-              </p>
-            </div>
-            <div className={`flex items-center gap-1 ${
-              priceChange.isPositive ? 'text-green-500' : 'text-red-500'
-            }`}>
-              {priceChange.isPositive ? 
-                <TrendingUp className="w-4 h-4" /> : 
-                <TrendingDown className="w-4 h-4" />
-              }
-              <span className="text-sm font-medium">
-                {priceChange.value.toFixed(2)}%
-              </span>
+              <div className="text-sm text-muted-foreground">
+                {token.name}
+              </div>
             </div>
           </div>
+          <div className={`flex items-center gap-1 ${
+            priceChange.isPositive ? 'text-green-500' : 'text-red-500'
+          }`}>
+            {priceChange.isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+            <span className="text-sm font-medium">
+              {priceChange.value.toFixed(2)}%
+            </span>
+          </div>
+        </div>
 
-          {/* Price and Market Cap */}
-          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-purple-500/10">
-            <div>
-              <p className="text-xs text-gray-400 mb-1">Price</p>
-              <p className="font-medium text-purple-100">
-                ${formatNumber(displayPrice)}
-              </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <div className="text-sm text-muted-foreground">Price</div>
+            <div className="font-medium">${token.priceInUsd?.toFixed(8) || '0.00'}</div>
+          </div>
+          <div>
+            <div className="text-sm text-muted-foreground">Market Cap</div>
+            <div className="font-medium">${(token.marketCapSol * token.solPrice)?.toFixed(2) || '0.00'}</div>
+          </div>
+          <div>
+            <div className="text-sm text-muted-foreground">Liquidity</div>
+            <div className="font-medium">${(token.vSolInBondingCurve * token.solPrice)?.toFixed(2) || '0.00'}</div>
+          </div>
+          <div>
+            <div className="text-sm text-muted-foreground">Volume</div>
+            <div className="font-medium">
+              ${token.recentTrades?.reduce((acc: number, trade: any) => 
+                acc + (trade.solAmount * token.solPrice), 0)?.toFixed(2) || '0.00'}
             </div>
-            <div>
-              <p className="text-xs text-gray-400 mb-1">Market Cap</p>
-              <p className="font-medium text-purple-100">
-                {token.marketCapSol ? 
-                  `${formatNumber(token.marketCapSol)} SOL` : 
-                  'N/A'
-                }
-              </p>
+          </div>
+        </div>
+
+        <div className="mt-4 border-t border-border/50 pt-4">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Activity className="w-4 h-4" />
+              <span>Trades: {token.recentTrades?.length || 0}</span>
             </div>
           </div>
         </div>
