@@ -1,77 +1,53 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 
-interface Star {
-  x: number;
-  y: number;
-  size: number;
-  alpha: number;
-  speed: number;
-}
-
-export default function SpaceBackground() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+export function SpaceBackground() {
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!container) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    // Create warp speed stars
+    const createWarpStars = () => {
+      const starsCount = 200;
+      for (let i = 0; i < starsCount; i++) {
+        const star = document.createElement('div');
+        star.className = 'warp-star';
 
-    function resizeCanvas() {
-      if (!canvas) return;
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    }
+        // Random position
+        star.style.left = `${Math.random() * 100}%`;
+        star.style.top = `${Math.random() * 100}%`;
 
-    const stars: Star[] = [];
-    const numStars = 200; // Reduced number of stars
+        // Random animation delay
+        star.style.animationDelay = `${Math.random() * 2}s`;
 
-    // Initialize stars with smaller sizes
-    for (let i = 0; i < numStars; i++) {
-      stars.push({
-        x: Math.random() * window.innerWidth,
-        y: Math.random() * window.innerHeight,
-        size: Math.random() * 0.5 + 0.2, // Smaller size range: 0.2 to 0.7
-        alpha: Math.random() * 0.3 + 0.1, // More subtle alpha range: 0.1 to 0.4
-        speed: Math.random() * 0.005 + 0.002 // Slower speed for more subtle effect
-      });
-    }
+        // Random size variation
+        const size = 1 + Math.random() * 2;
+        star.style.width = `${size}px`;
+        star.style.height = `${size}px`;
 
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+        // Random z-index starting position
+        star.style.transform = `translateZ(${-1000 + Math.random() * 2000}px)`;
 
-    function animate() {
-      if (!canvas || !ctx) return;
+        container.appendChild(star);
+      }
+    };
 
-      // Use a more transparent black for the fade effect
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    createWarpStars();
 
-      stars.forEach(star => {
-        star.alpha += star.speed;
-        if (star.alpha > 0.4) star.alpha = 0.1; // Reset at lower max alpha
-
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
-        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      requestAnimationFrame(animate);
-    }
-
-    animate();
+    // Recreate stars periodically to ensure smooth animation
+    const interval = setInterval(() => {
+      container.innerHTML = '';
+      createWarpStars();
+    }, 4000);
 
     return () => {
-      window.removeEventListener('resize', resizeCanvas);
+      clearInterval(interval);
+      container.innerHTML = '';
     };
   }, []);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="fixed top-0 left-0 w-full h-full pointer-events-none opacity-70"
-    />
-  );
+  return <div ref={containerRef} className="space-background" />;
 }
+
+export default SpaceBackground;

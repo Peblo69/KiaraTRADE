@@ -21,6 +21,7 @@ import Predictions from "@/pages/predictions";
 import WalletTracking from "@/pages/wallet-tracking";
 import MarketDataBar from "@/components/MarketDataBar";
 import Navbar from "@/components/Navbar";
+import { Layout } from "@/components/Layout";
 
 // Store and Services
 import { initializeHeliusWebSocket } from './lib/helius-websocket';
@@ -29,10 +30,6 @@ import { queryClient } from "./lib/queryClient";
 import { WalletContextProvider } from "@/lib/wallet";
 import { wsManager } from '@/lib/websocket-manager';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-
-// Constants
-const UPDATE_INTERVAL = 1000; // 1 second interval for time updates
-const INITIAL_CONNECTION_DELAY = 1000; // 1 second delay for initial connection
 
 function Router() {
   const [location] = useLocation();
@@ -51,20 +48,22 @@ function Router() {
         </div>
       )}
 
-      <main className={!isLandingPage ? "pt-[120px]" : ""}>
-        <Switch>
-          <Route path="/" component={Landing} />
-          <Route path="/home" component={Home} />
-          <Route path="/crypto-news" component={CryptoNews} />
-          <Route path="/project" component={Project} />
-          <Route path="/kiara-stage-i" component={KiaraStageI} />
-          <Route path="/about" component={About} />
-          <Route path="/pumpfun-vision" component={PumpFunVision} />
-          <Route path="/predictions" component={Predictions} />
-          <Route path="/wallet-tracking" component={WalletTracking} />
-          <Route component={NotFound} />
-        </Switch>
-      </main>
+      <Layout>
+        <main className={!isLandingPage ? "pt-[120px]" : ""}>
+          <Switch>
+            <Route path="/" component={Landing} />
+            <Route path="/home" component={Home} />
+            <Route path="/crypto-news" component={CryptoNews} />
+            <Route path="/project" component={Project} />
+            <Route path="/kiara-stage-i" component={KiaraStageI} />
+            <Route path="/about" component={About} />
+            <Route path="/pumpfun-vision" component={PumpFunVision} />
+            <Route path="/predictions" component={Predictions} />
+            <Route path="/wallet-tracking" component={WalletTracking} />
+            <Route component={NotFound} />
+          </Switch>
+        </main>
+      </Layout>
     </div>
   );
 }
@@ -105,30 +104,21 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-interface PumpPortalState {
-  isConnected: boolean;
-  setConnected: (connected: boolean) => void;
-}
-
 const App: React.FC = () => {
   const setConnected = useUnifiedTokenStore(state => state.setConnected);
 
-  // Initialize WebSocket connections and handle cleanup
   React.useEffect(() => {
     let heliusInitialized = false;
 
     const initializeConnections = async () => {
       try {
-        // Initialize Helius WebSocket
         await initializeHeliusWebSocket();
         heliusInitialized = true;
         console.log('[App] Helius WebSocket initialized');
 
-        // Initialize PumpPortal WebSocket
         wsManager.connect();
         console.log('[App] PumpPortal WebSocket initialized');
 
-        // Initialize store connection status
         usePumpPortalStore.setState({ isConnected: true });
 
       } catch (error) {
@@ -137,10 +127,8 @@ const App: React.FC = () => {
       }
     };
 
-    // Delay initial connection
-    const initTimeout = setTimeout(initializeConnections, INITIAL_CONNECTION_DELAY);
+    const initTimeout = setTimeout(initializeConnections, 1000);
 
-    // Cleanup function
     return () => {
       clearTimeout(initTimeout);
       if (heliusInitialized) setConnected(false);
@@ -149,14 +137,13 @@ const App: React.FC = () => {
     };
   }, [setConnected]);
 
-  // Monitor WebSocket connection status
   React.useEffect(() => {
     const checkConnection = () => {
       const isConnected = wsManager.getStatus();
       usePumpPortalStore.setState({ isConnected });
     };
 
-    const connectionCheck = setInterval(checkConnection, UPDATE_INTERVAL);
+    const connectionCheck = setInterval(checkConnection, 1000);
     return () => clearInterval(connectionCheck);
   }, []);
 

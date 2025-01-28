@@ -5,7 +5,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Keep existing styles */
 @layer base {
   :root {
     --theme-primary: 168, 85, 247;
@@ -250,7 +249,44 @@
   }
 }
 
-/* Keep rest of existing styles */
+/* Space Background Styles */
+.space-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  perspective: 500px;
+  z-index: -1; /* Ensure it's behind other content */
+  pointer-events: none;
+}
+
+.warp-star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  animation: warp 4s linear infinite;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.4);
+}
+
+@keyframes warp {
+  0% {
+    transform: translateZ(-1500px);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateZ(1500px);
+    opacity: 0;
+  }
+}
+
+
 .chat-container {
   position: relative;
   animation: colorVibrate 4s infinite;
@@ -336,7 +372,8 @@ video {
   letter-spacing: 0.5px;
   animation: textflicker 0.01s infinite;
 }
-/* Theme-based color utilities */
+
+/* Theme-based color utilities (original ones kept) */
 .bg-purple-900\/10 {
   background-color: rgb(var(--theme-primary));
   @apply bg-opacity-10;
@@ -366,6 +403,20 @@ video {
 .hover\:bg-purple-600:hover {
   background-color: rgb(var(--theme-primary));
   opacity: 0.8;
+}
+
+.metallic-text {
+  background: linear-gradient(
+    to bottom,
+    rgb(255, 255, 255) 0%,
+    rgb(225, 225, 225) 50%,
+    rgb(215, 215, 215) 51%,
+    rgb(245, 245, 245) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
 }
 
 .bg-purple-900\/40 {
