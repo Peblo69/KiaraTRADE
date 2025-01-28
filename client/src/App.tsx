@@ -17,12 +17,12 @@ function Router() {
   const [location] = useLocation();
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F]">
+    <div className="min-h-screen">
       <SpaceBackground />
       <Header />
 
       <main className="container mx-auto px-6 py-8">
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           <div className="col-span-1">
             <NewCreations />
           </div>

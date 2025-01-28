@@ -1,5 +1,4 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Audiowide&family=Rajdhani:wght@500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -9,34 +8,6 @@
   body {
     @apply bg-[#0A0A0F] text-gray-200;
     font-family: 'Rajdhani', sans-serif;
-  }
-
-  :root {
-    --theme-primary: 168, 85, 247;
-    --theme-accent: 139, 92, 246;
-    --theme-cyan: 34, 211, 238;
-  }
-
-  * {
-    @apply border-border;
-  }
-}
-
-@layer utilities {
-  .bg-purple-900\/10 {
-    background-color: rgb(var(--theme-primary) / 0.1);
-  }
-
-  .border-purple-500\/20 {
-    border-color: rgb(var(--theme-primary) / 0.2);
-  }
-
-  .hover\:border-purple-500\/40:hover {
-    border-color: rgb(var(--theme-primary) / 0.4);
-  }
-
-  .bg-purple-900\/40 {
-    background-color: rgb(var(--theme-primary) / 0.4);
   }
 }
 
@@ -59,7 +30,7 @@
   background: #FFF;
   opacity: 0;
   transform-style: preserve-3d;
-  animation: warpSpeed 2s linear infinite;
+  animation: warpSpeed 20s linear infinite;
 }
 
 @keyframes warpSpeed {
@@ -67,7 +38,10 @@
     transform: translateZ(-1000px);
     opacity: 0;
   }
-  50% {
+  5% {
+    opacity: 1;
+  }
+  95% {
     opacity: 1;
   }
   100% {
@@ -76,14 +50,91 @@
   }
 }
 
+.falling-star {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0));
+  animation: fallingStar 3s linear forwards;
+}
+
+.falling-star::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100px;
+  height: 1px;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0));
+  transform: translateX(-100%);
+}
+
+@keyframes fallingStar {
+  0% {
+    transform: translate(0, 0) rotate(-45deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(200px, 200px) rotate(-45deg);
+    opacity: 0;
+  }
+}
+
+.alien-ship {
+  position: absolute;
+  width: 20px;
+  height: 10px;
+  background: radial-gradient(circle at center, rgba(64, 224, 208, 0.8), rgba(64, 224, 208, 0));
+  border-radius: 50%;
+  box-shadow: 
+    0 0 10px rgba(64, 224, 208, 0.5),
+    0 0 20px rgba(64, 224, 208, 0.3);
+}
+
+.alien-ship.path1 { animation: shipPath1 4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.alien-ship.path2 { animation: shipPath2 4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.alien-ship.path3 { animation: shipPath3 4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.alien-ship.path4 { animation: shipPath4 4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+@keyframes shipPath1 {
+  0% { left: -50px; top: 20%; transform: scale(0.5) rotate(30deg); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: calc(100% + 50px); top: 60%; transform: scale(0.5) rotate(-30deg); opacity: 0; }
+}
+
+@keyframes shipPath2 {
+  0% { left: calc(100% + 50px); top: 30%; transform: scale(0.7) rotate(-45deg); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: -50px; top: 70%; transform: scale(0.7) rotate(45deg); opacity: 0; }
+}
+
+@keyframes shipPath3 {
+  0% { left: 50%; top: -50px; transform: scale(0.6) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: 20%; top: calc(100% + 50px); transform: scale(0.6) rotate(180deg); opacity: 0; }
+}
+
+@keyframes shipPath4 {
+  0% { left: 30%; top: calc(100% + 50px); transform: scale(0.8) rotate(180deg); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: 80%; top: -50px; transform: scale(0.8) rotate(0deg); opacity: 0; }
+}
+
 .new-creations,
 .about-to-graduate,
 .graduated {
-  @apply bg-[#0B0F13]/10 backdrop-blur-xl border border-[#1F2937]/10;
+  @apply backdrop-blur-xl border border-[#1F2937]/10;
+  background: transparent;
 }
 
 .token-card {
-  @apply bg-[#1F2937]/10 backdrop-blur-xl rounded-lg transition-all duration-300;
+  @apply backdrop-blur-xl rounded-lg transition-all duration-300;
+  background: rgba(31, 41, 55, 0.05);
+  border: 1px solid rgba(31, 41, 55, 0.1);
   position: relative;
   overflow: hidden;
 }
@@ -101,7 +152,7 @@
 }
 
 .token-card:hover {
-  @apply bg-[#1F2937]/20;
+  background: rgba(31, 41, 55, 0.1);
 }
 
 .token-card:hover::before {
