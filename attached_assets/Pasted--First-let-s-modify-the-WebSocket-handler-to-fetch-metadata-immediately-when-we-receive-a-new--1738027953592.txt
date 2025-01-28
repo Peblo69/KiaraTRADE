@@ -1,0 +1,129 @@
+
+    First, let's modify the WebSocket handler to fetch metadata immediately when we receive a new token:
+
+TypeScript
+
+// pumpportal.ts - Update the token creation handler
+
+if (data.txType === 'create' && data.mint) {
+    log('[PumpPortal] New token created:', data.mint);
+
+    // Immediately fetch metadata when we get the URI
+    let imageUrl = null;
+    if (data.uri) {
+        try {
+            const metadataResponse = await fetch(data.uri);
+            const metadata = await metadataResponse.json();
+            imageUrl = metadata.image || null;
+            log('[PumpPortal] Found image URL:', imageUrl);
+        } catch (error) {
+            console.error('[PumpPortal] Failed to fetch metadata:', error);
+        }
+    }
+
+    const enrichedData = {
+        ...data,
+        name: data.name || `Token ${data.mint.slice(0, 8)}`,
+        symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
+        uri: data.uri || '',
+        creators: data.creators || [],
+        initialBuy: data.tokenAmount || 0,
+        priceInSol: data.solAmount ? (data.solAmount / (data.tokenAmount || TOTAL_SUPPLY)) : 0,
+        marketCapSol: data.vSolInBondingCurve || 0,
+        timestamp: Date.now(),
+        isNewToken: true,
+        metadata: {
+            ...data.metadata,
+            imageUrl // Add the image URL directly to metadata
+        }
+    };
+
+    // Broadcast with image URL already included
+    wsManager.broadcast({ 
+        type: 'newToken',
+        data: enrichedData
+    });
+}
+
+    Update the store to include image URLs:
+
+TypeScript
+
+// pump-portal-websocket.ts
+interface PumpPortalToken {
+    // ... existing fields
+    metadata?: TokenMetadata & {
+        imageUrl?: string; // Add this field
+    };
+}
+
+export function mapTokenData(data: any): PumpPortalToken {
+    const tokenData: PumpPortalToken = {
+        // ... existing mapping
+        metadata: {
+            name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
+            symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
+            decimals: 9,
+            mint: mintAddress,
+            uri: tokenUri,
+            creators: data.creators || [],
+            imageUrl: data.metadata?.imageUrl || null // Include the image URL
+        }
+    };
+
+    return tokenData;
+}
+
+    Simplify the TokenCard to use the pre-fetched image URL:
+
+TypeScript
+
+// components/TokenCard.tsx
+export function TokenCard({ token, analytics }: TokenCardProps) {
+    const imageUrl = token.metadata?.imageUrl;
+    const displayName = token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`;
+    const displaySymbol = token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase();
+    const displayPrice = token.priceInUsd || 0;
+
+    return (
+        <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-900/10 hover:border-purple-500/40 transition-all duration-300">
+            {/* Token Image */}
+            <div className="mb-4 aspect-square relative rounded-lg overflow-hidden bg-purple-900/20">
+                {imageUrl ? (
+                    <img
+                        src={imageUrl}
+                        alt={displayName}
+                        className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                            console.error('Image failed to load:', imageUrl);
+                            e.currentTarget.src = '/fallback-token-image.png';
+                        }}
+                        loading="eager" // Forces immediate loading
+                    />
+                ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-purple-500/50">
+                        {token.symbol?.charAt(0) || '?'}
+                    </div>
+                )}
+            </div>
+
+            {/* Rest of your card content */}
+            {/* ... */}
+        </div>
+    );
+}
+
+    Add a cache for faster repeated access:
+
+TypeScript
+
+// utils/imageCache.ts
+const imageCache = new Map<string, string>();
+
+export const cacheImage = (tokenAddress: string, imageUrl: string) => {
+    imageCache.set(tokenAddress, imageUrl);
+};
+
+export const getCachedImage = (tokenAddress: string) => {
+    return imageCache.get(tokenAddress);
+};

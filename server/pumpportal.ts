@@ -39,49 +39,44 @@ export function initializePumpPortalWebSocket() {
             // Handle token creation events
             if (data.txType === 'create' && data.mint) {
                 log('[PumpPortal] New token created:', data.mint);
-                log('[PumpPortal] Token URI:', data.uri); // Add URI logging
 
-                // Extract base metadata with enhanced logging
-                const baseMetadata = {
-                    name: data.name || `Token ${data.mint.slice(0, 8)}`,
-                    symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
-                    uri: data.uri || '', // Ensure URI capture
-                    creators: data.creators || [],
-                    mint: data.mint,
-                    decimals: data.decimals || 9
-                };
+                // Immediately fetch metadata when we get the URI
+                let imageUrl = null;
+                if (data.uri) {
+                    try {
+                        const metadataResponse = await fetch(data.uri);
+                        const metadata = await metadataResponse.json();
+                        imageUrl = metadata.image || null;
+                        log('[PumpPortal] Found image URL:', imageUrl);
+                    } catch (error) {
+                        console.error('[PumpPortal] Failed to fetch metadata:', error);
+                    }
+                }
 
-                log('[PumpPortal] Base Metadata:', baseMetadata);
-                log('[PumpPortal] Full token data:', JSON.stringify(data, null, 2));
-
-                // Basic enriched data with URI
                 const enrichedData = {
                     ...data,
-                    name: baseMetadata.name,
-                    symbol: baseMetadata.symbol,
-                    uri: baseMetadata.uri,
-                    creators: baseMetadata.creators,
+                    name: data.name || `Token ${data.mint.slice(0, 8)}`,
+                    symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
+                    uri: data.uri || '',
+                    creators: data.creators || [],
                     initialBuy: data.tokenAmount || 0,
                     priceInSol: data.solAmount ? (data.solAmount / (data.tokenAmount || TOTAL_SUPPLY)) : 0,
                     marketCapSol: data.vSolInBondingCurve || 0,
                     timestamp: Date.now(),
                     isNewToken: true,
-                    metadata: baseMetadata
+                    metadata: {
+                        ...data.metadata,
+                        imageUrl // Add the image URL directly to metadata
+                    }
                 };
 
-                log('[PumpPortal] Enriched token data:', enrichedData);
+                log('[PumpPortal] Enriched token data:', JSON.stringify(enrichedData, null, 2));
 
-                // Broadcast initial data
+                // Broadcast initial data with image URL already included
                 wsManager.broadcast({ 
                     type: 'newToken',
                     data: enrichedData
                 });
-
-                // Subscribe to trades for this token
-                ws.send(JSON.stringify({
-                    method: "subscribeTokenTrade",
-                    keys: [data.mint]
-                }));
             }
 
             // Handle trade events with market data
