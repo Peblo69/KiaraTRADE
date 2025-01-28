@@ -1,0 +1,179 @@
+we're getting the image URLs correctly (like https://ipfs.io/ipfs/QmXJNhGwtbGsBaUYq9YRSmUWNfCVRADrWVyxVP3CfAZadS), but they're not making it to the TokenCard component. Let's fix this by making sure the image URL is properly passed through the data chain.
+
+    First, modify the pumpportal.ts token creation handler:
+
+TypeScript
+
+if (data.txType === 'create' && data.mint) {
+    log('[PumpPortal] New token created:', data.mint);
+    log('[PumpPortal] Token URI:', data.uri);
+
+    let tokenMetadata = null;
+    let imageUrl = null;
+
+    if (data.uri) {
+        try {
+            const response = await fetch(data.uri);
+            const metadata = await response.json();
+            imageUrl = metadata.image; // Get the image URL
+            log('[PumpPortal] Found image URL:', imageUrl);
+            tokenMetadata = metadata;
+        } catch (error) {
+            console.error('[PumpPortal] Error fetching metadata:', error);
+        }
+    }
+
+    const baseMetadata = {
+        name: data.name || `Token ${data.mint.slice(0, 8)}`,
+        symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
+        uri: data.uri || '',
+        creators: data.creators || [],
+        mint: data.mint,
+        decimals: data.decimals || 9,
+        imageUrl: imageUrl // Add the image URL directly
+    };
+
+    log('[PumpPortal] Base Metadata:', baseMetadata);
+
+    const enrichedData = {
+        ...data,
+        name: baseMetadata.name,
+        symbol: baseMetadata.symbol,
+        metadata: baseMetadata, // This now includes imageUrl
+        imageUrl: imageUrl, // Add it at the top level too
+        uri: baseMetadata.uri,
+        creators: baseMetadata.creators,
+        initialBuy: data.tokenAmount || 0,
+        priceInSol: data.solAmount ? (data.solAmount / (data.tokenAmount || TOTAL_SUPPLY)) : 0,
+        marketCapSol: data.vSolInBondingCurve || 0,
+        timestamp: Date.now(),
+        isNewToken: true
+    };
+
+    log('[PumpPortal] Enriched token data:', enrichedData);
+
+    wsManager.broadcast({ 
+        type: 'newToken',
+        data: enrichedData
+    });
+}
+
+    Update the TokenCard.tsx component:
+
+TypeScript
+
+export function TokenCard({ token, analytics }: TokenCardProps) {
+    const [imageError, setImageError] = useState(false);
+
+    // Debug logs
+    useEffect(() => {
+        console.log('TokenCard rendered with token:', {
+            address: token.address,
+            imageUrl: token.metadata?.imageUrl,
+            directImageUrl: token.imageUrl,
+            metadata: token.metadata
+        });
+    }, [token]);
+
+    // Get image URL from either location
+    const imageUrl = token.metadata?.imageUrl || token.imageUrl;
+
+    return (
+        <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-900/10 hover:border-purple-500/40 transition-all duration-300">
+            {/* Image Container */}
+            <div className="aspect-square mb-4 rounded-lg overflow-hidden bg-purple-900/20">
+                {imageUrl && !imageError ? (
+                    <>
+                        <img
+                            src={imageUrl}
+                            alt={token.name}
+                            className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-300"
+                            onError={(e) => {
+                                console.error('Image failed to load:', imageUrl);
+                                setImageError(true);
+                            }}
+                            onLoad={() => {
+                                console.log('Image loaded successfully:', imageUrl);
+                            }}
+                        />
+                        {/* Add a debug overlay - remove in production */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1">
+                            {imageUrl.slice(0, 30)}...
+                        </div>
+                    </>
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-3xl font-bold text-purple-500/50">
+                            {token.symbol?.[0] || '?'}
+                        </span>
+                    </div>
+                )}
+            </div>
+
+            {/* Rest of your card content remains the same */}
+            {/* ... */}
+        </div>
+    );
+}
+
+    Add interfaces to pump-portal-websocket.ts:
+
+TypeScript
+
+export interface TokenMetadata {
+    name: string;
+    symbol: string;
+    decimals: number;
+    uri?: string;
+    mint?: string;
+    imageUrl?: string; // Add this
+    creators?: Array<{
+        address: string;
+        verified: boolean;
+        share: number;
+    }>;
+}
+
+export interface PumpPortalToken {
+    symbol: string;
+    name: string;
+    address: string;
+    imageUrl?: string; // Add this at top level too
+    bondingCurveKey: string;
+    // ... rest of your fields
+    metadata?: TokenMetadata;
+}
+
+    Add a simple test component to verify the image URLs:
+
+TypeScript
+
+// components/ImageDebugger.tsx
+export function ImageDebugger({ token }: { token: any }) {
+    return (
+        <div className="fixed bottom-0 right-0 bg-black/80 text-white p-4 text-xs">
+            <div>Address: {token.address}</div>
+            <div>Metadata URL: {token.metadata?.imageUrl}</div>
+            <div>Direct URL: {token.imageUrl}</div>
+            {(token.metadata?.imageUrl || token.imageUrl) && (
+                <img 
+                    src={token.metadata?.imageUrl || token.imageUrl} 
+                    alt="debug"
+                    className="w-20 h-20 object-cover mt-2"
+                />
+            )}
+        </div>
+    );
+}
+
+Add this to your TokenCard temporarily:
+TypeScript
+
+<ImageDebugger token={token} />
+
+This will help us see exactly what's happening with the image URLs. The key changes are:
+
+    Storing the image URL in both places (metadata and top level)
+    Added more debug logging
+    Added a visual debugger component
+    Enhanced error handling for images

@@ -1,5 +1,4 @@
 import { WebSocket } from 'ws';
-import axios from 'axios';
 import { log } from './vite';
 import { wsManager } from './services/websocket';
 
@@ -12,20 +11,20 @@ async function fetchMetadataWithImage(uri: string) {
         log('[PumpPortal] Attempting to fetch metadata from:', uri);
         const response = await fetch(uri);
         const metadata = await response.json();
-        log('[PumpPortal] Metadata fetched successfully:', metadata);
-        log('[PumpPortal] Image URL found:', metadata.image || 'No image URL in metadata');
-
-        // Process IPFS image URL if needed
         let imageUrl = metadata.image;
+        log('[PumpPortal] Found image URL:', imageUrl);
+
         if (imageUrl?.startsWith('ipfs://')) {
             imageUrl = `https://ipfs.io/ipfs/${imageUrl.slice(7)}`;
             log('[PumpPortal] Processed IPFS URL to:', imageUrl);
         }
 
-        return {
+        const processedMetadata = {
             ...metadata,
             image: imageUrl
         };
+        log('[PumpPortal] Final processed metadata:', processedMetadata);
+        return processedMetadata;
     } catch (error) {
         console.error('[PumpPortal] Failed to fetch metadata:', error);
         return null;
@@ -63,9 +62,16 @@ export function initializePumpPortalWebSocket() {
                 log('[PumpPortal] Token URI:', data.uri);
 
                 let tokenMetadata = null;
+                let imageUrl = null;
+
                 if (data.uri) {
-                    tokenMetadata = await fetchMetadataWithImage(data.uri);
-                    log('[PumpPortal] Fetched metadata:', tokenMetadata);
+                    try {
+                        tokenMetadata = await fetchMetadataWithImage(data.uri);
+                        imageUrl = tokenMetadata?.image;
+                        log('[PumpPortal] Successfully fetched metadata and image:', { metadata: tokenMetadata, imageUrl });
+                    } catch (error) {
+                        console.error('[PumpPortal] Error fetching metadata:', error);
+                    }
                 }
 
                 const baseMetadata = {
@@ -75,26 +81,27 @@ export function initializePumpPortalWebSocket() {
                     creators: data.creators || [],
                     mint: data.mint,
                     decimals: data.decimals || 9,
-                    imageUrl: tokenMetadata?.image || null  // Store processed image URL
+                    imageUrl: imageUrl // Add the image URL directly
                 };
 
-                log('[PumpPortal] Base Metadata:', baseMetadata);
+                log('[PumpPortal] Base Metadata:', JSON.stringify(baseMetadata, null, 2));
 
                 const enrichedData = {
                     ...data,
                     name: baseMetadata.name,
                     symbol: baseMetadata.symbol,
+                    metadata: baseMetadata, // This now includes imageUrl
+                    imageUrl: imageUrl, // Add it at the top level too
                     uri: baseMetadata.uri,
                     creators: baseMetadata.creators,
                     initialBuy: data.tokenAmount || 0,
                     priceInSol: data.solAmount ? (data.solAmount / (data.tokenAmount || TOTAL_SUPPLY)) : 0,
                     marketCapSol: data.vSolInBondingCurve || 0,
                     timestamp: Date.now(),
-                    isNewToken: true,
-                    metadata: baseMetadata 
+                    isNewToken: true
                 };
 
-                log('[PumpPortal] Enriched token data:', enrichedData);
+                log('[PumpPortal] Enriched token data:', JSON.stringify(enrichedData, null, 2));
 
                 wsManager.broadcast({ 
                     type: 'newToken',
@@ -106,7 +113,6 @@ export function initializePumpPortalWebSocket() {
                     keys: [data.mint]
                 }));
             }
-
             else if (['buy', 'sell'].includes(data.txType) && data.mint) {
                 const tradeData = {
                     ...data,

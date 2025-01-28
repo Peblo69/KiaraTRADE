@@ -3,7 +3,6 @@ import { TokenSecurityButton } from "@/components/TokenSecurityButton";
 import { formatNumber } from "@/lib/utils";
 import { FuturisticText } from "@/components/FuturisticText";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { Globe } from 'lucide-react';
 
 interface TokenCardProps {
   token: {
@@ -19,6 +18,7 @@ interface TokenCardProps {
       uri?: string;
       imageUrl?: string;
     };
+    imageUrl?: string; // Add top-level imageUrl
   };
   analytics?: any;
 }
@@ -26,44 +26,54 @@ interface TokenCardProps {
 export function TokenCard({ token, analytics }: TokenCardProps) {
     const [imageError, setImageError] = useState(false);
 
-    // Enhanced debugging logs
+    // Debug logs
     useEffect(() => {
-        console.log('TokenCard: Full token data:', token);
-        console.log('TokenCard: Metadata:', token.metadata);
-        console.log('TokenCard: Image URL:', token.metadata?.imageUrl);
+        console.log('TokenCard rendered with token:', {
+            address: token.address,
+            imageUrl: token.metadata?.imageUrl,
+            directImageUrl: token.imageUrl,
+            metadata: token.metadata
+        });
     }, [token]);
 
-    // Use metadata if available, otherwise fallback to token properties
-    const displayName = token.metadata?.name || token.name;
-    const displaySymbol = token.metadata?.symbol || token.symbol;
+    // Get image URL from either location
+    const imageUrl = token.metadata?.imageUrl || token.imageUrl;
+    const displayName = token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`;
+    const displaySymbol = token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase();
     const displayPrice = token.priceInUsd || 0;
-    const imageUrl = token.metadata?.imageUrl;
 
     return (
         <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-900/10 hover:border-purple-500/40 transition-all duration-300">
             {/* Image Container */}
             <div className="aspect-square mb-4 rounded-lg overflow-hidden bg-purple-900/20">
                 {imageUrl && !imageError ? (
-                    <img
-                        src={imageUrl}
-                        alt={displayName}
-                        className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-300"
-                        onError={(e) => {
-                            console.error('TokenCard: Image failed to load:', imageUrl);
-                            setImageError(true);
-                        }}
-                        onLoad={() => {
-                            console.log('TokenCard: Image loaded successfully:', imageUrl);
-                        }}
-                    />
+                    <>
+                        <img
+                            src={imageUrl}
+                            alt={displayName}
+                            className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-300"
+                            onError={(e) => {
+                                console.error('TokenCard: Image failed to load:', imageUrl);
+                                setImageError(true);
+                            }}
+                            onLoad={() => {
+                                console.log('TokenCard: Image loaded successfully:', imageUrl);
+                            }}
+                        />
+                        {/* Debug overlay - remove in production */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1">
+                            {imageUrl.slice(0, 30)}...
+                        </div>
+                    </>
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">
                         <span className="text-3xl font-bold text-purple-500/50">
-                            {displaySymbol?.[0] || '?'}
+                            {displaySymbol[0] || '?'}
                         </span>
                     </div>
                 )}
             </div>
+
             {/* Token Info */}
             <div className="mb-2">
                 <div className="text-lg font-semibold text-purple-300">
