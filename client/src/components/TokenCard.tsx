@@ -61,75 +61,75 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
       className="group cursor-pointer hover:scale-[1.02] transition-all duration-300"
       onClick={onClick}
     >
-      {/* Image Section - Now with square aspect ratio */}
-      <div className="aspect-square w-full relative overflow-hidden bg-gradient-to-br from-purple-900/10 to-black/20">
-        {validatedImageUrl && !imageError ? (
-          <img
-            src={validatedImageUrl}
-            alt={displayName}
-            className="w-full h-full object-cover transform group-hover:scale-110 transition-all duration-500"
-            onError={() => {
-              console.error('[TokenCard] Image failed to load:', validatedImageUrl);
-              setImageError(true);
-            }}
-            onLoad={() => {
-              console.log('[TokenCard] Image loaded successfully:', validatedImageUrl);
-            }}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="w-24 h-24 bg-purple-500/10 backdrop-blur-sm flex items-center justify-center">
-              <span className="text-3xl font-bold text-purple-400">
-                {displaySymbol[0] || <ImageIcon className="w-12 h-12 text-purple-400/50" />}
+      <div className="flex items-start p-4 gap-4">
+        {/* Image Section - Now as a smaller square */}
+        <div className="w-16 h-16 flex-shrink-0 relative overflow-hidden bg-gradient-to-br from-purple-900/10 to-black/20 rounded-lg">
+          {validatedImageUrl && !imageError ? (
+            <img
+              src={validatedImageUrl}
+              alt={displayName}
+              className="w-full h-full object-cover transform group-hover:scale-110 transition-all duration-500"
+              onError={() => {
+                console.error('[TokenCard] Image failed to load:', validatedImageUrl);
+                setImageError(true);
+              }}
+              onLoad={() => {
+                console.log('[TokenCard] Image loaded successfully:', validatedImageUrl);
+              }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <span className="text-xl font-bold text-purple-400">
+                {displaySymbol[0] || <ImageIcon className="w-8 h-8 text-purple-400/50" />}
               </span>
             </div>
-          </div>
-        )}
-
-        {/* Token badge overlay */}
-        <div className="absolute top-4 right-4">
-          <Badge 
-            variant={token.isNew ? "default" : "secondary"}
-            className="backdrop-blur-sm bg-black/40"
-          >
-            {token.isNew ? "New Token" : "Listed"}
-          </Badge>
-        </div>
-      </div>
-
-      {/* Content Section */}
-      <div className="p-4 space-y-4">
-        {/* Token Info */}
-        <div>
-          <h3 className="text-lg font-semibold text-purple-100">
-            {displaySymbol}
-          </h3>
-          <p className="text-sm text-gray-400 truncate">
-            {displayName}
-          </p>
+          )}
         </div>
 
-        {/* Price */}
-        <div className="bg-purple-500/5 p-3 rounded-lg">
-          <div className="text-sm text-gray-400 mb-1">Current Price</div>
-          <div className="text-xl font-bold text-purple-100">
-            ${token.priceInUsd?.toFixed(8) || '0.00000000'}
+        {/* Content Section */}
+        <div className="flex-grow space-y-4">
+          {/* Token Info */}
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-purple-100">
+                  {displaySymbol}
+                </h3>
+                <Badge 
+                  variant={token.isNew ? "default" : "secondary"}
+                  className="h-5"
+                >
+                  {token.isNew ? "New" : "Listed"}
+                </Badge>
+              </div>
+              <p className="text-sm text-gray-400 truncate">
+                {displayName}
+              </p>
+            </div>
           </div>
-        </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-purple-500/10">
-          <div className="text-center">
-            <div className="text-xs text-gray-400 mb-1">Market Cap</div>
-            <div className="font-medium text-sm">${marketCap}</div>
+          {/* Price */}
+          <div className="bg-purple-500/5 p-2 rounded-lg">
+            <div className="text-sm text-gray-400">Current Price</div>
+            <div className="text-lg font-bold text-purple-100">
+              ${token.priceInUsd?.toFixed(8) || '0.00000000'}
+            </div>
           </div>
-          <div className="text-center">
-            <div className="text-xs text-gray-400 mb-1">Liquidity</div>
-            <div className="font-medium text-sm">${liquidity}</div>
-          </div>
-          <div className="text-center">
-            <div className="text-xs text-gray-400 mb-1">Volume</div>
-            <div className="font-medium text-sm">${volume}</div>
+
+          {/* Stats Grid */}
+          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-purple-500/10">
+            <div className="text-center">
+              <div className="text-xs text-gray-400">Market Cap</div>
+              <div className="font-medium text-sm">${marketCap}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xs text-gray-400">Liquidity</div>
+              <div className="font-medium text-sm">${liquidity}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xs text-gray-400">Volume</div>
+              <div className="font-medium text-sm">${volume}</div>
+            </div>
           </div>
         </div>
       </div>
