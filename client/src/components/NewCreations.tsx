@@ -1,146 +1,130 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Filter, Settings2, Globe, Twitter, Send } from 'lucide-react';
 import { PillIcon } from './PillIcon';
 import { TokenDetailsModal } from './TokenDetailsModal';
+import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
+import { Button } from "@/components/ui/button";
+import { TokenSecurityButton } from './TokenSecurityButton';
 
 export function NewCreations() {
   const [selectedToken, setSelectedToken] = useState<any>(null);
-  
-  const tokens = [
-    { 
-      name: 'Nyaight',
-      time: '0s',
-      stats: { holders: '0%', buys: '0%' },
-      price: 0.0006586,
-      marketCap: 6590,
-      volume: 7460,
-      holders: 0
-    },
-    { 
-      name: '0.00001',
-      time: '0s',
-      stats: { holders: '0%', buys: '0%' },
-      price: 0.0000156,
-      marketCap: 7000,
-      volume: 5230,
-      holders: 0
-    }
-  ];
 
-  const handleIconClick = (action: string, token: string) => {
-    console.log(`${action} clicked for ${token}`);
+  // Global state from PumpPortal
+  const tokens = usePumpPortalStore(state => state.tokens);
+  const isConnected = usePumpPortalStore(state => state.isConnected);
+
+  // Get only new tokens (created in last 24h)
+  const newTokens = tokens.filter(token => {
+    const createdAt = new Date(token.timestamp || Date.now());
+    const now = new Date();
+    const hoursDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+    return hoursDiff <= 24;
+  });
+
+  const handleIconClick = (e: React.MouseEvent, action: string, token: any) => {
+    e.stopPropagation();
+    // Handle different actions (Twitter, Telegram, etc.)
+    console.log(`${action} clicked for ${token.name}`);
   };
 
   return (
-    <>
-      <div className="new-creations rounded-lg">
-        <div className="p-4 border-b border-[#1F2937]/10 flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <div className="w-5 h-5 rounded-full bg-red-500/40" />
-            <span className="font-medium">New Creations</span>
-          </div>
-          <button 
-            onClick={() => handleIconClick('filter', 'all')}
-            className="hover:bg-[#2D3748]/10 p-1 rounded-md transition-colors"
-          >
-            <Filter className="w-5 h-5" />
-          </button>
+    <div className="new-creations rounded-lg">
+      <div className="p-4 border-b border-[#1F2937]/10 flex justify-between items-center">
+        <div className="flex items-center space-x-2">
+          <div className="w-5 h-5 rounded-full bg-red-500/40" />
+          <span className="font-medium">New Creations</span>
         </div>
+        <Button 
+          variant="ghost"
+          size="icon"
+          className="hover:bg-[#2D3748]/10 transition-colors"
+        >
+          <Filter className="w-5 h-5" />
+        </Button>
+      </div>
 
-        <div className="p-4 space-y-4">
-          {tokens.map((token, index) => (
-            <div 
-              key={index} 
-              className="token-card p-3 cursor-pointer"
-              onClick={() => setSelectedToken(token)}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-16 h-16 bg-[#2D3748]/10 rounded-lg flex items-center justify-center">
+      <div className="p-4 space-y-4">
+        {newTokens.map((token) => (
+          <div 
+            key={token.address} 
+            className="token-card p-3 cursor-pointer"
+            onClick={() => setSelectedToken(token)}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-16 h-16 bg-[#2D3748]/10 rounded-lg flex items-center justify-center">
+                  {token.imageUrl ? (
+                    <img 
+                      src={token.imageUrl} 
+                      alt={token.name} 
+                      className="w-full h-full object-cover rounded-lg"
+                    />
+                  ) : (
                     <div className="w-full h-full bg-[#1F2937]/20 rounded-lg"></div>
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-medium">{token.name || token.symbol}</span>
+                    <TokenSecurityButton tokenAddress={token.address} />
                   </div>
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <span className="font-medium">{token.name}</span>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleIconClick('settings', token.name);
-                        }}
-                        className="hover:bg-[#374151]/10 p-1 rounded-md transition-colors"
-                      >
-                        <Settings2 className="w-4 h-4 text-gray-400" />
-                      </button>
-                    </div>
-                    <div className="flex items-center space-x-2 text-sm text-gray-400">
-                      <span>{token.time}</span>
-                      <span>{token.stats.holders}</span>
-                      <span>{token.stats.buys}</span>
-                    </div>
+                  <div className="flex items-center space-x-2 text-sm text-gray-400">
+                    <span>{new Date(token.timestamp).toLocaleTimeString()}</span>
+                    <span>{token.holders || '0'} holders</span>
                   </div>
                 </div>
-                <div className="flex flex-col items-end space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <div className="flex space-x-1">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleIconClick('twitter', token.name);
-                        }}
-                        className="hover:bg-[#374151]/10 p-1 rounded-md transition-colors"
-                      >
-                        <Twitter className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleIconClick('telegram', token.name);
-                        }}
-                        className="hover:bg-[#374151]/10 p-1 rounded-md transition-colors"
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleIconClick('globe', token.name);
-                        }}
-                        className="hover:bg-[#374151]/10 p-1 rounded-md transition-colors"
-                      >
-                        <Globe className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleIconClick('pumpfun', token.name);
-                        }}
-                        className="hover:bg-[#374151]/10 p-1 rounded-md transition-colors"
-                      >
-                        <PillIcon />
-                      </button>
-                    </div>
+              </div>
+              <div className="flex flex-col items-end space-y-2">
+                <div className="flex items-center space-x-2">
+                  <div className="flex space-x-1">
+                    <button 
+                      onClick={(e) => handleIconClick(e, 'twitter', token)}
+                      className="hover:bg-[#374151]/10 p-1 rounded-md transition-colors"
+                    >
+                      <Twitter className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={(e) => handleIconClick(e, 'telegram', token)}
+                      className="hover:bg-[#374151]/10 p-1 rounded-md transition-colors"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={(e) => handleIconClick(e, 'website', token)}
+                      className="hover:bg-[#374151]/10 p-1 rounded-md transition-colors"
+                    >
+                      <Globe className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={(e) => handleIconClick(e, 'pumpfun', token)}
+                      className="hover:bg-[#374151]/10 p-1 rounded-md transition-colors"
+                    >
+                      <PillIcon />
+                    </button>
                   </div>
-                  <div className="text-right">
-                    <div className="flex items-center space-x-2">
-                      <span>0</span>
-                      <span>V $0</span>
-                    </div>
-                    <div className="text-sm text-gray-400">
-                      MC $7K
-                    </div>
+                </div>
+                <div className="text-right">
+                  <div className="flex items-center space-x-2">
+                    <span>{token.price?.toFixed(8) || '0.00'}</span>
+                    <span>V ${token.volume?.toFixed(2) || '0.00'}</span>
+                  </div>
+                  <div className="text-sm text-gray-400">
+                    MC ${token.marketCapSol?.toFixed(2) || '0.00'}
                   </div>
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
 
-      <TokenDetailsModal 
-        isOpen={!!selectedToken}
-        onClose={() => setSelectedToken(null)}
-        token={selectedToken || tokens[0]}
-      />
-    </>
+      {selectedToken && (
+        <TokenDetailsModal 
+          isOpen={!!selectedToken}
+          onClose={() => setSelectedToken(null)}
+          token={selectedToken}
+        />
+      )}
+    </div>
   );
 }
