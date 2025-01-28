@@ -448,26 +448,57 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
 });
 
 export function mapTokenData(data: any): PumpPortalToken {
-  debugLog('mapTokenData', { mint: data.mint });
-  return {
+  debugLog('mapTokenData', data);
+
+  // Handle both newToken events and trade events
+  const tokenData: PumpPortalToken = {
     symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
     name: data.name || `Token ${data.mint?.slice(0, 8)}`,
     address: data.mint || '',
-    imageLink: data.imageLink || 'https://via.placeholder.com/150',
+    imageLink: data.uri || 'https://via.placeholder.com/150',
     bondingCurveKey: data.bondingCurveKey,
     vTokensInBondingCurve: data.vTokensInBondingCurve,
     vSolInBondingCurve: data.vSolInBondingCurve,
     marketCapSol: data.marketCapSol,
     priceInSol: data.priceInSol,
     priceInUsd: data.priceInUsd,
-    devWallet: data.devWallet,
-    recentTrades: data.recentTrades || [],
-    metadata: data.metadata,
-    analysis: data.analysis,
+    devWallet: data.devWallet || data.traderPublicKey,
+    recentTrades: [],
+    metadata: {
+      name: data.name || '',
+      symbol: data.symbol || '',
+      decimals: 9,
+      uri: data.uri || '',
+      creators: data.creators || []
+    },
     lastAnalyzedAt: Date.now().toString(),
     analyzedBy: CURRENT_USER,
-    createdAt: undefined 
+    createdAt: data.txType === 'create' ? Date.now().toString() : undefined
   };
+
+  // Add initial trade if it's a create event
+  if (data.txType === 'create' && data.initialBuy) {
+    tokenData.recentTrades = [{
+      signature: data.signature,
+      timestamp: Date.now(),
+      mint: data.mint,
+      txType: 'buy',
+      tokenAmount: data.initialBuy,
+      solAmount: data.solAmount,
+      traderPublicKey: data.traderPublicKey,
+      counterpartyPublicKey: '',
+      bondingCurveKey: data.bondingCurveKey,
+      vTokensInBondingCurve: data.vTokensInBondingCurve,
+      vSolInBondingCurve: data.vSolInBondingCurve,
+      marketCapSol: data.marketCapSol,
+      priceInSol: data.priceInSol,
+      priceInUsd: data.priceInUsd,
+      isDevTrade: true
+    }];
+  }
+
+  debugLog('Mapped token data', tokenData);
+  return tokenData;
 }
 
 

@@ -1,0 +1,56 @@
+[PumpPortal][updateTokenPrice] 
+Object {address: "5mQ6Bxukvz6h3ijjQrpjH9kSrQ8wZRXkS9kD94Qkpump", priceInUsd: 0.000012670162223702017}
+[PumpPortal] Received message: 
+Object {type: "trade", data: {…}}
+[PumpPortal] Received trade: 
+Object {signature: "3XU8Ns2UKqafewjX8GFMhBgdAqYVgC4QB96R6ad8DDLNSryBApZJzQiVhVnvN3TcaM2uru2dcnBKiBTH4cdSPhtU", mint: "A1MzMWxubNtWv5StL13uPUSoczQwepPMbgSbb2UDpump", traderPublicKey: "CxXXHTt31GABoAbMg4uBc7JnpBsQ9neHBgHJBoEeiEFr", txType: "buy", tokenAmount: 2689598.301468, …}
+[PumpPortal] Trade price calculation: 
+Object {token: "A1MzMWxubNtWv5StL13uPUSoczQwepPMbgSbb2UDpump", priceInSol: 1.5723004300000001e-10, priceInUsd: 3.70433981308e-8, solPrice: 235.6}
+[PumpPortal][getToken] 
+Object {address: "A1MzMWxubNtWv5StL13uPUSoczQwepPMbgSbb2UDpump"}
+[PumpPortal][addTradeToHistory] 
+Object {token: "A1MzMWxubNtWv5StL13uPUSoczQwepPMbgSbb2UDpump", type: "buy", amount: 0.157230043}
+[PumpPortal][getTokenMetadata] 
+Object {address: "A1MzMWxubNtWv5StL13uPUSoczQwepPMbgSbb2UDpump"}
+[PumpPortal] Token price calculation: 
+Object {token: "A1MzMWxubNtWv5StL13uPUSoczQwepPMbgSbb2UDpump", priceInSol: 4.3458186459088076e-8, priceInUsd: 0.000010238748729761151, solPrice: 235.6, vTokens: 740711995.202652, …}
+[PumpPortal][updateTokenPrice] 
+Object {address: "A1MzMWxubNtWv5StL13uPUSoczQwepPMbgSbb2UDpump", priceInUsd: 0.000010238748729761151}
+[PumpPortal] Received message: 
+Object {type: "trade", data: {…}}
+[PumpPortal] Received trade: 
+Object {signature: "2YvizLyDTehPQtooFuaXQPc1HT2Edos3iVeyA1KZ4ZPRfjfHoPhWebi7EaAaaLYs4VMv1mv5g1h8BYwS5cMJ6ujS", mint: "5mQ6Bxukvz6h3ijjQrpjH9kSrQ8wZRXkS9kD94Qkpump", traderPublicKey: "DWNotXQpXHpGMXziezD8KGEvQqnFS1g63czqLK77tXmL", txType: "buy", tokenAmount: 21276138.539018, …}
+[PumpPortal] Trade price calculation: 
+Object {token: "5mQ6Bxukvz6h3ijjQrpjH9kSrQ8wZRXkS9kD94Qkpump", priceInSol: 1.982e-9, priceInUsd: 4.669592e-7, solPrice: 235.6}
+[PumpPortal][getToken] 
+Object {address: "5mQ6Bxukvz6h3ijjQrpjH9kSrQ8wZRXkS9kD94Qkpump"}
+[PumpPortal][addTradeToHistory] 
+Object {token: "5mQ6Bxukvz6h3ijjQrpjH9kSrQ8wZRXkS9kD94Qkpump", type: "buy", amount: 1.982}
+[PumpPortal][getTokenMetadata] 
+Object {address: "5mQ6Bxukvz6h3ijjQrpjH9kSrQ8wZRXkS9kD94Qkpump"}
+[PumpPortal] Token price calculation: 
+Object {token: "5mQ6Bxukvz6h3ijjQrpjH9kSrQ8wZRXkS9kD94Qkpump", priceInSol: 5.576027768957978e-8, priceInUsd: 0.000013137121423664997, solPrice: 235.6, vTokens: 577292677.400269, …}
+[PumpPortal][updateTokenPrice] 
+Object {address: "5mQ6Bxukvz6h3ijjQrpjH9kSrQ8wZRXkS9kD94Qkpump", priceInUsd: 0.000013137121423664997}
+[PumpPortal][addToken] 
+Object {mint: undefined}
+[PumpPortal][mapTokenData] 
+Object {mint: undefined}
+[PumpPortal][addToken] 
+Object {mint: undefined}
+[PumpPortal][mapTokenData] 
+Object {mint: undefined}
+[PumpPortal][addToken] 
+Object {mint: undefined}
+[PumpPortal][mapTokenData] 
+Object {mint: undefined}
+[PumpPortal][addToken] 
+Object {mint: undefined}
+[PumpPortal][mapTokenData] 
+Object {mint: undefined}
+[PumpPortal][addToken] 
+Object {mint: undefined}
+[PumpPortal][mapTokenData] 
+Object {mint: undefined}
+[PumpPortal][addToken] 
+Object {mint: undefin

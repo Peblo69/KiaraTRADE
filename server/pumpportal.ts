@@ -40,14 +40,26 @@ export const initializePumpPortalWebSocket = () => {
                     return;
                 }
 
-                // Handle token creation events
+                // Handle token creation events with complete metadata
                 if (data.txType === 'create' && data.mint) {
                     log('[PumpPortal] New token created:', data.mint);
+
+                    // Enrich the token data
+                    const enrichedData = {
+                        ...data,
+                        name: data.name || `Token ${data.mint.slice(0, 8)}`,
+                        symbol: data.symbol || data.mint.slice(0, 6),
+                        uri: data.uri || null,
+                        creators: data.creators || [],
+                        initialBuy: data.tokenAmount,
+                        priceInSol: data.solAmount / (data.tokenAmount || TOTAL_SUPPLY),
+                        marketCapSol: data.vSolInBondingCurve || 0
+                    };
 
                     // Broadcast to all connected clients
                     wsManager.broadcast({ 
                         type: 'newToken',
-                        data: data
+                        data: enrichedData
                     });
 
                     // Subscribe to trades for the new token
@@ -57,11 +69,19 @@ export const initializePumpPortalWebSocket = () => {
                     }));
                 }
 
-                // Handle trade events
+                // Handle trade events with complete market data
                 else if (['buy', 'sell'].includes(data.txType) && data.mint) {
+                    // Enrich trade data with market info
+                    const tradeData = {
+                        ...data,
+                        priceInSol: data.solAmount / data.tokenAmount,
+                        timestamp: Date.now(),
+                        marketCapSol: data.marketCapSol || (data.vSolInBondingCurve || 0)
+                    };
+
                     wsManager.broadcast({ 
                         type: 'trade',
-                        data: data
+                        data: tradeData
                     });
                 }
 
