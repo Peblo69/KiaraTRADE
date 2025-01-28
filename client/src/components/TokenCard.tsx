@@ -64,7 +64,6 @@ export function TokenCard({ token, analytics }: TokenCardProps) {
                     </div>
                 )}
             </div>
-
             {/* Token Info */}
             <div className="mb-2">
                 <div className="text-lg font-semibold text-purple-300">

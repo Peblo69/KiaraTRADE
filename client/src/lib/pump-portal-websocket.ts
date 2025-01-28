@@ -15,18 +15,19 @@ function debugLog(action: string, data?: any) {
   }
 }
 
+// TokenMetadata interface that includes imageUrl
 export interface TokenMetadata {
-  name: string;
-  symbol: string;
-  decimals: number;
-  uri?: string;
-  mint?: string;
-  imageUrl?: string; // Added imageUrl
-  creators?: Array<{
-    address: string;
-    verified: boolean;
-    share: number;
-  }>;
+    name: string;
+    symbol: string;
+    decimals: number;
+    uri?: string;
+    mint?: string;
+    imageUrl?: string;
+    creators?: Array<{
+        address: string;
+        verified: boolean;
+        share: number;
+    }>;
 }
 
 export interface TokenTrade {
@@ -65,11 +66,11 @@ export interface PumpPortalToken {
   createdAt?: string;
 }
 
-// Update the mapTokenData function to handle image URLs
+// This function maps the websocket data to our token format
 export function mapTokenData(data: any): PumpPortalToken {
-    debugLog('mapTokenData', data);
+    debugLog('mapTokenData input', data);
 
-    // Extract token name and symbol
+    // Extract token name, symbol, and URI
     const tokenName = data.metadata?.name || data.name;
     const tokenSymbol = data.metadata?.symbol || data.symbol;
     const mintAddress = data.mint || data.address || '';
@@ -103,11 +104,10 @@ export function mapTokenData(data: any): PumpPortalToken {
         createdAt: data.txType === 'create' ? Date.now().toString() : undefined
     };
 
-    debugLog('Mapped token data', tokenData);
+    debugLog('Mapped token data with imageUrl:', tokenData);
     return tokenData;
 }
 
-// Add new function for fetching token metadata from chain
 async function fetchTokenMetadataFromChain(mintAddress: string) {
   try {
     debugLog('Attempting to fetch metadata from chain for:', mintAddress);

@@ -60,7 +60,6 @@ export function initializePumpPortalWebSocket() {
                     log('[PumpPortal] Fetched metadata:', tokenMetadata);
                 }
 
-                // Extract base metadata with enhanced logging
                 const baseMetadata = {
                     name: data.name || `Token ${data.mint.slice(0, 8)}`,
                     symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
@@ -72,7 +71,7 @@ export function initializePumpPortalWebSocket() {
                 };
 
                 log('[PumpPortal] Base Metadata:', baseMetadata);
-                log('[PumpPortal] Full token data:', JSON.stringify(data, null, 2));
+                //Removed redundant logging of full token data
 
                 const enrichedData = {
                     ...data,
@@ -85,7 +84,7 @@ export function initializePumpPortalWebSocket() {
                     marketCapSol: data.vSolInBondingCurve || 0,
                     timestamp: Date.now(),
                     isNewToken: true,
-                    metadata: baseMetadata
+                    metadata: baseMetadata 
                 };
 
                 log('[PumpPortal] Enriched token data:', enrichedData);
