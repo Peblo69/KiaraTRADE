@@ -7,30 +7,6 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Function to check if a port is available
-async function findAvailablePort(startPort: number): Promise<number> {
-  const isPortAvailable = (port: number): Promise<boolean> => {
-    return new Promise((resolve) => {
-      const server = createServer()
-        .once('error', () => resolve(false))
-        .once('listening', () => {
-          server.once('close', () => resolve(true));
-          server.close();
-        })
-        .listen(port, '0.0.0.0');
-    });
-  };
-
-  // Try ports sequentially until we find an available one
-  for (let port = startPort; port < startPort + 10; port++) {
-    if (await isPortAvailable(port)) {
-      return port;
-    }
-  }
-  throw new Error('No available ports found');
-}
-
-// Initialize server and handle startup errors
 async function startServer() {
   try {
     // Register routes first
@@ -53,17 +29,25 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // Try ports 5000-5010
-    const PORT = await findAvailablePort(5000);
-    if (!PORT) {
-      throw new Error('No available ports found between 5000-5010');
-    }
+    // Try port 5000 first, then 5001 if busy
+    const PORT = 5000;
 
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server running on port ${PORT}`);
     }).on('error', (error: any) => {
-      log(`Failed to start server: ${error.message}`);
-      process.exit(1);
+      if (error.code === 'EADDRINUSE') {
+        // Try alternate port
+        const ALT_PORT = 5001;
+        server.listen(ALT_PORT, "0.0.0.0", () => {
+          log(`Server running on alternate port ${ALT_PORT}`);
+        }).on('error', (altError) => {
+          log(`Failed to start server on alternate port: ${altError.message}`);
+          process.exit(1);
+        });
+      } else {
+        log(`Failed to start server: ${error.message}`);
+        process.exit(1);
+      }
     });
 
   } catch (error) {
@@ -71,17 +55,6 @@ async function startServer() {
     process.exit(1);
   }
 }
-
-// Add graceful shutdown handling
-process.on('SIGTERM', () => {
-  log('SIGTERM received. Shutting down gracefully...');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  log('SIGINT received. Shutting down gracefully...');
-  process.exit(0);
-});
 
 // Start the server
 startServer().catch(error => {
