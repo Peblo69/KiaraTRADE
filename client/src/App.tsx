@@ -19,11 +19,17 @@ function Router() {
     <div className="min-h-screen bg-[#0A0A0F]">
       <SpaceBackground />
 
-      <main className="container mx-auto p-4 pt-6">
-        <div className="grid grid-cols-1 gap-6">
-          <NewCreations />
-          <AboutToGraduate />
-          <Graduated />
+      <main className="container mx-auto px-6 py-8">
+        <div className="grid grid-cols-3 gap-6">
+          <div className="col-span-1">
+            <NewCreations />
+          </div>
+          <div className="col-span-1">
+            <AboutToGraduate />
+          </div>
+          <div className="col-span-1">
+            <Graduated />
+          </div>
         </div>
       </main>
 
