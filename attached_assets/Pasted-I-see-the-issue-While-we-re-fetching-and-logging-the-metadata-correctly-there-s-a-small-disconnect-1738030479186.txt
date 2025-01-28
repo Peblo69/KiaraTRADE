@@ -1,0 +1,146 @@
+I see the issue. While we're fetching and logging the metadata correctly, there's a small disconnect in how we're handling the image URL. Let's modify the code in a few key places:
+
+    First, in pumpportal.ts, update the metadata handling:
+
+TypeScript
+
+// Modify the fetchMetadataWithImage function
+async function fetchMetadataWithImage(uri: string) {
+    try {
+        log('[PumpPortal] Attempting to fetch metadata from:', uri);
+        const response = await fetch(uri);
+        const metadata = await response.json();
+        
+        // Process IPFS image URL if needed
+        let imageUrl = metadata.image;
+        if (imageUrl?.startsWith('ipfs://')) {
+            imageUrl = `https://ipfs.io/ipfs/${imageUrl.slice(7)}`;
+        }
+        
+        log('[PumpPortal] Metadata fetched:', {
+            ...metadata,
+            image: imageUrl
+        });
+        
+        return {
+            ...metadata,
+            image: imageUrl
+        };
+    } catch (error) {
+        console.error('[PumpPortal] Failed to fetch metadata:', error);
+        return null;
+    }
+}
+
+// In the token creation handler, modify the baseMetadata creation:
+const baseMetadata = {
+    name: data.name || `Token ${data.mint.slice(0, 8)}`,
+    symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
+    uri: data.uri || '',
+    creators: data.creators || [],
+    mint: data.mint,
+    decimals: data.decimals || 9,
+    imageUrl: tokenMetadata?.image || null  // Make sure we use the processed image URL
+};
+
+    In TokenCard.tsx, update the image handling:
+
+TypeScript
+
+export function TokenCard({ token, analytics }: TokenCardProps) {
+    const [imageError, setImageError] = useState(false);
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+    // Fetch and process image URL
+    useEffect(() => {
+        async function processImageUrl() {
+            if (token.metadata?.imageUrl) {
+                console.log('TokenCard: Processing image URL:', token.metadata.imageUrl);
+                try {
+                    // Test if the image is accessible
+                    const response = await fetch(token.metadata.imageUrl, { method: 'HEAD' });
+                    if (response.ok) {
+                        setImageUrl(token.metadata.imageUrl);
+                        console.log('TokenCard: Image URL verified:', token.metadata.imageUrl);
+                    } else {
+                        console.log('TokenCard: Image not accessible:', token.metadata.imageUrl);
+                        setImageUrl(null);
+                    }
+                } catch (error) {
+                    console.error('TokenCard: Error verifying image:', error);
+                    setImageUrl(null);
+                }
+            } else if (token.metadata?.uri) {
+                console.log('TokenCard: Attempting to fetch metadata from URI:', token.metadata.uri);
+                try {
+                    const response = await fetch(token.metadata.uri);
+                    const metadata = await response.json();
+                    if (metadata.image) {
+                        let processedUrl = metadata.image;
+                        if (processedUrl.startsWith('ipfs://')) {
+                            processedUrl = `https://ipfs.io/ipfs/${processedUrl.slice(7)}`;
+                        }
+                        setImageUrl(processedUrl);
+                        console.log('TokenCard: Image URL extracted from metadata:', processedUrl);
+                    }
+                } catch (error) {
+                    console.error('TokenCard: Error fetching metadata:', error);
+                }
+            }
+        }
+
+        processImageUrl();
+    }, [token.metadata]);
+
+    return (
+        <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-900/10 hover:border-purple-500/40 transition-all duration-300">
+            {/* Image Container */}
+            <div className="aspect-square mb-4 rounded-lg overflow-hidden bg-purple-900/20">
+                {imageUrl && !imageError ? (
+                    <img
+                        src={imageUrl}
+                        alt={token.name}
+                        className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                            console.error('TokenCard: Image failed to load:', imageUrl);
+                            setImageError(true);
+                        }}
+                        onLoad={() => {
+                            console.log('TokenCard: Image loaded successfully:', imageUrl);
+                        }}
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-3xl font-bold text-purple-500/50">
+                            {token.symbol?.[0] || '?'}
+                        </span>
+                    </div>
+                )}
+            </div>
+
+            {/* Rest of your card content */}
+            {/* ... */}
+        </div>
+    );
+}
+
+    Add a new helper function to handle image URLs:
+
+TypeScript
+
+// utils/image-helpers.ts
+export const processImageUrl = (url: string | null): string | null => {
+    if (!url) return null;
+    
+    // Handle IPFS URLs
+    if (url.startsWith('ipfs://')) {
+        return `https://ipfs.io/ipfs/${url.slice(7)}`;
+    }
+    
+    // Handle Arweave URLs
+    if (url.startsWith('ar://')) {
+        return `https://arweave.net/${url.slice(5)}`;
+    }
+    
+    return url;
+};

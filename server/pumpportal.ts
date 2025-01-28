@@ -14,7 +14,18 @@ async function fetchMetadataWithImage(uri: string) {
         const metadata = await response.json();
         log('[PumpPortal] Metadata fetched successfully:', metadata);
         log('[PumpPortal] Image URL found:', metadata.image || 'No image URL in metadata');
-        return metadata;
+
+        // Process IPFS image URL if needed
+        let imageUrl = metadata.image;
+        if (imageUrl?.startsWith('ipfs://')) {
+            imageUrl = `https://ipfs.io/ipfs/${imageUrl.slice(7)}`;
+            log('[PumpPortal] Processed IPFS URL to:', imageUrl);
+        }
+
+        return {
+            ...metadata,
+            image: imageUrl
+        };
     } catch (error) {
         console.error('[PumpPortal] Failed to fetch metadata:', error);
         return null;
@@ -27,13 +38,11 @@ export function initializePumpPortalWebSocket() {
     ws.onopen = () => {
         log('[PumpPortal] WebSocket connected');
 
-        // Subscribe to new tokens
         ws.send(JSON.stringify({
             method: "subscribeNewToken",
             keys: []
         }));
 
-        // Subscribe to token trades
         ws.send(JSON.stringify({
             method: "subscribeTokenTrades",
             keys: []
@@ -49,7 +58,6 @@ export function initializePumpPortalWebSocket() {
                 return;
             }
 
-            // Handle token creation events
             if (data.txType === 'create' && data.mint) {
                 log('[PumpPortal] New token created:', data.mint);
                 log('[PumpPortal] Token URI:', data.uri);
@@ -67,11 +75,10 @@ export function initializePumpPortalWebSocket() {
                     creators: data.creators || [],
                     mint: data.mint,
                     decimals: data.decimals || 9,
-                    imageUrl: tokenMetadata?.image || null
+                    imageUrl: tokenMetadata?.image || null  // Store processed image URL
                 };
 
                 log('[PumpPortal] Base Metadata:', baseMetadata);
-                //Removed redundant logging of full token data
 
                 const enrichedData = {
                     ...data,
@@ -89,26 +96,21 @@ export function initializePumpPortalWebSocket() {
 
                 log('[PumpPortal] Enriched token data:', enrichedData);
 
-                // Broadcast initial data
                 wsManager.broadcast({ 
                     type: 'newToken',
                     data: enrichedData
                 });
 
-                // Subscribe to trades for this token
                 ws.send(JSON.stringify({
                     method: "subscribeTokenTrade",
                     keys: [data.mint]
                 }));
             }
 
-            // Handle trade events with market data
             else if (['buy', 'sell'].includes(data.txType) && data.mint) {
                 const tradeData = {
                     ...data,
-                    priceInSol: data.solAmount ? (data.solAmount / data.tokenAmount) : 0,
-                    timestamp: Date.now(),
-                    marketCapSol: data.marketCapSol || data.vSolInBondingCurve || 0
+                    timestamp: Date.now()
                 };
 
                 wsManager.broadcast({ 
@@ -116,7 +118,6 @@ export function initializePumpPortalWebSocket() {
                     data: tradeData
                 });
             }
-
         } catch (error) {
             console.error('[PumpPortal] Failed to process message:', error);
         }
