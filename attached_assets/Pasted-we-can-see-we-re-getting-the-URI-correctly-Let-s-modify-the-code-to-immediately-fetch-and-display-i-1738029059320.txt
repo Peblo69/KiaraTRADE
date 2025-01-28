@@ -1,0 +1,189 @@
+we can see we're getting the URI correctly. Let's modify the code to immediately fetch and display images when we receive a new token. Here's what we need to change:
+
+    First, update your PumpPortal WebSocket handler to immediately fetch metadata:
+
+TypeScript
+
+// pumpportal.ts
+// Add this at the top
+async function fetchMetadataWithImage(uri: string) {
+    try {
+        const response = await fetch(uri);
+        const metadata = await response.json();
+        console.log('[PumpPortal] Metadata fetched:', metadata);
+        return metadata;
+    } catch (error) {
+        console.error('[PumpPortal] Failed to fetch metadata:', error);
+        return null;
+    }
+}
+
+// Modify your token creation handler
+if (data.txType === 'create' && data.mint) {
+    log('[PumpPortal] New token created:', data.mint);
+    log('[PumpPortal] Token URI:', data.uri);
+
+    let tokenMetadata = null;
+    if (data.uri) {
+        tokenMetadata = await fetchMetadataWithImage(data.uri);
+        log('[PumpPortal] Fetched metadata:', tokenMetadata);
+    }
+
+    const enrichedData = {
+        ...data,
+        name: data.name || `Token ${data.mint.slice(0, 8)}`,
+        symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
+        initialBuy: data.tokenAmount || 0,
+        priceInSol: data.solAmount ? (data.solAmount / (data.tokenAmount || TOTAL_SUPPLY)) : 0,
+        marketCapSol: data.vSolInBondingCurve || 0,
+        timestamp: Date.now(),
+        isNewToken: true,
+        metadata: {
+            name: data.name,
+            symbol: data.symbol,
+            uri: data.uri,
+            creators: data.creators || [],
+            imageUrl: tokenMetadata?.image || null, // Add image URL here
+        }
+    };
+
+    log('[PumpPortal] Enriched token data:', enrichedData);
+
+    wsManager.broadcast({ 
+        type: 'newToken',
+        data: enrichedData
+    });
+}
+
+    Update your pump-portal-websocket.ts store:
+
+TypeScript
+
+// pump-portal-websocket.ts
+interface TokenMetadata {
+    name: string;
+    symbol: string;
+    decimals: number;
+    uri?: string;
+    mint?: string;
+    imageUrl?: string; // Add this field
+    creators?: Array<{
+        address: string;
+        verified: boolean;
+        share: number;
+    }>;
+}
+
+export function mapTokenData(data: any): PumpPortalToken {
+    debugLog('mapTokenData', data);
+
+    const tokenData: PumpPortalToken = {
+        symbol: data.symbol || data.mint?.slice(0, 6).toUpperCase(),
+        name: data.name || `Token ${data.mint?.slice(0, 8)}`,
+        address: data.mint || '',
+        bondingCurveKey: data.bondingCurveKey || '',
+        vTokensInBondingCurve: data.vTokensInBondingCurve || 0,
+        vSolInBondingCurve: data.vSolInBondingCurve || 0,
+        marketCapSol: data.marketCapSol || 0,
+        priceInSol: data.priceInSol || 0,
+        priceInUsd: data.priceInUsd || 0,
+        devWallet: data.devWallet || data.traderPublicKey,
+        recentTrades: [],
+        metadata: {
+            name: data.name || `Token ${data.mint?.slice(0, 8)}`,
+            symbol: data.symbol || data.mint?.slice(0, 6).toUpperCase(),
+            decimals: 9,
+            mint: data.mint,
+            uri: data.uri || '',
+            imageUrl: data.metadata?.imageUrl || null, // Add this line
+            creators: data.creators || []
+        },
+        lastAnalyzedAt: Date.now().toString(),
+        analyzedBy: CURRENT_USER,
+        createdAt: data.txType === 'create' ? Date.now().toString() : undefined
+    };
+
+    debugLog('Mapped token data', tokenData);
+    return tokenData;
+}
+
+    Update your TokenCard component:
+
+TypeScript
+
+// components/TokenCard.tsx
+export function TokenCard({ token, analytics }: TokenCardProps) {
+    const [imageError, setImageError] = useState(false);
+    
+    // Use metadata if available, otherwise fallback to token properties
+    const displayName = token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`;
+    const displaySymbol = token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase();
+    const displayPrice = token.priceInUsd || 0;
+    const imageUrl = token.metadata?.imageUrl;
+
+    useEffect(() => {
+        console.log('Token data in card:', token);
+        console.log('Image URL:', token.metadata?.imageUrl);
+    }, [token]);
+
+    return (
+        <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-900/10 hover:border-purple-500/40 transition-all duration-300">
+            {/* Image Container */}
+            <div className="aspect-square mb-4 rounded-lg overflow-hidden bg-purple-900/20">
+                {imageUrl && !imageError ? (
+                    <img
+                        src={imageUrl}
+                        alt={displayName}
+                        className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-300"
+                        onError={() => {
+                            console.error('Image failed to load:', imageUrl);
+                            setImageError(true);
+                        }}
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-3xl font-bold text-purple-500/50">
+                            {displaySymbol[0]}
+                        </span>
+                    </div>
+                )}
+            </div>
+
+            {/* Rest of your card content */}
+            <div className="mb-2">
+                <div className="text-lg font-semibold text-purple-300">
+                    {displayName}
+                </div>
+                <FuturisticText variant="div" className="text-sm text-muted-foreground mt-1">
+                    {displaySymbol}
+                </FuturisticText>
+            </div>
+
+            {/* Price Information */}
+            <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">💎 Price</div>
+                <div className="font-medium">
+                    ${formatNumber(displayPrice)}
+                </div>
+            </div>
+
+            {/* Market Cap if available */}
+            {token.marketCapSol && token.marketCapSol > 0 && (
+                <div className="mt-2 space-y-1">
+                    <div className="text-sm text-muted-foreground">📊 Market Cap</div>
+                    <div className="font-medium">{formatNumber(token.marketCapSol)} SOL</div>
+                </div>
+            )}
+
+            <TokenSecurityButton tokenAddress={token.address} className="mt-4" />
+        </div>
+    );
+}
+
+This implementation:
+
+    Fetches metadata immediately when a new token is created
+    Stores the image URL in the token metadata
+    Displays images in the card component
+    Shows a fallback with the token symbol when no image is available
+    Includes console logging for debugging

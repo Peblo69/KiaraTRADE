@@ -7,6 +7,18 @@ const PUMP_PORTAL_WS_URL = 'wss://pumpportal.fun/api/data';
 const TOTAL_SUPPLY = 1_000_000_000;
 const RECONNECT_DELAY = 5000;
 
+async function fetchMetadataWithImage(uri: string) {
+    try {
+        const response = await fetch(uri);
+        const metadata = await response.json();
+        log('[PumpPortal] Metadata fetched:', metadata);
+        return metadata;
+    } catch (error) {
+        console.error('[PumpPortal] Failed to fetch metadata:', error);
+        return null;
+    }
+}
+
 export function initializePumpPortalWebSocket() {
     const ws = new WebSocket(PUMP_PORTAL_WS_URL);
 
@@ -39,22 +51,28 @@ export function initializePumpPortalWebSocket() {
             // Handle token creation events
             if (data.txType === 'create' && data.mint) {
                 log('[PumpPortal] New token created:', data.mint);
-                log('[PumpPortal] Token URI:', data.uri); // Add URI logging
+                log('[PumpPortal] Token URI:', data.uri);
+
+                let tokenMetadata = null;
+                if (data.uri) {
+                    tokenMetadata = await fetchMetadataWithImage(data.uri);
+                    log('[PumpPortal] Fetched metadata:', tokenMetadata);
+                }
 
                 // Extract base metadata with enhanced logging
                 const baseMetadata = {
                     name: data.name || `Token ${data.mint.slice(0, 8)}`,
                     symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
-                    uri: data.uri || '', // Ensure URI capture
+                    uri: data.uri || '',
                     creators: data.creators || [],
                     mint: data.mint,
-                    decimals: data.decimals || 9
+                    decimals: data.decimals || 9,
+                    imageUrl: tokenMetadata?.image || null
                 };
 
                 log('[PumpPortal] Base Metadata:', baseMetadata);
                 log('[PumpPortal] Full token data:', JSON.stringify(data, null, 2));
 
-                // Basic enriched data with URI
                 const enrichedData = {
                     ...data,
                     name: baseMetadata.name,

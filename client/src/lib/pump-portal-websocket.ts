@@ -21,6 +21,7 @@ export interface TokenMetadata {
   decimals: number;
   uri?: string;
   mint?: string;
+  imageUrl?: string; // Added imageUrl
   creators?: Array<{
     address: string;
     verified: boolean;
@@ -64,42 +65,46 @@ export interface PumpPortalToken {
   createdAt?: string;
 }
 
+// Update the mapTokenData function to handle image URLs
 export function mapTokenData(data: any): PumpPortalToken {
-  debugLog('mapTokenData', data);
+    debugLog('mapTokenData', data);
 
-  // Extract token name and symbol
-  const tokenName = data.metadata?.name || data.name;
-  const tokenSymbol = data.metadata?.symbol || data.symbol;
-  const mintAddress = data.mint || data.address || '';
+    // Extract token name and symbol
+    const tokenName = data.metadata?.name || data.name;
+    const tokenSymbol = data.metadata?.symbol || data.symbol;
+    const mintAddress = data.mint || data.address || '';
+    const imageUrl = data.metadata?.imageUrl || data.imageUrl;
 
-  // Handle both newToken events and trade events
-  const tokenData: PumpPortalToken = {
-    symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
-    name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
-    address: mintAddress,
-    bondingCurveKey: data.bondingCurveKey || '',
-    vTokensInBondingCurve: data.vTokensInBondingCurve || 0,
-    vSolInBondingCurve: data.vSolInBondingCurve || 0,
-    marketCapSol: data.marketCapSol || 0,
-    priceInSol: data.priceInSol || 0,
-    priceInUsd: data.priceInUsd || 0,
-    devWallet: data.devWallet || data.traderPublicKey,
-    recentTrades: [],
-    metadata: {
-      name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
-      symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
-      decimals: 9,
-      mint: mintAddress,
-      uri: data.uri || '',
-      creators: data.creators || []
-    },
-    lastAnalyzedAt: Date.now().toString(),
-    analyzedBy: CURRENT_USER,
-    createdAt: data.txType === 'create' ? Date.now().toString() : undefined
-  };
+    debugLog('Token data mapping:', { name: tokenName, symbol: tokenSymbol, imageUrl });
 
-  debugLog('Mapped token data', tokenData);
-  return tokenData;
+    const tokenData: PumpPortalToken = {
+        symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
+        name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
+        address: mintAddress,
+        bondingCurveKey: data.bondingCurveKey || '',
+        vTokensInBondingCurve: data.vTokensInBondingCurve || 0,
+        vSolInBondingCurve: data.vSolInBondingCurve || 0,
+        marketCapSol: data.marketCapSol || 0,
+        priceInSol: data.priceInSol || 0,
+        priceInUsd: data.priceInUsd || 0,
+        devWallet: data.devWallet || data.traderPublicKey,
+        recentTrades: [],
+        metadata: {
+            name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
+            symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
+            decimals: 9,
+            mint: mintAddress,
+            uri: data.uri || '',
+            imageUrl: imageUrl,
+            creators: data.creators || []
+        },
+        lastAnalyzedAt: Date.now().toString(),
+        analyzedBy: CURRENT_USER,
+        createdAt: data.txType === 'create' ? Date.now().toString() : undefined
+    };
+
+    debugLog('Mapped token data', tokenData);
+    return tokenData;
 }
 
 // Add new function for fetching token metadata from chain
