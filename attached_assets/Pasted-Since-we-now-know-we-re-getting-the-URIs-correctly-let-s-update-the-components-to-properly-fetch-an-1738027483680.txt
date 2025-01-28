@@ -1,0 +1,239 @@
+Since we now know we're getting the URIs correctly, let's update the components to properly fetch and display the images.
+
+First, let's create a helper function to handle IPFS URLs and metadata fetching:
+TypeScript
+
+// utils/metadata.ts
+export const processImageUrl = (url: string) => {
+  if (!url) return '';
+  // Handle IPFS URLs
+  if (url.startsWith('ipfs://')) {
+    return `https://ipfs.io/ipfs/${url.slice(7)}`;
+  }
+  return url;
+};
+
+export const fetchTokenMetadataFromUri = async (uri: string) => {
+  try {
+    const response = await fetch(uri);
+    const data = await response.json();
+    return {
+      ...data,
+      image: processImageUrl(data.image),
+      website: data.website || '',
+    };
+  } catch (error) {
+    console.error('Error fetching metadata:', error);
+    return null;
+  }
+};
+
+Now, let's update the TokenCard component to show images:
+TypeScript
+
+// components/TokenCard.tsx
+import { useState, useEffect } from 'react';
+import { fetchTokenMetadataFromUri } from '@/utils/metadata';
+import { Skeleton } from '@/components/ui/skeleton';
+
+export function TokenCard({ token, analytics }: TokenCardProps) {
+  const [metadata, setMetadata] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      if (token.metadata?.uri) {
+        try {
+          setLoading(true);
+          const data = await fetchTokenMetadataFromUri(token.metadata.uri);
+          if (data) {
+            setMetadata(data);
+          }
+        } catch (error) {
+          console.error('Error fetching token metadata:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchMetadata();
+  }, [token.metadata?.uri]);
+
+  return (
+    <div className="group p-4 rounded-lg border border-purple-500/20 bg-purple-900/10 hover:border-purple-500/40 transition-all duration-300">
+      {/* Image Section */}
+      <div className="aspect-square mb-4 rounded-lg overflow-hidden bg-purple-900/20">
+        {loading ? (
+          <Skeleton className="w-full h-full" />
+        ) : metadata?.image ? (
+          <img
+            src={metadata.image}
+            alt={metadata.name || token.name}
+            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => {
+              e.currentTarget.src = '/fallback-token-image.png'; // Add a fallback image
+            }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-purple-500/50">
+            No Image
+          </div>
+        )}
+      </div>
+
+      {/* Token Info */}
+      <div className="space-y-4">
+        {/* Name and Symbol */}
+        <div>
+          <h3 className="text-lg font-semibold text-purple-300">
+            {metadata?.name || token.name}
+          </h3>
+          <p className="text-sm text-purple-400/60">
+            {metadata?.symbol || token.symbol}
+          </p>
+        </div>
+
+        {/* Description */}
+        {metadata?.description && (
+          <p className="text-sm text-gray-400 line-clamp-2">
+            {metadata.description}
+          </p>
+        )}
+
+        {/* Price and Market Cap */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-sm text-purple-400/60">Price</p>
+            <p className="text-lg font-semibold">
+              ${formatNumber(token.priceInUsd || 0)}
+            </p>
+          </div>
+          {token.marketCapSol && (
+            <div>
+              <p className="text-sm text-purple-400/60">Market Cap</p>
+              <p className="text-lg font-semibold">
+                {formatNumber(token.marketCapSol)} SOL
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Links */}
+        {metadata?.website && (
+          <a
+            href={metadata.website}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm text-purple-400 hover:text-purple-300 transition-colors"
+          >
+            <Globe className="w-4 h-4" />
+            Website
+          </a>
+        )}
+      </div>
+
+      {/* Security Button */}
+      <TokenSecurityButton tokenAddress={token.address} className="mt-4" />
+    </div>
+  );
+}
+
+For the trading view page, let's add the image and metadata to the header:
+TypeScript
+
+// Update your TokenChart component
+const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
+  const [metadata, setMetadata] = useState<any>(null);
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      if (token?.metadata?.uri) {
+        const data = await fetchTokenMetadataFromUri(token.metadata.uri);
+        if (data) {
+          setMetadata(data);
+        }
+      }
+    };
+
+    fetchMetadata();
+  }, [token?.metadata?.uri]);
+
+  // Add this section in your return statement, in the header area
+  return (
+    <div className="min-h-screen bg-background p-4">
+      <div className="max-w-[1400px] mx-auto">
+        {/* Enhanced Header */}
+        <div className="flex items-start gap-6 mb-6">
+          {/* Token Image */}
+          <div className="w-16 h-16 rounded-lg overflow-hidden bg-purple-900/20">
+            {metadata?.image ? (
+              <img
+                src={metadata.image}
+                alt={metadata.name || token?.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-purple-500/50">
+                <ImageIcon className="w-8 h-8" />
+              </div>
+            )}
+          </div>
+
+          {/* Token Info */}
+          <div className="flex-1">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                onClick={onBack}
+                className="gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold text-purple-300">
+                  {metadata?.name || token?.name}
+                </h1>
+                <p className="text-sm text-purple-400/60">
+                  {metadata?.symbol || token?.symbol}
+                </p>
+              </div>
+            </div>
+            {metadata?.description && (
+              <p className="mt-2 text-sm text-gray-400 max-w-2xl">
+                {metadata.description}
+              </p>
+            )}
+          </div>
+
+          {/* Links */}
+          {metadata?.website && (
+            <a
+              href={metadata.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/40 transition-colors"
+            >
+              <Globe className="w-5 h-5" />
+            </a>
+          )}
+        </div>
+
+        {/* Rest of your component */}
+        {/* ... */}
+      </div>
+    </div>
+  );
+};
+
+This implementation will:
+
+    Show token images in both the card view and trading view
+    Handle IPFS URLs properly
+    Show loading states while fetching metadata
+    Include fallback states for missing images
+    Display website links when available
+    Add hover effects and animations
+    Properly handle errors
