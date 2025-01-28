@@ -53,8 +53,11 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // Find an available port starting from 5000
+    // Try ports 5000-5010
     const PORT = await findAvailablePort(5000);
+    if (!PORT) {
+      throw new Error('No available ports found between 5000-5010');
+    }
 
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server running on port ${PORT}`);
