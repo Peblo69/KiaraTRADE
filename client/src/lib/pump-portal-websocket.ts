@@ -450,23 +450,34 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => {
 export function mapTokenData(data: any): PumpPortalToken {
   debugLog('mapTokenData', data);
 
+  // Extract proper token name and symbol
+  let tokenName = data.name;
+  let tokenSymbol = data.symbol;
+
+  // For newly created tokens, ensure we have proper name/symbol
+  if (!tokenName || !tokenSymbol) {
+    const baseName = data.mint?.slice(-4);
+    tokenName = data.name || `${data.mint?.slice(0, 4)}...${baseName}`;
+    tokenSymbol = data.symbol || data.mint?.slice(-4).toUpperCase();
+  }
+
   // Handle both newToken events and trade events
   const tokenData: PumpPortalToken = {
-    symbol: data.symbol || data.mint?.slice(0, 6) || 'Unknown',
-    name: data.name || `Token ${data.mint?.slice(0, 8)}`,
+    symbol: tokenSymbol || 'Unknown',
+    name: tokenName || 'Unknown Token',
     address: data.mint || '',
     imageLink: data.uri || 'https://via.placeholder.com/150',
     bondingCurveKey: data.bondingCurveKey,
-    vTokensInBondingCurve: data.vTokensInBondingCurve,
-    vSolInBondingCurve: data.vSolInBondingCurve,
-    marketCapSol: data.marketCapSol,
-    priceInSol: data.priceInSol,
-    priceInUsd: data.priceInUsd,
+    vTokensInBondingCurve: data.vTokensInBondingCurve || 0,
+    vSolInBondingCurve: data.vSolInBondingCurve || 0,
+    marketCapSol: data.marketCapSol || 0,
+    priceInSol: data.priceInSol || 0,
+    priceInUsd: data.priceInUsd || 0,
     devWallet: data.devWallet || data.traderPublicKey,
     recentTrades: [],
     metadata: {
-      name: data.name || '',
-      symbol: data.symbol || '',
+      name: tokenName || '',
+      symbol: tokenSymbol || '',
       decimals: 9,
       uri: data.uri || '',
       creators: data.creators || []
@@ -477,22 +488,22 @@ export function mapTokenData(data: any): PumpPortalToken {
   };
 
   // Add initial trade if it's a create event
-  if (data.txType === 'create' && data.initialBuy) {
+  if (data.txType === 'create' && data.tokenAmount) {
     tokenData.recentTrades = [{
-      signature: data.signature,
+      signature: data.signature || '',
       timestamp: Date.now(),
       mint: data.mint,
       txType: 'buy',
-      tokenAmount: data.initialBuy,
-      solAmount: data.solAmount,
-      traderPublicKey: data.traderPublicKey,
+      tokenAmount: data.tokenAmount,
+      solAmount: data.solAmount || 0,
+      traderPublicKey: data.traderPublicKey || '',
       counterpartyPublicKey: '',
-      bondingCurveKey: data.bondingCurveKey,
-      vTokensInBondingCurve: data.vTokensInBondingCurve,
-      vSolInBondingCurve: data.vSolInBondingCurve,
-      marketCapSol: data.marketCapSol,
-      priceInSol: data.priceInSol,
-      priceInUsd: data.priceInUsd,
+      bondingCurveKey: data.bondingCurveKey || '',
+      vTokensInBondingCurve: data.vTokensInBondingCurve || 0,
+      vSolInBondingCurve: data.vSolInBondingCurve || 0,
+      marketCapSol: data.marketCapSol || 0,
+      priceInSol: data.priceInSol || 0,
+      priceInUsd: data.priceInUsd || 0,
       isDevTrade: true
     }];
   }
