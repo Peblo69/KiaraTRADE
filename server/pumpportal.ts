@@ -9,9 +9,11 @@ const RECONNECT_DELAY = 5000;
 
 async function fetchMetadataWithImage(uri: string) {
     try {
+        log('[PumpPortal] Attempting to fetch metadata from:', uri);
         const response = await fetch(uri);
         const metadata = await response.json();
-        log('[PumpPortal] Metadata fetched:', metadata);
+        log('[PumpPortal] Metadata fetched successfully:', metadata);
+        log('[PumpPortal] Image URL found:', metadata.image || 'No image URL in metadata');
         return metadata;
     } catch (error) {
         console.error('[PumpPortal] Failed to fetch metadata:', error);
@@ -41,7 +43,6 @@ export function initializePumpPortalWebSocket() {
     ws.onmessage = async (event) => {
         try {
             const data = JSON.parse(event.data.toString());
-            log('[PumpPortal] Received data:', data);
 
             if (data.message?.includes('Successfully subscribed')) {
                 log('[PumpPortal] Subscription confirmed:', data.message);

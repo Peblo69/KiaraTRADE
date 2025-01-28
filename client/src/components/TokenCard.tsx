@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TokenSecurityButton } from "@/components/TokenSecurityButton";
 import { formatNumber } from "@/lib/utils";
 import { FuturisticText } from "@/components/FuturisticText";
@@ -26,16 +26,18 @@ interface TokenCardProps {
 export function TokenCard({ token, analytics }: TokenCardProps) {
     const [imageError, setImageError] = useState(false);
 
+    // Enhanced debugging logs
+    useEffect(() => {
+        console.log('TokenCard: Full token data:', token);
+        console.log('TokenCard: Metadata:', token.metadata);
+        console.log('TokenCard: Image URL:', token.metadata?.imageUrl);
+    }, [token]);
+
     // Use metadata if available, otherwise fallback to token properties
     const displayName = token.metadata?.name || token.name;
     const displaySymbol = token.metadata?.symbol || token.symbol;
     const displayPrice = token.priceInUsd || 0;
     const imageUrl = token.metadata?.imageUrl;
-
-    useEffect(() => {
-        console.log('Token data in card:', token);
-        console.log('Image URL:', token.metadata?.imageUrl);
-    }, [token]);
 
     return (
         <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-900/10 hover:border-purple-500/40 transition-all duration-300">
@@ -46,15 +48,18 @@ export function TokenCard({ token, analytics }: TokenCardProps) {
                         src={imageUrl}
                         alt={displayName}
                         className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-300"
-                        onError={() => {
-                            console.error('Image failed to load:', imageUrl);
+                        onError={(e) => {
+                            console.error('TokenCard: Image failed to load:', imageUrl);
                             setImageError(true);
+                        }}
+                        onLoad={() => {
+                            console.log('TokenCard: Image loaded successfully:', imageUrl);
                         }}
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">
                         <span className="text-3xl font-bold text-purple-500/50">
-                            {displaySymbol[0]}
+                            {displaySymbol?.[0] || '?'}
                         </span>
                     </div>
                 )}
