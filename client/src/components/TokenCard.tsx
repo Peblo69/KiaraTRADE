@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { TokenSecurityButton } from "@/components/TokenSecurityButton";
 import { formatNumber } from "@/lib/utils";
 import { FuturisticText } from "@/components/FuturisticText";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { fetchTokenMetadataFromUri } from '@/utils/metadata';
+import { useTokenImageStore, fetchTokenImage } from '@/lib/token-image-handler';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Globe, ImageIcon } from 'lucide-react';
 
@@ -25,9 +25,42 @@ interface TokenCardProps {
 }
 
 export function TokenCard({ token, analytics }: TokenCardProps) {
+  const [imageLoading, setImageLoading] = useState(true);
   const [metadata, setMetadata] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const tokenImage = useTokenImageStore(state => state.getTokenImage(token.address));
+  const setTokenImage = useTokenImageStore(state => state.setTokenImage);
   const fetchTokenUri = usePumpPortalStore(state => state.fetchTokenUri);
+
+  // Try to fetch image if not in store
+  useEffect(() => {
+    async function getImage() {
+      if (!tokenImage && token.metadata?.uri) {
+        try {
+          const imageUrl = await fetchTokenImage(token.metadata.uri);
+          if (imageUrl) {
+            setTokenImage(token.address, imageUrl);
+          }
+        } catch (error) {
+          console.error('Failed to fetch image:', error);
+        }
+      }
+    }
+    getImage();
+  }, [token.address, token.metadata?.uri, tokenImage]);
+
+  // Fetch URI if not available
+  useEffect(() => {
+    async function getUri() {
+      if (token.address && !token.metadata?.uri) {
+        console.log('Fetching URI for token:', token.address);
+        const uri = await fetchTokenUri(token.address);
+        if (uri) {
+          console.log('Found URI:', uri);
+        }
+      }
+    }
+    getUri();
+  }, [token.address]);
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -49,38 +82,29 @@ export function TokenCard({ token, analytics }: TokenCardProps) {
     fetchMetadata();
   }, [token.metadata?.uri]);
 
-  // Fetch URI if not available
-  useEffect(() => {
-    async function getUri() {
-      if (token.address && !token.metadata?.uri) {
-        console.log('Fetching URI for token:', token.address);
-        const uri = await fetchTokenUri(token.address);
-        if (uri) {
-          console.log('Found URI:', uri);
-        }
-      }
-    }
-    getUri();
-  }, [token.address]);
-
+  const [loading, setLoading] = useState(true);
   return (
     <div className="group p-4 rounded-lg border border-purple-500/20 bg-purple-900/10 hover:border-purple-500/40 transition-all duration-300">
-      {/* Image Section */}
+      {/* Image Container */}
       <div className="aspect-square mb-4 rounded-lg overflow-hidden bg-purple-900/20">
-        {loading ? (
-          <Skeleton className="w-full h-full" />
-        ) : metadata?.image ? (
+        {tokenImage ? (
           <img
-            src={metadata.image}
-            alt={metadata.name || token.name}
-            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300"
+            src={tokenImage}
+            alt={token.name}
+            className={`w-full h-full object-cover transition-opacity duration-300 ${
+              imageLoading ? 'opacity-0' : 'opacity-100'
+            }`}
+            onLoad={() => setImageLoading(false)}
             onError={(e) => {
-              e.currentTarget.src = '/fallback-token-image.png';
+              setImageLoading(false);
+              e.currentTarget.src = '/placeholder.png'; // Add a placeholder image
             }}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-purple-500/50">
-            <ImageIcon className="w-8 h-8" />
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="text-2xl font-bold text-purple-500/50">
+              {token.symbol?.[0] || '?'}
+            </span>
           </div>
         )}
       </div>
@@ -96,13 +120,6 @@ export function TokenCard({ token, analytics }: TokenCardProps) {
             {metadata?.symbol || token.symbol}
           </p>
         </div>
-
-        {/* Description */}
-        {metadata?.description && (
-          <p className="text-sm text-gray-400 line-clamp-2">
-            {metadata.description}
-          </p>
-        )}
 
         {/* Price and Market Cap */}
         <div className="grid grid-cols-2 gap-4">

@@ -1,0 +1,195 @@
+Let's make a clear, focused plan to add images to the token cards. First, let's check what we currently have:
+
+    We know we get the URI in this format:
+
+Code
+
+https://ipfs.io/ipfs/QmPjsd4z6aZkwpxqWL4HHJxyrHmnigc2PE7htL5UVHURGT
+
+    When opened, it contains image URL:
+
+JSON
+
+{
+    "image": "https://ipfs.io/ipfs/QmVkKUDEzzSifvEULYS7nbNbBw1zXkaw75pWwK3DajHriQ"
+}
+
+Let's implement this step by step:
+
+    First, create a new file for handling token images:
+
+TypeScript
+
+// lib/token-image-handler.ts
+import { create } from 'zustand';
+
+interface TokenImageState {
+  images: { [tokenAddress: string]: string };
+  setTokenImage: (tokenAddress: string, imageUrl: string) => void;
+  getTokenImage: (tokenAddress: string) => string | null;
+}
+
+export const useTokenImageStore = create<TokenImageState>((set, get) => ({
+  images: {},
+  
+  setTokenImage: (tokenAddress, imageUrl) => {
+    set((state) => ({
+      images: {
+        ...state.images,
+        [tokenAddress]: imageUrl
+      }
+    }));
+  },
+  
+  getTokenImage: (tokenAddress) => {
+    return get().images[tokenAddress] || null;
+  }
+}));
+
+export async function fetchTokenImage(uri: string): Promise<string | null> {
+  try {
+    console.log('[TokenImage] Fetching metadata from:', uri);
+    const response = await fetch(uri);
+    const data = await response.json();
+    console.log('[TokenImage] Metadata received:', data);
+    
+    if (data.image) {
+      return data.image;
+    }
+    return null;
+  } catch (error) {
+    console.error('[TokenImage] Error fetching metadata:', error);
+    return null;
+  }
+}
+
+    Update your PumpPortal WebSocket handler:
+
+TypeScript
+
+// pumpportal.ts - Add to your existing code
+import { useTokenImageStore, fetchTokenImage } from './token-image-handler';
+
+if (data.txType === 'create' && data.mint) {
+    log('[PumpPortal] New token created:', data.mint);
+
+    // Handle metadata and image
+    if (data.uri) {
+        // Fetch image URL in background
+        fetchTokenImage(data.uri).then(imageUrl => {
+            if (imageUrl) {
+                useTokenImageStore.getState().setTokenImage(data.mint, imageUrl);
+                log('[PumpPortal] Image URL stored for token:', data.mint);
+            }
+        });
+    }
+
+    // Rest of your existing code...
+}
+
+    Update your TokenCard component:
+
+TypeScript
+
+// components/TokenCard.tsx
+import { useEffect, useState } from 'react';
+import { useTokenImageStore } from '@/lib/token-image-handler';
+
+export function TokenCard({ token, analytics }: TokenCardProps) {
+  const [imageLoading, setImageLoading] = useState(true);
+  const tokenImage = useTokenImageStore(state => state.getTokenImage(token.address));
+  const setTokenImage = useTokenImageStore(state => state.setTokenImage);
+
+  // Try to fetch image if not in store
+  useEffect(() => {
+    async function getImage() {
+      if (!tokenImage && token.metadata?.uri) {
+        try {
+          const imageUrl = await fetchTokenImage(token.metadata.uri);
+          if (imageUrl) {
+            setTokenImage(token.address, imageUrl);
+          }
+        } catch (error) {
+          console.error('Failed to fetch image:', error);
+        }
+      }
+    }
+    getImage();
+  }, [token.address, token.metadata?.uri, tokenImage]);
+
+  return (
+    <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-900/10 hover:border-purple-500/40 transition-all duration-300">
+      {/* Image Container */}
+      <div className="aspect-square mb-4 rounded-lg overflow-hidden bg-purple-900/20">
+        {tokenImage ? (
+          <img
+            src={tokenImage}
+            alt={token.name}
+            className={`w-full h-full object-cover transition-opacity duration-300 ${
+              imageLoading ? 'opacity-0' : 'opacity-100'
+            }`}
+            onLoad={() => setImageLoading(false)}
+            onError={(e) => {
+              setImageLoading(false);
+              e.currentTarget.src = '/placeholder.png'; // Add a placeholder image
+            }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="text-2xl font-bold text-purple-500/50">
+              {token.symbol?.[0] || '?'}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Rest of your existing card content */}
+      {/* ... */}
+    </div>
+  );
+}
+
+    Add some basic styles for the images:
+
+CSS
+
+/* styles/globals.css - Add these to your existing styles */
+.token-image-container {
+  position: relative;
+  padding-top: 100%; /* 1:1 Aspect Ratio */
+  background: rgba(168, 85, 247, 0.1);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.token-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.token-image:hover {
+  transform: scale(1.05);
+}
+
+This solution:
+
+    Creates a separate store just for token images
+    Fetches images immediately when tokens are created
+    Stores images for quick access
+    Shows loading states and fallbacks
+    Handles errors gracefully
+
+To implement this:
+
+    Create the new files:
+        lib/token-image-handler.ts
+        Add styles to your CSS file
+
+    Update your existing:
+        pumpportal.ts
+        TokenCard.tsx
