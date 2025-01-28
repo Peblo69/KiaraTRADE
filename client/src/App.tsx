@@ -17,23 +17,24 @@ function Router() {
   const [location] = useLocation();
 
   return (
-    <div className="min-h-screen">
+    <div className="relative min-h-screen w-full overflow-hidden">
       <SpaceBackground />
-      <Header />
-
-      <main className="container mx-auto px-6 py-8">
-        <div className="grid grid-cols-3 gap-6">
-          <div className="col-span-1">
-            <NewCreations />
+      <div className="relative z-10">
+        <Header />
+        <main className="container mx-auto px-6 py-8">
+          <div className="grid grid-cols-3 gap-6">
+            <div className="col-span-1">
+              <NewCreations />
+            </div>
+            <div className="col-span-1">
+              <AboutToGraduate />
+            </div>
+            <div className="col-span-1">
+              <Graduated />
+            </div>
           </div>
-          <div className="col-span-1">
-            <AboutToGraduate />
-          </div>
-          <div className="col-span-1">
-            <Graduated />
-          </div>
-        </div>
-      </main>
+        </main>
+      </div>
 
       <Switch>
         <Route component={NotFound} />
