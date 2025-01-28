@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Audiowide&family=Rajdhani:wght@500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
 
 @tailwind base;
@@ -6,6 +6,11 @@
 @tailwind utilities;
 
 @layer base {
+  body {
+    @apply bg-[#0A0A0F] text-gray-200;
+    font-family: 'Rajdhani', sans-serif;
+  }
+
   :root {
     --theme-primary: 168, 85, 247;
     --theme-accent: 139, 92, 246;
@@ -15,14 +20,184 @@
   * {
     @apply border-border;
   }
+}
 
-  body {
-    @apply font-sans antialiased bg-background text-foreground;
-    background-color: #000000 !important;
+@layer utilities {
+  .bg-purple-900\/10 {
+    background-color: rgb(var(--theme-primary) / 0.1);
+  }
+
+  .border-purple-500\/20 {
+    border-color: rgb(var(--theme-primary) / 0.2);
+  }
+
+  .hover\:border-purple-500\/40:hover {
+    border-color: rgb(var(--theme-primary) / 0.4);
+  }
+
+  .bg-purple-900\/40 {
+    background-color: rgb(var(--theme-primary) / 0.4);
   }
 }
 
-/* Add new FuturisticText styles and keep existing styles*/
+.space-background {
+  background: radial-gradient(ellipse at center, #0A0A0F 0%, #000000 100%);
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  perspective: 1000px;
+  overflow: hidden;
+}
+
+.warp-star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: #FFF;
+  opacity: 0;
+  transform-style: preserve-3d;
+  animation: warpSpeed 2s linear infinite;
+}
+
+@keyframes warpSpeed {
+  0% {
+    transform: translateZ(-1000px);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateZ(1000px);
+    opacity: 0;
+  }
+}
+
+.new-creations,
+.about-to-graduate,
+.graduated {
+  @apply bg-[#0B0F13]/10 backdrop-blur-xl border border-[#1F2937]/10;
+}
+
+.token-card {
+  @apply bg-[#1F2937]/10 backdrop-blur-xl rounded-lg transition-all duration-300;
+  position: relative;
+  overflow: hidden;
+}
+
+.token-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(147, 51, 234, 0), rgba(147, 51, 234, 0.1));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.token-card:hover {
+  @apply bg-[#1F2937]/20;
+}
+
+.token-card:hover::before {
+  opacity: 1;
+}
+
+.cosmic-button {
+  @apply px-4 py-2 rounded-sm text-sm transition-all duration-300;
+  background: linear-gradient(
+    170deg,
+    rgba(192, 192, 192, 0.1) 0%,
+    rgba(128, 128, 128, 0.1) 50%,
+    rgba(64, 64, 64, 0.1) 100%
+  );
+  border: 1px solid rgba(192, 192, 192, 0.2);
+  box-shadow: 
+    0 0 10px rgba(192, 192, 192, 0.1),
+    inset 0 0 5px rgba(192, 192, 192, 0.1);
+}
+
+.cosmic-button:hover {
+  background: linear-gradient(
+    170deg,
+    rgba(192, 192, 192, 0.2) 0%,
+    rgba(128, 128, 128, 0.2) 50%,
+    rgba(64, 64, 64, 0.2) 100%
+  );
+  border-color: rgba(192, 192, 192, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 
+    0 0 20px rgba(192, 192, 192, 0.2),
+    inset 0 0 10px rgba(192, 192, 192, 0.2);
+}
+
+.cosmic-icon {
+  @apply p-2 rounded-md transition-all duration-300;
+  background: rgba(64, 224, 208, 0.1);
+  border: 1px solid rgba(64, 224, 208, 0.2);
+}
+
+.cosmic-icon:hover {
+  background: rgba(64, 224, 208, 0.2);
+  border-color: rgba(64, 224, 208, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Modal animations */
+@keyframes modalFade {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.modal-enter {
+  animation: modalFade 0.2s ease-out;
+}
+
+/* Add gradient text animation */
+@keyframes gradient-x {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient-x {
+  background-size: 200% auto;
+  animation: gradient-x 3s linear infinite;
+}
+
+/* Retro text styling */
+.retro-text {
+  font-family: 'VT323', monospace;
+  text-shadow: 0 0 5px rgba(var(--theme-primary), 0.5);
+  letter-spacing: 0.5px;
+  animation: textflicker 0.01s infinite;
+}
+
+.metallic-text {
+  background: linear-gradient(
+    to bottom,
+    rgb(255, 255, 255) 0%,
+    rgb(225, 225, 225) 50%,
+    rgb(215, 215, 215) 51%,
+    rgb(245, 245, 245) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
 @layer components {
   .chat-window-container {
     position: relative;
@@ -249,44 +424,6 @@
   }
 }
 
-/* Space Background Styles */
-.space-background {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  perspective: 500px;
-  z-index: -1; /* Ensure it's behind other content */
-  pointer-events: none;
-}
-
-.warp-star {
-  position: absolute;
-  width: 2px;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.8);
-  border-radius: 50%;
-  animation: warp 4s linear infinite;
-  box-shadow: 0 0 4px rgba(255, 255, 255, 0.4);
-}
-
-@keyframes warp {
-  0% {
-    transform: translateZ(-1500px);
-    opacity: 0;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateZ(1500px);
-    opacity: 0;
-  }
-}
-
-
 .chat-container {
   position: relative;
   animation: colorVibrate 4s infinite;
@@ -318,8 +455,6 @@
   50% { opacity: 0.7; }
   100% { opacity: 0.3; }
 }
-
-/* Add these styles at the end of the file */
 
 /* Hide video controls */
 video::-webkit-media-controls-enclosure,
@@ -353,39 +488,6 @@ video {
   -ms-user-select: none;
 }
 
-/* Add gradient text animation */
-@keyframes gradient-x {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.animate-gradient-x {
-  background-size: 200% auto;
-  animation: gradient-x 3s linear infinite;
-}
-
-/* Retro text styling */
-.retro-text {
-  font-family: 'VT323', monospace;
-  text-shadow: 0 0 5px rgba(var(--theme-primary), 0.5);
-  letter-spacing: 0.5px;
-  animation: textflicker 0.01s infinite;
-}
-
-/* Theme-based color utilities (original ones kept) */
-.bg-purple-900\/10 {
-  background-color: rgb(var(--theme-primary));
-  @apply bg-opacity-10;
-}
-
-.border-purple-500\/20 {
-  border-color: rgba(var(--theme-primary), 0.2);
-}
-
-.hover\:border-purple-500\/40:hover {
-  border-color: rgba(var(--theme-primary), 0.4);
-}
 
 .text-purple-300 {
   color: rgb(var(--theme-primary));
@@ -403,23 +505,4 @@ video {
 .hover\:bg-purple-600:hover {
   background-color: rgb(var(--theme-primary));
   opacity: 0.8;
-}
-
-.metallic-text {
-  background: linear-gradient(
-    to bottom,
-    rgb(255, 255, 255) 0%,
-    rgb(225, 225, 225) 50%,
-    rgb(215, 215, 215) 51%,
-    rgb(245, 245, 245) 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
-}
-
-.bg-purple-900\/40 {
-  background-color: rgb(var(--theme-primary));
-  @apply bg-opacity-40;
 }
