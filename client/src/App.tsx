@@ -8,6 +8,7 @@ import { useLocation } from "wouter";
 import { NewCreations } from './components/NewCreations';
 import { AboutToGraduate } from './components/AboutToGraduate';
 import { Graduated } from './components/Graduated';
+import { Header } from './components/Header';
 import { SpaceBackground } from './components/SpaceBackground';
 import NotFound from "@/pages/not-found";
 import { queryClient } from "./lib/queryClient";
@@ -18,6 +19,7 @@ function Router() {
   return (
     <div className="min-h-screen bg-[#0A0A0F]">
       <SpaceBackground />
+      <Header />
 
       <main className="container mx-auto px-6 py-8">
         <div className="grid grid-cols-3 gap-6">
