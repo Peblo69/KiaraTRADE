@@ -22,7 +22,7 @@ function Router() {
       <Header />
 
       <main className="container mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 gap-6">
+        <div className="grid grid-cols-3 gap-6">
           <div className="col-span-1">
             <NewCreations />
           </div>
