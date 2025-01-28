@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Audiowide&family=Rajdhani:wght@500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#0A0A0F] text-gray-200;
+    font-family: 'Rajdhani', sans-serif;
+  }
+}
+
+.space-background {
+  background: radial-gradient(ellipse at center, #0A0A0F 0%, #000000 100%);
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  perspective: 1000px;
+  overflow: hidden;
+}
+
+.warp-star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: #FFF;
+  opacity: 0;
+  transform-style: preserve-3d;
+  animation: warpSpeed 2s linear infinite;
+}
+
+@keyframes warpSpeed {
+  0% {
+    transform: translateZ(-1000px);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateZ(1000px);
+    opacity: 0;
+  }
+}
+
+.new-creations,
+.about-to-graduate,
+.graduated {
+  @apply bg-[#0B0F13]/10 backdrop-blur-xl border border-[#1F2937]/10;
+}
+
+.token-card {
+  @apply bg-[#1F2937]/10 backdrop-blur-xl rounded-lg transition-all duration-300;
+}
+
+.token-card:hover {
+  @apply bg-[#1F2937]/20;
+}
+
+.cosmic-button {
+  @apply px-4 py-2 rounded-sm text-sm transition-all duration-300;
+  background: linear-gradient(
+    170deg,
+    rgba(192, 192, 192, 0.1) 0%,
+    rgba(128, 128, 128, 0.1) 50%,
+    rgba(64, 64, 64, 0.1) 100%
+  );
+  border: 1px solid rgba(192, 192, 192, 0.2);
+  box-shadow: 
+    0 0 10px rgba(192, 192, 192, 0.1),
+    inset 0 0 5px rgba(192, 192, 192, 0.1);
+}
+
+.cosmic-button:hover {
+  background: linear-gradient(
+    170deg,
+    rgba(192, 192, 192, 0.2) 0%,
+    rgba(128, 128, 128, 0.2) 50%,
+    rgba(64, 64, 64, 0.2) 100%
+  );
+  border-color: rgba(192, 192, 192, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 
+    0 0 20px rgba(192, 192, 192, 0.2),
+    inset 0 0 10px rgba(192, 192, 192, 0.2);
+}
+
+.cosmic-icon {
+  @apply p-2 rounded-md transition-all duration-300;
+  background: rgba(64, 224, 208, 0.1);
+  border: 1px solid rgba(64, 224, 208, 0.2);
+}
+
+.cosmic-icon:hover {
+  background: rgba(64, 224, 208, 0.2);
+  border-color: rgba(64, 224, 208, 0.3);
+  transform: translateY(-1px);
+}
