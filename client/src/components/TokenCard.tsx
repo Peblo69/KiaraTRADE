@@ -1,9 +1,10 @@
-
 import { useState, useEffect } from 'react';
 import { TokenSecurityButton } from "@/components/TokenSecurityButton";
 import { formatNumber } from "@/lib/utils";
 import { FuturisticText } from "@/components/FuturisticText";
+import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { validateImageUrl } from '@/utils/image-handler';
+import { ImageIcon } from 'lucide-react';
 
 interface TokenCardProps {
   token: {
@@ -26,78 +27,47 @@ interface TokenCardProps {
 
 export function TokenCard({ token, analytics }: TokenCardProps) {
     const [imageError, setImageError] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
-    const [finalImageUrl, setFinalImageUrl] = useState<string | null>(null);
-
-    // Get image URL from either metadata or direct property
-    const rawImageUrl = token.metadata?.imageUrl || token.imageUrl;
+    const [validatedImageUrl, setValidatedImageUrl] = useState<string | null>(null);
 
     useEffect(() => {
-        // Reset states when token changes
-        setImageError(false);
-        setIsLoading(true);
+        // Get image URL from token data
+        const rawImageUrl = token.metadata?.imageUrl || token.imageUrl;
+        console.log('[TokenCard] Raw image URL:', rawImageUrl);
 
-        const validateAndSetImage = async () => {
-            if (rawImageUrl) {
-                try {
-                    // Validate the image URL
-                    const isValid = await validateImageUrl(rawImageUrl);
-                    if (isValid) {
-                        setFinalImageUrl(rawImageUrl);
-                        setImageError(false);
-                    } else {
-                        setImageError(true);
-                        console.error('TokenCard: Invalid image URL:', rawImageUrl);
-                    }
-                } catch (error) {
-                    setImageError(true);
-                    console.error('TokenCard: Error validating image:', error);
-                }
-            } else {
-                setImageError(true);
-            }
-            setIsLoading(false);
-        };
+        // Validate and process the URL
+        const processedUrl = validateImageUrl(rawImageUrl);
+        console.log('[TokenCard] Processed image URL:', processedUrl);
 
-        validateAndSetImage();
-    }, [rawImageUrl, token]);
+        setValidatedImageUrl(processedUrl);
+    }, [token]);
+
+    const displayName = token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`;
+    const displaySymbol = token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase();
+    const displayPrice = token.priceInUsd || 0;
 
     return (
         <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-900/10 hover:border-purple-500/40 transition-all duration-300">
             {/* Image Container */}
             <div className="aspect-square mb-4 rounded-lg overflow-hidden bg-purple-900/20 relative">
-                {finalImageUrl && !imageError ? (
-                    <>
-                        {isLoading && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-purple-900/20">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-                            </div>
-                        )}
-                        <img
-                            src={finalImageUrl}
-                            alt={token.name}
-                            className={`w-full h-full object-cover transform hover:scale-105 transition-transform duration-300 ${
-                                isLoading ? 'opacity-0' : 'opacity-100'
-                            }`}
-                            onLoad={() => {
-                                console.log('TokenCard: Image loaded successfully:', finalImageUrl);
-                                setIsLoading(false);
-                            }}
-                            onError={() => {
-                                console.error('TokenCard: Image failed to load:', finalImageUrl);
-                                setImageError(true);
-                                setIsLoading(false);
-                            }}
-                        />
-                    </>
+                {validatedImageUrl && !imageError ? (
+                    <img
+                        src={validatedImageUrl}
+                        alt={displayName}
+                        className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                            console.error('[TokenCard] Image failed to load:', validatedImageUrl);
+                            setImageError(true);
+                        }}
+                        onLoad={() => {
+                            console.log('[TokenCard] Image loaded successfully:', validatedImageUrl);
+                        }}
+                    />
                 ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center">
-                        <span className="text-3xl font-bold text-purple-500/50">
-                            {token.symbol?.[0] || '?'}
-                        </span>
-                        <span className="text-xs text-purple-400/50 mt-2">
-                            {imageError ? 'Failed to load image' : 'No image URL available'}
-                        </span>
+                    // This is the circular placeholder you're seeing
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-900/20 to-purple-800/20">
+                        <div className="w-16 h-16 rounded-full bg-purple-800/30 flex items-center justify-center">
+                            {displaySymbol[0] || <ImageIcon className="w-8 h-8 text-purple-500/50" />}
+                        </div>
                     </div>
                 )}
             </div>
@@ -105,22 +75,22 @@ export function TokenCard({ token, analytics }: TokenCardProps) {
             {/* Token Info */}
             <div className="mb-2">
                 <div className="text-lg font-semibold text-purple-300">
-                    {token.name}
+                    {displayName}
                 </div>
                 <FuturisticText variant="div" className="text-sm text-muted-foreground mt-1">
-                    {token.symbol}
+                    {displaySymbol}
                 </FuturisticText>
             </div>
 
             {/* Price Information */}
-            <div className="mt-4 space-y-1">
+            <div className="space-y-1">
                 <div className="text-sm text-muted-foreground">💎 Price</div>
                 <div className="font-medium">
-                    ${formatNumber(token.priceInUsd || 0)}
+                    ${formatNumber(displayPrice)}
                 </div>
             </div>
 
-            {/* Market Cap */}
+            {/* Market Cap if available */}
             {token.marketCapSol && token.marketCapSol > 0 && (
                 <div className="mt-2 space-y-1">
                     <div className="text-sm text-muted-foreground">📊 Market Cap</div>

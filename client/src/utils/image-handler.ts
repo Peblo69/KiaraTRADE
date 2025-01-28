@@ -1,26 +1,24 @@
-
-export const validateImageUrl = async (url: string | null | undefined): Promise<boolean> => {
+export const validateImageUrl = (url: string | null | undefined): string | null => {
     if (!url) {
         console.log('[ImageHandler] No URL provided');
-        return false;
+        return null;
     }
 
-    // Convert IPFS URLs to gateway URLs
-    let processedUrl = url;
+    // Check if it's an IPFS URL and properly formatted
     if (url.includes('ipfs')) {
         if (!url.startsWith('https://')) {
-            processedUrl = `https://ipfs.io/ipfs/${url.split('ipfs://').pop()}`;
-            console.log('[ImageHandler] Converted IPFS URL to:', processedUrl);
+            url = `https://ipfs.io/ipfs/${url.split('ipfs://').pop()}`;
+            console.log('[ImageHandler] Converted IPFS URL to:', url);
         }
     }
 
-    // Validate URL actually returns an image
+    // Basic URL validation
     try {
-        const response = await fetch(processedUrl);
-        const contentType = response.headers.get('content-type');
-        return contentType?.startsWith('image/') || false;
-    } catch (error) {
-        console.error('[ImageHandler] Error validating image:', error);
-        return false;
+        new URL(url);
+        console.log('[ImageHandler] Valid URL format:', url);
+        return url;
+    } catch {
+        console.error('[ImageHandler] Invalid URL format:', url);
+        return null;
     }
 };
