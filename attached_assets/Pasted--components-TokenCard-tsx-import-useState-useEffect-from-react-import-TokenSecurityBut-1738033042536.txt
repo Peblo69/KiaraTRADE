@@ -1,0 +1,158 @@
+// components/TokenCard.tsx
+import { useState, useEffect } from 'react';
+import { TokenSecurityButton } from "@/components/TokenSecurityButton";
+import { formatNumber } from "@/lib/utils";
+import { FuturisticText } from "@/components/FuturisticText";
+
+export function TokenCard({ token, analytics }: TokenCardProps) {
+    const [imageError, setImageError] = useState(false);
+    
+    // Get image URL from either location
+    const imageUrl = token.metadata?.imageUrl || token.imageUrl;
+
+    // Debug logging
+    useEffect(() => {
+        console.log('TokenCard Render:', {
+            name: token.name,
+            symbol: token.symbol,
+            imageUrl: imageUrl,
+            metadata: token.metadata
+        });
+
+        // Test image loading
+        if (imageUrl) {
+            const img = new Image();
+            img.onload = () => console.log('Image pre-load successful:', imageUrl);
+            img.onerror = () => console.error('Image pre-load failed:', imageUrl);
+            img.src = imageUrl;
+        }
+    }, [token, imageUrl]);
+
+    return (
+        <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-900/10 hover:border-purple-500/40 transition-all duration-300">
+            {/* Image Container */}
+            <div className="aspect-square mb-4 rounded-lg overflow-hidden bg-purple-900/20 relative">
+                {imageUrl && !imageError ? (
+                    <div className="relative w-full h-full">
+                        {/* Debug Overlay */}
+                        <div className="absolute top-0 left-0 right-0 bg-black/50 text-white text-xs p-1 z-10">
+                            Loading: {imageUrl.slice(0, 20)}...
+                        </div>
+                        
+                        {/* Image */}
+                        <img
+                            src={imageUrl}
+                            alt={token.name}
+                            className="w-full h-full object-cover"
+                            onLoad={() => {
+                                console.log('Image loaded in DOM:', imageUrl);
+                                setImageError(false);
+                            }}
+                            onError={() => {
+                                console.error('Image failed in DOM:', imageUrl);
+                                setImageError(true);
+                            }}
+                            loading="eager"
+                        />
+                    </div>
+                ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                        <span className="text-3xl font-bold text-purple-500/50">
+                            {token.symbol?.[0] || '?'}
+                        </span>
+                        <span className="text-xs text-purple-400/50">
+                            {imageError ? 'Failed to load image' : 'No image URL'}
+                        </span>
+                        {imageUrl && (
+                            <span className="text-xs text-purple-400/50 px-2 text-center">
+                                {imageUrl.slice(0, 30)}...
+                            </span>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Token Info */}
+            <div className="mb-2">
+                <div className="text-lg font-semibold text-purple-300">
+                    {token.name}
+                </div>
+                <FuturisticText variant="div" className="text-sm text-muted-foreground mt-1">
+                    {token.symbol}
+                </FuturisticText>
+            </div>
+
+            {/* Rest of your card content */}
+            {/* ... */}
+        </div>
+    );
+}
+
+Also, let's add a simple image proxy utility to handle IPFS URLs:
+TypeScript
+
+// utils/image-proxy.ts
+export const getProxiedImageUrl = (url: string) => {
+    if (!url) return null;
+    
+    // If it's already an IPFS gateway URL, use it directly
+    if (url.startsWith('https://ipfs.io/')) {
+        return url;
+    }
+    
+    // If it's an IPFS URL, convert it
+    if (url.startsWith('ipfs://')) {
+        return `https://ipfs.io/ipfs/${url.slice(7)}`;
+    }
+    
+    // For regular URLs, use them as is
+    return url;
+};
+
+And let's test one of the image URLs directly in your browser. Take this URL for example:
+https://ipfs.io/ipfs/QmQU3SfixoV7gtqVfwYd8hRqgZDRyoA62UxteZLXaU4taM
+
+Can you:
+
+    Open your browser's developer tools (F12)
+    Go to the Network tab
+    Try to load one of these image URLs directly in your browser
+    Tell me if you see any CORS errors or if the image loads?
+
+Also, let's add a test component to verify image loading:
+TypeScript
+
+// components/ImageTest.tsx
+export function ImageTest({ url }: { url: string }) {
+    return (
+        <div className="fixed bottom-4 right-4 bg-black/80 p-4 text-white text-xs">
+            <div>Testing URL: {url}</div>
+            <img 
+                src={url} 
+                alt="test"
+                className="w-20 h-20 object-cover mt-2"
+                onLoad={() => console.log('Test image loaded:', url)}
+                onError={() => console.error('Test image failed:', url)}
+            />
+        </div>
+    );
+}
+
+Add this to your main page temporarily:
+TypeScript
+
+// In your main page component
+const testUrl = "https://ipfs.io/ipfs/QmQU3SfixoV7gtqVfwYd8hRqgZDRyoA62UxteZLXaU4taM";
+return (
+    <>
+        {/* Your existing content */}
+        <ImageTest url={testUrl} />
+    </>
+);
+
+This will help us determine if:
+
+    The URLs are valid
+    There are CORS issues
+    The IPFS gateway is responding
+    The images are actually accessible
