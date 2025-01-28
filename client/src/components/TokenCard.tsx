@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { TokenSecurityButton } from "@/components/TokenSecurityButton";
 import { formatNumber } from "@/lib/utils";
 import { FuturisticText } from "@/components/FuturisticText";
+import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 
 interface TokenCardProps {
   token: {
@@ -20,15 +22,30 @@ interface TokenCardProps {
 }
 
 export function TokenCard({ token, analytics }: TokenCardProps) {
+  const fetchTokenUri = usePumpPortalStore(state => state.fetchTokenUri);
+
+  // Fetch URI if not available
+  useEffect(() => {
+    async function getUri() {
+      if (token.address && !token.metadata?.uri) {
+        console.log('Fetching URI for token:', token.address);
+        const uri = await fetchTokenUri(token.address);
+        if (uri) {
+          console.log('Found URI:', uri);
+        }
+      }
+    }
+    getUri();
+  }, [token.address]);
+
   // Use metadata if available, otherwise fallback to token properties
-  // Display name and symbol in reverse order from before: name on top, symbol below
   const displayName = token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`;
   const displaySymbol = token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase();
   const displayPrice = token.priceInUsd || 0;
 
   return (
     <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-900/10 hover:border-purple-500/40 transition-colors">
-      {/* Token Name and Symbol (reversed order) */}
+      {/* Token Name and Symbol */}
       <div className="mb-2">
         <div className="text-lg font-semibold text-purple-300">
           {displayName}

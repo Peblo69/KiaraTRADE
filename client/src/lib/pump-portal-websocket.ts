@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { format } from 'date-fns';
+import axios from 'axios';
 
 // Constants
 const MAX_TRADES_PER_TOKEN = 100;
@@ -101,6 +102,36 @@ export function mapTokenData(data: any): PumpPortalToken {
   return tokenData;
 }
 
+// Add new function for fetching token metadata from chain
+async function fetchTokenMetadataFromChain(mintAddress: string) {
+  try {
+    debugLog('Attempting to fetch metadata from chain for:', mintAddress);
+
+    const response = await axios.post('https://api.mainnet-beta.solana.com', {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'getAccountInfo',
+      params: [
+        mintAddress,
+        { encoding: 'jsonParsed' }
+      ]
+    });
+
+    debugLog('Chain metadata response:', response.data);
+
+    if (response.data?.result?.value?.data?.parsed?.info?.uri) {
+      const uri = response.data.result.value.data.parsed.info.uri;
+      debugLog('Found URI from chain:', uri);
+      return uri;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Failed to fetch metadata from chain:', error);
+    return null;
+  }
+}
+
 interface PumpPortalStore {
   tokens: PumpPortalToken[];
   viewedTokens: { [key: string]: PumpPortalToken };
@@ -118,6 +149,7 @@ interface PumpPortalStore {
   setActiveTokenView: (address: string | null) => void;
   getToken: (address: string) => PumpPortalToken | undefined;
   updateTokenPrice: (address: string, priceInUsd: number) => void;
+  fetchTokenUri: (address: string) => Promise<string | null>;
 }
 
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
@@ -131,6 +163,8 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
   addToken: (tokenData) => set((state) => {
     debugLog('addToken', tokenData);
+    debugLog('Token URI:', tokenData.uri || tokenData.metadata?.uri);
+
     const newToken = mapTokenData(tokenData);
     const existingTokenIndex = state.tokens.findIndex(t => t.address === newToken.address);
     const isViewed = state.activeTokenView === newToken.address;
@@ -277,7 +311,52 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         }
       })
     };
-  })
+  }),
+
+  fetchTokenUri: async (address: string) => {
+    const token = get().getToken(address);
+    debugLog('fetchTokenUri', { address });
+
+    // If we already have a URI, return it
+    if (token?.metadata?.uri) {
+      debugLog('URI already exists:', token.metadata.uri);
+      return token.metadata.uri;
+    }
+
+    // Try to fetch from chain
+    const uri = await fetchTokenMetadataFromChain(address);
+    if (uri) {
+      // Update token with new URI
+      set(state => ({
+        tokens: state.tokens.map(t => {
+          if (t.address === address) {
+            return {
+              ...t,
+              metadata: {
+                ...t.metadata,
+                uri
+              }
+            };
+          }
+          return t;
+        }),
+        ...(state.viewedTokens[address] && {
+          viewedTokens: {
+            ...state.viewedTokens,
+            [address]: {
+              ...state.viewedTokens[address],
+              metadata: {
+                ...state.viewedTokens[address].metadata,
+                uri
+              }
+            }
+          }
+        })
+      }));
+    }
+
+    return uri;
+  }
 }));
 
 export default usePumpPortalStore;

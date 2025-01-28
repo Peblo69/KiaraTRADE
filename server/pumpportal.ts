@@ -39,17 +39,22 @@ export function initializePumpPortalWebSocket() {
             // Handle token creation events
             if (data.txType === 'create' && data.mint) {
                 log('[PumpPortal] New token created:', data.mint);
+                log('[PumpPortal] Token URI:', data.uri); // Add URI logging
 
-                // Extract base metadata
+                // Extract base metadata with enhanced logging
                 const baseMetadata = {
                     name: data.name || `Token ${data.mint.slice(0, 8)}`,
                     symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
-                    uri: data.uri || null,
+                    uri: data.uri || '', // Ensure URI capture
                     creators: data.creators || [],
-                    mint: data.mint
+                    mint: data.mint,
+                    decimals: data.decimals || 9
                 };
 
-                // Basic enriched data without URI metadata
+                log('[PumpPortal] Base Metadata:', baseMetadata);
+                log('[PumpPortal] Full token data:', JSON.stringify(data, null, 2));
+
+                // Basic enriched data with URI
                 const enrichedData = {
                     ...data,
                     name: baseMetadata.name,
@@ -63,6 +68,8 @@ export function initializePumpPortalWebSocket() {
                     isNewToken: true,
                     metadata: baseMetadata
                 };
+
+                log('[PumpPortal] Enriched token data:', enrichedData);
 
                 // Broadcast initial data
                 wsManager.broadcast({ 

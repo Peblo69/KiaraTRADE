@@ -1,0 +1,82 @@
+Then update your store to include URI fetching:
+TypeScript
+
+// Add to your PumpPortalStore interface
+interface PumpPortalStore {
+    // ... existing properties
+    fetchTokenUri: (address: string) => Promise<string | null>;
+}
+
+// Add to your store implementation
+export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
+    // ... existing implementation
+
+    fetchTokenUri: async (address: string) => {
+        const token = get().getToken(address);
+        
+        // If we already have a URI, return it
+        if (token?.metadata?.uri) {
+            debugLog('URI already exists:', token.metadata.uri);
+            return token.metadata.uri;
+        }
+
+        // Try to fetch from chain
+        const uri = await fetchTokenMetadataFromChain(address);
+        if (uri) {
+            // Update token with new URI
+            set(state => ({
+                tokens: state.tokens.map(t => {
+                    if (t.address === address) {
+                        return {
+                            ...t,
+                            metadata: {
+                                ...t.metadata,
+                                uri
+                            }
+                        };
+                    }
+                    return t;
+                })
+            }));
+        }
+
+        return uri;
+    }
+}));
+
+Then in your TokenCard component:
+TypeScript
+
+export function TokenCard({ token, analytics }: TokenCardProps) {
+    const fetchTokenUri = usePumpPortalStore(state => state.fetchTokenUri);
+
+    useEffect(() => {
+        async function getUri() {
+            if (token.address && !token.metadata?.uri) {
+                console.log('Fetching URI for token:', token.address);
+                const uri = await fetchTokenUri(token.address);
+                if (uri) {
+                    console.log('Found URI:', uri);
+                }
+            }
+        }
+        getUri();
+    }, [token.address]);
+
+    // ... rest of your component
+}
+
+This will:
+
+    Log all incoming token data to help debug URI issues
+    Try to capture URI from the creation event
+    If URI is missing, attempt to fetch it from the chain
+    Update the token with the URI when found
+
+Can you run this and let me know what you see in the logs? We should be able to see:
+
+    The full token data when created
+    Any URIs that are included in the data
+    Attempts to fetch URIs from chain when missing
+
+This will help us understand where the URI data might be getting lost or if we need to fetch it differently.

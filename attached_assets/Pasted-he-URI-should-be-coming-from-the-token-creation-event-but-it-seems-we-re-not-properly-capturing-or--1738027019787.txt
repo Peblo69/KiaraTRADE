@@ -1,0 +1,126 @@
+he URI should be coming from the token creation event, but it seems we're not properly capturing or logging it. Let's enhance the WebSocket handling to properly capture and log URIs:
+TypeScript
+
+// In your pumpportal.ts, modify the token creation handler:
+
+if (data.txType === 'create' && data.mint) {
+    log('[PumpPortal] New token created:', data.mint);
+    log('[PumpPortal] Token URI:', data.uri); // Add this line to debug URI
+
+    // Extract base metadata with URI logging
+    const baseMetadata = {
+        name: data.name || `Token ${data.mint.slice(0, 8)}`,
+        symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
+        uri: data.uri || '', // Make sure we capture URI
+        creators: data.creators || [],
+        mint: data.mint
+    };
+
+    log('[PumpPortal] Base Metadata:', baseMetadata); // Add this line to debug metadata
+
+    // Log the full data object to see what we're receiving
+    log('[PumpPortal] Full token data:', JSON.stringify(data, null, 2));
+
+    const enrichedData = {
+        ...data,
+        name: baseMetadata.name,
+        symbol: baseMetadata.symbol,
+        uri: baseMetadata.uri, // Ensure URI is included
+        creators: baseMetadata.creators,
+        initialBuy: data.tokenAmount || 0,
+        priceInSol: data.solAmount ? (data.solAmount / (data.tokenAmount || TOTAL_SUPPLY)) : 0,
+        marketCapSol: data.vSolInBondingCurve || 0,
+        timestamp: Date.now(),
+        isNewToken: true,
+        metadata: baseMetadata
+    };
+
+    // Log the enriched data
+    log('[PumpPortal] Enriched token data:', enrichedData);
+
+    // Broadcast initial data
+    wsManager.broadcast({ 
+        type: 'newToken',
+        data: enrichedData
+    });
+}
+
+Then in your WebSocket store, let's add URI logging:
+TypeScript
+
+// In pump-portal-websocket.ts
+
+export function mapTokenData(data: any): PumpPortalToken {
+    debugLog('mapTokenData input', data); // Add this line to see incoming data
+
+    // Extract token name, symbol, and URI
+    const tokenName = data.metadata?.name || data.name;
+    const tokenSymbol = data.metadata?.symbol || data.symbol;
+    const mintAddress = data.mint || data.address || '';
+    const tokenUri = data.metadata?.uri || data.uri || ''; // Make sure we capture URI
+
+    debugLog('Token URI found:', tokenUri); // Add this line to debug URI
+
+    const tokenData: PumpPortalToken = {
+        symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
+        name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
+        address: mintAddress,
+        bondingCurveKey: data.bondingCurveKey || '',
+        vTokensInBondingCurve: data.vTokensInBondingCurve || 0,
+        vSolInBondingCurve: data.vSolInBondingCurve || 0,
+        marketCapSol: data.marketCapSol || 0,
+        priceInSol: data.priceInSol || 0,
+        priceInUsd: data.priceInUsd || 0,
+        devWallet: data.devWallet || data.traderPublicKey,
+        recentTrades: [],
+        metadata: {
+            name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
+            symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
+            decimals: 9,
+            mint: mintAddress,
+            uri: tokenUri, // Make sure URI is included
+            creators: data.creators || []
+        },
+        lastAnalyzedAt: Date.now().toString(),
+        analyzedBy: CURRENT_USER,
+        createdAt: data.txType === 'create' ? Date.now().toString() : undefined
+    };
+
+    debugLog('Mapped token data with URI:', tokenData); // Add this line to verify URI mapping
+    return tokenData;
+}
+
+Add a function to fetch token metadata from on-chain:
+TypeScript
+
+// New function to fetch token metadata from chain
+async function fetchTokenMetadataFromChain(mintAddress: string) {
+    try {
+        // Log attempt to fetch
+        debugLog('Attempting to fetch metadata from chain for:', mintAddress);
+
+        // Make RPC call to get token metadata
+        const response = await axios.post('https://api.mainnet-beta.solana.com', {
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getAccountInfo',
+            params: [
+                mintAddress,
+                {encoding: 'jsonParsed'}
+            ]
+        });
+
+        debugLog('Chain metadata response:', response.data);
+
+        if (response.data?.result?.value?.data?.parsed?.info?.uri) {
+            const uri = response.data.result.value.data.parsed.info.uri;
+            debugLog('Found URI from chain:', uri);
+            return uri;
+        }
+
+        return null;
+    } catch (error) {
+        console.error('Failed to fetch metadata from chain:', error);
+        return null;
+    }
+}
