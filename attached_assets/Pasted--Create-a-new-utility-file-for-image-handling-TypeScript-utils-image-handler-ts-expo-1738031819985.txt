@@ -1,0 +1,140 @@
+
+    Create a new utility file for image handling:
+
+TypeScript
+
+// utils/image-handler.ts
+export const validateImageUrl = (url: string | null | undefined): string | null => {
+    if (!url) {
+        console.log('[ImageHandler] No URL provided');
+        return null;
+    }
+
+    // Check if it's an IPFS URL and properly formatted
+    if (url.includes('ipfs')) {
+        if (!url.startsWith('https://')) {
+            url = `https://ipfs.io/ipfs/${url.split('ipfs://').pop()}`;
+            console.log('[ImageHandler] Converted IPFS URL to:', url);
+        }
+    }
+
+    // Basic URL validation
+    try {
+        new URL(url);
+        console.log('[ImageHandler] Valid URL format:', url);
+        return url;
+    } catch {
+        console.error('[ImageHandler] Invalid URL format:', url);
+        return null;
+    }
+};
+
+    Update the TokenCard component to use this validation:
+
+TypeScript
+
+// components/TokenCard.tsx
+import { validateImageUrl } from '@/utils/image-handler';
+
+export function TokenCard({ token, analytics }: TokenCardProps) {
+    const [imageError, setImageError] = useState(false);
+    const [validatedImageUrl, setValidatedImageUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        // Get image URL from token data
+        const rawImageUrl = token.metadata?.imageUrl || token.imageUrl;
+        console.log('[TokenCard] Raw image URL:', rawImageUrl);
+
+        // Validate and process the URL
+        const processedUrl = validateImageUrl(rawImageUrl);
+        console.log('[TokenCard] Processed image URL:', processedUrl);
+        
+        setValidatedImageUrl(processedUrl);
+    }, [token]);
+
+    return (
+        <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-900/10 hover:border-purple-500/40 transition-all duration-300">
+            {/* Image Container */}
+            <div className="aspect-square mb-4 rounded-lg overflow-hidden bg-purple-900/20 relative">
+                {validatedImageUrl && !imageError ? (
+                    <>
+                        <img
+                            src={validatedImageUrl}
+                            alt={token.name}
+                            className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-300"
+                            onError={(e) => {
+                                console.error('[TokenCard] Image failed to load:', validatedImageUrl);
+                                setImageError(true);
+                            }}
+                            onLoad={() => {
+                                console.log('[TokenCard] Image loaded successfully:', validatedImageUrl);
+                            }}
+                        />
+                        {/* Debug Overlay - Remove in production */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 truncate">
+                            {validatedImageUrl}
+                        </div>
+                    </>
+                ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                        <span className="text-3xl font-bold text-purple-500/50">
+                            {token.symbol?.[0] || '?'}
+                        </span>
+                        {/* Debug Message - Remove in production */}
+                        <span className="text-xs text-purple-400/50">
+                            {imageError ? 'Failed to load' : 'No valid image URL'}
+                        </span>
+                    </div>
+                )}
+            </div>
+
+            {/* Rest of your card content */}
+            {/* ... */}
+        </div>
+    );
+}
+
+    Add a debug mode toggle (optional):
+
+TypeScript
+
+// components/TokenCard.tsx
+// Add this near the top of your component
+const DEBUG_MODE = true; // Set to false in production
+
+// Add this inside your component
+const DebugInfo = ({ url }: { url: string }) => {
+    if (!DEBUG_MODE) return null;
+    
+    return (
+        <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1">
+            <div className="truncate">{url}</div>
+            <div className="flex gap-2">
+                <span>Status: {imageError ? '❌ Error' : '✅ OK'}</span>
+                <span>Type: {url.includes('ipfs') ? 'IPFS' : 'HTTP'}</span>
+            </div>
+        </div>
+    );
+};
+
+This solution:
+
+    Validates URLs before trying to display them
+    Properly handles IPFS URLs
+    Shows debug information about the image loading status
+    Provides clear feedback when images fail to load
+    Logs all steps of the process
+
+You can test it with different URL formats:
+TypeScript
+
+// Examples of URLs that should work:
+"https://ipfs.io/ipfs/QmXJNhGwtbGsBaUYq9YRSmUWNfCVRADrWVyxVP3CfAZadS"
+"ipfs://QmXJNhGwtbGsBaUYq9YRSmUWNfCVRADrWVyxVP3CfAZadS"
+"https://regular-url.com/image.jpg"
+
+To implement this:
+
+    Create the image-handler.ts file
+    Update your TokenCard component
+    Test with various token metadata

@@ -3,6 +3,7 @@ import { TokenSecurityButton } from "@/components/TokenSecurityButton";
 import { formatNumber } from "@/lib/utils";
 import { FuturisticText } from "@/components/FuturisticText";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
+import { validateImageUrl } from '@/utils/image-handler';
 import { ImageIcon } from 'lucide-react';
 
 interface TokenCardProps {
@@ -26,42 +27,39 @@ interface TokenCardProps {
 
 export function TokenCard({ token, analytics }: TokenCardProps) {
     const [imageError, setImageError] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
+    const [validatedImageUrl, setValidatedImageUrl] = useState<string | null>(null);
 
-    // Debug logs
     useEffect(() => {
-        console.log('TokenCard rendered with token:', {
-            address: token.address,
-            imageUrl: token.metadata?.imageUrl,
-            directImageUrl: token.imageUrl,
-            metadata: token.metadata
-        });
+        // Get image URL from token data
+        const rawImageUrl = token.metadata?.imageUrl || token.imageUrl;
+        console.log('[TokenCard] Raw image URL:', rawImageUrl);
+
+        // Validate and process the URL
+        const processedUrl = validateImageUrl(rawImageUrl);
+        console.log('[TokenCard] Processed image URL:', processedUrl);
+
+        setValidatedImageUrl(processedUrl);
     }, [token]);
 
-    const imageUrl = token.metadata?.imageUrl || token.imageUrl;
     const displayName = token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`;
     const displaySymbol = token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase();
     const displayPrice = token.priceInUsd || 0;
 
     return (
         <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-900/10 hover:border-purple-500/40 transition-all duration-300">
-            {/* Image Container - This is the part that creates the circular placeholder */}
+            {/* Image Container */}
             <div className="aspect-square mb-4 rounded-lg overflow-hidden bg-purple-900/20 relative">
-                {imageUrl && !imageError ? (
+                {validatedImageUrl && !imageError ? (
                     <img
-                        src={imageUrl}
+                        src={validatedImageUrl}
                         alt={displayName}
-                        className={`w-full h-full object-cover transform hover:scale-105 transition-all duration-300 ${
-                            isLoading ? 'opacity-0' : 'opacity-100'
-                        }`}
-                        onLoad={() => {
-                            console.log('TokenCard: Image loaded successfully:', imageUrl);
-                            setIsLoading(false);
-                        }}
+                        className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-300"
                         onError={(e) => {
-                            console.error('TokenCard: Image failed to load:', imageUrl);
+                            console.error('[TokenCard] Image failed to load:', validatedImageUrl);
                             setImageError(true);
-                            setIsLoading(false);
+                        }}
+                        onLoad={() => {
+                            console.log('[TokenCard] Image loaded successfully:', validatedImageUrl);
                         }}
                     />
                 ) : (
@@ -70,13 +68,6 @@ export function TokenCard({ token, analytics }: TokenCardProps) {
                         <div className="w-16 h-16 rounded-full bg-purple-800/30 flex items-center justify-center">
                             {displaySymbol[0] || <ImageIcon className="w-8 h-8 text-purple-500/50" />}
                         </div>
-                    </div>
-                )}
-
-                {/* Loading overlay */}
-                {isLoading && imageUrl && (
-                    <div className="absolute inset-0 bg-purple-900/20 flex items-center justify-center">
-                        <div className="animate-pulse w-8 h-8 rounded-full bg-purple-500/50" />
                     </div>
                 )}
             </div>
