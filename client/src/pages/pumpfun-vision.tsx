@@ -14,15 +14,17 @@ const PumpFunVision: FC = () => {
   // Global state
   const tokens = usePumpPortalStore(state => state.tokens);
   const isConnected = usePumpPortalStore(state => state.isConnected);
-  const setActiveTokenView = usePumpPortalStore(state => state.setActiveTokenView);
+  const setActiveTokenView = usePumpPortalStore(state => state.setActiveTokenView); //Retained this line
 
   // Handlers
   const handleTokenSelect = useCallback((address: string) => {
     setSelectedToken(address);
+    setActiveTokenView(address); //Retained this line
   }, []);
 
   const handleBack = useCallback(() => {
     setSelectedToken(null);
+    setActiveTokenView(null); //Retained this line
   }, []);
 
   // Sort tokens
