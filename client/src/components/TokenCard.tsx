@@ -1,6 +1,6 @@
 import { FC, useState, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
-import { ImageIcon, BarChart2, Activity, TrendingUp, TrendingDown } from 'lucide-react';
+import { ImageIcon } from 'lucide-react';
 import { validateImageUrl } from '@/utils/image-handler';
 import { Badge } from "@/components/ui/badge";
 
@@ -56,24 +56,13 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
     acc + ((trade.solAmount || 0) * (token.solPrice || 0)), 0
   ).toFixed(2) || '0.00';
 
-  // Calculate price change
-  const priceChange = (() => {
-    if (!token.recentTrades?.length) return { value: 0, isPositive: true };
-    const firstTrade = token.recentTrades[token.recentTrades.length - 1];
-    const change = ((token.priceInUsd || 0) - (firstTrade.priceInUsd || 0)) / (firstTrade.priceInUsd || 1) * 100;
-    return {
-      value: Math.abs(change),
-      isPositive: change >= 0
-    };
-  })();
-
   return (
     <Card 
-      className="group cursor-pointer hover:scale-[1.02] transition-all duration-300 bg-[#0B0F13]/10 backdrop-blur-xl border-[#1F2937]/10"
+      className="group cursor-pointer hover:scale-[1.02] transition-all duration-300"
       onClick={onClick}
     >
       <div className="flex items-start p-4 gap-4">
-        {/* Image Section */}
+        {/* Image Section - Now as a smaller square */}
         <div className="w-16 h-16 flex-shrink-0 relative overflow-hidden bg-gradient-to-br from-purple-900/10 to-black/20 rounded-lg">
           {validatedImageUrl && !imageError ? (
             <img
@@ -103,7 +92,7 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-semibold metallic-text">
+                <h3 className="text-lg font-semibold text-purple-100">
                   {displaySymbol}
                 </h3>
                 <Badge 
@@ -117,21 +106,10 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
                 {displayName}
               </p>
             </div>
-            <div className={`flex items-center gap-1 ${
-              priceChange.isPositive ? 'text-green-500' : 'text-red-500'
-            }`}>
-              {priceChange.isPositive ? 
-                <TrendingUp className="w-4 h-4" /> : 
-                <TrendingDown className="w-4 h-4" />
-              }
-              <span className="text-sm font-medium">
-                {priceChange.value.toFixed(2)}%
-              </span>
-            </div>
           </div>
 
           {/* Price */}
-          <div className="bg-[#1F2937]/10 backdrop-blur-xl p-2 rounded-lg">
+          <div className="bg-purple-500/5 p-2 rounded-lg">
             <div className="text-sm text-gray-400">Current Price</div>
             <div className="text-lg font-bold text-purple-100">
               ${token.priceInUsd?.toFixed(8) || '0.00000000'}
@@ -141,24 +119,15 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
           {/* Stats Grid */}
           <div className="grid grid-cols-3 gap-2 pt-2 border-t border-purple-500/10">
             <div className="text-center">
-              <div className="text-xs text-gray-400">
-                <BarChart2 className="w-3 h-3 inline mb-0.5 mr-1" />
-                Market Cap
-              </div>
+              <div className="text-xs text-gray-400">Market Cap</div>
               <div className="font-medium text-sm">${marketCap}</div>
             </div>
             <div className="text-center">
-              <div className="text-xs text-gray-400">
-                <Activity className="w-3 h-3 inline mb-0.5 mr-1" />
-                Liquidity
-              </div>
+              <div className="text-xs text-gray-400">Liquidity</div>
               <div className="font-medium text-sm">${liquidity}</div>
             </div>
             <div className="text-center">
-              <div className="text-xs text-gray-400">
-                <BarChart2 className="w-3 h-3 inline mb-0.5 mr-1" />
-                Volume
-              </div>
+              <div className="text-xs text-gray-400">Volume</div>
               <div className="font-medium text-sm">${volume}</div>
             </div>
           </div>

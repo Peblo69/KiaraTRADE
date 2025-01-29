@@ -1,87 +1,77 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
-export function SpaceBackground() {
-  const containerRef = useRef<HTMLDivElement>(null);
+interface Star {
+  x: number;
+  y: number;
+  size: number;
+  alpha: number;
+  speed: number;
+}
+
+export default function SpaceBackground() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    // Create warp speed stars
-    const createWarpStars = () => {
-      const starsCount = 200;
-      for (let i = 0; i < starsCount; i++) {
-        const star = document.createElement('div');
-        star.className = 'warp-star';
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-        star.style.left = `${Math.random() * 100}%`;
-        star.style.top = `${Math.random() * 100}%`;
-        star.style.animationDelay = `${Math.random() * 20}s`;
+    function resizeCanvas() {
+      if (!canvas) return;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
 
-        const size = 1 + Math.random() * 2;
-        star.style.width = `${size}px`;
-        star.style.height = `${size}px`;
+    const stars: Star[] = [];
+    const numStars = 200; // Reduced number of stars
 
-        star.style.transform = `translateZ(${-1000 + Math.random() * 2000}px)`;
+    // Initialize stars with smaller sizes
+    for (let i = 0; i < numStars; i++) {
+      stars.push({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        size: Math.random() * 0.5 + 0.2, // Smaller size range: 0.2 to 0.7
+        alpha: Math.random() * 0.3 + 0.1, // More subtle alpha range: 0.1 to 0.4
+        speed: Math.random() * 0.005 + 0.002 // Slower speed for more subtle effect
+      });
+    }
 
-        container.appendChild(star);
-      }
-    };
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
 
-    // Create falling stars
-    const createFallingStars = () => {
-      const star = document.createElement('div');
-      star.className = 'falling-star';
-      star.style.left = `${Math.random() * 100}%`;
-      star.style.top = '-5px';
-      container.appendChild(star);
+    function animate() {
+      if (!canvas || !ctx) return;
 
-      setTimeout(() => {
-        if (container.contains(star)) {
-          container.removeChild(star);
-        }
-      }, 3000);
-    };
+      // Use a more transparent black for the fade effect
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Create alien ships
-    const createAlienShip = () => {
-      const ship = document.createElement('div');
-      ship.className = 'alien-ship';
+      stars.forEach(star => {
+        star.alpha += star.speed;
+        if (star.alpha > 0.4) star.alpha = 0.1; // Reset at lower max alpha
 
-      // Random path selection
-      const paths = ['path1', 'path2', 'path3', 'path4'];
-      ship.classList.add(paths[Math.floor(Math.random() * paths.length)]);
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
 
-      container.appendChild(ship);
+      requestAnimationFrame(animate);
+    }
 
-      setTimeout(() => {
-        if (container.contains(ship)) {
-          container.removeChild(ship);
-        }
-      }, 4000);
-    };
-
-    // Initialize stars
-    createWarpStars();
-
-    // Set up intervals for continuous effects
-    const warpInterval = setInterval(() => {
-      container.innerHTML = '';
-      createWarpStars();
-    }, 20000); // Extended to 20 seconds
-
-    const fallingStarInterval = setInterval(createFallingStars, 2000);
-    const alienShipInterval = setInterval(createAlienShip, 5000);
+    animate();
 
     return () => {
-      clearInterval(warpInterval);
-      clearInterval(fallingStarInterval);
-      clearInterval(alienShipInterval);
-      container.innerHTML = '';
+      window.removeEventListener('resize', resizeCanvas);
     };
   }, []);
 
-  return <div ref={containerRef} className="space-background" />;
+  return (
+    <canvas
+      ref={canvasRef}
+      className="fixed top-0 left-0 w-full h-full pointer-events-none opacity-70"
+    />
+  );
 }
-
-export default SpaceBackground;
