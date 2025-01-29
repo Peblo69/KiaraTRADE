@@ -1,45 +1,36 @@
 import React from 'react';
 import { Switch, Route } from "wouter";
+import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
-import { useLocation } from "wouter";
 
-// Import components
-import { NewCreations } from './components/NewCreations';
-import { AboutToGraduate } from './components/AboutToGraduate';
-import { Graduated } from './components/Graduated';
-import { Header } from './components/Header';
-import { SpaceBackground } from './components/SpaceBackground';
+// Import all pages
+import Landing from "@/pages/landing";
+import Home from "@/pages/home";
+import KiaraStageI from "@/pages/kiara-stage-i";
+import PumpFunVision from "@/pages/pumpfun-vision";
+import CryptoNews from "@/pages/crypto-news";
+import About from "@/pages/about";
+import Predictions from "@/pages/predictions";
+import Subscriptions from "@/pages/subscriptions";
+import WalletTracking from "@/pages/wallet-tracking";
 import NotFound from "@/pages/not-found";
-import { queryClient } from "./lib/queryClient";
 
 function Router() {
-  const [location] = useLocation();
-
   return (
-    <div className="relative min-h-screen w-full overflow-hidden">
-      <SpaceBackground />
-      <div className="relative z-10">
-        <Header />
-        <main className="container mx-auto px-6 py-8">
-          <div className="grid grid-cols-3 gap-6">
-            <div className="col-span-1">
-              <NewCreations />
-            </div>
-            <div className="col-span-1">
-              <AboutToGraduate />
-            </div>
-            <div className="col-span-1">
-              <Graduated />
-            </div>
-          </div>
-        </main>
-      </div>
-
-      <Switch>
-        <Route component={NotFound} />
-      </Switch>
-    </div>
+    <Switch>
+      <Route path="/" component={Landing} />
+      <Route path="/home" component={Home} />
+      <Route path="/kiara-stage-i" component={KiaraStageI} />
+      <Route path="/pumpfun-vision" component={PumpFunVision} />
+      <Route path="/crypto-news" component={CryptoNews} />
+      <Route path="/about" component={About} />
+      <Route path="/predictions" component={Predictions} />
+      <Route path="/subscriptions" component={Subscriptions} />
+      <Route path="/wallet-tracking" component={WalletTracking} />
+      {/* Fallback to 404 */}
+      <Route component={NotFound} />
+    </Switch>
   );
 }
 
