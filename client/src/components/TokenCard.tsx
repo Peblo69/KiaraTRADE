@@ -1,5 +1,6 @@
 import { FC, useState, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { ImageIcon, Globe, Search, Users, Crosshair, UserPlus, Copy } from 'lucide-react';
 import { validateImageUrl } from '@/utils/image-handler';
 import { validateSocialUrl } from '@/utils/social-links';
