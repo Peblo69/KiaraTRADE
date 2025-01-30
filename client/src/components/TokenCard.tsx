@@ -12,6 +12,7 @@ import { DevHoldingIcon } from './icons/DevHoldingIcon';
 import { InsiderIcon } from './icons/InsiderIcon';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import type { Token, TokenTrade } from '@/types/token';
+import { debounce } from 'lodash';
 
 interface TokenCardProps {
   token: Token;
@@ -30,6 +31,7 @@ interface TokenMetrics {
   holdersCount: number;
 }
 
+// Extracted pure calculation functions
 const calculateTokenMetrics = (
   token: Token,
   trades: TokenTrade[],
@@ -110,23 +112,30 @@ export const TokenCard: FC<TokenCardProps> = ({
   onCopyAddress = () => console.log('Address copied')
 }) => {
   const [imageError, setImageError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
   const [validatedImageUrl, setValidatedImageUrl] = useState<string | null>(null);
   const [currentProgress, setCurrentProgress] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 3;
 
-  // Use refs to track previous values for comparison
+  // Refs for performance optimization
   const prevMetricsRef = useRef<TokenMetrics | null>(null);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const progressAnimationRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize metrics with token data
-  const [metrics, setMetrics] = useState<TokenMetrics>(() =>
+  // Memoized initial metrics calculation
+  const initialMetrics = useMemo(() => 
     calculateTokenMetrics(
       token,
       token.recentTrades || [],
       parseInt(token.createdAt || Date.now().toString())
-    )
+    ),
+    [token]
   );
 
-  // Memoize the metrics calculation
+  const [metrics, setMetrics] = useState<TokenMetrics>(initialMetrics);
+
+  // Memoized calculation function
   const calculateCurrentMetrics = useCallback(() => {
     return calculateTokenMetrics(
       token,
@@ -135,34 +144,67 @@ export const TokenCard: FC<TokenCardProps> = ({
     );
   }, [token]);
 
-  // Handle real-time updates
+  // Debounced progress bar update
+  const updateProgress = useMemo(
+    () => debounce((targetProgress: number) => {
+      if (progressAnimationRef.current) {
+        clearTimeout(progressAnimationRef.current);
+      }
+
+      const step = (targetProgress - currentProgress) / 10;
+      progressAnimationRef.current = setTimeout(() => {
+        setCurrentProgress(prev => {
+          const next = prev + step;
+          return Math.abs(next - targetProgress) < 0.1 ? targetProgress : next;
+        });
+      }, 50);
+    }, 100),
+    [currentProgress]
+  );
+
+  // Image loading and retry logic
+  const handleImageLoad = useCallback(() => {
+    setImageLoading(false);
+    setImageError(false);
+  }, []);
+
+  const handleImageError = useCallback(() => {
+    setImageError(true);
+    setImageLoading(false);
+    if (retryCount < MAX_RETRIES) {
+      setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+        setImageLoading(true);
+        setValidatedImageUrl(null);
+      }, 1000 * (retryCount + 1));
+    }
+  }, [retryCount]);
+
+  // Handle real-time updates with optimizations
   useEffect(() => {
     const handleTokenUpdate = (updatedToken: Token | undefined) => {
       if (!updatedToken) return;
 
-      // Process image URL
-      const rawImageUrl = updatedToken.metadata?.imageUrl || updatedToken.imageUrl;
-      const processedUrl = validateImageUrl(rawImageUrl);
-      setValidatedImageUrl(processedUrl);
+      // Process image URL with retry logic
+      if (!validatedImageUrl && !imageError) {
+        const rawImageUrl = updatedToken.metadata?.imageUrl || updatedToken.imageUrl;
+        const processedUrl = validateImageUrl(rawImageUrl);
+        setValidatedImageUrl(processedUrl);
+        setImageLoading(true);
+      }
 
-      const newMetrics = calculateTokenMetrics(
-        updatedToken,
-        updatedToken.recentTrades || [],
-        parseInt(updatedToken.createdAt || Date.now().toString())
-      );
+      const newMetrics = calculateCurrentMetrics();
 
-      // Compare with previous metrics
+      // Compare with previous metrics for optimized updates
       const hasChanged = !prevMetricsRef.current ||
         prevMetricsRef.current.marketCapSol !== newMetrics.marketCapSol ||
         prevMetricsRef.current.volume24h !== newMetrics.volume24h;
 
       if (hasChanged) {
-        // Clear previous timeout
         if (updateTimeoutRef.current) {
           clearTimeout(updateTimeoutRef.current);
         }
 
-        // Update metrics and trigger animation
         setMetrics(newMetrics);
         prevMetricsRef.current = newMetrics;
 
@@ -176,37 +218,38 @@ export const TokenCard: FC<TokenCardProps> = ({
       }
     };
 
-    // Initial image validation
-    const rawImageUrl = token.metadata?.imageUrl || token.imageUrl;
-    const processedUrl = validateImageUrl(rawImageUrl);
-    setValidatedImageUrl(processedUrl);
+    // Initial setup
+    if (!validatedImageUrl && !imageError) {
+      const rawImageUrl = token.metadata?.imageUrl || token.imageUrl;
+      const processedUrl = validateImageUrl(rawImageUrl);
+      setValidatedImageUrl(processedUrl);
+      setImageLoading(true);
+    }
 
-    // Subscribe to store updates
     const unsubscribe = usePumpPortalStore.subscribe(
       (state) => state.tokens.find(t => t.address === token.address),
       handleTokenUpdate
     );
 
-    // Initial calculation
-    handleTokenUpdate(token);
-
-    // Cleanup
     return () => {
       unsubscribe();
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
       }
+      if (progressAnimationRef.current) {
+        clearTimeout(progressAnimationRef.current);
+      }
     };
-  }, [token, token.address, calculateCurrentMetrics]);
+  }, [token, token.address, calculateCurrentMetrics, validatedImageUrl, imageError]);
 
-  // Regular refresh for 24h volume
+  // Regular volume refresh
   useEffect(() => {
     const interval = setInterval(() => {
       setMetrics(prev => ({
         ...prev,
         volume24h: calculateCurrentMetrics().volume24h
       }));
-    }, 60000); // Every minute
+    }, 60000);
 
     return () => clearInterval(interval);
   }, [calculateCurrentMetrics]);
@@ -214,21 +257,26 @@ export const TokenCard: FC<TokenCardProps> = ({
   // Progress bar animation
   useEffect(() => {
     const targetProgress = calculateMarketCapProgress(metrics.marketCapSol);
+    updateProgress(targetProgress);
 
-    if (currentProgress !== targetProgress) {
-      const step = (targetProgress - currentProgress) / 10;
-      const timeout = setTimeout(() => {
-        setCurrentProgress(prev => {
-          const next = prev + step;
-          return Math.abs(next - targetProgress) < 0.1 ? targetProgress : next;
-        });
-      }, 50);
-      return () => clearTimeout(timeout);
-    }
-  }, [metrics.marketCapSol, currentProgress]);
+    return () => {
+      updateProgress.cancel();
+      if (progressAnimationRef.current) {
+        clearTimeout(progressAnimationRef.current);
+      }
+    };
+  }, [metrics.marketCapSol, updateProgress]);
 
-  const displayName = token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`;
-  const displaySymbol = token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase();
+  // Memoize display values
+  const displayName = useMemo(() => 
+    token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`,
+    [token]
+  );
+
+  const displaySymbol = useMemo(() => 
+    token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase(),
+    [token]
+  );
 
   const getTopHoldersColor = (percentage: number) =>
     percentage <= 15 ? "text-green-400 hover:text-green-300" : "text-red-400 hover:text-red-300";
@@ -288,17 +336,22 @@ export const TokenCard: FC<TokenCardProps> = ({
                   src={validatedImageUrl}
                   alt={displayName}
                   className="w-full h-full object-cover transform group-hover/image:scale-110 transition-all duration-700"
-                  onError={() => setImageError(true)}
+                  onLoad={handleImageLoad}
+                  onError={handleImageError}
                 />
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center">
                   <Search className="w-4 h-4 text-white/90" />
                 </div>
               </>
-            ) : (
+            ) : imageLoading ? (
               <div className="w-full h-full flex items-center justify-center animate-pulse group-hover/image:animate-none">
                 <span className="text-2xl font-bold text-purple-400/70 group-hover/image:text-purple-300/90">
                   {displaySymbol[0] || <ImageIcon className="w-8 h-8 text-purple-400/50" />}
                 </span>
+              </div>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <span className="text-red-500">Image Load Failed</span>
               </div>
             )}
             <div className="absolute bottom-0 right-0 w-3 h-3 bg-purple-500/20 rounded-full border border-purple-500/40 flex items-center justify-center">
