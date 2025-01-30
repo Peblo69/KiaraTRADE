@@ -1,0 +1,129 @@
+    mproved WebSocket Manager:
+
+TypeScript
+
+// services/websocket-manager.ts
+export class WebSocketManager {
+  private readonly tokenService: TokenService;
+  private readonly reconnectDelay = 5000;
+  private ws: WebSocket | null = null;
+  private pingInterval: NodeJS.Timeout | null = null;
+
+  constructor() {
+    this.tokenService = new TokenService(db, heliusService);
+  }
+
+  connect() {
+    this.ws = new WebSocket(PUMP_PORTAL_WS_URL);
+
+    this.ws.onopen = this.handleOpen.bind(this);
+    this.ws.onmessage = this.handleMessage.bind(this);
+    this.ws.onclose = this.handleClose.bind(this);
+    this.ws.onerror = this.handleError.bind(this);
+  }
+
+  private handleOpen() {
+    console.log('[WebSocket] Connected to PumpPortal');
+    
+    // Setup ping interval
+    this.pingInterval = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ method: "ping" }));
+      }
+    }, 30000);
+
+    // Subscribe to data streams
+    this.subscribe("subscribeNewToken");
+    this.subscribe("subscribeTokenTrades");
+  }
+
+  private async handleMessage(event: MessageEvent) {
+    try {
+      const data = JSON.parse(event.data.toString());
+
+      if (data.message?.includes('Successfully subscribed')) {
+        return;
+      }
+
+      switch (data.txType) {
+        case 'create':
+          if (data.mint) {
+            await this.tokenService.processNewToken(data);
+          }
+          break;
+        case 'buy':
+        case 'sell':
+          if (data.mint) {
+            await this.tokenService.processTrade(data);
+          }
+          break;
+      }
+    } catch (error) {
+      console.error('[WebSocket] Message handling error:', error);
+    }
+  }
+
+  private handleClose() {
+    console.log('[WebSocket] Disconnected from PumpPortal');
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+    }
+    setTimeout(() => this.connect(), this.reconnectDelay);
+  }
+
+  private handleError(error: Event) {
+    console.error('[WebSocket] Error:', error);
+  }
+
+  private subscribe(method: string, keys: string[] = []) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ method, keys }));
+    }
+  }
+}
+
+    Database Integration:
+
+TypeScript
+
+// db/queries.ts
+export const tokenQueries = {
+  async upsertToken(token: TokenData) {
+    return db.transaction(async (trx) => {
+      // Update token record
+      await trx
+        .insert(tokens)
+        .values({
+          address: token.address,
+          symbol: token.symbol,
+          name: token.name,
+          price_sol: token.metrics.price.sol,
+          price_usd: token.metrics.price.usd,
+          market_cap_sol: token.metrics.marketCap.sol,
+          market_cap_usd: token.metrics.marketCap.usd,
+          volume_24h_sol: token.metrics.volume.sol24h,
+          holders_count: token.metrics.holders.total,
+          top_10_percentage: token.metrics.holders.top10Percentage,
+          dev_percentage: token.metrics.holders.devPercentage,
+          last_update: new Date(token.lastUpdate)
+        })
+        .onConflict(tokens.address)
+        .merge();
+
+      // Add latest trade
+      if (token.trades.length > 0) {
+        const latestTrade = token.trades[0];
+        await trx
+          .insert(token_trades)
+          .values({
+            token_address: token.address,
+            signature: latestTrade.signature,
+            type: latestTrade.type,
+            amount: latestTrade.amount,
+            price_sol: latestTrade.price,
+            timestamp: new Date(latestTrade.timestamp)
+          });
+      }
+    });
+  }
+};

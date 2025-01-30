@@ -1,4 +1,3 @@
-
 import React, { FC, useState, useCallback, Suspense } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,12 +16,12 @@ const PumpFunVision: FC = () => {
   const handleTokenSelect = useCallback((address: string) => {
     setSelectedToken(address);
     setActiveTokenView(address);
-  }, []);
+  }, [setActiveTokenView]);
 
   const handleBack = useCallback(() => {
     setSelectedToken(null);
     setActiveTokenView(null);
-  }, []);
+  }, [setActiveTokenView]);
 
   // Filter tokens based on their stage
   const newTokens = tokens.filter(t => t.isNew);

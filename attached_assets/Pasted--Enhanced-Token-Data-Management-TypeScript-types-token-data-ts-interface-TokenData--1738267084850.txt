@@ -1,0 +1,162 @@
+
+    Enhanced Token Data Management:
+
+TypeScript
+
+// types/token-data.ts
+interface TokenData {
+  address: string;
+  symbol: string;
+  name: string;
+  metadata: TokenMetadata;
+  metrics: {
+    price: {
+      sol: number;
+      usd: number;
+      lastUpdate: number;
+    };
+    volume: {
+      sol1h: number;
+      sol24h: number;
+      sol7d: number;
+      lastUpdate: number;
+    };
+    marketCap: {
+      sol: number;
+      usd: number;
+      lastUpdate: number;
+    };
+    holders: {
+      total: number;
+      unique: number;
+      top10Percentage: number;
+      devPercentage: number;
+      lastUpdate: number;
+    };
+  };
+  trades: TokenTrade[];
+  createdAt: number;
+  lastUpdate: number;
+}
+
+// services/token-service.ts
+export class TokenService {
+  constructor(
+    private readonly db: typeof import('@db').db,
+    private readonly helius: typeof import('./helius-service').default
+  ) {}
+
+  async processNewToken(data: any): Promise<TokenData> {
+    // Create enriched token data
+    const token: TokenData = {
+      address: data.mint,
+      symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
+      name: data.name || `Token ${data.mint.slice(0, 8)}`,
+      metadata: await this.fetchAndProcessMetadata(data),
+      metrics: {
+        price: {
+          sol: data.priceInSol || 0,
+          usd: (data.priceInSol || 0) * this.getCurrentSolPrice(),
+          lastUpdate: Date.now()
+        },
+        volume: {
+          sol1h: 0,
+          sol24h: 0,
+          sol7d: 0,
+          lastUpdate: Date.now()
+        },
+        marketCap: {
+          sol: data.vSolInBondingCurve || 0,
+          usd: (data.vSolInBondingCurve || 0) * this.getCurrentSolPrice(),
+          lastUpdate: Date.now()
+        },
+        holders: {
+          total: 0,
+          unique: 0,
+          top10Percentage: 0,
+          devPercentage: data.devWalletPercentage || 0,
+          lastUpdate: Date.now()
+        }
+      },
+      trades: [],
+      createdAt: Date.now(),
+      lastUpdate: Date.now()
+    };
+
+    // Save to database
+    await this.saveToken(token);
+
+    // Initialize Helius monitoring
+    await this.initializeHeliusMonitoring(token.address);
+
+    return token;
+  }
+
+  async processTrade(trade: any): Promise<void> {
+    const token = await this.getToken(trade.mint);
+    if (!token) return;
+
+    // Update token metrics
+    token.metrics.price = {
+      sol: trade.priceInSol,
+      usd: trade.priceInSol * this.getCurrentSolPrice(),
+      lastUpdate: Date.now()
+    };
+
+    token.metrics.marketCap = {
+      sol: trade.vSolInBondingCurve,
+      usd: trade.vSolInBondingCurve * this.getCurrentSolPrice(),
+      lastUpdate: Date.now()
+    };
+
+    // Add trade to history
+    token.trades.unshift({
+      signature: trade.signature,
+      type: trade.txType,
+      amount: trade.tokenAmount,
+      price: trade.priceInSol,
+      timestamp: Date.now()
+    });
+
+    // Update volumes
+    token.metrics.volume = this.calculateVolumes(token.trades);
+
+    // Update database
+    await this.updateToken(token);
+
+    // Broadcast update
+    this.broadcastTokenUpdate(token);
+  }
+
+  private calculateVolumes(trades: TokenTrade[]): TokenVolume {
+    const now = Date.now();
+    const oneHourAgo = now - 3600000;
+    const oneDayAgo = now - 86400000;
+    const sevenDaysAgo = now - 604800000;
+
+    return {
+      sol1h: this.sumTradeVolume(trades, oneHourAgo),
+      sol24h: this.sumTradeVolume(trades, oneDayAgo),
+      sol7d: this.sumTradeVolume(trades, sevenDaysAgo),
+      lastUpdate: now
+    };
+  }
+
+  private async updateHolderMetrics(address: string): Promise<void> {
+    try {
+      const holderData = await this.helius.getTokenHolders(address);
+      const metrics = this.calculateHolderMetrics(holderData);
+      
+      await this.db
+        .update(tokens)
+        .set({
+          holdersCount: metrics.total,
+          top10HoldersPercentage: metrics.top10Percentage,
+          lastUpdate: new Date()
+        })
+        .where(eq(tokens.address, address));
+    } catch (error) {
+      console.error(`Failed to update holder metrics for ${address}:`, error);
+    }
+  }
+}
