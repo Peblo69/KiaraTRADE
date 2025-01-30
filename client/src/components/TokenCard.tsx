@@ -26,7 +26,7 @@ interface TokenMetrics {
   topHoldersPercentage: number;
   devWalletPercentage: number;
   insiderPercentage: number;
-  insiderRisk: number; // Added insiderRisk
+  insiderRisk: number; 
   snipersCount: number;
   holdersCount: number;
 }
@@ -85,8 +85,7 @@ const calculateTokenMetrics = (
   const insiderBalances = Array.from(insiderWallets)
     .reduce((sum, wallet) => sum + (holdersMap.get(wallet) || 0), 0);
   const insiderPercentage = (insiderBalances / totalSupply) * 100;
-  const insiderRisk = Math.round(insiderPercentage / 10); // Simplified risk calculation
-
+  const insiderRisk = Math.round(insiderPercentage / 10); 
 
   return {
     marketCapSol: token.vSolInBondingCurve,
@@ -94,7 +93,7 @@ const calculateTokenMetrics = (
     topHoldersPercentage,
     devWalletPercentage,
     insiderPercentage,
-    insiderRisk, // Added insiderRisk
+    insiderRisk, 
     snipersCount: snipers.size,
     holdersCount: holdersMap.size
   };
@@ -112,7 +111,6 @@ export const TokenCard: FC<TokenCardProps> = ({
   const [timeSinceLaunch, setTimeSinceLaunch] = useState<string>('');
   const prevMetricsRef = useRef<TokenMetrics | null>(null);
 
-  // Memoized initial metrics
   const initialMetrics = useMemo(() => calculateTokenMetrics(
     token,
     token.recentTrades || [],
@@ -121,7 +119,6 @@ export const TokenCard: FC<TokenCardProps> = ({
 
   const [metrics, setMetrics] = useState<TokenMetrics>(initialMetrics);
 
-  // Update time since launch
   useEffect(() => {
     const updateTimeSinceLaunch = () => {
       const createdAt = parseInt(token.createdAt || Date.now().toString());
@@ -144,34 +141,28 @@ export const TokenCard: FC<TokenCardProps> = ({
     return () => clearInterval(interval);
   }, [token.createdAt]);
 
-  // Real-time updates
   useEffect(() => {
     const handleUpdate = (updatedToken: Token | undefined) => {
       if (!updatedToken) return;
 
-      // Update image URL
       const rawImageUrl = updatedToken.metadata?.imageUrl || updatedToken.imageUrl;
       const processedUrl = validateImageUrl(rawImageUrl);
       setValidatedImageUrl(processedUrl);
 
-      // Calculate new metrics
       const newMetrics = calculateTokenMetrics(
         updatedToken,
         updatedToken.recentTrades || [],
         parseInt(updatedToken.createdAt || Date.now().toString())
       );
 
-      // Only update if values changed
       if (JSON.stringify(prevMetricsRef.current) !== JSON.stringify(newMetrics)) {
         prevMetricsRef.current = newMetrics;
         setMetrics(newMetrics);
       }
     };
 
-    // Initial setup
     handleUpdate(token);
 
-    // Subscribe to store updates
     const unsubscribe = usePumpPortalStore.subscribe(
       state => state.tokens.find(t => t.address === token.address),
       handleUpdate
@@ -180,7 +171,6 @@ export const TokenCard: FC<TokenCardProps> = ({
     return () => unsubscribe();
   }, [token]);
 
-  // Progress bar animation
   useEffect(() => {
     const targetProgress = calculateMarketCapProgress(metrics.marketCapSol);
     setCurrentProgress(prev => {
@@ -189,7 +179,6 @@ export const TokenCard: FC<TokenCardProps> = ({
     });
   }, [metrics.marketCapSol]);
 
-  // Memoized display values
   const displayName = useMemo(() =>
     token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`,
     [token]
@@ -213,7 +202,8 @@ export const TokenCard: FC<TokenCardProps> = ({
     percentage <= 15 ? "text-green-400" : "text-red-400";
 
   const getInsiderColor = (count: number) =>
-    count <= 3 ? "text-green-400" : count <= 5 ? "text-yellow-400" : "text-red-400";
+    count === 0 ? "text-green-400" : 
+    count <= 4 ? "text-yellow-400" : "text-red-400";
 
   const getSnipersColor = (count: number) =>
     count <= 5 ? "text-green-400" : "text-red-400";
@@ -234,7 +224,6 @@ export const TokenCard: FC<TokenCardProps> = ({
     window.open(`https://www.google.com/search?q=${searchQuery}&tbm=isch`, '_blank', 'noopener,noreferrer');
   };
 
-  // Memoized social links
   const socialLinks = useMemo(() => ({
     website: token.metadata?.website || token.website,
     telegram: token.metadata?.telegram || token.telegram,
@@ -329,15 +318,15 @@ export const TokenCard: FC<TokenCardProps> = ({
                     <DevHoldingIcon className="current-color" /> {metrics.devWalletPercentage.toFixed(1)}%
                   </span>
                 )}
-                {typeof metrics.insiderRisk !== 'undefined' && metrics.insiderRisk > 0 && (
+                {metrics.insiderRisk > 0 && (
                   <span className={cn(
                     "flex items-center gap-1",
                     getInsiderColor(metrics.insiderRisk)
                   )}>
-                    <InsiderIcon className="current-color" /> {metrics.insiderRisk.toFixed(0)}
+                    <InsiderIcon className="current-color" /> {metrics.insiderRisk}
                   </span>
                 )}
-                {typeof metrics.snipersCount !== 'undefined' && metrics.snipersCount > 0 && (
+                {metrics.snipersCount > 0 && (
                   <span className={cn(
                     "flex items-center gap-1",
                     getSnipersColor(metrics.snipersCount)

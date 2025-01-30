@@ -163,22 +163,43 @@ const calculateDevWalletRisk = (token: PumpPortalToken): number => {
 
 const calculateInsiderWallets = (trades: TokenTrade[]): Set<string> => {
   const insiderWallets = new Set<string>();
-  const timeWindow = 5000; // 5 seconds
+  const timeWindow = 2000; // 2 seconds window
+  const minGroupSize = 4; // Minimum 4 wallets to be considered insider group
 
-  // Group trades by timestamp windows
-  const tradeWindows = new Map<number, TokenTrade[]>();
+  // Group trades by exact timestamp (same second)
+  const exactTimeGroups = new Map<number, TokenTrade[]>();
+  trades.forEach(trade => {
+    if (trade.txType !== 'buy') return;
+    const timeKey = Math.floor(trade.timestamp / 1000) * 1000;
+    if (!exactTimeGroups.has(timeKey)) {
+      exactTimeGroups.set(timeKey, []);
+    }
+    exactTimeGroups.get(timeKey)!.push(trade);
+  });
+
+  // Check for exact time matches (same second buys)
+  exactTimeGroups.forEach(groupTrades => {
+    if (groupTrades.length >= minGroupSize) {
+      groupTrades.forEach(trade => {
+        insiderWallets.add(trade.traderPublicKey);
+      });
+    }
+  });
+
+  // Group trades by similar amounts within time windows
+  const timeWindowGroups = new Map<number, TokenTrade[]>();
   trades.forEach(trade => {
     if (trade.txType !== 'buy') return;
     const windowKey = Math.floor(trade.timestamp / timeWindow) * timeWindow;
-    if (!tradeWindows.has(windowKey)) {
-      tradeWindows.set(windowKey, []);
+    if (!timeWindowGroups.has(windowKey)) {
+      timeWindowGroups.set(windowKey, []);
     }
-    tradeWindows.get(windowKey)!.push(trade);
+    timeWindowGroups.get(windowKey)!.push(trade);
   });
 
-  // Analyze each window for patterns
-  tradeWindows.forEach(windowTrades => {
-    if (windowTrades.length < 2) return;
+  // Check for similar amount patterns
+  timeWindowGroups.forEach(windowTrades => {
+    if (windowTrades.length < minGroupSize) return;
 
     // Group by similar amounts (within 10% difference)
     const amountGroups = new Map<number, TokenTrade[]>();
@@ -196,9 +217,9 @@ const calculateInsiderWallets = (trades: TokenTrade[]): Set<string> => {
       }
     });
 
-    // If we find groups of similar amounts, mark those wallets as insiders
-    amountGroups.forEach((group, amount) => {
-      if (group.length >= 2) {
+    // If we find groups of similar amounts with enough wallets
+    amountGroups.forEach((group) => {
+      if (group.length >= minGroupSize) {
         group.forEach(trade => {
           insiderWallets.add(trade.traderPublicKey);
         });
@@ -226,13 +247,13 @@ export const calculateTokenRisk = (token: PumpPortalToken): RiskMetrics => {
 
   // Calculate insider percentage
   const insiderWallets = calculateInsiderWallets(token.recentTrades);
-  const insiderRisk = (insiderWallets.size / token.recentTrades.length) * 100;
+  const insiderRisk = insiderWallets.size;
 
   return {
     holdersRisk,
     volumeRisk,
     devWalletRisk,
     insiderRisk,
-    totalRisk: (holdersRisk + volumeRisk + devWalletRisk + insiderRisk) / 4,
+    totalRisk: (holdersRisk + volumeRisk + devWalletRisk + (insiderRisk * 20)) / 4
   };
 };
