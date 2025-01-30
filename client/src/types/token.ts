@@ -14,6 +14,11 @@ export interface Token {
     symbol: string;
     uri?: string;
     imageUrl?: string;
+    creators?: Array<{
+      address: string;
+      verified: boolean;
+      share: number;
+    }>;
   };
   imageUrl?: string;
   recentTrades?: any[];
@@ -29,4 +34,9 @@ export interface Token {
     telegram?: string;
     pumpfun?: string;
   };
+  bondingCurveKey?: string;
+  devWallet?: string;
+  lastAnalyzedAt?: string;
+  analyzedBy?: string;
+  createdAt?: string;
 }
