@@ -15,17 +15,9 @@ export default function Navbar() {
         
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <div className="relative h-10 w-10 flex items-center group">
-                <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 via-indigo-500/20 to-purple-500/20 rounded-full blur-xl group-hover:blur-2xl transition-all duration-1000 animate-pulse" />
-                <img 
-                  src="https://files.catbox.moe/0b1u9r.png" 
-                  alt="Kiara AI Logo"
-                  className="relative w-full h-full object-contain transform group-hover:scale-110 transition-transform duration-500"
-                />
-              </div>
+            <div className="flex items-center">
               <div className="relative font-['Orbitron']">
-                <h1 className="text-xl font-bold tracking-[0.2em] uppercase">
+                <h1 className="text-2xl font-bold tracking-[0.2em] uppercase px-4">
                   <span className="relative">
                     <span className="relative z-10 bg-gradient-to-r from-purple-300 via-indigo-400 to-purple-300 bg-clip-text text-transparent animate-pulse">
                       Kiara Vision AI
