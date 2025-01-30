@@ -52,18 +52,15 @@ export const TokenCard: FC<TokenCardProps> = ({
   const displayName = token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`;
   const displaySymbol = token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase();
 
-  // Use actual values from token data
-  const marketCap = token.marketCapSol || 0;
-  const marketCapUsd = token.priceInUsd ? token.marketCapSol * token.priceInUsd : 0;
-  const volume24h = token.volume24h?.sol || 0;
-  const volume24hUsd = token.volume24h?.usd || 0;
+  const marketCap = token.marketCapSol || 35000;
+  const volume = token.vSolInBondingCurve?.toFixed(2) || '0.00';
+  const topHoldersPercentage = token.top10HoldersPercentage || 0;
+  const devWalletPercentage = token.devWalletPercentage || 0;
+  const insiderPercentage = token.insiderPercentage;
+  const snipersCount = token.snipersCount;
   const holdersCount = token.holdersCount || 0;
-  const topHoldersPercentage = token.riskMetrics?.holdersRisk || 0;
-  const devWalletPercentage = token.riskMetrics?.devWalletRisk || 0;
-  const insiderPercentage = token.riskMetrics?.insiderRisk || 0;
-  const snipersCount = token.snipersCount || 0;
 
-  const progressPercentage = currentProgress;
+  const progressPercentage = currentProgress; // Use the animated progress
 
   const handleBuyClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -253,11 +250,11 @@ export const TokenCard: FC<TokenCardProps> = ({
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-gray-400">V</span>
-                  <span className="text-purple-200">${volume24hUsd.toFixed(2)}</span>
+                  <span className="text-purple-200">${volume}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-gray-400">MC</span>
-                  <span className="text-purple-200">${formatMarketCap(marketCapUsd)}</span>
+                  <span className="text-purple-200">${formatMarketCap(marketCap)}</span>
                 </div>
               </div>
             </div>
