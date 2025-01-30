@@ -60,8 +60,9 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
   return (
     <Card 
       className={cn(
-        "group cursor-pointer transition-all duration-500 cosmic-glow space-gradient",
-        "hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/20"
+        "group cursor-pointer transition-all duration-300 cosmic-glow space-gradient",
+        "hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/20",
+        "p-2 min-h-[120px]"
       )}
       onClick={onClick}
     >
@@ -69,7 +70,7 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
         <div className="flex items-start gap-2">
           {/* Token Image */}
           <div className={cn(
-            "w-8 h-8 flex-shrink-0 relative rounded-lg overflow-hidden",
+            "w-6 h-6 flex-shrink-0 relative rounded-lg overflow-hidden",
             "bg-gradient-to-br from-purple-900/20 to-black/30",
             "border border-purple-500/20"
           )}>
