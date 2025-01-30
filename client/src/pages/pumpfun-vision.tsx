@@ -1,7 +1,8 @@
+
 import React, { FC, useState, useCallback, Suspense } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Filter } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import TokenChart from "@/components/TokenChart";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -9,39 +10,24 @@ import TokenCard from "@/components/TokenCard";
 
 const PumpFunVision: FC = () => {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'newest' | 'volume' | 'liquidity'>('newest');
-
-  // Global state
   const tokens = usePumpPortalStore(state => state.tokens);
   const isConnected = usePumpPortalStore(state => state.isConnected);
-  const setActiveTokenView = usePumpPortalStore(state => state.setActiveTokenView); //Retained this line
+  const setActiveTokenView = usePumpPortalStore(state => state.setActiveTokenView);
 
-  // Handlers
   const handleTokenSelect = useCallback((address: string) => {
     setSelectedToken(address);
-    setActiveTokenView(address); //Retained this line
+    setActiveTokenView(address);
   }, []);
 
   const handleBack = useCallback(() => {
     setSelectedToken(null);
-    setActiveTokenView(null); //Retained this line
+    setActiveTokenView(null);
   }, []);
 
-  // Sort tokens
-  const sortedTokens = React.useMemo(() => {
-    return [...tokens].sort((a, b) => {
-      switch (sortBy) {
-        case 'volume':
-          const volumeA = a.recentTrades?.reduce((acc: number, trade: any) => acc + trade.solAmount, 0) || 0;
-          const volumeB = b.recentTrades?.reduce((acc: number, trade: any) => acc + trade.solAmount, 0) || 0;
-          return volumeB - volumeA;
-        case 'liquidity':
-          return (b.vSolInBondingCurve || 0) - (a.vSolInBondingCurve || 0);
-        default:
-          return 0;
-      }
-    });
-  }, [tokens, sortBy]);
+  // Filter tokens based on their stage
+  const newTokens = tokens.filter(t => t.isNew);
+  const aboutToGraduate = tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol < 100);
+  const graduated = tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol >= 100);
 
   if (!isConnected) {
     return (
@@ -70,47 +56,64 @@ const PumpFunVision: FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-[1400px] mx-auto p-4">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">PumpFun Vision</h1>
-            <p className="text-sm text-muted-foreground">
-              Track tokens and their performance
-            </p>
+      <div className="max-w-[1800px] mx-auto p-4">
+        <div className="grid grid-cols-3 gap-4">
+          {/* New Tokens Column */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-purple-200">New Creations</h2>
+              <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                <Filter className="h-4 w-4" /> Filter
+              </Button>
+            </div>
+            <div className="space-y-3 max-h-[80vh] overflow-y-auto pr-2">
+              {newTokens.map((token) => (
+                <TokenCard
+                  key={token.address}
+                  token={token}
+                  onClick={() => handleTokenSelect(token.address)}
+                />
+              ))}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant={sortBy === 'newest' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSortBy('newest')}
-            >
-              Newest
-            </Button>
-            <Button
-              variant={sortBy === 'volume' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSortBy('volume')}
-            >
-              Volume
-            </Button>
-            <Button
-              variant={sortBy === 'liquidity' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSortBy('liquidity')}
-            >
-              Liquidity
-            </Button>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sortedTokens.map((token) => (
-            <TokenCard
-              key={token.address}
-              token={token}
-              onClick={() => handleTokenSelect(token.address)}
-            />
-          ))}
+          {/* About to Graduate Column */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-purple-200">About to Graduate</h2>
+              <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                <Filter className="h-4 w-4" /> Filter
+              </Button>
+            </div>
+            <div className="space-y-3 max-h-[80vh] overflow-y-auto pr-2">
+              {aboutToGraduate.map((token) => (
+                <TokenCard
+                  key={token.address}
+                  token={token}
+                  onClick={() => handleTokenSelect(token.address)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Graduated Column */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-purple-200">Graduated</h2>
+              <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                <Filter className="h-4 w-4" /> Filter
+              </Button>
+            </div>
+            <div className="space-y-3 max-h-[80vh] overflow-y-auto pr-2">
+              {graduated.map((token) => (
+                <TokenCard
+                  key={token.address}
+                  token={token}
+                  onClick={() => handleTokenSelect(token.address)}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -65,11 +65,11 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
       )}
       onClick={onClick}
     >
-      <div className="relative p-6 overflow-hidden">
-        <div className="flex items-start gap-6">
+      <div className="relative p-4 overflow-hidden">
+        <div className="flex items-start gap-4">
           {/* Token Image */}
           <div className={cn(
-            "w-20 h-20 flex-shrink-0 relative rounded-xl overflow-hidden",
+            "w-12 h-12 flex-shrink-0 relative rounded-lg overflow-hidden",
             "bg-gradient-to-br from-purple-900/20 to-black/30",
             "border border-purple-500/20"
           )}>
