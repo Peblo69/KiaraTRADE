@@ -32,111 +32,169 @@ async function fetchMetadataWithImage(uri: string) {
 }
 
 export function initializePumpPortalWebSocket() {
-    const ws = new WebSocket(PUMP_PORTAL_WS_URL);
+    let ws: WebSocket | null = null;
+    let reconnectAttempt = 0;
+    const MAX_RECONNECT_ATTEMPTS = 5;
 
-    ws.onopen = () => {
-        log('[PumpPortal] WebSocket connected');
-
-        ws.send(JSON.stringify({
-            method: "subscribeNewToken",
-            keys: []
-        }));
-
-        ws.send(JSON.stringify({
-            method: "subscribeTokenTrades",
-            keys: []
-        }));
-    };
-
-    ws.onmessage = async (event) => {
+    function connect() {
         try {
-            const data = JSON.parse(event.data.toString());
+            ws = new WebSocket(PUMP_PORTAL_WS_URL);
 
-            if (data.message?.includes('Successfully subscribed')) {
-                log('[PumpPortal] Subscription confirmed:', data.message);
-                return;
-            }
+            ws.onopen = () => {
+                log('[PumpPortal] WebSocket connected');
+                reconnectAttempt = 0; // Reset reconnect attempts on successful connection
 
-            if (data.txType === 'create' && data.mint) {
-                log('[PumpPortal] New token created:', data.mint);
-                log('[PumpPortal] Token URI:', data.uri);
+                // Subscribe to events
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        method: "subscribeNewToken",
+                        keys: []
+                    }));
 
-                let tokenMetadata = null;
-                let imageUrl = null;
-
-                if (data.uri) {
-                    try {
-                        tokenMetadata = await fetchMetadataWithImage(data.uri);
-                        imageUrl = tokenMetadata?.image;
-                        log('[PumpPortal] Successfully fetched metadata and image:', { metadata: tokenMetadata, imageUrl });
-                    } catch (error) {
-                        console.error('[PumpPortal] Error fetching metadata:', error);
-                    }
+                    ws.send(JSON.stringify({
+                        method: "subscribeTokenTrades",
+                        keys: []
+                    }));
                 }
 
-                const baseMetadata = {
-                    name: data.name || `Token ${data.mint.slice(0, 8)}`,
-                    symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
-                    uri: data.uri || '',
-                    creators: data.creators || [],
-                    mint: data.mint,
-                    decimals: data.decimals || 9,
-                    imageUrl: imageUrl // Add the image URL directly
-                };
+                // Broadcast connection status
+                wsManager.broadcast({
+                    type: 'connection_status',
+                    data: {
+                        isConnected: true,
+                        currentTime: new Date().toISOString(),
+                        currentUser: "Peblo69"
+                    }
+                });
+            };
 
-                log('[PumpPortal] Base Metadata:', JSON.stringify(baseMetadata, null, 2));
+            ws.onmessage = async (event) => {
+                try {
+                    const data = JSON.parse(event.data.toString());
+                    log('[PumpPortal] Received raw data:', data);
 
-                const enrichedData = {
-                    ...data,
-                    name: baseMetadata.name,
-                    symbol: baseMetadata.symbol,
-                    metadata: baseMetadata, // This now includes imageUrl
-                    imageUrl: imageUrl, // Add it at the top level too
-                    uri: baseMetadata.uri,
-                    creators: baseMetadata.creators,
-                    initialBuy: data.tokenAmount || 0,
-                    priceInSol: data.solAmount ? (data.solAmount / (data.tokenAmount || TOTAL_SUPPLY)) : 0,
-                    marketCapSol: data.vSolInBondingCurve || 0,
-                    timestamp: Date.now(),
-                    isNewToken: true
-                };
+                    if (data.message?.includes('Successfully subscribed')) {
+                        log('[PumpPortal] Subscription confirmed:', data.message);
+                        return;
+                    }
 
-                log('[PumpPortal] Enriched token data:', JSON.stringify(enrichedData, null, 2));
+                    if (data.txType === 'create' && data.mint) {
+                        log('[PumpPortal] New token created:', data.mint);
+                        log('[PumpPortal] Token URI:', data.uri);
 
-                wsManager.broadcast({ 
-                    type: 'newToken',
-                    data: enrichedData
+                        let tokenMetadata = null;
+                        let imageUrl = null;
+
+                        if (data.uri) {
+                            try {
+                                tokenMetadata = await fetchMetadataWithImage(data.uri);
+                                imageUrl = tokenMetadata?.image;
+                                log('[PumpPortal] Successfully fetched metadata and image:', { metadata: tokenMetadata, imageUrl });
+                            } catch (error) {
+                                console.error('[PumpPortal] Error fetching metadata:', error);
+                            }
+                        }
+
+                        const baseMetadata = {
+                            name: data.name || `Token ${data.mint.slice(0, 8)}`,
+                            symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
+                            uri: data.uri || '',
+                            creators: data.creators || [],
+                            mint: data.mint,
+                            decimals: data.decimals || 9,
+                            imageUrl: imageUrl
+                        };
+
+                        log('[PumpPortal] Base Metadata:', JSON.stringify(baseMetadata, null, 2));
+
+                        const enrichedData = {
+                            ...data,
+                            name: baseMetadata.name,
+                            symbol: baseMetadata.symbol,
+                            metadata: baseMetadata,
+                            imageUrl: imageUrl,
+                            uri: baseMetadata.uri,
+                            creators: baseMetadata.creators,
+                            initialBuy: data.tokenAmount || 0,
+                            priceInSol: data.solAmount ? (data.solAmount / (data.tokenAmount || TOTAL_SUPPLY)) : 0,
+                            marketCapSol: data.vSolInBondingCurve || 0,
+                            timestamp: Date.now(),
+                            isNewToken: true
+                        };
+
+                        log('[PumpPortal] Enriched token data:', JSON.stringify(enrichedData, null, 2));
+
+                        wsManager.broadcast({ 
+                            type: 'newToken',
+                            data: enrichedData
+                        });
+
+                        // Subscribe to trades for the new token
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({
+                                method: "subscribeTokenTrade",
+                                keys: [data.mint]
+                            }));
+                        }
+                    }
+                    else if (['buy', 'sell'].includes(data.txType) && data.mint) {
+                        const tradeData = {
+                            ...data,
+                            timestamp: Date.now()
+                        };
+
+                        wsManager.broadcast({ 
+                            type: 'trade',
+                            data: tradeData
+                        });
+                    }
+                } catch (error) {
+                    console.error('[PumpPortal] Failed to process message:', error);
+                }
+            };
+
+            ws.onclose = () => {
+                log('[PumpPortal] WebSocket disconnected');
+
+                // Broadcast disconnection status
+                wsManager.broadcast({
+                    type: 'connection_status',
+                    data: {
+                        isConnected: false,
+                        currentTime: new Date().toISOString(),
+                        currentUser: "Peblo69"
+                    }
                 });
 
-                ws.send(JSON.stringify({
-                    method: "subscribeTokenTrade",
-                    keys: [data.mint]
-                }));
-            }
-            else if (['buy', 'sell'].includes(data.txType) && data.mint) {
-                const tradeData = {
-                    ...data,
-                    timestamp: Date.now()
-                };
+                // Attempt reconnection if not max attempts
+                if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
+                    reconnectAttempt++;
+                    log(`[PumpPortal] Attempting reconnect ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}`);
+                    setTimeout(connect, RECONNECT_DELAY);
+                } else {
+                    console.error('[PumpPortal] Max reconnection attempts reached');
+                }
+            };
 
-                wsManager.broadcast({ 
-                    type: 'trade',
-                    data: tradeData
-                });
-            }
+            ws.onerror = (error) => {
+                console.error('[PumpPortal] WebSocket error:', error);
+            };
+
         } catch (error) {
-            console.error('[PumpPortal] Failed to process message:', error);
+            console.error('[PumpPortal] Failed to initialize WebSocket:', error);
+            if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
+                reconnectAttempt++;
+                setTimeout(connect, RECONNECT_DELAY);
+            }
+        }
+    }
+
+    // Start the initial connection
+    connect();
+
+    return () => {
+        if (ws) {
+            ws.close();
         }
     };
-
-    ws.onclose = () => {
-        log('[PumpPortal] WebSocket disconnected, attempting reconnect...');
-        setTimeout(() => initializePumpPortalWebSocket(), RECONNECT_DELAY);
-    };
-
-    ws.onerror = (error) => {
-        console.error('[PumpPortal] WebSocket error:', error);
-    };
-
-    return ws;
 }

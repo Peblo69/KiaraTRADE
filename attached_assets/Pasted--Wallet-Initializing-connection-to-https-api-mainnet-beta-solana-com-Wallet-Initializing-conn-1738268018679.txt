@@ -1,0 +1,39 @@
+[Wallet] Initializing connection to: https://api.mainnet-beta.solana.com
+[Wallet] Initializing connection to: https://solana-api.projectserum.com
+[Wallet] Initializing connection to: https://rpc.ankr.com/solana
+[PumpPortal] Disconnecting...
+[PumpPortal] Updating connection status: 
+Object {isConnected: false, currentTime: "2025-01-30 21:13:19", currentUser: "Peblo69"}
+[Helius] Connected
+[App] Helius WebSocket initialized
+[PumpPortal] Connecting WebSocket...
+[PumpPortal] Starting SOL price updates from CoinGecko...
+[PumpPortal] Fetching SOL price from CoinGecko...
+[PumpPortal] Setting initial state: 
+Object {currentTime: "2025-01-30 21:13:20", currentUser: "Peblo69"}
+[App] PumpPortal WebSocket initialized
+[PumpPortal] Updated SOL price from CoinGecko: 240.58
+[PumpPortal][setSolPrice] 
+Object {price: 240.58}
+[PumpPortal] Updating all token prices with SOL price: 240.58
+[Helius] Connected
+[PumpPortal] Connected
+[PumpPortal] Updating connection status: 
+Object {isConnected: true, currentTime: "2025-01-30 21:13:21", currentUser: "Peblo69"}
+[PumpPortal] Received message: 
+Object {type: "connection_status", data: undefined}
+[PumpPortal] Received message: 
+Object {type: "newToken", data: {…}}
+[PumpPortal] Received new token: 7upTSof5tW4XjgoH3ZhAcVY575ns2uqdbMp6gLUppump
+[PumpPortal][addToken] 
+Object {signature: "CLSkxisGMZr3siEsr6Mg1bEQ6j61R2f2p9kxb4MKWuG7T4BcVDnxS58Ab8mptP3SvyrskkzMrvF1rs2T6Cj9QyV", mint: "7upTSof5tW4XjgoH3ZhAcVY575ns2uqdbMp6gLUppump", traderPublicKey: "AqMdu8Y7Q6EjG1ZyZAT1MrQEQ3uDnTWisBYn1dA6U6vZ", txType: "create", initialBuy: 0, …}
+[PumpPortal][Token URI:] https://ipfs.io/ipfs/QmSXSTSHZRBvJHMD1udjo1VoRM3fG24gB8y4FgsLD2z1uq
+[PumpPortal][mapTokenData input] 
+Object {signature: "CLSkxisGMZr3siEsr6Mg1bEQ6j61R2f2p9kxb4MKWuG7T4BcVDnxS58Ab8mptP3SvyrskkzMrvF1rs2T6Cj9QyV", mint: "7upTSof5tW4XjgoH3ZhAcVY575ns2uqdbMp6gLUppump", traderPublicKey: "AqMdu8Y7Q6EjG1ZyZAT1MrQEQ3uDnTWisBYn1dA6U6vZ", txType: "create", initialBuy: 0, …}
+[PumpPortal] Error handling message: 
+ReferenceError {}
+message: "store is not defined"
+stack: "ReferenceError: store is not defined↵ at mapTokenData (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/lib/pump-portal-websocket.ts:22:15)↵ at https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/lib/pump-portal-websocket.ts:99:22↵ at setState (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/zustand.js?v=4790e938:13:55)↵ at Object.addToken (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/lib/pump-portal-websocket.ts:96:28)↵ at WebSocketManager.handleMessage (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/lib/websocket-manager.ts:129:17)↵ at ws.onmessage (https://63239fcc-e510-4796-b18e-5db94e48d82c-00-13i81tcx4x99s.janeway.replit.dev/src/lib/websocket-manager.ts:117:14)"
+get stack: ƒ ()
+set stack: ƒ ()
+[[Prototype]]: Object

@@ -67,98 +67,7 @@ export interface PumpPortalToken {
   createdAt?: string;
   volume24h?: number;
   riskMetrics?: any;
-}
-
-// This function maps the websocket data to our token format
-export function mapTokenData(data: any): PumpPortalToken {
-    debugLog('mapTokenData input', data);
-
-    // Extract basic token info
-    const tokenName = data.metadata?.name || data.name;
-    const tokenSymbol = data.metadata?.symbol || data.symbol;
-    const mintAddress = data.mint || data.address || '';
-    const imageUrl = data.metadata?.imageUrl || data.imageUrl;
-
-    // Calculate token metrics
-    const tokenMetrics = calculatePumpFunTokenMetrics({
-        vSolInBondingCurve: data.vSolInBondingCurve || 0,
-        vTokensInBondingCurve: data.vTokensInBondingCurve || 0,
-        solPrice: store.getState().solPrice
-    });
-
-    debugLog('Token metrics calculated:', tokenMetrics);
-
-    const tokenData: PumpPortalToken = {
-        symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
-        name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
-        address: mintAddress,
-        bondingCurveKey: data.bondingCurveKey || '',
-        vTokensInBondingCurve: data.vTokensInBondingCurve || 0,
-        vSolInBondingCurve: data.vSolInBondingCurve || 0,
-        marketCapSol: tokenMetrics.marketCap.sol,
-        priceInSol: tokenMetrics.price.sol,
-        priceInUsd: tokenMetrics.price.usd,
-        devWallet: data.devWallet || data.traderPublicKey,
-        recentTrades: [],
-        metadata: {
-            name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
-            symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
-            decimals: 9,
-            mint: mintAddress,
-            uri: data.uri || '',
-            imageUrl: imageUrl,
-            creators: data.creators || []
-        },
-        lastAnalyzedAt: Date.now().toString(),
-        analyzedBy: CURRENT_USER,
-        createdAt: data.txType === 'create' ? Date.now().toString() : undefined
-    };
-
-    // Calculate initial risk metrics if we have trade history
-    if (data.recentTrades?.length) {
-        const volumeMetrics = calculateVolumeMetrics(data.recentTrades);
-        const riskMetrics = calculateTokenRisk({
-            ...tokenData,
-            recentTrades: data.recentTrades
-        });
-
-        Object.assign(tokenData, {
-            volume24h: volumeMetrics.volume24h,
-            riskMetrics
-        });
-    }
-
-    debugLog('Mapped token data with metrics:', tokenData);
-    return tokenData;
-}
-
-async function fetchTokenMetadataFromChain(mintAddress: string) {
-  try {
-    debugLog('Attempting to fetch metadata from chain for:', mintAddress);
-
-    const response = await axios.post('https://api.mainnet-beta.solana.com', {
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'getAccountInfo',
-      params: [
-        mintAddress,
-        { encoding: 'jsonParsed' }
-      ]
-    });
-
-    debugLog('Chain metadata response:', response.data);
-
-    if (response.data?.result?.value?.data?.parsed?.info?.uri) {
-      const uri = response.data.result.value.data.parsed.info.uri;
-      debugLog('Found URI from chain:', uri);
-      return uri;
-    }
-
-    return null;
-  } catch (error) {
-    console.error('Failed to fetch metadata from chain:', error);
-    return null;
-  }
+  isNew?: boolean;
 }
 
 interface PumpPortalStore {
@@ -190,11 +99,52 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   activeTokenView: null,
   currentUser: CURRENT_USER,
 
+  // This function maps the websocket data to our token format
   addToken: (tokenData) => set((state) => {
     debugLog('addToken', tokenData);
     debugLog('Token URI:', tokenData.uri || tokenData.metadata?.uri);
 
-    const newToken = mapTokenData(tokenData);
+    // Extract basic token info
+    const tokenName = tokenData.metadata?.name || tokenData.name;
+    const tokenSymbol = tokenData.metadata?.symbol || tokenData.symbol;
+    const mintAddress = tokenData.mint || tokenData.address || '';
+    const imageUrl = tokenData.metadata?.imageUrl || tokenData.imageUrl;
+
+    // Calculate token metrics
+    const tokenMetrics = calculatePumpFunTokenMetrics({
+      vSolInBondingCurve: tokenData.vSolInBondingCurve || 0,
+      vTokensInBondingCurve: tokenData.vTokensInBondingCurve || 0,
+      solPrice: state.solPrice // Access solPrice from state instead of global store
+    });
+
+    debugLog('Token metrics calculated:', tokenMetrics);
+
+    const newToken = {
+      symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
+      name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
+      address: mintAddress,
+      bondingCurveKey: tokenData.bondingCurveKey || '',
+      vTokensInBondingCurve: tokenData.vTokensInBondingCurve || 0,
+      vSolInBondingCurve: tokenData.vSolInBondingCurve || 0,
+      marketCapSol: tokenMetrics.marketCap.sol,
+      priceInSol: tokenMetrics.price.sol,
+      priceInUsd: tokenMetrics.price.usd,
+      devWallet: tokenData.devWallet || tokenData.traderPublicKey,
+      recentTrades: [],
+      metadata: {
+        name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
+        symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
+        decimals: 9,
+        mint: mintAddress,
+        uri: tokenData.uri || '',
+        imageUrl: imageUrl,
+        creators: tokenData.creators || []
+      },
+      lastAnalyzedAt: Date.now().toString(),
+      analyzedBy: CURRENT_USER,
+      createdAt: tokenData.txType === 'create' ? Date.now().toString() : undefined
+    };
+
     const existingTokenIndex = state.tokens.findIndex(t => t.address === newToken.address);
     const isViewed = state.activeTokenView === newToken.address;
 
@@ -204,7 +154,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           return {
             ...t,
             ...newToken,
-            recentTrades: [...(t.recentTrades || []), ...(newToken.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN)
+            recentTrades: [...(t.recentTrades || []), ...(tokenData.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN)
           };
         }
         return t;
@@ -222,13 +172,33 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       };
     }
 
+    // Add new token with isNew flag
+    const tokenWithFlag = {
+      ...newToken,
+      isNew: true
+    };
+
+    // Calculate initial risk metrics if we have trade history
+    if (tokenData.recentTrades?.length) {
+      const volumeMetrics = calculateVolumeMetrics(tokenData.recentTrades);
+      const riskMetrics = calculateTokenRisk({
+        ...tokenWithFlag,
+        recentTrades: tokenData.recentTrades
+      });
+
+      Object.assign(tokenWithFlag, {
+        volume24h: volumeMetrics.volume24h,
+        riskMetrics
+      });
+    }
+
     return {
-      tokens: [newToken, ...state.tokens].slice(0, MAX_TOKENS_IN_LIST),
+      tokens: [tokenWithFlag, ...state.tokens].slice(0, MAX_TOKENS_IN_LIST),
       lastUpdate: Date.now(),
       ...(isViewed && {
         viewedTokens: {
           ...state.viewedTokens,
-          [newToken.address]: newToken
+          [newToken.address]: tokenWithFlag
         }
       })
     };
@@ -248,42 +218,42 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const updatedTrades = [tradeData, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN);
 
     const tokenMetrics = calculatePumpFunTokenMetrics({
-        vSolInBondingCurve: tradeData.vSolInBondingCurve,
-        vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
-        solPrice: state.solPrice
+      vSolInBondingCurve: tradeData.vSolInBondingCurve,
+      vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
+      solPrice: state.solPrice
     });
 
     const volumeMetrics = calculateVolumeMetrics(updatedTrades);
 
     const updatedToken = {
+      ...token,
+      recentTrades: updatedTrades,
+      bondingCurveKey: tradeData.bondingCurveKey,
+      vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
+      vSolInBondingCurve: tradeData.vSolInBondingCurve,
+      marketCapSol: tokenMetrics.marketCap.sol,
+      priceInSol: tokenMetrics.price.sol,
+      priceInUsd: tokenMetrics.price.usd,
+      volume24h: volumeMetrics.volume24h,
+      riskMetrics: calculateTokenRisk({
         ...token,
-        recentTrades: updatedTrades,
-        bondingCurveKey: tradeData.bondingCurveKey,
-        vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
-        vSolInBondingCurve: tradeData.vSolInBondingCurve,
-        marketCapSol: tokenMetrics.marketCap.sol,
-        priceInSol: tokenMetrics.price.sol,
-        priceInUsd: tokenMetrics.price.usd,
-        volume24h: volumeMetrics.volume24h,
-        riskMetrics: calculateTokenRisk({
-            ...token,
-            recentTrades: updatedTrades
-        })
+        recentTrades: updatedTrades
+      })
     };
 
     const updatedTokens = state.tokens.map(t =>
-        t.address === address ? updatedToken : t
+      t.address === address ? updatedToken : t
     );
 
     return {
-        tokens: updatedTokens,
-        lastUpdate: Date.now(),
-        ...(state.viewedTokens[address] && {
-            viewedTokens: {
-                ...state.viewedTokens,
-                [address]: updatedToken
-            }
-        })
+      tokens: updatedTokens,
+      lastUpdate: Date.now(),
+      ...(state.viewedTokens[address] && {
+        viewedTokens: {
+          ...state.viewedTokens,
+          [address]: updatedToken
+        }
+      })
     };
   }),
 
@@ -403,5 +373,34 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     return uri;
   }
 }));
+
+async function fetchTokenMetadataFromChain(mintAddress: string) {
+  try {
+    debugLog('Attempting to fetch metadata from chain for:', mintAddress);
+
+    const response = await axios.post('https://api.mainnet-beta.solana.com', {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'getAccountInfo',
+      params: [
+        mintAddress,
+        { encoding: 'jsonParsed' }
+      ]
+    });
+
+    debugLog('Chain metadata response:', response.data);
+
+    if (response.data?.result?.value?.data?.parsed?.info?.uri) {
+      const uri = response.data.result.value.data.parsed.info.uri;
+      debugLog('Found URI from chain:', uri);
+      return uri;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Failed to fetch metadata from chain:', error);
+    return null;
+  }
+}
 
 export default usePumpPortalStore;

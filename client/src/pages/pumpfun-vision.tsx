@@ -1,4 +1,4 @@
-import React, { FC, useState, useCallback, Suspense } from "react";
+import React, { FC, useState, useCallback, Suspense, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Filter } from "lucide-react";
@@ -28,6 +28,7 @@ const PumpFunVision: FC = () => {
   const aboutToGraduate = tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol < 100);
   const graduated = tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol >= 100);
 
+  // Loading state
   if (!isConnected) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -53,6 +54,10 @@ const PumpFunVision: FC = () => {
     );
   }
 
+  const handleCopyAddress = (address: string) => {
+    navigator.clipboard.writeText(address);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-[1800px] mx-auto p-4">
@@ -71,6 +76,7 @@ const PumpFunVision: FC = () => {
                   key={token.address}
                   token={token}
                   onClick={() => handleTokenSelect(token.address)}
+                  onCopyAddress={() => handleCopyAddress(token.address)}
                 />
               ))}
             </div>
@@ -90,6 +96,7 @@ const PumpFunVision: FC = () => {
                   key={token.address}
                   token={token}
                   onClick={() => handleTokenSelect(token.address)}
+                  onCopyAddress={() => handleCopyAddress(token.address)}
                 />
               ))}
             </div>
@@ -109,6 +116,7 @@ const PumpFunVision: FC = () => {
                   key={token.address}
                   token={token}
                   onClick={() => handleTokenSelect(token.address)}
+                  onCopyAddress={() => handleCopyAddress(token.address)}
                 />
               ))}
             </div>
