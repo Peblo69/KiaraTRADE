@@ -140,6 +140,11 @@ export const TokenCard: FC<TokenCardProps> = ({
     const handleTokenUpdate = (updatedToken: Token | undefined) => {
       if (!updatedToken) return;
 
+      // Process image URL
+      const rawImageUrl = updatedToken.metadata?.imageUrl || updatedToken.imageUrl;
+      const processedUrl = validateImageUrl(rawImageUrl);
+      setValidatedImageUrl(processedUrl);
+
       const newMetrics = calculateTokenMetrics(
         updatedToken,
         updatedToken.recentTrades || [],
@@ -171,6 +176,11 @@ export const TokenCard: FC<TokenCardProps> = ({
       }
     };
 
+    // Initial image validation
+    const rawImageUrl = token.metadata?.imageUrl || token.imageUrl;
+    const processedUrl = validateImageUrl(rawImageUrl);
+    setValidatedImageUrl(processedUrl);
+
     // Subscribe to store updates
     const unsubscribe = usePumpPortalStore.subscribe(
       (state) => state.tokens.find(t => t.address === token.address),
@@ -187,7 +197,7 @@ export const TokenCard: FC<TokenCardProps> = ({
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [token.address, calculateCurrentMetrics]);
+  }, [token, token.address, calculateCurrentMetrics]);
 
   // Regular refresh for 24h volume
   useEffect(() => {
