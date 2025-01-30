@@ -1,3 +1,5 @@
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+
 export const THRESHOLDS = {
   LOW_MCAP: 100000,
   MED_MCAP: 500000,
@@ -7,7 +9,8 @@ export const THRESHOLDS = {
 };
 
 export const formatMarketCap = (marketCapSol: number): string => {
-  const mcapUsd = marketCapSol * (global.solPrice || 100);
+  const solPrice = usePumpPortalStore.getState().solPrice ?? 100; // Default to 100 if not available
+  const mcapUsd = marketCapSol * solPrice;
   if (mcapUsd >= 1000000) {
     return `${(mcapUsd / 1000000).toFixed(2)}M`;
   }
@@ -18,7 +21,8 @@ export const formatMarketCap = (marketCapSol: number): string => {
 };
 
 export const calculateMarketCapProgress = (marketCapSol: number): number => {
-  const mcapUsd = marketCapSol * (global.solPrice || 100);
+  const solPrice = usePumpPortalStore.getState().solPrice ?? 100;
+  const mcapUsd = marketCapSol * solPrice;
   if (mcapUsd <= THRESHOLDS.LOW_MCAP) {
     return (mcapUsd / THRESHOLDS.LOW_MCAP) * 33;
   }
