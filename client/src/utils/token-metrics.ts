@@ -28,5 +28,12 @@ export const calculateMarketCapProgress = (marketCap: number): number => {
   if (marketCap <= 0) return 0;
   
   const percentage = (marketCap / THRESHOLDS.HIGH_MARKET_CAP) * 100;
-  return Math.min(Math.max(percentage, 0), 100);
+  const smoothedProgress = Math.min(Math.max(percentage, 0), 100);
+  return Number(smoothedProgress.toFixed(2));
+};
+
+export const getProgressBarColor = (marketCap: number): string => {
+  if (marketCap >= THRESHOLDS.HIGH_MARKET_CAP) return 'from-green-500 via-green-400 to-green-500';
+  if (marketCap >= THRESHOLDS.MEDIUM_MARKET_CAP) return 'from-blue-500 via-blue-400 to-blue-500';
+  return 'from-purple-500 via-purple-400 to-purple-500';
 };

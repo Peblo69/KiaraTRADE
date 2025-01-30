@@ -1,4 +1,3 @@
-
 import { FC, useState, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { ImageIcon, Globe, Search, Users, Crosshair, UserPlus, Copy } from 'lucide-react';
@@ -28,12 +27,27 @@ export const TokenCard: FC<TokenCardProps> = ({
 }) => {
   const [imageError, setImageError] = useState(false);
   const [validatedImageUrl, setValidatedImageUrl] = useState<string | null>(null);
+  const [currentProgress, setCurrentProgress] = useState(0);
 
   useEffect(() => {
     const rawImageUrl = token.metadata?.imageUrl || token.imageUrl;
     const processedUrl = validateImageUrl(rawImageUrl);
     setValidatedImageUrl(processedUrl);
   }, [token]);
+
+  useEffect(() => {
+    const targetProgress = calculateMarketCapProgress(token.marketCapSol || 0);
+    if (currentProgress !== targetProgress) {
+      const step = (targetProgress - currentProgress) / 10;
+      const timeout = setTimeout(() => {
+        setCurrentProgress(prev => {
+          const next = prev + step;
+          return Math.abs(next - targetProgress) < 0.1 ? targetProgress : next;
+        });
+      }, 50);
+      return () => clearTimeout(timeout);
+    }
+  }, [token.marketCapSol, currentProgress]);
 
   const displayName = token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`;
   const displaySymbol = token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase();
@@ -46,7 +60,7 @@ export const TokenCard: FC<TokenCardProps> = ({
   const snipersCount = token.snipersCount;
   const holdersCount = token.holdersCount || 0;
 
-  const progressPercentage = calculateMarketCapProgress(marketCap);
+  const progressPercentage = currentProgress; // Use the animated progress
 
   const handleBuyClick = (e: React.MouseEvent) => {
     e.stopPropagation();
