@@ -1,0 +1,205 @@
+
+    Core Price Calculations for PumpFun Tokens:
+
+TypeScript
+
+// utils/token-calculations.ts
+export const calculatePumpFunTokenMetrics = (token: {
+  vSolInBondingCurve: number,
+  vTokensInBondingCurve: number,
+  solPrice: number
+}) => {
+  const TOTAL_SUPPLY = 1_000_000_000; // 1 billion fixed supply
+
+  // Price calculation based on bonding curve
+  const priceInSol = token.vSolInBondingCurve / (TOTAL_SUPPLY - token.vTokensInBondingCurve);
+  const priceInUsd = priceInSol * token.solPrice;
+
+  // Market cap calculation
+  const marketCapSol = token.vSolInBondingCurve;
+  const marketCapUsd = marketCapSol * token.solPrice;
+
+  return {
+    price: {
+      sol: priceInSol,
+      usd: priceInUsd
+    },
+    marketCap: {
+      sol: marketCapSol,
+      usd: marketCapUsd
+    }
+  };
+};
+
+    Volume Tracking:
+
+TypeScript
+
+export const calculateVolumeMetrics = (trades: TokenTrade[]) => {
+  const now = Date.now();
+  const oneDayAgo = now - 24 * 60 * 60 * 1000;
+
+  const volume24h = trades
+    .filter(trade => trade.timestamp > oneDayAgo)
+    .reduce((sum, trade) => sum + trade.solAmount, 0);
+
+  return {
+    volume24h: {
+      sol: volume24h,
+      usd: volume24h * trades[0]?.priceInUsd || 0
+    }
+  };
+};
+
+    Risk Analysis:
+
+TypeScript
+
+export const calculateTokenRisk = (token: PumpPortalToken) => {
+  const holdersRisk = calculateHoldersRisk(token.recentTrades);
+  const volumeRisk = calculateVolumeRisk(token.recentTrades);
+  const devWalletRisk = calculateDevWalletRisk(token);
+
+  return {
+    holdersRisk,
+    volumeRisk,
+    devWalletRisk,
+    totalRisk: (holdersRisk + volumeRisk + devWalletRisk) / 3
+  };
+};
+
+    Modified TokenCard Component:
+
+TypeScript
+
+export const TokenCard: FC<TokenCardProps> = ({ token }) => {
+  const solPrice = usePumpPortalStore(state => state.solPrice);
+  
+  // Calculate real-time metrics
+  const metrics = useMemo(() => {
+    const tokenMetrics = calculatePumpFunTokenMetrics({
+      vSolInBondingCurve: token.vSolInBondingCurve,
+      vTokensInBondingCurve: token.vTokensInBondingCurve,
+      solPrice
+    });
+
+    const volumeMetrics = calculateVolumeMetrics(token.recentTrades);
+    const riskMetrics = calculateTokenRisk(token);
+
+    return {
+      ...tokenMetrics,
+      ...volumeMetrics,
+      ...riskMetrics
+    };
+  }, [token, solPrice]);
+
+  return (
+    <Card className="p-4 rounded-lg shadow-lg">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center">
+          {token.metadata?.imageUrl && (
+            <img 
+              src={token.metadata.imageUrl} 
+              alt={token.name} 
+              className="w-10 h-10 rounded-full mr-3"
+            />
+          )}
+          <div>
+            <h3 className="text-lg font-bold">{token.name}</h3>
+            <p className="text-sm text-gray-500">{token.symbol}</p>
+          </div>
+        </div>
+        <Badge variant={getRiskBadgeVariant(metrics.totalRisk)}>
+          Risk: {metrics.totalRisk.toFixed(1)}
+        </Badge>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <p className="text-sm text-gray-500">Price (SOL)</p>
+          <p className="text-lg font-bold">{metrics.price.sol.toFixed(6)}</p>
+        </div>
+        <div>
+          <p className="text-sm text-gray-500">Price (USD)</p>
+          <p className="text-lg font-bold">${metrics.price.usd.toFixed(2)}</p>
+        </div>
+        <div>
+          <p className="text-sm text-gray-500">Market Cap (SOL)</p>
+          <p className="text-lg font-bold">{metrics.marketCap.sol.toFixed(2)}</p>
+        </div>
+        <div>
+          <p className="text-sm text-gray-500">24h Volume (SOL)</p>
+          <p className="text-lg font-bold">{metrics.volume24h.sol.toFixed(2)}</p>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <Progress 
+          value={metrics.marketCap.sol} 
+          max={10000}
+          className="h-2 bg-gray-200 rounded"
+        />
+      </div>
+    </Card>
+  );
+};
+
+    WebSocket Message Handler:
+
+TypeScript
+
+ws.onmessage = async (event) => {
+  try {
+    const data = JSON.parse(event.data.toString());
+
+    if (data.txType === 'create' && data.mint) {
+      // New token creation
+      const tokenMetrics = calculatePumpFunTokenMetrics({
+        vSolInBondingCurve: data.vSolInBondingCurve || 0,
+        vTokensInBondingCurve: data.vTokensInBondingCurve || 0,
+        solPrice: currentSolPrice
+      });
+
+      const enrichedData = {
+        ...data,
+        ...tokenMetrics,
+        timestamp: Date.now()
+      };
+
+      wsManager.broadcast({ 
+        type: 'newToken',
+        data: enrichedData
+      });
+    }
+    else if (['buy', 'sell'].includes(data.txType) && data.mint) {
+      // Trade update
+      const tokenMetrics = calculatePumpFunTokenMetrics({
+        vSolInBondingCurve: data.vSolInBondingCurve,
+        vTokensInBondingCurve: data.vTokensInBondingCurve,
+        solPrice: currentSolPrice
+      });
+
+      const tradeData = {
+        ...data,
+        ...tokenMetrics,
+        timestamp: Date.now()
+      };
+
+      wsManager.broadcast({ 
+        type: 'trade',
+        data: tradeData
+      });
+    }
+  } catch (error) {
+    console.error('[PumpPortal] Failed to process message:', error);
+  }
+};
+
+This implementation:
+
+    Uses the correct bonding curve formula for PumpFun tokens
+    Updates prices in real-time based on WebSocket data
+    Calculates volumes over 24h periods
+    Includes risk analysis
+    Shows all relevant metrics on the TokenCard
+    Updates immediately when new trades occur

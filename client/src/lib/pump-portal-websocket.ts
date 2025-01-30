@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { format } from 'date-fns';
 import axios from 'axios';
+import { calculatePumpFunTokenMetrics, calculateVolumeMetrics, calculateTokenRisk } from "@/utils/token-calculations";
 
 // Constants
 const MAX_TRADES_PER_TOKEN = 100;
@@ -64,19 +65,28 @@ export interface PumpPortalToken {
   lastAnalyzedAt?: string;
   analyzedBy?: string;
   createdAt?: string;
+  volume24h?: number;
+  riskMetrics?: any;
 }
 
 // This function maps the websocket data to our token format
 export function mapTokenData(data: any): PumpPortalToken {
     debugLog('mapTokenData input', data);
 
-    // Extract token name, symbol, and URI
+    // Extract basic token info
     const tokenName = data.metadata?.name || data.name;
     const tokenSymbol = data.metadata?.symbol || data.symbol;
     const mintAddress = data.mint || data.address || '';
     const imageUrl = data.metadata?.imageUrl || data.imageUrl;
 
-    debugLog('Token data mapping:', { name: tokenName, symbol: tokenSymbol, imageUrl });
+    // Calculate token metrics
+    const tokenMetrics = calculatePumpFunTokenMetrics({
+        vSolInBondingCurve: data.vSolInBondingCurve || 0,
+        vTokensInBondingCurve: data.vTokensInBondingCurve || 0,
+        solPrice: store.getState().solPrice
+    });
+
+    debugLog('Token metrics calculated:', tokenMetrics);
 
     const tokenData: PumpPortalToken = {
         symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
@@ -85,9 +95,9 @@ export function mapTokenData(data: any): PumpPortalToken {
         bondingCurveKey: data.bondingCurveKey || '',
         vTokensInBondingCurve: data.vTokensInBondingCurve || 0,
         vSolInBondingCurve: data.vSolInBondingCurve || 0,
-        marketCapSol: data.marketCapSol || 0,
-        priceInSol: data.priceInSol || 0,
-        priceInUsd: data.priceInUsd || 0,
+        marketCapSol: tokenMetrics.marketCap.sol,
+        priceInSol: tokenMetrics.price.sol,
+        priceInUsd: tokenMetrics.price.usd,
         devWallet: data.devWallet || data.traderPublicKey,
         recentTrades: [],
         metadata: {
@@ -104,7 +114,21 @@ export function mapTokenData(data: any): PumpPortalToken {
         createdAt: data.txType === 'create' ? Date.now().toString() : undefined
     };
 
-    debugLog('Mapped token data with imageUrl:', tokenData);
+    // Calculate initial risk metrics if we have trade history
+    if (data.recentTrades?.length) {
+        const volumeMetrics = calculateVolumeMetrics(data.recentTrades);
+        const riskMetrics = calculateTokenRisk({
+            ...tokenData,
+            recentTrades: data.recentTrades
+        });
+
+        Object.assign(tokenData, {
+            volume24h: volumeMetrics.volume24h,
+            riskMetrics
+        });
+    }
+
+    debugLog('Mapped token data with metrics:', tokenData);
     return tokenData;
 }
 
@@ -220,30 +244,46 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const token = state.viewedTokens[address] || state.tokens.find(t => t.address === address);
     if (!token) return state;
 
+    // Add new trade and calculate updated metrics
+    const updatedTrades = [tradeData, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN);
+
+    const tokenMetrics = calculatePumpFunTokenMetrics({
+        vSolInBondingCurve: tradeData.vSolInBondingCurve,
+        vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
+        solPrice: state.solPrice
+    });
+
+    const volumeMetrics = calculateVolumeMetrics(updatedTrades);
+
     const updatedToken = {
-      ...token,
-      recentTrades: [tradeData, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN),
-      bondingCurveKey: tradeData.bondingCurveKey,
-      vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
-      vSolInBondingCurve: tradeData.vSolInBondingCurve,
-      marketCapSol: tradeData.marketCapSol,
-      priceInSol: tradeData.priceInSol,
-      priceInUsd: tradeData.priceInUsd
+        ...token,
+        recentTrades: updatedTrades,
+        bondingCurveKey: tradeData.bondingCurveKey,
+        vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
+        vSolInBondingCurve: tradeData.vSolInBondingCurve,
+        marketCapSol: tokenMetrics.marketCap.sol,
+        priceInSol: tokenMetrics.price.sol,
+        priceInUsd: tokenMetrics.price.usd,
+        volume24h: volumeMetrics.volume24h,
+        riskMetrics: calculateTokenRisk({
+            ...token,
+            recentTrades: updatedTrades
+        })
     };
 
     const updatedTokens = state.tokens.map(t =>
-      t.address === address ? updatedToken : t
+        t.address === address ? updatedToken : t
     );
 
     return {
-      tokens: updatedTokens,
-      lastUpdate: Date.now(),
-      ...(state.viewedTokens[address] && {
-        viewedTokens: {
-          ...state.viewedTokens,
-          [address]: updatedToken
-        }
-      })
+        tokens: updatedTokens,
+        lastUpdate: Date.now(),
+        ...(state.viewedTokens[address] && {
+            viewedTokens: {
+                ...state.viewedTokens,
+                [address]: updatedToken
+            }
+        })
     };
   }),
 
