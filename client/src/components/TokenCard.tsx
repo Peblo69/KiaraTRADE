@@ -1,8 +1,8 @@
 import { FC, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { ImageIcon, Globe, Search, Users, Crosshair, UserPlus, Copy } from 'lucide-react';
-import { validateImageUrl } from '@/utils/image-handler';
-import { validateSocialUrl } from '@/utils/social-links';
+import { validateImageUrl } from '@/utils/validators';
+import { validateSocialUrl } from '@/utils/validators';
 import { THRESHOLDS, getRiskLevelColor, formatMarketCap, calculateMarketCapProgress } from '@/utils/token-metrics';
 import { cn } from "@/lib/utils";
 import { PumpFunIcon } from './icons/PumpFunIcon';
@@ -12,7 +12,6 @@ import { DevHoldingIcon } from './icons/DevHoldingIcon';
 import { InsiderIcon } from './icons/InsiderIcon';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import type { Token, TokenTrade } from '@/types/token';
-import { debounce } from 'lodash';
 
 interface TokenCardProps {
   token: Token;
@@ -31,7 +30,6 @@ interface TokenMetrics {
   holdersCount: number;
 }
 
-// Extracted pure calculation functions
 const calculateTokenMetrics = (
   token: Token,
   trades: TokenTrade[],
@@ -39,14 +37,12 @@ const calculateTokenMetrics = (
 ): TokenMetrics => {
   const now = Date.now();
   const oneDayAgo = now - 24 * 60 * 60 * 1000;
-  const snipeWindow = creationTimestamp + 15000; // 15 seconds after creation
+  const snipeWindow = creationTimestamp + 15000;
 
-  // Calculate 24h volume
   const volume24h = trades
     .filter(trade => trade.timestamp > oneDayAgo)
     .reduce((sum, trade) => sum + trade.solAmount, 0);
 
-  // Count unique holders from finalized trades
   const holdersMap = new Map<string, number>();
   trades.forEach(trade => {
     if (trade.txType === 'buy') {
@@ -58,12 +54,10 @@ const calculateTokenMetrics = (
     }
   });
 
-  // Remove holders with zero balance
   Array.from(holdersMap.entries())
     .filter(([_, balance]) => balance <= 0)
     .forEach(([wallet]) => holdersMap.delete(wallet));
 
-  // Calculate top holders percentage
   const sortedHolders = Array.from(holdersMap.entries())
     .sort(([, a], [, b]) => b - a)
     .slice(0, 10);
@@ -72,21 +66,18 @@ const calculateTokenMetrics = (
   const top10Supply = sortedHolders.reduce((sum, [_, amount]) => sum + amount, 0);
   const topHoldersPercentage = (top10Supply / totalSupply) * 100;
 
-  // Calculate dev wallet percentage
   const devBalance = holdersMap.get(token.devWallet) || 0;
   const devWalletPercentage = (devBalance / totalSupply) * 100;
 
-  // Count snipers (trades within 15s of creation)
   const snipers = new Set(
     trades
       .filter(t => t.timestamp <= snipeWindow && t.txType === 'buy')
       .map(t => t.traderPublicKey)
   );
 
-  // Calculate insider percentage (excluding dev wallet)
   const insiderWallets = new Set(
     trades
-      .filter(t => t.timestamp <= creationTimestamp + 3600000) // First hour
+      .filter(t => t.timestamp <= creationTimestamp + 3600000)
       .map(t => t.traderPublicKey)
   );
   insiderWallets.delete(token.devWallet);
@@ -112,162 +103,65 @@ export const TokenCard: FC<TokenCardProps> = ({
   onCopyAddress = () => console.log('Address copied')
 }) => {
   const [imageError, setImageError] = useState(false);
-  const [imageLoading, setImageLoading] = useState(true);
   const [validatedImageUrl, setValidatedImageUrl] = useState<string | null>(null);
   const [currentProgress, setCurrentProgress] = useState(0);
-  const [retryCount, setRetryCount] = useState(0);
-  const MAX_RETRIES = 3;
-
-  // Refs for performance optimization
   const prevMetricsRef = useRef<TokenMetrics | null>(null);
-  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const progressAnimationRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Memoized initial metrics calculation
-  const initialMetrics = useMemo(() => 
-    calculateTokenMetrics(
-      token,
-      token.recentTrades || [],
-      parseInt(token.createdAt || Date.now().toString())
-    ),
-    [token]
-  );
+  // Memoized initial metrics
+  const initialMetrics = useMemo(() => calculateTokenMetrics(
+    token,
+    token.recentTrades || [],
+    parseInt(token.createdAt || Date.now().toString())
+  ), [token]);
 
   const [metrics, setMetrics] = useState<TokenMetrics>(initialMetrics);
 
-  // Memoized calculation function
-  const calculateCurrentMetrics = useCallback(() => {
-    return calculateTokenMetrics(
-      token,
-      token.recentTrades || [],
-      parseInt(token.createdAt || Date.now().toString())
-    );
-  }, [token]);
-
-  // Debounced progress bar update
-  const updateProgress = useMemo(
-    () => debounce((targetProgress: number) => {
-      if (progressAnimationRef.current) {
-        clearTimeout(progressAnimationRef.current);
-      }
-
-      const step = (targetProgress - currentProgress) / 10;
-      progressAnimationRef.current = setTimeout(() => {
-        setCurrentProgress(prev => {
-          const next = prev + step;
-          return Math.abs(next - targetProgress) < 0.1 ? targetProgress : next;
-        });
-      }, 50);
-    }, 100),
-    [currentProgress]
-  );
-
-  // Image loading and retry logic
-  const handleImageLoad = useCallback(() => {
-    setImageLoading(false);
-    setImageError(false);
-  }, []);
-
-  const handleImageError = useCallback(() => {
-    setImageError(true);
-    setImageLoading(false);
-    if (retryCount < MAX_RETRIES) {
-      setTimeout(() => {
-        setRetryCount(prev => prev + 1);
-        setImageLoading(true);
-        setValidatedImageUrl(null);
-      }, 1000 * (retryCount + 1));
-    }
-  }, [retryCount]);
-
-  // Handle real-time updates with optimizations
+  // Real-time updates
   useEffect(() => {
-    const handleTokenUpdate = (updatedToken: Token | undefined) => {
+    const handleUpdate = (updatedToken: Token | undefined) => {
       if (!updatedToken) return;
 
-      // Process image URL with retry logic
-      if (!validatedImageUrl && !imageError) {
-        const rawImageUrl = updatedToken.metadata?.imageUrl || updatedToken.imageUrl;
-        const processedUrl = validateImageUrl(rawImageUrl);
-        setValidatedImageUrl(processedUrl);
-        setImageLoading(true);
-      }
+      // Update image URL
+      const rawImageUrl = updatedToken.metadata?.imageUrl || updatedToken.imageUrl;
+      const processedUrl = validateImageUrl(rawImageUrl);
+      setValidatedImageUrl(processedUrl);
 
-      const newMetrics = calculateCurrentMetrics();
+      // Calculate new metrics
+      const newMetrics = calculateTokenMetrics(
+        updatedToken,
+        updatedToken.recentTrades || [],
+        parseInt(updatedToken.createdAt || Date.now().toString())
+      );
 
-      // Compare with previous metrics for optimized updates
-      const hasChanged = !prevMetricsRef.current ||
-        prevMetricsRef.current.marketCapSol !== newMetrics.marketCapSol ||
-        prevMetricsRef.current.volume24h !== newMetrics.volume24h;
-
-      if (hasChanged) {
-        if (updateTimeoutRef.current) {
-          clearTimeout(updateTimeoutRef.current);
-        }
-
-        setMetrics(newMetrics);
+      // Only update if values changed
+      if (JSON.stringify(prevMetricsRef.current) !== JSON.stringify(newMetrics)) {
         prevMetricsRef.current = newMetrics;
-
-        const element = document.getElementById(`token-${token.address}`);
-        if (element) {
-          element.classList.add('flash-update');
-          updateTimeoutRef.current = setTimeout(() => {
-            element.classList.remove('flash-update');
-          }, 1000);
-        }
+        setMetrics(newMetrics);
       }
     };
 
     // Initial setup
-    if (!validatedImageUrl && !imageError) {
-      const rawImageUrl = token.metadata?.imageUrl || token.imageUrl;
-      const processedUrl = validateImageUrl(rawImageUrl);
-      setValidatedImageUrl(processedUrl);
-      setImageLoading(true);
-    }
+    handleUpdate(token);
 
+    // Subscribe to store updates
     const unsubscribe = usePumpPortalStore.subscribe(
-      (state) => state.tokens.find(t => t.address === token.address),
-      handleTokenUpdate
+      state => state.tokens.find(t => t.address === token.address),
+      handleUpdate
     );
 
-    return () => {
-      unsubscribe();
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-      if (progressAnimationRef.current) {
-        clearTimeout(progressAnimationRef.current);
-      }
-    };
-  }, [token, token.address, calculateCurrentMetrics, validatedImageUrl, imageError]);
-
-  // Regular volume refresh
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMetrics(prev => ({
-        ...prev,
-        volume24h: calculateCurrentMetrics().volume24h
-      }));
-    }, 60000);
-
-    return () => clearInterval(interval);
-  }, [calculateCurrentMetrics]);
+    return () => unsubscribe();
+  }, [token]);
 
   // Progress bar animation
   useEffect(() => {
     const targetProgress = calculateMarketCapProgress(metrics.marketCapSol);
-    updateProgress(targetProgress);
+    setCurrentProgress(prev => {
+      const diff = targetProgress - prev;
+      return Math.abs(diff) < 0.1 ? targetProgress : prev + diff * 0.1;
+    });
+  }, [metrics.marketCapSol]);
 
-    return () => {
-      updateProgress.cancel();
-      if (progressAnimationRef.current) {
-        clearTimeout(progressAnimationRef.current);
-      }
-    };
-  }, [metrics.marketCapSol, updateProgress]);
-
-  // Memoize display values
+  // Memoized display values
   const displayName = useMemo(() => 
     token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`,
     [token]
@@ -277,6 +171,12 @@ export const TokenCard: FC<TokenCardProps> = ({
     token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase(),
     [token]
   );
+
+  const handleImageError = () => {
+    setImageError(true);
+    const rawImageUrl = token.metadata?.imageUrl || token.imageUrl;
+    setValidatedImageUrl(validateImageUrl(rawImageUrl));
+  };
 
   const getTopHoldersColor = (percentage: number) =>
     percentage <= 15 ? "text-green-400 hover:text-green-300" : "text-red-400 hover:text-red-300";
@@ -336,22 +236,17 @@ export const TokenCard: FC<TokenCardProps> = ({
                   src={validatedImageUrl}
                   alt={displayName}
                   className="w-full h-full object-cover transform group-hover/image:scale-110 transition-all duration-700"
-                  onLoad={handleImageLoad}
                   onError={handleImageError}
                 />
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center">
                   <Search className="w-4 h-4 text-white/90" />
                 </div>
               </>
-            ) : imageLoading ? (
+            ) : (
               <div className="w-full h-full flex items-center justify-center animate-pulse group-hover/image:animate-none">
                 <span className="text-2xl font-bold text-purple-400/70 group-hover/image:text-purple-300/90">
                   {displaySymbol[0] || <ImageIcon className="w-8 h-8 text-purple-400/50" />}
                 </span>
-              </div>
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <span className="text-red-500">Image Load Failed</span>
               </div>
             )}
             <div className="absolute bottom-0 right-0 w-3 h-3 bg-purple-500/20 rounded-full border border-purple-500/40 flex items-center justify-center">
