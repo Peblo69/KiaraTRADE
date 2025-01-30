@@ -1,8 +1,7 @@
 import { FC, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { ImageIcon, Globe, Search, Users, Crosshair, UserPlus, Copy } from 'lucide-react';
-import { validateImageUrl } from '@/utils/validators';
-import { validateSocialUrl } from '@/utils/validators';
+import { validateImageUrl, validateSocialUrl } from '@/utils/validators';
 import { THRESHOLDS, getRiskLevelColor, formatMarketCap, calculateMarketCapProgress } from '@/utils/token-metrics';
 import { cn } from "@/lib/utils";
 import { PumpFunIcon } from './icons/PumpFunIcon';
@@ -12,6 +11,7 @@ import { DevHoldingIcon } from './icons/DevHoldingIcon';
 import { InsiderIcon } from './icons/InsiderIcon';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import type { Token, TokenTrade } from '@/types/token';
+import { formatDistanceToNow } from 'date-fns';
 
 interface TokenCardProps {
   token: Token;
@@ -105,6 +105,7 @@ export const TokenCard: FC<TokenCardProps> = ({
   const [imageError, setImageError] = useState(false);
   const [validatedImageUrl, setValidatedImageUrl] = useState<string | null>(null);
   const [currentProgress, setCurrentProgress] = useState(0);
+  const [timeSinceLaunch, setTimeSinceLaunch] = useState<string>('');
   const prevMetricsRef = useRef<TokenMetrics | null>(null);
 
   // Memoized initial metrics
@@ -115,6 +116,29 @@ export const TokenCard: FC<TokenCardProps> = ({
   ), [token]);
 
   const [metrics, setMetrics] = useState<TokenMetrics>(initialMetrics);
+
+  // Update time since launch
+  useEffect(() => {
+    const updateTimeSinceLaunch = () => {
+      const createdAt = parseInt(token.createdAt || Date.now().toString());
+      const now = Date.now();
+      const diffSeconds = Math.floor((now - createdAt) / 1000);
+
+      if (diffSeconds < 60) {
+        setTimeSinceLaunch(`${diffSeconds}s`);
+      } else if (diffSeconds < 3600) {
+        setTimeSinceLaunch(`${Math.floor(diffSeconds / 60)}m`);
+      } else if (diffSeconds < 86400) {
+        setTimeSinceLaunch(`${Math.floor(diffSeconds / 3600)}h`);
+      } else {
+        setTimeSinceLaunch(`${Math.floor(diffSeconds / 86400)}d`);
+      }
+    };
+
+    updateTimeSinceLaunch();
+    const interval = setInterval(updateTimeSinceLaunch, 1000);
+    return () => clearInterval(interval);
+  }, [token.createdAt]);
 
   // Real-time updates
   useEffect(() => {
@@ -162,12 +186,12 @@ export const TokenCard: FC<TokenCardProps> = ({
   }, [metrics.marketCapSol]);
 
   // Memoized display values
-  const displayName = useMemo(() => 
+  const displayName = useMemo(() =>
     token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`,
     [token]
   );
 
-  const displaySymbol = useMemo(() => 
+  const displaySymbol = useMemo(() =>
     token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase(),
     [token]
   );
@@ -205,6 +229,14 @@ export const TokenCard: FC<TokenCardProps> = ({
     const searchQuery = encodeURIComponent(`${displayName} ${displaySymbol} token logo`);
     window.open(`https://www.google.com/search?q=${searchQuery}&tbm=isch`, '_blank', 'noopener,noreferrer');
   };
+
+  // Memoized social links
+  const socialLinks = useMemo(() => ({
+    website: token.metadata?.website || token.website,
+    telegram: token.metadata?.telegram || token.telegram,
+    twitter: token.metadata?.twitter || token.twitter,
+    pumpfun: `https://pump.fun/coin/${token.address}`
+  }), [token]);
 
   return (
     <Card
@@ -275,7 +307,7 @@ export const TokenCard: FC<TokenCardProps> = ({
 
             <div className="flex items-center justify-between text-xs text-gray-400 mt-0.5 mb-1">
               <div className="flex items-center gap-2">
-                <span>4h</span>
+                <span>{timeSinceLaunch}</span>
                 <button
                   className={cn(
                     "flex items-center gap-1 transition-colors",
@@ -314,9 +346,9 @@ export const TokenCard: FC<TokenCardProps> = ({
 
             <div className="flex items-center justify-between text-[11px] mt-2">
               <div className="flex items-center gap-2">
-                {token.socials?.website && (
+                {socialLinks.website && (
                   <a
-                    href={validateSocialUrl(token.socials.website)}
+                    href={validateSocialUrl(socialLinks.website)}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
@@ -325,9 +357,9 @@ export const TokenCard: FC<TokenCardProps> = ({
                     <Globe size={14} />
                   </a>
                 )}
-                {token.socials?.twitter && (
+                {socialLinks.twitter && (
                   <a
-                    href={validateSocialUrl(token.socials.twitter)}
+                    href={validateSocialUrl(socialLinks.twitter)}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
@@ -336,9 +368,9 @@ export const TokenCard: FC<TokenCardProps> = ({
                     <XIcon className="w-3.5 h-3.5" />
                   </a>
                 )}
-                {token.socials?.telegram && (
+                {socialLinks.telegram && (
                   <a
-                    href={validateSocialUrl(token.socials.telegram)}
+                    href={validateSocialUrl(socialLinks.telegram)}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
@@ -347,17 +379,15 @@ export const TokenCard: FC<TokenCardProps> = ({
                     <TelegramIcon className="w-3.5 h-3.5" />
                   </a>
                 )}
-                {token.socials?.pumpfun && (
-                  <a
-                    href={validateSocialUrl(token.socials.pumpfun)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                  >
-                    <PumpFunIcon className="w-3.5 h-3.5" />
-                  </a>
-                )}
+                <a
+                  href={socialLinks.pumpfun}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                >
+                  <PumpFunIcon className="w-3.5 h-3.5" />
+                </a>
               </div>
 
               <div className="flex items-center gap-3">
