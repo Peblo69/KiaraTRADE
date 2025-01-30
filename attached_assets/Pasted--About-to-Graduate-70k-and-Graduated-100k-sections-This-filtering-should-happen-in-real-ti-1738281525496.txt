@@ -1,0 +1,168 @@
+"About to Graduate" (>70k) and "Graduated" (>100k) sections. This filtering should happen in real-time.
+
+We'll need to modify two main places:
+
+    First, in your store (pump-portal-websocket.ts):
+
+TypeScript
+
+interface PumpPortalStore {
+  tokens: Token[];
+  // Add these selectors
+  aboutToGraduateTokens: Token[];
+  graduatedTokens: Token[];
+}
+
+export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
+  tokens: [],
+  
+  // Add selectors for different token categories
+  aboutToGraduateTokens: computed((state) => 
+    state.tokens.filter(token => 
+      token.marketCapSol >= 70000 && token.marketCapSol < 100000
+    )
+  ),
+  
+  graduatedTokens: computed((state) => 
+    state.tokens.filter(token => 
+      token.marketCapSol >= 100000
+    )
+  ),
+
+  // Update your existing addToken/updateToken functions
+  updateToken: (address: string, updates: Partial<Token>) => 
+    set(state => ({
+      tokens: state.tokens.map(token => 
+        token.address === address 
+          ? { ...token, ...updates } 
+          : token
+      )
+    })),
+
+  // Add market cap update handler
+  updateMarketCap: (address: string, newMarketCap: number) => {
+    set(state => {
+      const token = state.tokens.find(t => t.address === address);
+      if (!token) return state;
+
+      // Update token's market cap
+      const updatedToken = {
+        ...token,
+        marketCapSol: newMarketCap,
+        lastUpdate: Date.now()
+      };
+
+      return {
+        tokens: state.tokens.map(t => 
+          t.address === address ? updatedToken : t
+        )
+      };
+    });
+  },
+}));
+
+    Then in your TokensList or main component:
+
+TypeScript
+
+// TokensList.tsx
+const TokensList: FC = () => {
+  const { 
+    aboutToGraduateTokens,
+    graduatedTokens
+  } = usePumpPortalStore();
+
+  return (
+    <div className="space-y-6">
+      {/* Graduated Tokens Section */}
+      <section>
+        <h2 className="text-xl font-bold mb-4">
+          Graduated Tokens (100k+ MCap)
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {graduatedTokens.map(token => (
+            <TokenCard 
+              key={token.address} 
+              token={token}
+              onClick={() => handleTokenClick(token)}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* About to Graduate Section */}
+      <section>
+        <h2 className="text-xl font-bold mb-4">
+          About to Graduate (70k-100k MCap)
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {aboutToGraduateTokens.map(token => (
+            <TokenCard 
+              key={token.address} 
+              token={token}
+              onClick={() => handleTokenClick(token)}
+            />
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+};
+
+// Add real-time updates
+const TokensContainer: FC = () => {
+  useEffect(() => {
+    // Subscribe to WebSocket updates
+    const wsSubscription = subscribeToTokenUpdates((update) => {
+      const { address, marketCap } = update;
+      usePumpPortalStore.getState().updateMarketCap(address, marketCap);
+    });
+
+    return () => {
+      wsSubscription.unsubscribe();
+    };
+  }, []);
+
+  return <TokensList />;
+};
+
+    Add animation for tokens moving between sections:
+
+TypeScript
+
+// TokenCard.tsx
+const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
+  const [isMoving, setIsMoving] = useState(false);
+  const prevMarketCapRef = useRef(token.marketCapSol);
+
+  useEffect(() => {
+    if (token.marketCapSol !== prevMarketCapRef.current) {
+      // Check if token is changing categories
+      const wasAboutToGraduate = prevMarketCapRef.current >= 70000 && prevMarketCapRef.current < 100000;
+      const wasGraduated = prevMarketCapRef.current >= 100000;
+      const isAboutToGraduate = token.marketCapSol >= 70000 && token.marketCapSol < 100000;
+      const isGraduated = token.marketCapSol >= 100000;
+
+      if (
+        (wasAboutToGraduate !== isAboutToGraduate) || 
+        (wasGraduated !== isGraduated)
+      ) {
+        setIsMoving(true);
+        setTimeout(() => setIsMoving(false), 1000);
+      }
+
+      prevMarketCapRef.current = token.marketCapSol;
+    }
+  }, [token.marketCapSol]);
+
+  return (
+    <Card 
+      className={cn(
+        "transition-all duration-300",
+        isMoving && "scale-95 opacity-50"
+      )}
+    >
+      {/* ... rest of your card content ... */}
+    </Card>
+  );
+};
