@@ -1,5 +1,17 @@
-
-import { type } from "os";
+export interface TokenTrade {
+  timestamp: number;
+  txType: 'buy' | 'sell' | 'create';
+  traderPublicKey: string;
+  counterpartyPublicKey?: string;
+  tokenAmount: number;
+  solAmount: number;
+  signature: string;
+  mint: string;
+  bondingCurveKey?: string;
+  vTokensInBondingCurve?: number;
+  vSolInBondingCurve?: number;
+  marketCapSol?: number;
+}
 
 export interface Token {
   address: string;
@@ -21,7 +33,7 @@ export interface Token {
     }>;
   };
   imageUrl?: string;
-  recentTrades?: any[];
+  recentTrades?: TokenTrade[];
   isNew?: boolean;
   holdersCount?: number;
   devWalletPercentage?: number;

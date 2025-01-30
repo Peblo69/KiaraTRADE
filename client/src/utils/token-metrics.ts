@@ -1,39 +1,38 @@
-
 export const THRESHOLDS = {
-  LOW_MARKET_CAP: 100,
-  MEDIUM_MARKET_CAP: 1000,
-  HIGH_MARKET_CAP: 10000
+  LOW_MCAP: 100000,
+  MED_MCAP: 500000,
+  HIGH_MCAP: 1000000,
+  RISK_LOW: 15,
+  RISK_MED: 50,
 };
 
-export const getRiskLevelColor = (value: number, type: 'marketCap' | 'holders' = 'marketCap') => {
-  if (type === 'marketCap') {
-    if (value < THRESHOLDS.LOW_MARKET_CAP) return 'text-red-500';
-    if (value < THRESHOLDS.MEDIUM_MARKET_CAP) return 'text-yellow-500';
-    return 'text-green-500';
+export const formatMarketCap = (marketCapSol: number): string => {
+  const mcapUsd = marketCapSol * (global.solPrice || 100);
+  if (mcapUsd >= 1000000) {
+    return `${(mcapUsd / 1000000).toFixed(2)}M`;
   }
-  return 'text-gray-500';
-};
-
-export const formatMarketCap = (marketCap: number): string => {
-  if (marketCap >= 1000000) {
-    return `${(marketCap / 1000000).toFixed(2)}M`;
-  } else if (marketCap >= 1000) {
-    return `${(marketCap / 1000).toFixed(2)}K`;
+  if (mcapUsd >= 1000) {
+    return `${(mcapUsd / 1000).toFixed(2)}K`;
   }
-  return marketCap.toFixed(2);
+  return mcapUsd.toFixed(2);
 };
 
-export const calculateMarketCapProgress = (marketCap: number): number => {
-  if (marketCap >= THRESHOLDS.HIGH_MARKET_CAP) return 100;
-  if (marketCap <= 0) return 0;
-  
-  const percentage = (marketCap / THRESHOLDS.HIGH_MARKET_CAP) * 100;
-  const smoothedProgress = Math.min(Math.max(percentage, 0), 100);
-  return Number(smoothedProgress.toFixed(2));
+export const calculateMarketCapProgress = (marketCapSol: number): number => {
+  const mcapUsd = marketCapSol * (global.solPrice || 100);
+  if (mcapUsd <= THRESHOLDS.LOW_MCAP) {
+    return (mcapUsd / THRESHOLDS.LOW_MCAP) * 33;
+  }
+  if (mcapUsd <= THRESHOLDS.MED_MCAP) {
+    return 33 + ((mcapUsd - THRESHOLDS.LOW_MCAP) / (THRESHOLDS.MED_MCAP - THRESHOLDS.LOW_MCAP)) * 33;
+  }
+  if (mcapUsd <= THRESHOLDS.HIGH_MCAP) {
+    return 66 + ((mcapUsd - THRESHOLDS.MED_MCAP) / (THRESHOLDS.HIGH_MCAP - THRESHOLDS.MED_MCAP)) * 34;
+  }
+  return 100;
 };
 
-export const getProgressBarColor = (marketCap: number): string => {
-  if (marketCap >= THRESHOLDS.HIGH_MARKET_CAP) return 'from-green-500 via-green-400 to-green-500';
-  if (marketCap >= THRESHOLDS.MEDIUM_MARKET_CAP) return 'from-blue-500 via-blue-400 to-blue-500';
-  return 'from-purple-500 via-purple-400 to-purple-500';
+export const getRiskLevelColor = (percentage: number): string => {
+  if (percentage <= THRESHOLDS.RISK_LOW) return "text-green-400";
+  if (percentage <= THRESHOLDS.RISK_MED) return "text-yellow-400";
+  return "text-red-400";
 };
