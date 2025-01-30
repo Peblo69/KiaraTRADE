@@ -1,0 +1,191 @@
+The key issues are:
+
+    WebSocket subscription management
+    Store updates not triggering re-renders
+    Metrics calculation timing
+
+Here's how to fix the TokenCard component to properly handle real-time updates:
+TypeScript
+
+// TokenCard.tsx
+import { FC, useState, useEffect, useCallback, useRef } from 'react';
+// ... other imports remain the same
+
+export const TokenCard: FC<TokenCardProps> = ({ 
+  token, 
+  onClick, 
+  onBuyClick = () => console.log('Buy clicked'), 
+  onCopyAddress = () => console.log('Address copied')
+}) => {
+  const [imageError, setImageError] = useState(false);
+  const [validatedImageUrl, setValidatedImageUrl] = useState<string | null>(null);
+  const [currentProgress, setCurrentProgress] = useState(0);
+  
+  // Use refs to track previous values for comparison
+  const prevMetricsRef = useRef<TokenMetrics | null>(null);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Initialize metrics with token data
+  const [metrics, setMetrics] = useState<TokenMetrics>(() => 
+    calculateTokenMetrics(
+      token,
+      token.recentTrades || [],
+      parseInt(token.createdAt || Date.now().toString())
+    )
+  );
+
+  // Memoize the metrics calculation
+  const calculateCurrentMetrics = useCallback(() => {
+    return calculateTokenMetrics(
+      token,
+      token.recentTrades || [],
+      parseInt(token.createdAt || Date.now().toString())
+    );
+  }, [token]);
+
+  // Handle real-time updates
+  useEffect(() => {
+    const handleTokenUpdate = (updatedToken: Token | undefined) => {
+      if (!updatedToken) return;
+
+      const newMetrics = calculateTokenMetrics(
+        updatedToken,
+        updatedToken.recentTrades || [],
+        parseInt(updatedToken.createdAt || Date.now().toString())
+      );
+
+      // Compare with previous metrics
+      const hasChanged = !prevMetricsRef.current || 
+        prevMetricsRef.current.marketCapSol !== newMetrics.marketCapSol ||
+        prevMetricsRef.current.volume24h !== newMetrics.volume24h;
+
+      if (hasChanged) {
+        // Clear previous timeout
+        if (updateTimeoutRef.current) {
+          clearTimeout(updateTimeoutRef.current);
+        }
+
+        // Update metrics and trigger animation
+        setMetrics(newMetrics);
+        prevMetricsRef.current = newMetrics;
+
+        const element = document.getElementById(`token-${token.address}`);
+        if (element) {
+          element.classList.add('flash-update');
+          updateTimeoutRef.current = setTimeout(() => {
+            element.classList.remove('flash-update');
+          }, 1000);
+        }
+      }
+    };
+
+    // Subscribe to store updates
+    const unsubscribe = usePumpPortalStore.subscribe(
+      (state) => state.tokens.find(t => t.address === token.address),
+      handleTokenUpdate
+    );
+
+    // Initial calculation
+    handleTokenUpdate(token);
+
+    // Cleanup
+    return () => {
+      unsubscribe();
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, [token.address, calculateCurrentMetrics]);
+
+  // Regular refresh for 24h volume
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMetrics(prev => ({
+        ...prev,
+        volume24h: calculateCurrentMetrics().volume24h
+      }));
+    }, 60000); // Every minute
+
+    return () => clearInterval(interval);
+  }, [calculateCurrentMetrics]);
+
+  // Progress bar animation
+  useEffect(() => {
+    const targetProgress = calculateMarketCapProgress(metrics.marketCapSol);
+    
+    if (currentProgress !== targetProgress) {
+      const step = (targetProgress - currentProgress) / 10;
+      const timeout = setTimeout(() => {
+        setCurrentProgress(prev => {
+          const next = prev + step;
+          return Math.abs(next - targetProgress) < 0.1 ? targetProgress : next;
+        });
+      }, 50);
+      return () => clearTimeout(timeout);
+    }
+  }, [metrics.marketCapSol, currentProgress]);
+
+  // ... rest of your component code remains the same ...
+
+And update your store subscription in the WebSocket manager:
+TypeScript
+
+// websocket-manager.ts
+private handleMessage(message: WebSocketMessage): void {
+  try {
+    const store = usePumpPortalStore.getState();
+
+    switch (message.type) {
+      case 'trade':
+        if (message.data && message.data.mint) {
+          const priceInSol = message.data.solAmount / BILLION;
+          const priceInUsd = priceInSol * this.solPrice;
+
+          const tradeData: TokenTrade = {
+            ...message.data,
+            timestamp: Date.now(),
+            priceInSol,
+            priceInUsd,
+            isDevTrade: this.isDevWalletTrade(message.data)
+          };
+
+          // Batch updates
+          requestAnimationFrame(() => {
+            store.addTradeToHistory(message.data.mint, tradeData);
+            this.calculateTokenPrice({
+              ...message.data,
+              address: message.data.mint
+            } as PumpPortalToken);
+          });
+        }
+        break;
+
+      // ... other cases ...
+    }
+  } catch (error) {
+    console.error('[PumpPortal] Error handling message:', error);
+  }
+}
+
+And update your store:
+TypeScript
+
+// pump-portal-websocket.ts
+addTradeToHistory: (address: string, tradeData: TokenTrade) => set((state) => {
+  const token = state.tokens.find(t => t.address === address);
+  if (!token) return state;
+
+  const updatedTrades = [tradeData, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN);
+  const updatedToken = {
+    ...token,
+    recentTrades: updatedTrades,
+    lastUpdate: Date.now()
+  };
+
+  return {
+    tokens: state.tokens.map(t => 
+      t.address === address ? updatedToken : t
+    ),
+    lastUpdate: Date.now()
+  };
+}, true), // Add true here for shallow equality check

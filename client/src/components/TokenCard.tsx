@@ -1,4 +1,4 @@
-import { FC, useState, useEffect, useMemo } from 'react';
+import { FC, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { ImageIcon, Globe, Search, Users, Crosshair, UserPlus, Copy } from 'lucide-react';
 import { validateImageUrl } from '@/utils/image-handler';
@@ -48,10 +48,10 @@ const calculateTokenMetrics = (
   const holdersMap = new Map<string, number>();
   trades.forEach(trade => {
     if (trade.txType === 'buy') {
-      holdersMap.set(trade.traderPublicKey, 
+      holdersMap.set(trade.traderPublicKey,
         (holdersMap.get(trade.traderPublicKey) || 0) + trade.tokenAmount);
     } else if (trade.txType === 'sell') {
-      holdersMap.set(trade.traderPublicKey, 
+      holdersMap.set(trade.traderPublicKey,
         (holdersMap.get(trade.traderPublicKey) || 0) - trade.tokenAmount);
     }
   });
@@ -103,82 +103,108 @@ const calculateTokenMetrics = (
   };
 };
 
-export const TokenCard: FC<TokenCardProps> = ({ 
-  token, 
-  onClick, 
-  onBuyClick = () => console.log('Buy clicked'), 
+export const TokenCard: FC<TokenCardProps> = ({
+  token,
+  onClick,
+  onBuyClick = () => console.log('Buy clicked'),
   onCopyAddress = () => console.log('Address copied')
 }) => {
   const [imageError, setImageError] = useState(false);
   const [validatedImageUrl, setValidatedImageUrl] = useState<string | null>(null);
   const [currentProgress, setCurrentProgress] = useState(0);
-  const [metrics, setMetrics] = useState<TokenMetrics>({
-    marketCapSol: token.marketCapSol || 0,
-    volume24h: 0,
-    topHoldersPercentage: 0,
-    devWalletPercentage: 0,
-    insiderPercentage: 0,
-    snipersCount: 0,
-    holdersCount: 0
-  });
 
-  // Subscribe to real-time updates
+  // Use refs to track previous values for comparison
+  const prevMetricsRef = useRef<TokenMetrics | null>(null);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize metrics with token data
+  const [metrics, setMetrics] = useState<TokenMetrics>(() =>
+    calculateTokenMetrics(
+      token,
+      token.recentTrades || [],
+      parseInt(token.createdAt || Date.now().toString())
+    )
+  );
+
+  // Memoize the metrics calculation
+  const calculateCurrentMetrics = useCallback(() => {
+    return calculateTokenMetrics(
+      token,
+      token.recentTrades || [],
+      parseInt(token.createdAt || Date.now().toString())
+    );
+  }, [token]);
+
+  // Handle real-time updates
   useEffect(() => {
-    const unsubscribe = usePumpPortalStore.subscribe(
-      state => state.tokens.find(t => t.address === token.address),
-      (updatedToken) => {
-        if (updatedToken) {
-          const newMetrics = calculateTokenMetrics(
-            updatedToken,
-            updatedToken.recentTrades,
-            updatedToken.createdAt
-          );
-          setMetrics(prev => {
-            // Flash indicators if values changed
-            if (prev.marketCapSol !== newMetrics.marketCapSol ||
-                prev.volume24h !== newMetrics.volume24h) {
-              document.getElementById(`token-${token.address}`)
-                ?.classList.add('flash-update');
-              setTimeout(() => {
-                document.getElementById(`token-${token.address}`)
-                  ?.classList.remove('flash-update');
-              }, 1000);
-            }
-            return newMetrics;
-          });
+    const handleTokenUpdate = (updatedToken: Token | undefined) => {
+      if (!updatedToken) return;
+
+      const newMetrics = calculateTokenMetrics(
+        updatedToken,
+        updatedToken.recentTrades || [],
+        parseInt(updatedToken.createdAt || Date.now().toString())
+      );
+
+      // Compare with previous metrics
+      const hasChanged = !prevMetricsRef.current ||
+        prevMetricsRef.current.marketCapSol !== newMetrics.marketCapSol ||
+        prevMetricsRef.current.volume24h !== newMetrics.volume24h;
+
+      if (hasChanged) {
+        // Clear previous timeout
+        if (updateTimeoutRef.current) {
+          clearTimeout(updateTimeoutRef.current);
+        }
+
+        // Update metrics and trigger animation
+        setMetrics(newMetrics);
+        prevMetricsRef.current = newMetrics;
+
+        const element = document.getElementById(`token-${token.address}`);
+        if (element) {
+          element.classList.add('flash-update');
+          updateTimeoutRef.current = setTimeout(() => {
+            element.classList.remove('flash-update');
+          }, 1000);
         }
       }
+    };
+
+    // Subscribe to store updates
+    const unsubscribe = usePumpPortalStore.subscribe(
+      (state) => state.tokens.find(t => t.address === token.address),
+      handleTokenUpdate
     );
 
-    return () => unsubscribe();
-  }, [token.address]);
+    // Initial calculation
+    handleTokenUpdate(token);
 
-  // Refresh volume every 10 minutes
+    // Cleanup
+    return () => {
+      unsubscribe();
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, [token.address, calculateCurrentMetrics]);
+
+  // Regular refresh for 24h volume
   useEffect(() => {
     const interval = setInterval(() => {
       setMetrics(prev => ({
         ...prev,
-        volume24h: calculateTokenMetrics(
-          token,
-          token.recentTrades,
-          token.createdAt
-        ).volume24h
+        volume24h: calculateCurrentMetrics().volume24h
       }));
-    }, 600000); // 10 minutes
+    }, 60000); // Every minute
 
     return () => clearInterval(interval);
-  }, [token]);
-
-  // Image validation
-  useEffect(() => {
-    const rawImageUrl = token.metadata?.imageUrl || token.imageUrl;
-    const processedUrl = validateImageUrl(rawImageUrl);
-    setValidatedImageUrl(processedUrl);
-  }, [token]);
+  }, [calculateCurrentMetrics]);
 
   // Progress bar animation
   useEffect(() => {
     const targetProgress = calculateMarketCapProgress(metrics.marketCapSol);
+
     if (currentProgress !== targetProgress) {
       const step = (targetProgress - currentProgress) / 10;
       const timeout = setTimeout(() => {
@@ -194,16 +220,16 @@ export const TokenCard: FC<TokenCardProps> = ({
   const displayName = token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`;
   const displaySymbol = token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase();
 
-  const getTopHoldersColor = (percentage: number) => 
+  const getTopHoldersColor = (percentage: number) =>
     percentage <= 15 ? "text-green-400 hover:text-green-300" : "text-red-400 hover:text-red-300";
 
-  const getDevHoldingColor = (percentage: number) => 
+  const getDevHoldingColor = (percentage: number) =>
     percentage <= 15 ? "text-green-400" : "text-red-400";
 
-  const getInsiderColor = (percentage: number) => 
+  const getInsiderColor = (percentage: number) =>
     percentage <= 10 ? "text-green-400" : "text-red-400";
 
-  const getSnipersColor = (count: number) => 
+  const getSnipersColor = (count: number) =>
     count <= 5 ? "text-green-400" : "text-red-400";
 
   const handleBuyClick = (e: React.MouseEvent) => {
@@ -223,7 +249,7 @@ export const TokenCard: FC<TokenCardProps> = ({
   };
 
   return (
-    <Card 
+    <Card
       id={`token-${token.address}`}
       className={cn(
         "group cursor-pointer transition-all duration-300 cosmic-glow space-gradient",
@@ -236,7 +262,7 @@ export const TokenCard: FC<TokenCardProps> = ({
 
       <div className="relative p-2">
         <div className="flex items-start gap-3">
-          <div 
+          <div
             onClick={handleImageClick}
             className={cn(
               "w-10 h-10 flex-shrink-0 relative rounded-lg overflow-hidden cursor-pointer",
@@ -396,7 +422,7 @@ export const TokenCard: FC<TokenCardProps> = ({
       </div>
 
       <div className="absolute bottom-0 left-0 w-full h-0.5 bg-purple-900/20">
-        <div 
+        <div
           className="h-full bg-gradient-to-r from-purple-500 via-purple-400 to-purple-500 relative overflow-hidden transition-all duration-1000 ease-out"
           style={{ width: `${currentProgress}%` }}
         >

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
+import { devtools } from 'zustand/middleware'; // For debugging
 
-// Supported timeframes in milliseconds
+// Explicit timeframe literals
 export const TIMEFRAMES = {
   '1m': 60 * 1000,
   '5m': 5 * 60 * 1000,
@@ -10,7 +11,7 @@ export const TIMEFRAMES = {
   '1d': 24 * 60 * 60 * 1000
 } as const;
 
-type TimeframeKey = keyof typeof TIMEFRAMES;
+export type TimeframeKey = keyof typeof TIMEFRAMES;
 
 interface CandleData {
   timestamp: number;
@@ -21,112 +22,208 @@ interface CandleData {
   volume: number;
   marketCap: number;
   trades: number;
+  vwap?: number;        // Volume Weighted Average Price
+  isPending?: boolean;  // For real-time updates
+}
+
+interface TokenPriceData {
+  [timeframe: string]: CandleData[];
 }
 
 interface PriceHistoryState {
-  priceHistory: Record<string, Record<TimeframeKey, CandleData[]>>;
+  priceHistory: Record<string, TokenPriceData>;
   initialized: Set<string>;
+  lastUpdate: Record<string, number>;
+  errors: Record<string, string>;
+
+  // Methods
   getPriceHistory: (tokenAddress: string, timeframe: TimeframeKey) => CandleData[];
-  initializePriceHistory: (tokenAddress: string, initialPrice: number, marketCap: number) => void;
-  addPricePoint: (tokenAddress: string, price: number, marketCap: number, volume: number) => void;
+  initializePriceHistory: (
+    tokenAddress: string, 
+    initialPrice: number, 
+    marketCap: number,
+    timestamp?: number
+  ) => void;
+  addPricePoint: (
+    tokenAddress: string, 
+    price: number, 
+    marketCap: number, 
+    volume: number,
+    timestamp?: number
+  ) => void;
+  getVWAP: (tokenAddress: string, timeframe: TimeframeKey) => number;
+  clearHistory: (tokenAddress: string) => void;
 }
 
 const MAX_CANDLES = 1000;
+const CLEANUP_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 
-export const useTokenPriceStore = create<PriceHistoryState>()((set, get) => ({
-  priceHistory: {},
-  initialized: new Set(),
+export const useTokenPriceStore = create<PriceHistoryState>()(
+  devtools(
+    (set, get) => ({
+      priceHistory: {},
+      initialized: new Set(),
+      lastUpdate: {},
+      errors: {},
 
-  getPriceHistory: (tokenAddress, timeframe) => {
-    const state = get();
-    return state.priceHistory[tokenAddress]?.[timeframe] || [];
-  },
-
-  initializePriceHistory: (tokenAddress, initialPrice, marketCap) => {
-    const state = get();
-
-    // Skip if already initialized
-    if (state.initialized.has(tokenAddress)) return;
-
-    const now = Date.now();
-    const initialData: Record<TimeframeKey, CandleData[]> = {} as Record<TimeframeKey, CandleData[]>;
-
-    // Initialize with a single candle for each timeframe
-    Object.entries(TIMEFRAMES).forEach(([timeframe, interval]) => {
-      const candleTime = Math.floor(now / interval) * interval;
-      initialData[timeframe as TimeframeKey] = [{
-        timestamp: candleTime,
-        open: initialPrice,
-        high: initialPrice,
-        low: initialPrice,
-        close: initialPrice,
-        volume: 0,
-        marketCap,
-        trades: 0
-      }];
-    });
-
-    set(state => ({
-      priceHistory: {
-        ...state.priceHistory,
-        [tokenAddress]: initialData
+      getPriceHistory: (tokenAddress, timeframe) => {
+        const state = get();
+        return state.priceHistory[tokenAddress]?.[timeframe] || [];
       },
-      initialized: new Set([...state.initialized, tokenAddress])
-    }));
-  },
 
-  addPricePoint: (tokenAddress, price, marketCap, volume) => {
-    set(state => {
-      // Skip if not initialized
-      if (!state.initialized.has(tokenAddress)) return state;
-
-      const now = Date.now();
-      const newPriceHistory = { ...state.priceHistory };
-      const tokenData = { ...newPriceHistory[tokenAddress] };
-
-      // Update candles for each timeframe
-      Object.entries(TIMEFRAMES).forEach(([timeframe, interval]) => {
-        const tf = timeframe as TimeframeKey;
-        const candleTime = Math.floor(now / interval) * interval;
-        const candles = [...(tokenData[tf] || [])];
-        const lastCandle = candles[candles.length - 1];
-
-        if (lastCandle && lastCandle.timestamp === candleTime) {
-          // Update existing candle
-          const updatedCandle = {
-            ...lastCandle,
-            high: Math.max(lastCandle.high, price),
-            low: Math.min(lastCandle.low, price),
-            close: price,
-            volume: lastCandle.volume + volume,
-            marketCap,
-            trades: lastCandle.trades + 1
-          };
-          candles[candles.length - 1] = updatedCandle;
-        } else {
-          // Create new candle
-          candles.push({
-            timestamp: candleTime,
-            open: price,
-            high: price,
-            low: price,
-            close: price,
-            volume,
-            marketCap,
-            trades: 1
-          });
-
-          // Trim history if needed
-          if (candles.length > MAX_CANDLES) {
-            candles.splice(0, candles.length - MAX_CANDLES);
-          }
+      initializePriceHistory: (tokenAddress, initialPrice, marketCap, timestamp = Date.now()) => {
+        if (!tokenAddress || typeof initialPrice !== 'number' || typeof marketCap !== 'number') {
+          set(state => ({
+            errors: {
+              ...state.errors,
+              [tokenAddress]: 'Invalid initialization parameters'
+            }
+          }));
+          return;
         }
 
-        tokenData[tf] = candles;
-      });
+        const state = get();
+        if (state.initialized.has(tokenAddress)) return;
 
-      newPriceHistory[tokenAddress] = tokenData;
-      return { ...state, priceHistory: newPriceHistory };
-    });
-  }
-}));
+        const initialData: TokenPriceData = {} as TokenPriceData;
+
+        // Initialize with a single candle for each timeframe
+        Object.entries(TIMEFRAMES).forEach(([timeframe, interval]) => {
+          const candleTime = Math.floor(timestamp / interval) * interval;
+          initialData[timeframe] = [{
+            timestamp: candleTime,
+            open: initialPrice,
+            high: initialPrice,
+            low: initialPrice,
+            close: initialPrice,
+            volume: 0,
+            marketCap,
+            trades: 0,
+            vwap: initialPrice,
+            isPending: false
+          }];
+        });
+
+        set(state => ({
+          priceHistory: {
+            ...state.priceHistory,
+            [tokenAddress]: initialData
+          },
+          initialized: new Set([...state.initialized, tokenAddress]),
+          lastUpdate: {
+            ...state.lastUpdate,
+            [tokenAddress]: timestamp
+          }
+        }));
+      },
+
+      addPricePoint: (tokenAddress, price, marketCap, volume, timestamp = Date.now()) => {
+        if (!tokenAddress || typeof price !== 'number' || typeof marketCap !== 'number') {
+          set(state => ({
+            errors: {
+              ...state.errors,
+              [tokenAddress]: 'Invalid price point parameters'
+            }
+          }));
+          return;
+        }
+
+        set(state => {
+          if (!state.initialized.has(tokenAddress)) return state;
+
+          const newPriceHistory = { ...state.priceHistory };
+          const tokenData = { ...newPriceHistory[tokenAddress] };
+
+          // Update candles for each timeframe
+          Object.entries(TIMEFRAMES).forEach(([timeframe, interval]) => {
+            const tf = timeframe as TimeframeKey;
+            const candleTime = Math.floor(timestamp / interval) * interval;
+            const candles = [...(tokenData[tf] || [])];
+            const lastCandle = candles[candles.length - 1];
+
+            if (lastCandle && lastCandle.timestamp === candleTime) {
+              // Update existing candle
+              const updatedVolume = lastCandle.volume + volume;
+              const updatedTrades = lastCandle.trades + 1;
+              const vwap = ((lastCandle.vwap || lastCandle.close) * lastCandle.volume + price * volume) / updatedVolume;
+
+              const updatedCandle: CandleData = {
+                ...lastCandle,
+                high: Math.max(lastCandle.high, price),
+                low: Math.min(lastCandle.low, price),
+                close: price,
+                volume: updatedVolume,
+                marketCap,
+                trades: updatedTrades,
+                vwap,
+                isPending: timestamp > candleTime + interval
+              };
+              candles[candles.length - 1] = updatedCandle;
+            } else {
+              // Create new candle
+              candles.push({
+                timestamp: candleTime,
+                open: price,
+                high: price,
+                low: price,
+                close: price,
+                volume,
+                marketCap,
+                trades: 1,
+                vwap: price,
+                isPending: false
+              });
+
+              // Trim history
+              if (candles.length > MAX_CANDLES) {
+                candles.splice(0, candles.length - MAX_CANDLES);
+              }
+            }
+
+            tokenData[tf] = candles;
+          });
+
+          // Cleanup old data
+          const now = Date.now();
+          if (now - (state.lastUpdate[tokenAddress] || 0) > CLEANUP_INTERVAL) {
+            Object.keys(state.priceHistory).forEach(addr => {
+              if (now - (state.lastUpdate[addr] || 0) > CLEANUP_INTERVAL) {
+                delete newPriceHistory[addr];
+                state.initialized.delete(addr);
+              }
+            });
+          }
+
+          return {
+            ...state,
+            priceHistory: newPriceHistory,
+            lastUpdate: {
+              ...state.lastUpdate,
+              [tokenAddress]: timestamp
+            }
+          };
+        });
+      },
+
+      getVWAP: (tokenAddress, timeframe) => {
+        const candles = get().getPriceHistory(tokenAddress, timeframe);
+        if (!candles.length) return 0;
+
+        const lastCandle = candles[candles.length - 1];
+        return lastCandle.vwap || lastCandle.close;
+      },
+
+      clearHistory: (tokenAddress) => {
+        set(state => {
+          const newState = { ...state };
+          delete newState.priceHistory[tokenAddress];
+          newState.initialized.delete(tokenAddress);
+          delete newState.lastUpdate[tokenAddress];
+          delete newState.errors[tokenAddress];
+          return newState;
+        });
+      }
+    }),
+    { name: 'token-price-store' }
+  )
+);
