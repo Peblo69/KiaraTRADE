@@ -1,10 +1,11 @@
-
 import { FC, useState, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
-import { ImageIcon } from 'lucide-react';
+import { ImageIcon, Globe, Search, Users, Crosshair, UserPlus, Copy } from 'lucide-react';
 import { validateImageUrl } from '@/utils/image-handler';
-import { Badge } from "@/components/ui/badge";
+import { validateSocialUrl } from '@/utils/social-links';
+import { THRESHOLDS, getRiskLevelColor, formatMarketCap, calculateMarketCapProgress } from '@/utils/token-metrics';
 import { cn } from "@/lib/utils";
+import type { Token } from '@/types/token';
 
 interface TokenCardProps {
   token: {
