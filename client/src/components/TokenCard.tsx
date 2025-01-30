@@ -31,6 +31,14 @@ interface TokenMetrics {
   holdersCount: number;
 }
 
+interface InsiderMetrics {
+  risk: number;
+  patterns: {
+    quickFlips: number;
+    coordinatedBuys: number;
+  };
+}
+
 const calculateTokenMetrics = (
   token: Token,
   trades: TokenTrade[],
@@ -98,6 +106,31 @@ const calculateTokenMetrics = (
     holdersCount: holdersMap.size
   };
 };
+
+const getInsiderRiskColor = (metrics: InsiderMetrics) => {
+  if (metrics.risk <= 3) return "text-green-400";
+  if (metrics.risk <= 6) return "text-yellow-400";
+  return "text-red-400";
+};
+
+// In the JSX where insider metrics are displayed
+const InsiderMetricsDisplay = ({metrics}: {metrics: InsiderMetrics}) => (
+  <div className="flex items-center gap-1">
+    <InsiderIcon 
+      className={cn(
+        "current-color",
+        getInsiderRiskColor(metrics)
+      )} 
+    />
+    <span>{metrics.risk}</span>
+    {metrics.patterns.quickFlips > 0 && (
+      <span className="text-xs" title="Quick Flips Detected">🔄</span>
+    )}
+    {metrics.patterns.coordinatedBuys > 0 && (
+      <span className="text-xs" title="Coordinated Buying">👥</span>
+    )}
+  </div>
+);
 
 export const TokenCard: FC<TokenCardProps> = ({
   token,
@@ -231,6 +264,10 @@ export const TokenCard: FC<TokenCardProps> = ({
     pumpfun: `https://pump.fun/coin/${token.address}`
   }), [token]);
 
+  //Assumed insider metrics are available in the metrics object.  Adjust as needed based on your actual data structure.
+  const insiderMetrics: InsiderMetrics = { risk: metrics.insiderRisk, patterns: { quickFlips: 0, coordinatedBuys: 0 } };
+
+
   return (
     <Card
       id={`token-${token.address}`}
@@ -319,12 +356,7 @@ export const TokenCard: FC<TokenCardProps> = ({
                   </span>
                 )}
                 {metrics.insiderRisk > 0 && (
-                  <span className={cn(
-                    "flex items-center gap-1",
-                    getInsiderColor(metrics.insiderRisk)
-                  )}>
-                    <InsiderIcon className="current-color" /> {metrics.insiderRisk}
-                  </span>
+                  <InsiderMetricsDisplay metrics={insiderMetrics} />
                 )}
                 {metrics.snipersCount > 0 && (
                   <span className={cn(

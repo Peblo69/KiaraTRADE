@@ -161,21 +161,122 @@ const calculateDevWalletRisk = (token: PumpPortalToken): number => {
   return Math.min(100, weightedRisk * 2);
 };
 
-const calculateInsiderWallets = (trades: TokenTrade[]): Set<string> => {
-  const insiderWallets = new Set<string>();
-  const timeWindow = 2000; // 2 seconds window
-  const minGroupSize = 4; // Minimum 4 wallets to be considered insider group
+interface InsiderMetrics {
+  percentage: number;
+  risk: number;
+  count: number;
+  patterns: {
+    quickFlips: number;
+    largeHolders: number;
+    coordinatedBuys: number;
+  };
+}
 
-  // Group trades by exact timestamp (same second)
-  const exactTimeGroups = new Map<number, TokenTrade[]>();
-  trades.forEach(trade => {
-    if (trade.txType !== 'buy') return;
-    const timeKey = Math.floor(trade.timestamp / 1000) * 1000;
-    if (!exactTimeGroups.has(timeKey)) {
-      exactTimeGroups.set(timeKey, []);
+const calculateInsiderMetrics = (
+  token: PumpPortalToken,
+  trades: TokenTrade[],
+  creationTimestamp: number
+): InsiderMetrics => {
+  const HOUR = 3600000;
+  const QUICK_FLIP_WINDOW = 300000; // 5 minutes
+  const LARGE_TRADE_THRESHOLD = 0.05; // 5% of liquidity
+  
+  const walletActivity = new Map<string, {
+    firstTrade: number;
+    trades: TokenTrade[];
+    currentBalance: number;
+    quickFlips: number;
+    totalVolume: number;
+  }>();
+
+  const sortedTrades = [...trades].sort((a, b) => a.timestamp - b.timestamp);
+  let currentLiquidity = token.vTokensInBondingCurve;
+
+  sortedTrades.forEach(trade => {
+    const wallet = trade.traderPublicKey;
+    if (wallet === token.devWallet) return;
+
+    if (!walletActivity.has(wallet)) {
+      walletActivity.set(wallet, {
+        firstTrade: trade.timestamp,
+        trades: [],
+        currentBalance: 0,
+        quickFlips: 0,
+        totalVolume: 0
+      });
     }
-    exactTimeGroups.get(timeKey)!.push(trade);
+
+    const activity = walletActivity.get(wallet)!;
+    activity.trades.push(trade);
+    
+    if (trade.txType === 'buy') {
+      activity.currentBalance += trade.tokenAmount;
+      activity.totalVolume += trade.solAmount;
+
+      const previousSell = activity.trades
+        .filter(t => t.txType === 'sell')
+        .find(t => trade.timestamp - t.timestamp < QUICK_FLIP_WINDOW);
+      
+      if (previousSell) {
+        activity.quickFlips++;
+      }
+    } else {
+      activity.currentBalance -= trade.tokenAmount;
+      activity.totalVolume += trade.solAmount;
+    }
   });
+
+  const insiderPatterns = {
+    quickFlips: 0,
+    largeHolders: 0,
+    coordinatedBuys: 0
+  };
+
+  const earlyTraders = Array.from(walletActivity.entries())
+    .filter(([_, activity]) => 
+      activity.firstTrade <= creationTimestamp + (HOUR * 6));
+
+  let totalInsiderBalance = 0;
+  
+  earlyTraders.forEach(([_, activity]) => {
+    if (activity.quickFlips > 2) {
+      insiderPatterns.quickFlips++;
+    }
+
+    const holdingPercentage = (activity.currentBalance / currentLiquidity) * 100;
+    if (holdingPercentage > 5) {
+      insiderPatterns.largeHolders++;
+    }
+
+    totalInsiderBalance += activity.currentBalance;
+  });
+
+  const timeWindows = new Map<number, number>();
+  sortedTrades
+    .filter(t => t.timestamp <= creationTimestamp + HOUR)
+    .forEach(trade => {
+      const window = Math.floor(trade.timestamp / 60000);
+      timeWindows.set(window, (timeWindows.get(window) || 0) + 1);
+    });
+
+  const coordinatedBuyWindows = Array.from(timeWindows.values())
+    .filter(count => count >= 3).length;
+  insiderPatterns.coordinatedBuys = coordinatedBuyWindows;
+
+  const insiderPercentage = (totalInsiderBalance / currentLiquidity) * 100;
+  const patternRisk = (
+    (insiderPatterns.quickFlips * 2) +
+    (insiderPatterns.largeHolders * 3) +
+    (insiderPatterns.coordinatedBuys * 2)
+  ) / 7;
+
+  return {
+    percentage: Math.min(100, insiderPercentage),
+    risk: Math.min(10, Math.round(patternRisk)),
+    count: earlyTraders.length,
+    patterns: insiderPatterns
+  };
+};
 
   // Check for exact time matches (same second buys)
   exactTimeGroups.forEach(groupTrades => {
