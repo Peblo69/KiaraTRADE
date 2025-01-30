@@ -65,11 +65,11 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
       )}
       onClick={onClick}
     >
-      <div className="relative p-4 overflow-hidden">
-        <div className="flex items-start gap-4">
+      <div className="relative p-2 overflow-hidden">
+        <div className="flex items-start gap-2">
           {/* Token Image */}
           <div className={cn(
-            "w-12 h-12 flex-shrink-0 relative rounded-lg overflow-hidden",
+            "w-8 h-8 flex-shrink-0 relative rounded-lg overflow-hidden",
             "bg-gradient-to-br from-purple-900/20 to-black/30",
             "border border-purple-500/20"
           )}>
@@ -98,46 +98,46 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
           {/* Token Info */}
           <div className="flex-grow space-y-4">
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-200 to-purple-400">
+              <div className="flex items-center gap-1">
+                <h3 className="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-200 to-purple-400">
                   {displaySymbol}
                 </h3>
                 <Badge 
                   variant={token.isNew ? "default" : "secondary"}
                   className={cn(
-                    "h-5 px-2",
+                    "h-4 px-1 text-xs",
                     token.isNew && "bg-purple-500/20 text-purple-200 border border-purple-500/40"
                   )}
                 >
                   {token.isNew ? "New" : "Listed"}
                 </Badge>
               </div>
-              <p className="text-sm text-gray-400 truncate mt-1">
+              <p className="text-xs text-gray-400 truncate mt-0.5">
                 {displayName}
               </p>
             </div>
 
             {/* Price */}
-            <div className="bg-purple-500/5 p-3 rounded-xl border border-purple-500/20">
-              <div className="text-sm text-gray-400">Current Price</div>
-              <div className="text-lg font-bold text-purple-100">
+            <div className="bg-purple-500/5 p-2 rounded-lg border border-purple-500/20">
+              <div className="text-xs text-gray-400">Price</div>
+              <div className="text-sm font-bold text-purple-100">
                 ${token.priceInUsd?.toFixed(8) || '0.00000000'}
               </div>
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-3 gap-4 pt-2 border-t border-purple-500/20">
+            <div className="grid grid-cols-3 gap-2 pt-1 mt-1 border-t border-purple-500/20">
               <div className="text-center">
-                <div className="text-xs text-gray-400">Market Cap</div>
-                <div className="font-medium text-sm text-purple-200">${marketCap}</div>
+                <div className="text-[10px] text-gray-400">Market Cap</div>
+                <div className="font-medium text-xs text-purple-200">${marketCap}</div>
               </div>
               <div className="text-center">
-                <div className="text-xs text-gray-400">Liquidity</div>
-                <div className="font-medium text-sm text-purple-200">${liquidity}</div>
+                <div className="text-[10px] text-gray-400">Liquidity</div>
+                <div className="font-medium text-xs text-purple-200">${liquidity}</div>
               </div>
               <div className="text-center">
-                <div className="text-xs text-gray-400">Volume</div>
-                <div className="font-medium text-sm text-purple-200">${volume}</div>
+                <div className="text-[10px] text-gray-400">Volume</div>
+                <div className="font-medium text-xs text-purple-200">${volume}</div>
               </div>
             </div>
           </div>
