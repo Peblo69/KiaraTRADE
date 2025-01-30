@@ -22,6 +22,7 @@ interface RiskMetrics {
   holdersRisk: number;
   volumeRisk: number;
   devWalletRisk: number;
+  insiderRisk: number;
   totalRisk: number;
 }
 
@@ -83,28 +84,6 @@ export const calculateVolumeMetrics = (trades: TokenTrade[]): VolumeMetrics => {
       sol: volume24h,
       usd: volume24h * latestPrice,
     },
-  };
-};
-
-export const calculateTokenRisk = (token: PumpPortalToken): RiskMetrics => {
-  if (!token.recentTrades?.length) {
-    return {
-      holdersRisk: 100,
-      volumeRisk: 100,
-      devWalletRisk: 50,
-      totalRisk: 83.33
-    };
-  }
-
-  const holdersRisk = calculateHoldersRisk(token.recentTrades);
-  const volumeRisk = calculateVolumeRisk(token.recentTrades);
-  const devWalletRisk = calculateDevWalletRisk(token);
-
-  return {
-    holdersRisk,
-    volumeRisk,
-    devWalletRisk,
-    totalRisk: (holdersRisk + volumeRisk + devWalletRisk) / 3,
   };
 };
 
@@ -180,4 +159,80 @@ const calculateDevWalletRisk = (token: PumpPortalToken): number => {
   const weightedRisk = (devTradePercentage * 0.4) + (devVolumePercentage * 0.6);
 
   return Math.min(100, weightedRisk * 2);
+};
+
+const calculateInsiderWallets = (trades: TokenTrade[]): Set<string> => {
+  const insiderWallets = new Set<string>();
+  const timeWindow = 5000; // 5 seconds
+
+  // Group trades by timestamp windows
+  const tradeWindows = new Map<number, TokenTrade[]>();
+  trades.forEach(trade => {
+    if (trade.txType !== 'buy') return;
+    const windowKey = Math.floor(trade.timestamp / timeWindow) * timeWindow;
+    if (!tradeWindows.has(windowKey)) {
+      tradeWindows.set(windowKey, []);
+    }
+    tradeWindows.get(windowKey)!.push(trade);
+  });
+
+  // Analyze each window for patterns
+  tradeWindows.forEach(windowTrades => {
+    if (windowTrades.length < 2) return;
+
+    // Group by similar amounts (within 10% difference)
+    const amountGroups = new Map<number, TokenTrade[]>();
+    windowTrades.forEach(trade => {
+      let foundGroup = false;
+      for (const [amount, group] of amountGroups.entries()) {
+        if (Math.abs(trade.solAmount - amount) / amount < 0.1) {
+          group.push(trade);
+          foundGroup = true;
+          break;
+        }
+      }
+      if (!foundGroup) {
+        amountGroups.set(trade.solAmount, [trade]);
+      }
+    });
+
+    // If we find groups of similar amounts, mark those wallets as insiders
+    amountGroups.forEach((group, amount) => {
+      if (group.length >= 2) {
+        group.forEach(trade => {
+          insiderWallets.add(trade.traderPublicKey);
+        });
+      }
+    });
+  });
+
+  return insiderWallets;
+};
+
+export const calculateTokenRisk = (token: PumpPortalToken): RiskMetrics => {
+  if (!token.recentTrades?.length) {
+    return {
+      holdersRisk: 100,
+      volumeRisk: 100,
+      devWalletRisk: 50,
+      insiderRisk: 0,
+      totalRisk: 83.33
+    };
+  }
+
+  const holdersRisk = calculateHoldersRisk(token.recentTrades);
+  const volumeRisk = calculateVolumeRisk(token.recentTrades);
+  const devWalletRisk = calculateDevWalletRisk(token);
+
+  // Calculate insider percentage
+  const insiderWallets = calculateInsiderWallets(token.recentTrades);
+  const insiderRisk = (insiderWallets.size / token.recentTrades.length) * 100;
+
+  return {
+    holdersRisk,
+    volumeRisk,
+    devWalletRisk,
+    insiderRisk,
+    totalRisk: (holdersRisk + volumeRisk + devWalletRisk + insiderRisk) / 4,
+  };
 };

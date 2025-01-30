@@ -26,6 +26,7 @@ interface TokenMetrics {
   topHoldersPercentage: number;
   devWalletPercentage: number;
   insiderPercentage: number;
+  insiderRisk: number; // Added insiderRisk
   snipersCount: number;
   holdersCount: number;
 }
@@ -84,6 +85,8 @@ const calculateTokenMetrics = (
   const insiderBalances = Array.from(insiderWallets)
     .reduce((sum, wallet) => sum + (holdersMap.get(wallet) || 0), 0);
   const insiderPercentage = (insiderBalances / totalSupply) * 100;
+  const insiderRisk = Math.round(insiderPercentage / 10); // Simplified risk calculation
+
 
   return {
     marketCapSol: token.vSolInBondingCurve,
@@ -91,6 +94,7 @@ const calculateTokenMetrics = (
     topHoldersPercentage,
     devWalletPercentage,
     insiderPercentage,
+    insiderRisk, // Added insiderRisk
     snipersCount: snipers.size,
     holdersCount: holdersMap.size
   };
@@ -208,8 +212,8 @@ export const TokenCard: FC<TokenCardProps> = ({
   const getDevHoldingColor = (percentage: number) =>
     percentage <= 15 ? "text-green-400" : "text-red-400";
 
-  const getInsiderColor = (percentage: number) =>
-    percentage <= 10 ? "text-green-400" : "text-red-400";
+  const getInsiderColor = (count: number) =>
+    count <= 3 ? "text-green-400" : count <= 5 ? "text-yellow-400" : "text-red-400";
 
   const getSnipersColor = (count: number) =>
     count <= 5 ? "text-green-400" : "text-red-400";
@@ -325,12 +329,12 @@ export const TokenCard: FC<TokenCardProps> = ({
                     <DevHoldingIcon className="current-color" /> {metrics.devWalletPercentage.toFixed(1)}%
                   </span>
                 )}
-                {typeof metrics.insiderPercentage !== 'undefined' && metrics.insiderPercentage > 0 && (
+                {typeof metrics.insiderRisk !== 'undefined' && metrics.insiderRisk > 0 && (
                   <span className={cn(
                     "flex items-center gap-1",
-                    getInsiderColor(metrics.insiderPercentage)
+                    getInsiderColor(metrics.insiderRisk)
                   )}>
-                    <InsiderIcon className="current-color" /> {metrics.insiderPercentage.toFixed(1)}%
+                    <InsiderIcon className="current-color" /> {metrics.insiderRisk.toFixed(0)}
                   </span>
                 )}
                 {typeof metrics.snipersCount !== 'undefined' && metrics.snipersCount > 0 && (
