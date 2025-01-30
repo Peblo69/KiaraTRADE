@@ -291,11 +291,163 @@ export const calculateTokenRisk = (token: PumpPortalToken): RiskMetrics => {
   const insiderMetrics = calculateInsiderMetrics(token, token.recentTrades, creationTime);
   const insiderRisk = insiderMetrics.risk;
 
+  const sniperMetrics = calculateSniperMetrics(token.recentTrades, creationTime);
+  const sniperRisk = sniperMetrics.risk;
+
+
   return {
     holdersRisk,
     volumeRisk,
     devWalletRisk,
     insiderRisk,
-    totalRisk: (holdersRisk + volumeRisk + devWalletRisk + (insiderRisk * 10)) / 4
+    totalRisk: (holdersRisk + volumeRisk + devWalletRisk + (insiderRisk * 10) + sniperRisk) / 5
+  };
+};
+
+
+interface SniperMetrics {
+  wallets: Set<string>;
+  risk: number;
+  patterns: {
+    exactTimeMatches: number;
+    similarAmounts: number;
+    frontrunAttempts: number;
+    coordinatedBuys: number;
+  };
+  groups: {
+    timestamp: number;
+    wallets: string[];
+    amount: number;
+    type: 'exact' | 'similar' | 'frontrun';
+  }[];
+}
+
+const calculateSniperMetrics = (
+  trades: TokenTrade[],
+  creationTimestamp: number
+): SniperMetrics => {
+  const SNIPE_WINDOW = 15000;
+  const GROUP_WINDOW = 2000;
+  const MIN_GROUP_SIZE = 3;
+  const AMOUNT_SIMILARITY = 0.1;
+  const FRONTRUN_WINDOW = 500;
+
+  const sniperWallets = new Set<string>();
+  const patterns = {
+    exactTimeMatches: 0,
+    similarAmounts: 0,
+    frontrunAttempts: 0,
+    coordinatedBuys: 0
+  };
+  const groups: SniperMetrics['groups'] = [];
+
+  const sortedTrades = [...trades]
+    .filter(t => t.timestamp <= creationTimestamp + SNIPE_WINDOW)
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  const frontrunGroups = new Map<number, TokenTrade[]>();
+  sortedTrades.forEach((trade, index) => {
+    if (index === 0) return;
+
+    const timeDiff = trade.timestamp - sortedTrades[index - 1].timestamp;
+    if (timeDiff <= FRONTRUN_WINDOW) {
+      const windowKey = Math.floor(trade.timestamp / FRONTRUN_WINDOW);
+      if (!frontrunGroups.has(windowKey)) {
+        frontrunGroups.set(windowKey, []);
+      }
+      frontrunGroups.get(windowKey)!.push(trade);
+    }
+  });
+
+  frontrunGroups.forEach((groupTrades, timestamp) => {
+    if (groupTrades.length >= MIN_GROUP_SIZE) {
+      patterns.frontrunAttempts++;
+      groupTrades.forEach(trade => sniperWallets.add(trade.traderPublicKey));
+      groups.push({
+        timestamp,
+        wallets: groupTrades.map(t => t.traderPublicKey),
+        amount: groupTrades.reduce((sum, t) => sum + t.solAmount, 0),
+        type: 'frontrun'
+      });
+    }
+  });
+
+  const exactTimeGroups = new Map<number, TokenTrade[]>();
+  sortedTrades.forEach(trade => {
+    if (trade.txType !== 'buy') return;
+    const timeKey = Math.floor(trade.timestamp / 1000);
+    if (!exactTimeGroups.has(timeKey)) {
+      exactTimeGroups.set(timeKey, []);
+    }
+    exactTimeGroups.get(timeKey)!.push(trade);
+  });
+
+  exactTimeGroups.forEach((groupTrades, timestamp) => {
+    if (groupTrades.length >= MIN_GROUP_SIZE) {
+      patterns.exactTimeMatches++;
+      groupTrades.forEach(trade => sniperWallets.add(trade.traderPublicKey));
+      groups.push({
+        timestamp,
+        wallets: groupTrades.map(t => t.traderPublicKey),
+        amount: groupTrades.reduce((sum, t) => sum + t.solAmount, 0),
+        type: 'exact'
+      });
+    }
+  });
+
+  const timeWindows = new Map<number, TokenTrade[]>();
+  sortedTrades.forEach(trade => {
+    if (trade.txType !== 'buy') return;
+    const windowKey = Math.floor(trade.timestamp / GROUP_WINDOW);
+    if (!timeWindows.has(windowKey)) {
+      timeWindows.set(windowKey, []);
+    }
+    timeWindows.get(windowKey)!.push(trade);
+  });
+
+  timeWindows.forEach((windowTrades, timestamp) => {
+    if (windowTrades.length < MIN_GROUP_SIZE) return;
+
+    const amountGroups = new Map<number, TokenTrade[]>();
+    windowTrades.forEach(trade => {
+      let foundGroup = false;
+      for (const [baseAmount, group] of amountGroups.entries()) {
+        if (Math.abs(trade.solAmount - baseAmount) / baseAmount < AMOUNT_SIMILARITY) {
+          group.push(trade);
+          foundGroup = true;
+          break;
+        }
+      }
+      if (!foundGroup) {
+        amountGroups.set(trade.solAmount, [trade]);
+      }
+    });
+
+    amountGroups.forEach((group, amount) => {
+      if (group.length >= MIN_GROUP_SIZE) {
+        patterns.similarAmounts++;
+        group.forEach(trade => sniperWallets.add(trade.traderPublicKey));
+        groups.push({
+          timestamp,
+          wallets: group.map(t => t.traderPublicKey),
+          amount,
+          type: 'similar'
+        });
+      }
+    });
+  });
+
+  const riskScore = Math.min(100,
+    (patterns.exactTimeMatches * 25) +
+    (patterns.similarAmounts * 20) +
+    (patterns.frontrunAttempts * 30) +
+    (Math.floor(sniperWallets.size / 3) * 15)
+  );
+
+  return {
+    wallets: sniperWallets,
+    risk: riskScore,
+    patterns,
+    groups
   };
 };
