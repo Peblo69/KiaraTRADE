@@ -12,6 +12,7 @@ import { InsiderIcon } from './icons/InsiderIcon';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import type { Token, TokenTrade } from '@/types/token';
 import { formatDistanceToNow } from 'date-fns';
+import { supplyTracker } from "@/utils/token-supply";
 
 interface TokenCardProps {
   token: Token;
@@ -26,9 +27,10 @@ interface TokenMetrics {
   topHoldersPercentage: number;
   devWalletPercentage: number;
   insiderPercentage: number;
-  insiderRisk: number; 
+  insiderRisk: number;
   snipersCount: number;
   holdersCount: number;
+  supplyMetrics: any; // Added supplyMetrics to the interface
 }
 
 const calculateTokenMetrics = (
@@ -44,6 +46,14 @@ const calculateTokenMetrics = (
     .filter(trade => trade.timestamp > oneDayAgo)
     .reduce((sum, trade) => sum + trade.solAmount, 0);
 
+  // Get or calculate supply metrics
+  const supplyMetrics = supplyTracker.getSupplyMetrics(token) || 
+                       supplyTracker.calculateInitialSupply(token);
+
+  // Use circulating supply for percentage calculations
+  const circulatingSupply = supplyMetrics.circulatingSupply;
+
+  // Count unique holders from finalized trades
   const holdersMap = new Map<string, number>();
   trades.forEach(trade => {
     if (trade.txType === 'buy') {
@@ -51,51 +61,59 @@ const calculateTokenMetrics = (
         (holdersMap.get(trade.traderPublicKey) || 0) + trade.tokenAmount);
     } else if (trade.txType === 'sell') {
       holdersMap.set(trade.traderPublicKey,
-        (holdersMap.get(trade.traderPublicKey) || 0) - trade.tokenAmount);
+        Math.max(0, (holdersMap.get(trade.traderPublicKey) || 0) - trade.tokenAmount));
     }
   });
 
+  // Remove holders with zero balance
   Array.from(holdersMap.entries())
     .filter(([_, balance]) => balance <= 0)
     .forEach(([wallet]) => holdersMap.delete(wallet));
 
+  // Calculate top holders percentage using circulating supply
   const sortedHolders = Array.from(holdersMap.entries())
     .sort(([, a], [, b]) => b - a)
     .slice(0, 10);
 
-  const totalSupply = token.vTokensInBondingCurve;
   const top10Supply = sortedHolders.reduce((sum, [_, amount]) => sum + amount, 0);
-  const topHoldersPercentage = (top10Supply / totalSupply) * 100;
+  // Cap at 100% to prevent overflow
+  const topHoldersPercentage = Math.min(100, (top10Supply / circulatingSupply) * 100);
 
-  const devBalance = holdersMap.get(token.devWallet) || 0;
-  const devWalletPercentage = (devBalance / totalSupply) * 100;
+  // Calculate dev wallet percentage using circulating supply
+  const devBalance = holdersMap.get(token.devWallet || '') || 0;
+  const devWalletPercentage = Math.min(100, (devBalance / circulatingSupply) * 100);
 
+  // Count snipers (trades within 15s of creation)
   const snipers = new Set(
     trades
       .filter(t => t.timestamp <= snipeWindow && t.txType === 'buy')
       .map(t => t.traderPublicKey)
   );
 
+  // Calculate insider percentage (excluding dev wallet)
   const insiderWallets = new Set(
     trades
       .filter(t => t.timestamp <= creationTimestamp + 3600000)
       .map(t => t.traderPublicKey)
   );
-  insiderWallets.delete(token.devWallet);
+  insiderWallets.delete(token.devWallet || '');
   const insiderBalances = Array.from(insiderWallets)
     .reduce((sum, wallet) => sum + (holdersMap.get(wallet) || 0), 0);
-  const insiderPercentage = (insiderBalances / totalSupply) * 100;
-  const insiderRisk = Math.round(insiderPercentage / 10); 
+
+  // Cap insider percentage at 100%
+  const insiderPercentage = Math.min(100, (insiderBalances / circulatingSupply) * 100);
+  const insiderRisk = Math.round(insiderPercentage / 10);
 
   return {
-    marketCapSol: token.vSolInBondingCurve,
+    marketCapSol: token.vSolInBondingCurve || 0,
     volume24h,
     topHoldersPercentage,
     devWalletPercentage,
     insiderPercentage,
-    insiderRisk, 
+    insiderRisk,
     snipersCount: snipers.size,
-    holdersCount: holdersMap.size
+    holdersCount: holdersMap.size,
+    supplyMetrics
   };
 };
 
@@ -202,8 +220,8 @@ export const TokenCard: FC<TokenCardProps> = ({
     percentage <= 15 ? "text-green-400" : "text-red-400";
 
   const getInsiderColor = (count: number) =>
-    count === 0 ? "text-green-400" : 
-    count <= 4 ? "text-yellow-400" : "text-red-400";
+    count === 0 ? "text-green-400" :
+      count <= 4 ? "text-yellow-400" : "text-red-400";
 
   const getSnipersColor = (count: number) =>
     count <= 5 ? "text-green-400" : "text-red-400";

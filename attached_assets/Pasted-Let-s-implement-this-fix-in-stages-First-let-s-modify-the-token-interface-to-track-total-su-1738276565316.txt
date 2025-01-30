@@ -1,0 +1,135 @@
+Let's implement this fix in stages:
+
+    First, let's modify the token interface to track total supply:
+
+TypeScript
+
+interface TokenSupplyMetrics {
+  totalSupply: number;          // Total tokens created
+  circulatingSupply: number;    // Total - burned - locked
+  liquidityTokens: number;      // vTokensInBondingCurve
+  burnedTokens: number;         // Track burned tokens
+  lockedTokens: number;         // Tokens locked/staked
+}
+
+interface PumpPortalToken {
+  // ... existing fields ...
+  supplyMetrics: TokenSupplyMetrics;
+}
+
+    Create a supply tracking service:
+
+TypeScript
+
+class TokenSupplyTracker {
+  private supplyCache: Map<string, TokenSupplyMetrics> = new Map();
+
+  calculateInitialSupply(token: PumpPortalToken): TokenSupplyMetrics {
+    // Default to 1 billion if not specified
+    const TOTAL_SUPPLY = 1_000_000_000;
+    
+    return {
+      totalSupply: TOTAL_SUPPLY,
+      circulatingSupply: TOTAL_SUPPLY - token.vTokensInBondingCurve,
+      liquidityTokens: token.vTokensInBondingCurve,
+      burnedTokens: 0,
+      lockedTokens: token.vTokensInBondingCurve // Initially, only liquidity tokens are locked
+    };
+  }
+
+  updateSupplyMetrics(token: PumpPortalToken, trade: TokenTrade): TokenSupplyMetrics {
+    const currentMetrics = this.supplyCache.get(token.address) || 
+                          this.calculateInitialSupply(token);
+
+    // Update metrics based on trade
+    const updatedMetrics = {
+      ...currentMetrics,
+      liquidityTokens: trade.vTokensInBondingCurve,
+      circulatingSupply: currentMetrics.totalSupply - 
+                        trade.vTokensInBondingCurve - 
+                        currentMetrics.burnedTokens
+    };
+
+    this.supplyCache.set(token.address, updatedMetrics);
+    return updatedMetrics;
+  }
+}
+
+    Update the percentage calculations:
+
+TypeScript
+
+const calculateTokenMetrics = (
+  token: PumpPortalToken,
+  trades: TokenTrade[],
+  creationTimestamp: number
+): TokenMetrics => {
+  const supplyTracker = new TokenSupplyTracker();
+  const supplyMetrics = supplyTracker.getSupplyMetrics(token.address) || 
+                       supplyTracker.calculateInitialSupply(token);
+
+  // Use circulating supply for percentage calculations
+  const circulatingSupply = supplyMetrics.circulatingSupply;
+
+  // Calculate holder balances
+  const holdersMap = new Map<string, number>();
+  trades.forEach(trade => {
+    if (trade.txType === 'buy') {
+      holdersMap.set(trade.traderPublicKey, 
+        (holdersMap.get(trade.traderPublicKey) || 0) + trade.tokenAmount);
+    } else if (trade.txType === 'sell') {
+      holdersMap.set(trade.traderPublicKey,
+        Math.max(0, (holdersMap.get(trade.traderPublicKey) || 0) - trade.tokenAmount));
+    }
+  });
+
+  // Calculate percentages using circulating supply
+  const sortedHolders = Array.from(holdersMap.entries())
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 10);
+
+  const top10Supply = sortedHolders.reduce((sum, [_, amount]) => sum + amount, 0);
+  const topHoldersPercentage = Math.min(100, (top10Supply / circulatingSupply) * 100);
+
+  const devBalance = holdersMap.get(token.devWallet) || 0;
+  const devWalletPercentage = Math.min(100, (devBalance / circulatingSupply) * 100);
+
+  return {
+    marketCapSol: token.vSolInBondingCurve,
+    volume24h: calculateVolume24h(trades),
+    topHoldersPercentage,
+    devWalletPercentage,
+    insiderPercentage: calculateInsiderPercentage(trades, circulatingSupply),
+    snipersCount: calculateSnipersCount(trades, creationTimestamp),
+    holdersCount: Array.from(holdersMap.values()).filter(balance => balance > 0).length,
+    supplyMetrics
+  };
+};
+
+    Update the store:
+
+TypeScript
+
+export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
+  // ... existing store code ...
+
+  addTradeToHistory: (address: string, tradeData: TokenTrade) => set((state) => {
+    const token = state.tokens.find(t => t.address === address);
+    if (!token) return state;
+
+    const supplyTracker = new TokenSupplyTracker();
+    const updatedSupplyMetrics = supplyTracker.updateSupplyMetrics(token, tradeData);
+
+    const updatedToken = {
+      ...token,
+      supplyMetrics: updatedSupplyMetrics,
+      recentTrades: [tradeData, ...token.recentTrades].slice(0, MAX_TRADES_PER_TOKEN)
+    };
+
+    return {
+      tokens: state.tokens.map(t => 
+        t.address === address ? updatedToken : t
+      )
+    };
+  })
+}));
