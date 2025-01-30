@@ -1,4 +1,4 @@
-import { FC, useState, useEffect } from 'react';
+import { FC, useState, useEffect, useMemo } from 'react';
 import { Card } from "@/components/ui/card";
 import { ImageIcon, Globe, Search, Users, Crosshair, UserPlus, Copy } from 'lucide-react';
 import { validateImageUrl } from '@/utils/image-handler';
@@ -10,7 +10,8 @@ import { TelegramIcon } from './icons/TelegramIcon';
 import { XIcon } from './icons/XIcon';
 import { DevHoldingIcon } from './icons/DevHoldingIcon';
 import { InsiderIcon } from './icons/InsiderIcon';
-import type { Token } from '@/types/token';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import type { Token, TokenTrade } from '@/types/token';
 
 interface TokenCardProps {
   token: Token;
@@ -18,6 +19,89 @@ interface TokenCardProps {
   onBuyClick?: () => void;
   onCopyAddress?: () => void;
 }
+
+interface TokenMetrics {
+  marketCapSol: number;
+  volume24h: number;
+  topHoldersPercentage: number;
+  devWalletPercentage: number;
+  insiderPercentage: number;
+  snipersCount: number;
+  holdersCount: number;
+}
+
+const calculateTokenMetrics = (
+  token: Token,
+  trades: TokenTrade[],
+  creationTimestamp: number
+): TokenMetrics => {
+  const now = Date.now();
+  const oneDayAgo = now - 24 * 60 * 60 * 1000;
+  const snipeWindow = creationTimestamp + 15000; // 15 seconds after creation
+
+  // Calculate 24h volume
+  const volume24h = trades
+    .filter(trade => trade.timestamp > oneDayAgo)
+    .reduce((sum, trade) => sum + trade.solAmount, 0);
+
+  // Count unique holders from finalized trades
+  const holdersMap = new Map<string, number>();
+  trades.forEach(trade => {
+    if (trade.txType === 'buy') {
+      holdersMap.set(trade.traderPublicKey, 
+        (holdersMap.get(trade.traderPublicKey) || 0) + trade.tokenAmount);
+    } else if (trade.txType === 'sell') {
+      holdersMap.set(trade.traderPublicKey, 
+        (holdersMap.get(trade.traderPublicKey) || 0) - trade.tokenAmount);
+    }
+  });
+
+  // Remove holders with zero balance
+  Array.from(holdersMap.entries())
+    .filter(([_, balance]) => balance <= 0)
+    .forEach(([wallet]) => holdersMap.delete(wallet));
+
+  // Calculate top holders percentage
+  const sortedHolders = Array.from(holdersMap.entries())
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 10);
+
+  const totalSupply = token.vTokensInBondingCurve;
+  const top10Supply = sortedHolders.reduce((sum, [_, amount]) => sum + amount, 0);
+  const topHoldersPercentage = (top10Supply / totalSupply) * 100;
+
+  // Calculate dev wallet percentage
+  const devBalance = holdersMap.get(token.devWallet) || 0;
+  const devWalletPercentage = (devBalance / totalSupply) * 100;
+
+  // Count snipers (trades within 15s of creation)
+  const snipers = new Set(
+    trades
+      .filter(t => t.timestamp <= snipeWindow && t.txType === 'buy')
+      .map(t => t.traderPublicKey)
+  );
+
+  // Calculate insider percentage (excluding dev wallet)
+  const insiderWallets = new Set(
+    trades
+      .filter(t => t.timestamp <= creationTimestamp + 3600000) // First hour
+      .map(t => t.traderPublicKey)
+  );
+  insiderWallets.delete(token.devWallet);
+  const insiderBalances = Array.from(insiderWallets)
+    .reduce((sum, wallet) => sum + (holdersMap.get(wallet) || 0), 0);
+  const insiderPercentage = (insiderBalances / totalSupply) * 100;
+
+  return {
+    marketCapSol: token.vSolInBondingCurve,
+    volume24h,
+    topHoldersPercentage,
+    devWalletPercentage,
+    insiderPercentage,
+    snipersCount: snipers.size,
+    holdersCount: holdersMap.size
+  };
+};
 
 export const TokenCard: FC<TokenCardProps> = ({ 
   token, 
@@ -28,15 +112,73 @@ export const TokenCard: FC<TokenCardProps> = ({
   const [imageError, setImageError] = useState(false);
   const [validatedImageUrl, setValidatedImageUrl] = useState<string | null>(null);
   const [currentProgress, setCurrentProgress] = useState(0);
+  const [metrics, setMetrics] = useState<TokenMetrics>({
+    marketCapSol: token.marketCapSol || 0,
+    volume24h: 0,
+    topHoldersPercentage: 0,
+    devWalletPercentage: 0,
+    insiderPercentage: 0,
+    snipersCount: 0,
+    holdersCount: 0
+  });
 
+  // Subscribe to real-time updates
+  useEffect(() => {
+    const unsubscribe = usePumpPortalStore.subscribe(
+      state => state.tokens.find(t => t.address === token.address),
+      (updatedToken) => {
+        if (updatedToken) {
+          const newMetrics = calculateTokenMetrics(
+            updatedToken,
+            updatedToken.recentTrades,
+            updatedToken.createdAt
+          );
+          setMetrics(prev => {
+            // Flash indicators if values changed
+            if (prev.marketCapSol !== newMetrics.marketCapSol ||
+                prev.volume24h !== newMetrics.volume24h) {
+              document.getElementById(`token-${token.address}`)
+                ?.classList.add('flash-update');
+              setTimeout(() => {
+                document.getElementById(`token-${token.address}`)
+                  ?.classList.remove('flash-update');
+              }, 1000);
+            }
+            return newMetrics;
+          });
+        }
+      }
+    );
+
+    return () => unsubscribe();
+  }, [token.address]);
+
+  // Refresh volume every 10 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMetrics(prev => ({
+        ...prev,
+        volume24h: calculateTokenMetrics(
+          token,
+          token.recentTrades,
+          token.createdAt
+        ).volume24h
+      }));
+    }, 600000); // 10 minutes
+
+    return () => clearInterval(interval);
+  }, [token]);
+
+  // Image validation
   useEffect(() => {
     const rawImageUrl = token.metadata?.imageUrl || token.imageUrl;
     const processedUrl = validateImageUrl(rawImageUrl);
     setValidatedImageUrl(processedUrl);
   }, [token]);
 
+  // Progress bar animation
   useEffect(() => {
-    const targetProgress = calculateMarketCapProgress(token.marketCapSol || 0);
+    const targetProgress = calculateMarketCapProgress(metrics.marketCapSol);
     if (currentProgress !== targetProgress) {
       const step = (targetProgress - currentProgress) / 10;
       const timeout = setTimeout(() => {
@@ -47,20 +189,22 @@ export const TokenCard: FC<TokenCardProps> = ({
       }, 50);
       return () => clearTimeout(timeout);
     }
-  }, [token.marketCapSol, currentProgress]);
+  }, [metrics.marketCapSol, currentProgress]);
 
   const displayName = token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`;
   const displaySymbol = token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase();
 
-  const marketCap = token.marketCapSol || 35000;
-  const volume = token.vSolInBondingCurve?.toFixed(2) || '0.00';
-  const topHoldersPercentage = token.top10HoldersPercentage || 0;
-  const devWalletPercentage = token.devWalletPercentage || 0;
-  const insiderPercentage = token.insiderPercentage;
-  const snipersCount = token.snipersCount;
-  const holdersCount = token.holdersCount || 0;
+  const getTopHoldersColor = (percentage: number) => 
+    percentage <= 15 ? "text-green-400 hover:text-green-300" : "text-red-400 hover:text-red-300";
 
-  const progressPercentage = currentProgress; // Use the animated progress
+  const getDevHoldingColor = (percentage: number) => 
+    percentage <= 15 ? "text-green-400" : "text-red-400";
+
+  const getInsiderColor = (percentage: number) => 
+    percentage <= 10 ? "text-green-400" : "text-red-400";
+
+  const getSnipersColor = (count: number) => 
+    count <= 5 ? "text-green-400" : "text-red-400";
 
   const handleBuyClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -78,24 +222,13 @@ export const TokenCard: FC<TokenCardProps> = ({
     window.open(`https://www.google.com/search?q=${searchQuery}&tbm=isch`, '_blank', 'noopener,noreferrer');
   };
 
-  const getTopHoldersColor = (percentage: number) => 
-    percentage <= 15 ? "text-green-400 hover:text-green-300" : "text-red-400 hover:text-red-300";
-
-  const getDevHoldingColor = (percentage: number) => 
-    percentage <= 15 ? "text-green-400" : "text-red-400";
-
-  const getInsiderColor = (percentage: number) => 
-    percentage <= 10 ? "text-green-400" : "text-red-400";
-
-  const getSnipersColor = (count: number) => 
-    count <= 5 ? "text-green-400" : "text-red-400";
-
   return (
     <Card 
+      id={`token-${token.address}`}
       className={cn(
         "group cursor-pointer transition-all duration-300 cosmic-glow space-gradient",
         "hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/20",
-        "p-2 relative overflow-hidden"
+        "p-2 relative overflow-hidden flash-update"
       )}
       onClick={onClick}
     >
@@ -162,34 +295,34 @@ export const TokenCard: FC<TokenCardProps> = ({
                 <button
                   className={cn(
                     "flex items-center gap-1 transition-colors",
-                    getTopHoldersColor(topHoldersPercentage)
+                    getTopHoldersColor(metrics.topHoldersPercentage)
                   )}
                 >
                   <UserPlus size={13} className="stroke-[2.5]" />
-                  <span>{topHoldersPercentage}%</span>
+                  <span>{metrics.topHoldersPercentage.toFixed(1)}%</span>
                 </button>
-                {devWalletPercentage > 0 && (
+                {metrics.devWalletPercentage > 0 && (
                   <span className={cn(
                     "flex items-center gap-1",
-                    getDevHoldingColor(devWalletPercentage)
+                    getDevHoldingColor(metrics.devWalletPercentage)
                   )}>
-                    <DevHoldingIcon className="current-color" /> {devWalletPercentage}%
+                    <DevHoldingIcon className="current-color" /> {metrics.devWalletPercentage.toFixed(1)}%
                   </span>
                 )}
-                {typeof insiderPercentage !== 'undefined' && insiderPercentage > 0 && (
+                {typeof metrics.insiderPercentage !== 'undefined' && metrics.insiderPercentage > 0 && (
                   <span className={cn(
                     "flex items-center gap-1",
-                    getInsiderColor(insiderPercentage)
+                    getInsiderColor(metrics.insiderPercentage)
                   )}>
-                    <InsiderIcon className="current-color" /> {insiderPercentage}%
+                    <InsiderIcon className="current-color" /> {metrics.insiderPercentage.toFixed(1)}%
                   </span>
                 )}
-                {typeof snipersCount !== 'undefined' && snipersCount > 0 && (
+                {typeof metrics.snipersCount !== 'undefined' && metrics.snipersCount > 0 && (
                   <span className={cn(
                     "flex items-center gap-1",
-                    getSnipersColor(snipersCount)
+                    getSnipersColor(metrics.snipersCount)
                   )}>
-                    <Crosshair size={12} className="current-color" /> {snipersCount}
+                    <Crosshair size={12} className="current-color" /> {metrics.snipersCount}
                   </span>
                 )}
               </div>
@@ -246,15 +379,15 @@ export const TokenCard: FC<TokenCardProps> = ({
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
                   <Users size={12} className="text-gray-400" />
-                  <span className="text-purple-200">{holdersCount}</span>
+                  <span className="text-purple-200">{metrics.holdersCount}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-gray-400">V</span>
-                  <span className="text-purple-200">${volume}</span>
+                  <span className="text-purple-200">${metrics.volume24h.toFixed(2)}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-gray-400">MC</span>
-                  <span className="text-purple-200">${formatMarketCap(marketCap)}</span>
+                  <span className="text-purple-200">${formatMarketCap(metrics.marketCapSol)}</span>
                 </div>
               </div>
             </div>
@@ -265,7 +398,7 @@ export const TokenCard: FC<TokenCardProps> = ({
       <div className="absolute bottom-0 left-0 w-full h-0.5 bg-purple-900/20">
         <div 
           className="h-full bg-gradient-to-r from-purple-500 via-purple-400 to-purple-500 relative overflow-hidden transition-all duration-1000 ease-out"
-          style={{ width: `${progressPercentage}%` }}
+          style={{ width: `${currentProgress}%` }}
         >
           <div className="absolute inset-0 w-full h-full animate-shine">
             <div className="absolute top-0 left-0 w-1/2 h-full bg-gradient-to-r from-transparent via-purple-300/30 to-transparent transform -skew-x-12"></div>

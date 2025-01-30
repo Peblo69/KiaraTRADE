@@ -446,3 +446,13 @@ video {
   background-color: rgb(var(--theme-primary));
   @apply bg-opacity-40;
 }
+
+/* Add flash animation for token updates */
+@keyframes flash {
+  0% { background-color: rgba(147, 51, 234, 0.1); }
+  100% { background-color: transparent; }
+}
+
+.flash-update {
+  animation: flash 1s ease-out;
+}
