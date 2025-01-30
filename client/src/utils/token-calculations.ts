@@ -87,68 +87,78 @@ export const calculateVolumeMetrics = (trades: TokenTrade[]): VolumeMetrics => {
   };
 };
 
-// New risk calculation functions
-export const calculateHoldersRisk = (trades: TokenTrade[]): number => {
-  const holdersMap = new Map<string, number>();
-  trades.forEach(trade => {
-    if (trade.txType === 'buy') {
-      holdersMap.set(trade.traderPublicKey,
-        (holdersMap.get(trade.traderPublicKey) || 0) + trade.tokenAmount);
-    } else if (trade.txType === 'sell') {
-      holdersMap.set(trade.traderPublicKey,
-        Math.max(0, (holdersMap.get(trade.traderPublicKey) || 0) - trade.tokenAmount));
-    }
-  });
+const calculateHoldersRisk = (trades: TokenTrade[]): number => {
+  const uniqueTraders = new Set(trades.map((t) => t.traderPublicKey)).size;
+  const totalTrades = trades.length;
 
-  // Remove zero balances
-  Array.from(holdersMap.entries())
-    .filter(([_, balance]) => balance <= 0)
-    .forEach(([wallet]) => holdersMap.delete(wallet));
+  if (totalTrades === 0) return 100;
 
-  const uniqueHolders = holdersMap.size;
+  // Risk calculation based on trade concentration
+  const tradeConcentration = uniqueTraders / totalTrades;
+  const normalizedRisk = Math.max(0, 100 - tradeConcentration * 100);
 
-  // Risk levels based on unique holders
-  if (uniqueHolders >= 1000) return 0;  // Very low risk
-  if (uniqueHolders >= 500) return 25;   // Low risk
-  if (uniqueHolders >= 100) return 50;   // Medium risk
-  if (uniqueHolders >= 50) return 75;    // High risk
-  return 100;                            // Very high risk
+  // Recent trade concentration weight
+  const recentTrades = trades.slice(0, Math.min(10, trades.length));
+  const recentUnique = new Set(recentTrades.map(t => t.traderPublicKey)).size;
+  const recentConcentration = recentUnique / recentTrades.length;
+
+  return (normalizedRisk * 0.7) + ((1 - recentConcentration) * 100 * 0.3);
 };
 
-export const calculateVolumeRisk = (trades: TokenTrade[]): number => {
+const calculateVolumeRisk = (trades: TokenTrade[]): number => {
+  if (!trades.length) return 100;
+
   const now = Date.now();
   const oneDayAgo = now - 24 * 60 * 60 * 1000;
-  const volume24h = trades
-    .filter(trade => trade.timestamp > oneDayAgo)
-    .reduce((sum, trade) => sum + trade.solAmount, 0);
+  const recentTrades = trades.filter((t) => t.timestamp > oneDayAgo);
 
-  // Risk levels based on 24h volume in SOL
-  if (volume24h >= 1000) return 0;    // Very low risk
-  if (volume24h >= 100) return 25;    // Low risk
-  if (volume24h >= 10) return 50;     // Medium risk
-  if (volume24h >= 1) return 75;      // High risk
-  return 100;                         // Very high risk
+  if (!recentTrades.length) return 75;
+
+  const volumePattern = recentTrades.map((t) => t.solAmount);
+  const avgVolume = volumePattern.reduce((a, b) => a + b, 0) / volumePattern.length;
+
+  if (avgVolume === 0) return 100;
+
+  // Calculate standard deviation
+  const stdDev = Math.sqrt(
+    volumePattern.reduce((sq, n) => sq + Math.pow(n - avgVolume, 2), 0) / volumePattern.length
+  );
+
+  const volumeVariance = stdDev / avgVolume;
+
+  // Time gap analysis
+  const timeGaps = recentTrades
+    .slice(1)
+    .map((trade, i) => trade.timestamp - recentTrades[i].timestamp);
+
+  const avgTimeGap = timeGaps.reduce((a, b) => a + b, 0) / timeGaps.length || 0;
+  const timeVariance = avgTimeGap === 0 ? 0 : Math.sqrt(
+    timeGaps.reduce((sq, gap) => sq + Math.pow(gap - avgTimeGap, 2), 0) / timeGaps.length
+  ) / avgTimeGap;
+
+  return Math.min(100, (volumeVariance * 50) + (timeVariance * 25));
 };
 
-export const calculateDevWalletRisk = (token: PumpPortalToken): number => {
-  if (!token.devWallet) return 50; // Medium risk if no dev wallet identified
+const calculateDevWalletRisk = (token: PumpPortalToken): number => {
+  if (!token.devWallet || !token.recentTrades.length) return 50;
 
-  const devTrades = (token.recentTrades || [])
-    .filter(trade => trade.traderPublicKey === token.devWallet);
+  const devTrades = token.recentTrades.filter(
+    (t) => t.traderPublicKey === token.devWallet ||
+    t.counterpartyPublicKey === token.devWallet
+  );
 
-  const sellCount = devTrades.filter(t => t.txType === 'sell').length;
-  const totalTrades = devTrades.length;
+  if (!devTrades.length) return 25;
 
-  if (totalTrades === 0) return 25;  // Low risk if no dev activity
+  // Calculate trade count and volume percentages
+  const devTradePercentage = (devTrades.length / token.recentTrades.length) * 100;
+  const totalVolume = token.recentTrades.reduce((sum, t) => sum + t.solAmount, 0);
+  const devVolume = devTrades.reduce((sum, t) => sum + t.solAmount, 0);
+  const devVolumePercentage = totalVolume === 0 ? 0 : (devVolume / totalVolume) * 100;
 
-  const sellRatio = sellCount / totalTrades;
+  // Weight metrics
+  const weightedRisk = (devTradePercentage * 0.4) + (devVolumePercentage * 0.6);
 
-  // Risk levels based on dev sell ratio
-  if (sellRatio <= 0.1) return 0;     // Very low risk
-  if (sellRatio <= 0.25) return 25;   // Low risk
-  if (sellRatio <= 0.5) return 50;    // Medium risk
-  if (sellRatio <= 0.75) return 75;   // High risk
-  return 100;                         // Very high risk
+  return Math.min(100, weightedRisk * 2);
 };
 
 const calculateInsiderWallets = (trades: TokenTrade[]): Set<string> => {

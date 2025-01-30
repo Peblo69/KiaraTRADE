@@ -68,13 +68,6 @@ export interface PumpPortalToken {
   volume24h?: number;
   riskMetrics?: any;
   isNew?: boolean;
-  supplyMetrics?: {
-    totalSupply: number;
-    circulatingSupply: number;
-    liquidityTokens: number;
-    burnedTokens: number;
-    lockedTokens: number;
-  };
 }
 
 interface PumpPortalStore {
@@ -117,21 +110,14 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const mintAddress = tokenData.mint || tokenData.address || '';
     const imageUrl = tokenData.metadata?.imageUrl || tokenData.imageUrl;
 
-    // Initialize supply metrics
-    const initialSupplyMetrics = {
-      totalSupply: 1_000_000_000, // Default to 1 billion if not specified
-      circulatingSupply: 1_000_000_000 - (tokenData.vTokensInBondingCurve || 0),
-      liquidityTokens: tokenData.vTokensInBondingCurve || 0,
-      burnedTokens: 0,
-      lockedTokens: tokenData.vTokensInBondingCurve || 0
-    };
-
     // Calculate token metrics
     const tokenMetrics = calculatePumpFunTokenMetrics({
       vSolInBondingCurve: tokenData.vSolInBondingCurve || 0,
       vTokensInBondingCurve: tokenData.vTokensInBondingCurve || 0,
-      solPrice: state.solPrice
+      solPrice: state.solPrice // Access solPrice from state instead of global store
     });
+
+    debugLog('Token metrics calculated:', tokenMetrics);
 
     const newToken = {
       symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
@@ -154,7 +140,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         imageUrl: imageUrl,
         creators: tokenData.creators || []
       },
-      supplyMetrics: initialSupplyMetrics,
       lastAnalyzedAt: Date.now().toString(),
       analyzedBy: CURRENT_USER,
       createdAt: tokenData.txType === 'create' ? Date.now().toString() : undefined
@@ -169,7 +154,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           return {
             ...t,
             ...newToken,
-            supplyMetrics: initialSupplyMetrics,
             recentTrades: [...(t.recentTrades || []), ...(tokenData.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN)
           };
         }
@@ -188,11 +172,25 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       };
     }
 
-    // Add new token with isNew flag and initial supply metrics
+    // Add new token with isNew flag
     const tokenWithFlag = {
       ...newToken,
       isNew: true
     };
+
+    // Calculate initial risk metrics if we have trade history
+    if (tokenData.recentTrades?.length) {
+      const volumeMetrics = calculateVolumeMetrics(tokenData.recentTrades);
+      const riskMetrics = calculateTokenRisk({
+        ...tokenWithFlag,
+        recentTrades: tokenData.recentTrades
+      });
+
+      Object.assign(tokenWithFlag, {
+        volume24h: volumeMetrics.volume24h,
+        riskMetrics
+      });
+    }
 
     return {
       tokens: [tokenWithFlag, ...state.tokens].slice(0, MAX_TOKENS_IN_LIST),

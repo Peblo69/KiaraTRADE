@@ -13,14 +13,6 @@ export interface TokenTrade {
   marketCapSol?: number;
 }
 
-export interface TokenSupplyMetrics {
-  totalSupply: number;          // Total tokens created
-  circulatingSupply: number;    // Total - burned - locked
-  liquidityTokens: number;      // vTokensInBondingCurve
-  burnedTokens: number;         // Track burned tokens
-  lockedTokens: number;         // Tokens locked/staked
-}
-
 export interface Token {
   address: string;
   name: string;
@@ -59,5 +51,4 @@ export interface Token {
   lastAnalyzedAt?: string;
   analyzedBy?: string;
   createdAt?: string;
-  supplyMetrics?: TokenSupplyMetrics;  // Added supply metrics
 }
