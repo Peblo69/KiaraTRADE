@@ -1,32 +1,13 @@
 import { FC, useState, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ImageIcon, Globe, Search, Users, Crosshair, UserPlus, Copy } from 'lucide-react';
+import { ImageIcon } from 'lucide-react';
 import { validateImageUrl } from '@/utils/image-handler';
-import { validateSocialUrl } from '@/utils/social-links';
-import { THRESHOLDS, getRiskLevelColor, formatMarketCap, calculateMarketCapProgress } from '@/utils/token-metrics';
 import { cn } from "@/lib/utils";
-import type { Token } from '@/types/token';
+import type { PumpPortalToken } from '@/lib/pump-portal-websocket';
 
 interface TokenCardProps {
-  token: {
-    address: string;
-    name: string;
-    symbol: string;
-    priceInUsd?: number;
-    marketCapSol?: number;
-    solPrice?: number;
-    vSolInBondingCurve?: number;
-    metadata?: {
-      name: string;
-      symbol: string;
-      uri?: string;
-      imageUrl?: string;
-    };
-    imageUrl?: string;
-    recentTrades?: any[];
-    isNew?: boolean;
-  };
+  token: PumpPortalToken;
   onClick: () => void;
 }
 
@@ -47,22 +28,10 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
   const displayName = token.name || token.metadata?.name || `Token ${token.address.slice(0, 8)}`;
   const displaySymbol = token.symbol || token.metadata?.symbol || token.address.slice(0, 6).toUpperCase();
 
-  const marketCap = token.marketCapSol && token.solPrice 
-    ? (token.marketCapSol * token.solPrice).toFixed(2)
-    : '0.00';
-
-  const liquidity = token.vSolInBondingCurve && token.solPrice
-    ? (token.vSolInBondingCurve * token.solPrice).toFixed(2)
-    : '0.00';
-
-  const volume = token.recentTrades?.reduce((acc, trade) => 
-    acc + ((trade.solAmount || 0) * (token.solPrice || 0)), 0
-  ).toFixed(2) || '0.00';
-
   return (
     <Card 
       className={cn(
-        "group cursor-pointer transition-all duration-300 cosmic-glow space-gradient",
+        "group cursor-pointer transition-all duration-300 space-gradient",
         "hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/20",
         "p-2 min-h-[120px]"
       )}
@@ -90,57 +59,42 @@ export const TokenCard: FC<TokenCardProps> = ({ token, onClick }) => {
                 }}
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center animate-pulse">
-                <span className="text-2xl font-bold text-purple-400/70">
-                  {displaySymbol[0] || <ImageIcon className="w-8 h-8 text-purple-400/50" />}
-                </span>
+              <div className="w-full h-full flex items-center justify-center">
+                <ImageIcon className="w-4 h-4 text-purple-400/50" />
               </div>
             )}
           </div>
 
           {/* Token Info */}
-          <div className="flex-grow space-y-4">
-            <div>
-              <div className="flex items-center gap-1">
-                <h3 className="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-200 to-purple-400">
-                  {displaySymbol}
-                </h3>
-                <Badge 
-                  variant={token.isNew ? "default" : "secondary"}
-                  className={cn(
-                    "h-4 px-1 text-xs",
-                    token.isNew && "bg-purple-500/20 text-purple-200 border border-purple-500/40"
-                  )}
-                >
-                  {token.isNew ? "New" : "Listed"}
-                </Badge>
-              </div>
-              <p className="text-xs text-gray-400 truncate mt-0.5">
-                {displayName}
-              </p>
+          <div className="flex-grow">
+            <div className="flex items-center gap-1">
+              <h3 className="text-sm font-bold text-purple-200">
+                {displaySymbol}
+              </h3>
+              <Badge 
+                variant="secondary"
+                className="h-4 px-1 text-xs bg-purple-500/20 text-purple-200"
+              >
+                {token.isNew ? "New" : "Listed"}
+              </Badge>
             </div>
+            <p className="text-xs text-gray-400 truncate mt-0.5">
+              {displayName}
+            </p>
 
             {/* Price */}
-            <div className="bg-purple-500/5 p-2 rounded-lg border border-purple-500/20">
+            <div className="mt-2">
               <div className="text-xs text-gray-400">Price</div>
               <div className="text-sm font-bold text-purple-100">
                 ${token.priceInUsd?.toFixed(8) || '0.00000000'}
               </div>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-3 gap-2 pt-1 mt-1 border-t border-purple-500/20">
-              <div className="text-center">
-                <div className="text-[10px] text-gray-400">Market Cap</div>
-                <div className="font-medium text-xs text-purple-200">${marketCap}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-[10px] text-gray-400">Liquidity</div>
-                <div className="font-medium text-xs text-purple-200">${liquidity}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-[10px] text-gray-400">Volume</div>
-                <div className="font-medium text-xs text-purple-200">${volume}</div>
+            {/* Market Cap */}
+            <div className="mt-1">
+              <div className="text-xs text-gray-400">Market Cap</div>
+              <div className="text-sm font-bold text-purple-100">
+                ${(token.marketCapSol * (token.solPrice || 0)).toFixed(2)}
               </div>
             </div>
           </div>
