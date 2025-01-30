@@ -87,6 +87,70 @@ export const calculateVolumeMetrics = (trades: TokenTrade[]): VolumeMetrics => {
   };
 };
 
+// New risk calculation functions
+export const calculateHoldersRisk = (trades: TokenTrade[]): number => {
+  const holdersMap = new Map<string, number>();
+  trades.forEach(trade => {
+    if (trade.txType === 'buy') {
+      holdersMap.set(trade.traderPublicKey,
+        (holdersMap.get(trade.traderPublicKey) || 0) + trade.tokenAmount);
+    } else if (trade.txType === 'sell') {
+      holdersMap.set(trade.traderPublicKey,
+        Math.max(0, (holdersMap.get(trade.traderPublicKey) || 0) - trade.tokenAmount));
+    }
+  });
+
+  // Remove zero balances
+  Array.from(holdersMap.entries())
+    .filter(([_, balance]) => balance <= 0)
+    .forEach(([wallet]) => holdersMap.delete(wallet));
+
+  const uniqueHolders = holdersMap.size;
+
+  // Risk levels based on unique holders
+  if (uniqueHolders >= 1000) return 0;  // Very low risk
+  if (uniqueHolders >= 500) return 25;   // Low risk
+  if (uniqueHolders >= 100) return 50;   // Medium risk
+  if (uniqueHolders >= 50) return 75;    // High risk
+  return 100;                            // Very high risk
+};
+
+export const calculateVolumeRisk = (trades: TokenTrade[]): number => {
+  const now = Date.now();
+  const oneDayAgo = now - 24 * 60 * 60 * 1000;
+  const volume24h = trades
+    .filter(trade => trade.timestamp > oneDayAgo)
+    .reduce((sum, trade) => sum + trade.solAmount, 0);
+
+  // Risk levels based on 24h volume in SOL
+  if (volume24h >= 1000) return 0;    // Very low risk
+  if (volume24h >= 100) return 25;    // Low risk
+  if (volume24h >= 10) return 50;     // Medium risk
+  if (volume24h >= 1) return 75;      // High risk
+  return 100;                         // Very high risk
+};
+
+export const calculateDevWalletRisk = (token: PumpPortalToken): number => {
+  if (!token.devWallet) return 50; // Medium risk if no dev wallet identified
+
+  const devTrades = (token.recentTrades || [])
+    .filter(trade => trade.traderPublicKey === token.devWallet);
+
+  const sellCount = devTrades.filter(t => t.txType === 'sell').length;
+  const totalTrades = devTrades.length;
+
+  if (totalTrades === 0) return 25;  // Low risk if no dev activity
+
+  const sellRatio = sellCount / totalTrades;
+
+  // Risk levels based on dev sell ratio
+  if (sellRatio <= 0.1) return 0;     // Very low risk
+  if (sellRatio <= 0.25) return 25;   // Low risk
+  if (sellRatio <= 0.5) return 50;    // Medium risk
+  if (sellRatio <= 0.75) return 75;   // High risk
+  return 100;                         // Very high risk
+};
+
 const calculateInsiderWallets = (trades: TokenTrade[]): Set<string> => {
   const insiderWallets = new Set<string>();
   const timeWindow = 2000; // 2 seconds window
