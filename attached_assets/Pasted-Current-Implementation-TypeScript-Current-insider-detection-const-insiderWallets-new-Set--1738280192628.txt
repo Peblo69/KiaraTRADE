@@ -1,0 +1,193 @@
+Current Implementation:
+TypeScript
+
+// Current insider detection
+const insiderWallets = new Set(
+    trades
+      .filter(t => t.timestamp <= creationTimestamp + 3600000) // First hour trades
+      .map(t => t.traderPublicKey)
+);
+insiderWallets.delete(token.devWallet);
+const insiderBalances = Array.from(insiderWallets)
+    .reduce((sum, wallet) => sum + (holdersMap.get(wallet) || 0), 0);
+const insiderPercentage = (insiderBalances / totalSupply) * 100;
+const insiderRisk = Math.round(insiderPercentage / 10);
+
+Issues:
+
+    Only looks at the first hour (3600000ms) which might miss later insider activity
+    Doesn't consider trade size relative to total supply
+    Doesn't differentiate between buying and selling patterns
+    Uses wrong totalSupply denominator (same issue as before)
+
+Here's an improved implementation:
+TypeScript
+
+interface InsiderMetrics {
+  percentage: number;
+  risk: number;
+  count: number;
+  patterns: {
+    quickFlips: number;
+    largeHolders: number;
+    coordinatedBuys: number;
+  };
+}
+
+const calculateInsiderMetrics = (
+  token: Token,
+  trades: TokenTrade[],
+  creationTimestamp: number
+): InsiderMetrics => {
+  const HOUR = 3600000;
+  const QUICK_FLIP_WINDOW = 300000; // 5 minutes
+  const LARGE_TRADE_THRESHOLD = 0.05; // 5% of liquidity
+  const now = Date.now();
+
+  // Track wallet activities
+  const walletActivity = new Map<string, {
+    firstTrade: number;
+    trades: TokenTrade[];
+    currentBalance: number;
+    quickFlips: number;
+    totalVolume: number;
+  }>();
+
+  // Sort trades chronologically
+  const sortedTrades = [...trades].sort((a, b) => a.timestamp - b.timestamp);
+  
+  // Initialize liquidity tracking
+  let currentLiquidity = token.vTokensInBondingCurve;
+
+  // Process trades
+  sortedTrades.forEach(trade => {
+    const wallet = trade.traderPublicKey;
+    if (wallet === token.devWallet) return; // Skip dev wallet
+
+    if (!walletActivity.has(wallet)) {
+      walletActivity.set(wallet, {
+        firstTrade: trade.timestamp,
+        trades: [],
+        currentBalance: 0,
+        quickFlips: 0,
+        totalVolume: 0
+      });
+    }
+
+    const activity = walletActivity.get(wallet)!;
+    activity.trades.push(trade);
+    
+    // Update balance
+    if (trade.txType === 'buy') {
+      activity.currentBalance += trade.tokenAmount;
+      activity.totalVolume += trade.solAmount;
+
+      // Check for quick flips
+      const previousSell = activity.trades
+        .filter(t => t.txType === 'sell')
+        .find(t => trade.timestamp - t.timestamp < QUICK_FLIP_WINDOW);
+      
+      if (previousSell) {
+        activity.quickFlips++;
+      }
+    } else {
+      activity.currentBalance -= trade.tokenAmount;
+      activity.totalVolume += trade.solAmount;
+    }
+  });
+
+  // Analyze patterns
+  const insiderPatterns = {
+    quickFlips: 0,
+    largeHolders: 0,
+    coordinatedBuys: 0
+  };
+
+  // Get early traders (first 6 hours)
+  const earlyTraders = Array.from(walletActivity.entries())
+    .filter(([_, activity]) => 
+      activity.firstTrade <= creationTimestamp + (HOUR * 6));
+
+  // Calculate metrics
+  let totalInsiderBalance = 0;
+  earlyTraders.forEach(([wallet, activity]) => {
+    // Count quick flips
+    if (activity.quickFlips > 2) {
+      insiderPatterns.quickFlips++;
+    }
+
+    // Check for large holders
+    const holdingPercentage = (activity.currentBalance / currentLiquidity) * 100;
+    if (holdingPercentage > 5) {
+      insiderPatterns.largeHolders++;
+    }
+
+    totalInsiderBalance += activity.currentBalance;
+  });
+
+  // Check for coordinated buys
+  const timeWindows = new Map<number, number>(); // window -> trade count
+  sortedTrades
+    .filter(t => t.timestamp <= creationTimestamp + HOUR)
+    .forEach(trade => {
+      const window = Math.floor(trade.timestamp / 60000); // 1-minute windows
+      timeWindows.set(window, (timeWindows.get(window) || 0) + 1);
+    });
+
+  const coordinatedBuyWindows = Array.from(timeWindows.values())
+    .filter(count => count >= 3).length;
+  insiderPatterns.coordinatedBuys = coordinatedBuyWindows;
+
+  // Calculate risk metrics
+  const insiderPercentage = (totalInsiderBalance / currentLiquidity) * 100;
+  const patternRisk = (
+    (insiderPatterns.quickFlips * 2) +
+    (insiderPatterns.largeHolders * 3) +
+    (insiderPatterns.coordinatedBuys * 2)
+  ) / 7; // Normalized to 0-10
+
+  return {
+    percentage: Math.min(100, insiderPercentage),
+    risk: Math.min(10, Math.round(patternRisk)),
+    count: earlyTraders.length,
+    patterns: insiderPatterns
+  };
+};
+
+Then update the TokenCard to use these improved metrics:
+TypeScript
+
+// In TokenCard component
+const getInsiderRiskColor = (metrics: InsiderMetrics) => {
+  if (metrics.risk <= 3) return "text-green-400";
+  if (metrics.risk <= 6) return "text-yellow-400";
+  return "text-red-400";
+};
+
+// In the JSX
+{metrics.insiderMetrics && (
+  <div className="flex items-center gap-1">
+    <InsiderIcon 
+      className={cn(
+        "current-color",
+        getInsiderRiskColor(metrics.insiderMetrics)
+      )} 
+    />
+    <span>{metrics.insiderMetrics.risk}</span>
+    {metrics.insiderMetrics.patterns.quickFlips > 0 && (
+      <span className="text-xs">🔄</span>
+    )}
+    {metrics.insiderMetrics.patterns.coordinatedBuys > 0 && (
+      <span className="text-xs">👥</span>
+    )}
+  </div>
+)}
+
+Improvements:
+
+    Better pattern detection
+    Considers trade timing and size
+    Tracks quick flips
+    Identifies coordinated buying
+    More sophisticated risk scoring
+    Visual indicators for different types of insider activity
