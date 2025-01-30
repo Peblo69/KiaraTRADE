@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { ImageIcon, Globe, Search, Users, Crosshair, UserPlus, Copy } from 'lucide-react';
 import { validateImageUrl } from '@/utils/image-handler';
 import { validateSocialUrl } from '@/utils/social-links';
-import { THRESHOLDS, getRiskLevelColor, formatMarketCap, calculateMarketCapProgress } from '@/utils/token-metrics';
+import { THRESHOLDS, getRiskLevelColor, formatMarketCap as originalFormatMarketCap, calculateMarketCapProgress } from '@/utils/token-metrics';
 import { cn } from "@/lib/utils";
 import { PumpFunIcon } from './icons/PumpFunIcon';
 import { TelegramIcon } from './icons/TelegramIcon';
@@ -60,7 +60,7 @@ export const TokenCard: FC<TokenCardProps> = ({
   const snipersCount = token.snipersCount;
   const holdersCount = token.holdersCount || 0;
 
-  const progressPercentage = currentProgress; // Use the animated progress
+  const progressPercentage = currentProgress; 
 
   const handleBuyClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -89,6 +89,21 @@ export const TokenCard: FC<TokenCardProps> = ({
 
   const getSnipersColor = (count: number) => 
     count <= 5 ? "text-green-400" : "text-red-400";
+
+  const formatPrice = (price: number) => {
+    if (price === 0) return '0.00';
+    if (price < 0.00001) return price.toExponential(4);
+    if (price < 0.001) return price.toFixed(6);
+    if (price < 1) return price.toFixed(4);
+    return price.toFixed(2);
+  };
+
+  const formatMarketCap = (marketCap: number) => {
+    if (marketCap >= 1_000_000) return `${(marketCap / 1_000_000).toFixed(2)}M`;
+    if (marketCap >= 1_000) return `${(marketCap / 1_000).toFixed(2)}K`;
+    return marketCap.toFixed(2);
+  };
+
 
   return (
     <Card 
@@ -154,6 +169,25 @@ export const TokenCard: FC<TokenCardProps> = ({
                 <span className="text-yellow-500">⚡</span>
                 <span className="text-yellow-400 font-medium">Buy</span>
               </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <p className="text-sm text-gray-500">Price (SOL)</p>
+                <p className="text-lg font-bold">{formatPrice(token.priceInSol || 0)} ◎</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Price (USD)</p>
+                <p className="text-lg font-bold">${formatPrice(token.priceInUsd || 0)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Market Cap (SOL)</p>
+                <p className="text-lg font-bold">{formatMarketCap(token.marketCapSol || 0)} ◎</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">24h Volume (SOL)</p>
+                <p className="text-lg font-bold">{formatMarketCap(token.volume24h?.sol || 0)} ◎</p>
+              </div>
             </div>
 
             <div className="flex items-center justify-between text-xs text-gray-400 mt-0.5 mb-1">
@@ -254,7 +288,7 @@ export const TokenCard: FC<TokenCardProps> = ({
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-gray-400">MC</span>
-                  <span className="text-purple-200">${formatMarketCap(marketCap)}</span>
+                  <span className="text-purple-200">{originalFormatMarketCap(marketCap)}</span>
                 </div>
               </div>
             </div>

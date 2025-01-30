@@ -7,6 +7,7 @@ import { calculatePumpFunTokenMetrics, calculateVolumeMetrics, calculateTokenRis
 const MAX_TRADES_PER_TOKEN = 100;
 const MAX_TOKENS_IN_LIST = 50;
 const CURRENT_USER = "Peblo69";
+const COINGECKO_API_URL = 'https://api.coingecko.com/api/v3';
 
 // Debug helper
 const DEBUG = true;
@@ -14,6 +15,52 @@ function debugLog(action: string, data?: any) {
   if (DEBUG) {
     console.log(`[PumpPortal][${action}]`, data || '');
   }
+}
+
+// New function to fetch SOL price
+async function fetchSolPrice() {
+  try {
+    const response = await axios.get(`${COINGECKO_API_URL}/simple/price`, {
+      params: {
+        ids: 'solana',
+        vs_currencies: 'usd'
+      }
+    });
+    return response.data.solana.usd;
+  } catch (error) {
+    console.error('Failed to fetch SOL price:', error);
+    return null;
+  }
+}
+
+// Start SOL price updates
+async function startSolPriceUpdates(setSolPrice: (price: number) => void) {
+  debugLog('Starting SOL price updates from CoinGecko...');
+
+  // Initial fetch
+  try {
+    debugLog('Fetching SOL price from CoinGecko...');
+    const price = await fetchSolPrice();
+    if (price) {
+      debugLog('Updated SOL price from CoinGecko:', price);
+      setSolPrice(price);
+    }
+  } catch (error) {
+    console.error('Failed to fetch initial SOL price:', error);
+  }
+
+  // Update every 30 seconds
+  setInterval(async () => {
+    try {
+      const price = await fetchSolPrice();
+      if (price) {
+        debugLog('Updated SOL price from CoinGecko:', price);
+        setSolPrice(price);
+      }
+    } catch (error) {
+      console.error('Failed to update SOL price:', error);
+    }
+  }, 30000);
 }
 
 // TokenMetadata interface that includes imageUrl
@@ -404,3 +451,5 @@ async function fetchTokenMetadataFromChain(mintAddress: string) {
 }
 
 export default usePumpPortalStore;
+// Call startSolPriceUpdates after store creation
+startSolPriceUpdates(usePumpPortalStore.getState().setSolPrice);

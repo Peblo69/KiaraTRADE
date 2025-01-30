@@ -8,10 +8,15 @@ export const calculatePumpFunTokenMetrics = (token: {
   const TOTAL_SUPPLY = 1_000_000_000; // 1 billion fixed supply
 
   // Price calculation based on bonding curve
-  const priceInSol = token.vSolInBondingCurve / (TOTAL_SUPPLY - token.vTokensInBondingCurve);
+  // P = SOL_POOL / (TOTAL_SUPPLY - TOKENS_IN_POOL)
+  const priceInSol = token.vTokensInBondingCurve > 0 
+    ? token.vSolInBondingCurve / (TOTAL_SUPPLY - token.vTokensInBondingCurve)
+    : 0;
+
   const priceInUsd = priceInSol * token.solPrice;
 
   // Market cap calculation
+  // MC = Current Pool Balance * SOL Price
   const marketCapSol = token.vSolInBondingCurve;
   const marketCapUsd = marketCapSol * token.solPrice;
 
