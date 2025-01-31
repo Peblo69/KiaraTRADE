@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { validateSocialUrl } from '@/utils/validators';
 import type { Token } from '@/types/token';
@@ -60,11 +61,11 @@ export class SocialMetricsService {
       });
 
       clearTimeout(timeoutId);
-
+      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-
+      
       return response.text();
     } catch (error) {
       console.error('Fetch error:', error);
@@ -80,7 +81,7 @@ export class SocialMetricsService {
   public static async getSocialMetrics(token: Token): Promise<TokenSocialMetrics> {
     const cacheKey = token.address;
     const cachedData = metricsCache[cacheKey];
-
+    
     if (cachedData && Date.now() - cachedData.timestamp < CACHE_DURATION) {
       return cachedData.metrics;
     }
@@ -91,13 +92,12 @@ export class SocialMetricsService {
 
     const fetchPromises: Promise<void>[] = [];
 
-    const twitterUrl = token.twitter || token.metadata?.twitter;
-    if (twitterUrl) {
+    if (token.metadata?.twitter || token.twitter) {
       const twitterPromise = (async () => {
         try {
-          const validatedUrl = validateSocialUrl(twitterUrl);
-          if (validatedUrl) {
-            const html = await this.fetchWithTimeout(validatedUrl);
+          const twitterUrl = validateSocialUrl(token.metadata?.twitter || token.twitter, 'twitter');
+          if (twitterUrl) {
+            const html = await this.fetchWithTimeout(twitterUrl);
             const followersMatch = html.match(/Followers<\/div><div[^>]*>([^<]*)/i);
             if (followersMatch) {
               metrics.twitterFollowers = this.extractNumber(followersMatch[1]);
@@ -110,13 +110,12 @@ export class SocialMetricsService {
       fetchPromises.push(twitterPromise);
     }
 
-    const telegramUrl = token.telegram || token.metadata?.telegram;
-    if (telegramUrl) {
+    if (token.metadata?.telegram || token.telegram) {
       const telegramPromise = (async () => {
         try {
-          const validatedUrl = validateSocialUrl(telegramUrl);
-          if (validatedUrl) {
-            const html = await this.fetchWithTimeout(validatedUrl);
+          const telegramUrl = validateSocialUrl(token.metadata?.telegram || token.telegram, 'telegram');
+          if (telegramUrl) {
+            const html = await this.fetchWithTimeout(telegramUrl);
             const membersMatch = html.match(/Members<\/div><div[^>]*>([^<]*)/i);
             if (membersMatch) {
               metrics.telegramMembers = this.extractNumber(membersMatch[1]);

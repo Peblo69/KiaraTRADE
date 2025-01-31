@@ -9,20 +9,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import CryptoIcon from "@/components/CryptoIcon";
 
-// Define reliable RPC endpoints with failover
-const RPC_ENDPOINTS = [
-  'https://solana-mainnet.g.alchemy.com/v2/demo',
-  'https://api.mainnet-beta.solana.com',
-  'https://solana-api.projectserum.com',
-  'https://rpc.ankr.com/solana'
-];
-
-const connections = RPC_ENDPOINTS.map(endpoint => new Connection(endpoint, {
-  commitment: 'processed',
-  wsEndpoint: undefined,
-  httpHeaders: { 'Content-Type': 'application/json' }
-}));
-
 interface WalletContextType {
   publicKey: PublicKey | null;
   balance: number;
@@ -71,6 +57,34 @@ const debug = {
   }
 };
 
+// Define reliable RPC endpoints with failover
+const RPC_ENDPOINTS = [
+  {
+    url: 'https://solana-mainnet.g.alchemy.com/v2/demo',
+    weight: 1
+  },
+  {
+    url: 'https://api.mainnet-beta.solana.com',
+    weight: 2
+  },
+  {
+    url: 'https://solana-api.projectserum.com',
+    weight: 3
+  },
+  {
+    url: 'https://rpc.ankr.com/solana',
+    weight: 4
+  }
+].sort((a, b) => a.weight - b.weight).map(endpoint => endpoint.url);
+
+const connections = RPC_ENDPOINTS.map(endpoint => {
+  debug.log('Initializing connection to:', endpoint);
+  return new Connection(endpoint, {
+    commitment: 'confirmed',
+    confirmTransactionInitialTimeout: 60000,
+    disableRetryOnRateLimit: false
+  });
+});
 
 const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 
@@ -365,7 +379,6 @@ export const WalletConnectButton: FC = () => {
         <Button
           variant="outline"
           className="font-mono transition-colors"
-          onClick={() => setShowTokens(true)}
         >
           ${balanceUsd?.toFixed(2) || '0.00'} • {publicKey.toString().slice(0, 4)}...{publicKey.toString().slice(-4)}
         </Button>
@@ -422,8 +435,9 @@ export const WalletConnectButton: FC = () => {
                   >
                     <div className="flex items-center gap-2">
                       <CryptoIcon
-                        symbol={token.symbol || token.mint}
+                        symbol={token.mint}
                         size="sm"
+                        isSolanaAddress={true}
                       />
                       <div>
                         <div className="font-mono text-sm text-muted-foreground">
@@ -445,7 +459,7 @@ export const WalletConnectButton: FC = () => {
   }
 
   return (
-    <Button onClick={connect} variant="outline" className="hover:bg-accent transition-colors">
+    <Button onClick={connect} variant="outline">
       Connect Wallet
     </Button>
   );

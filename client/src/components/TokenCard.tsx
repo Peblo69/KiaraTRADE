@@ -11,6 +11,7 @@ import { DevHoldingIcon } from './icons/DevHoldingIcon';
 import { InsiderIcon } from './icons/InsiderIcon';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import type { Token, TokenTrade } from '@/types/token';
+import { formatDistanceToNow } from 'date-fns';
 
 interface TokenCardProps {
   token: Token;
@@ -25,7 +26,7 @@ interface TokenMetrics {
   topHoldersPercentage: number;
   devWalletPercentage: number;
   insiderPercentage: number;
-  insiderRisk: number;
+  insiderRisk: number; 
   snipersCount: number;
   holdersCount: number;
 }
@@ -92,7 +93,7 @@ const calculateTokenMetrics = (
   const insiderBalances = Array.from(insiderWallets)
     .reduce((sum, wallet) => sum + (holdersMap.get(wallet) || 0), 0);
   const insiderPercentage = (insiderBalances / totalSupply) * 100;
-  const insiderRisk = Math.round(insiderPercentage / 10);
+  const insiderRisk = Math.round(insiderPercentage / 10); 
 
   return {
     marketCapSol: token.vSolInBondingCurve,
@@ -100,7 +101,7 @@ const calculateTokenMetrics = (
     topHoldersPercentage,
     devWalletPercentage,
     insiderPercentage,
-    insiderRisk,
+    insiderRisk, 
     snipersCount: snipers.size,
     holdersCount: holdersMap.size
   };
@@ -112,13 +113,14 @@ const getInsiderRiskColor = (metrics: InsiderMetrics) => {
   return "text-red-400";
 };
 
+// In the JSX where insider metrics are displayed
 const InsiderMetricsDisplay = ({metrics}: {metrics: InsiderMetrics}) => (
   <div className="flex items-center gap-1">
-    <InsiderIcon
+    <InsiderIcon 
       className={cn(
         "current-color",
         getInsiderRiskColor(metrics)
-      )}
+      )} 
     />
     <span>{metrics.risk}</span>
     {metrics.patterns.quickFlips > 0 && (
@@ -233,8 +235,8 @@ export const TokenCard: FC<TokenCardProps> = ({
     percentage <= 15 ? "text-green-400" : "text-red-400";
 
   const getInsiderColor = (count: number) =>
-    count === 0 ? "text-green-400" :
-      count <= 4 ? "text-yellow-400" : "text-red-400";
+    count === 0 ? "text-green-400" : 
+    count <= 4 ? "text-yellow-400" : "text-red-400";
 
   const getSnipersColor = (count: number) =>
     count <= 5 ? "text-green-400" : "text-red-400";
@@ -255,28 +257,16 @@ export const TokenCard: FC<TokenCardProps> = ({
     window.open(`https://www.google.com/search?q=${searchQuery}&tbm=isch`, '_blank', 'noopener,noreferrer');
   };
 
-  const socialLinks = useMemo(() => {
-    const website = token.website || token.metadata?.website || token.socials?.website;
-    const telegram = token.telegram || token.metadata?.telegram || token.socials?.telegram;
-    const twitter = token.twitter || token.metadata?.twitter || token.socials?.twitter;
+  const socialLinks = useMemo(() => ({
+    website: token.metadata?.website || token.website,
+    telegram: token.metadata?.telegram || token.telegram,
+    twitter: token.metadata?.twitter || token.twitter,
+    pumpfun: `https://pump.fun/coin/${token.address}`
+  }), [token]);
 
-    if (token.pump_portal_data) {
-      twitter = twitter || token.pump_portal_data.twitter;
-      telegram = telegram || token.pump_portal_data.telegram;
-      website = website || token.pump_portal_data.website;
-    }
-
-    const validatedLinks = {
-      website: validateSocialUrl(website),
-      telegram: validateSocialUrl(telegram),
-      twitter: validateSocialUrl(twitter),
-      pumpfun: `https://pump.fun/coin/${token.address}`
-    };
-
-    return validatedLinks;
-  }, [token]);
-
+  //Assumed insider metrics are available in the metrics object.  Adjust as needed based on your actual data structure.
   const insiderMetrics: InsiderMetrics = { risk: metrics.insiderRisk, patterns: { quickFlips: 0, coordinatedBuys: 0 } };
+
 
   return (
     <Card
@@ -381,40 +371,37 @@ export const TokenCard: FC<TokenCardProps> = ({
 
             <div className="flex items-center justify-between text-[11px] mt-2">
               <div className="flex items-center gap-2">
-                {socialLinks.twitter && (
+                {socialLinks.website && (
                   <a
-                    href={socialLinks.twitter}
+                    href={validateSocialUrl(socialLinks.website)}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors relative group cursor-pointer"
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                  >
+                    <Globe size={14} />
+                  </a>
+                )}
+                {socialLinks.twitter && (
+                  <a
+                    href={validateSocialUrl(socialLinks.twitter)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
                   >
                     <XIcon className="w-3.5 h-3.5" />
-                    <div className="absolute inset-0 bg-blue-400/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
                   </a>
                 )}
                 {socialLinks.telegram && (
                   <a
-                    href={socialLinks.telegram}
+                    href={validateSocialUrl(socialLinks.telegram)}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors relative group cursor-pointer"
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
                   >
                     <TelegramIcon className="w-3.5 h-3.5" />
-                    <div className="absolute inset-0 bg-blue-400/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
-                  </a>
-                )}
-                {socialLinks.website && (
-                  <a
-                    href={socialLinks.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors relative group cursor-pointer"
-                  >
-                    <Globe size={14} />
-                    <div className="absolute inset-0 bg-blue-400/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
                   </a>
                 )}
                 <a
@@ -422,10 +409,9 @@ export const TokenCard: FC<TokenCardProps> = ({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="text-blue-400/70 hover:text-blue-300 transition-colors relative group cursor-pointer"
+                  className="text-blue-400/70 hover:text-blue-300 transition-colors"
                 >
                   <PumpFunIcon className="w-3.5 h-3.5" />
-                  <div className="absolute inset-0 bg-blue-400/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
                 </a>
               </div>
 
