@@ -1,4 +1,4 @@
-import { FC, useState, useEffect, useMemo, useRef } from 'react';
+import { FC, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { ImageIcon, Globe, Search, Users, Crosshair, UserPlus, Copy } from 'lucide-react';
 import { validateImageUrl, validateSocialUrl } from '@/utils/validators';
@@ -10,7 +10,8 @@ import { XIcon } from './icons/XIcon';
 import { DevHoldingIcon } from './icons/DevHoldingIcon';
 import { InsiderIcon } from './icons/InsiderIcon';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import type { Token } from '@/types/token';
+import type { Token, TokenTrade } from '@/types/token';
+import { formatDistanceToNow } from 'date-fns';
 
 interface TokenCardProps {
   token: Token;
@@ -40,7 +41,7 @@ interface InsiderMetrics {
 
 const calculateTokenMetrics = (
   token: Token,
-  trades: any[],
+  trades: TokenTrade[],
   creationTimestamp: number
 ): TokenMetrics => {
   const now = Date.now();
@@ -70,11 +71,11 @@ const calculateTokenMetrics = (
     .sort(([, a], [, b]) => b - a)
     .slice(0, 10);
 
-  const totalSupply = token.supply || 0;
+  const totalSupply = token.vTokensInBondingCurve;
   const top10Supply = sortedHolders.reduce((sum, [_, amount]) => sum + amount, 0);
   const topHoldersPercentage = (top10Supply / totalSupply) * 100;
 
-  const devBalance = token.devWallet ? holdersMap.get(token.devWallet) || 0 : 0;
+  const devBalance = holdersMap.get(token.devWallet) || 0;
   const devWalletPercentage = (devBalance / totalSupply) * 100;
 
   const snipers = new Set(
@@ -88,16 +89,14 @@ const calculateTokenMetrics = (
       .filter(t => t.timestamp <= creationTimestamp + 3600000)
       .map(t => t.traderPublicKey)
   );
-  if (token.devWallet) {
-    insiderWallets.delete(token.devWallet);
-  }
+  insiderWallets.delete(token.devWallet);
   const insiderBalances = Array.from(insiderWallets)
     .reduce((sum, wallet) => sum + (holdersMap.get(wallet) || 0), 0);
   const insiderPercentage = (insiderBalances / totalSupply) * 100;
   const insiderRisk = Math.round(insiderPercentage / 10);
 
   return {
-    marketCapSol: token.vSolInBondingCurve || 0,
+    marketCapSol: token.vSolInBondingCurve,
     volume24h,
     topHoldersPercentage,
     devWalletPercentage,
@@ -252,9 +251,9 @@ export const TokenCard: FC<TokenCardProps> = ({
   };
 
   const socialLinks = useMemo(() => {
-    const website = token.website || '';
-    const telegram = token.telegram || '';
-    const twitter = token.twitter || '';
+    const website = (token.metadata?.website || token.website)?.trim();
+    const telegram = (token.metadata?.telegram || token.telegram)?.trim();
+    const twitter = (token.metadata?.twitter || token.twitter)?.trim();
     const pumpfun = `https://pump.fun/coin/${token.address}`;
 
     return {

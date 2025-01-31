@@ -1,4 +1,5 @@
-import React, { FC, useState, useCallback, Suspense } from "react";
+import React, { FC, useState, useCallback, Suspense, useEffect } from "react";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Filter } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
