@@ -10,8 +10,37 @@ import { XIcon } from './icons/XIcon';
 import { DevHoldingIcon } from './icons/DevHoldingIcon';
 import { InsiderIcon } from './icons/InsiderIcon';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import type { Token, TokenTrade } from '@/types/token';
+import type { TokenTrade } from '@/types/token';
 import { formatDistanceToNow } from 'date-fns';
+
+interface Token {
+  address: string;
+  name?: string;
+  symbol?: string;
+  metadata?: {
+    name?: string;
+    symbol?: string;
+    uri?: string;
+    imageUrl?: string;
+    creators?: Array<{
+      address: string;
+      verified: boolean;
+      share: number;
+    }>;
+    website?: string;
+    telegram?: string;
+    twitter?: string;
+  };
+  website?: string;
+  telegram?: string;
+  twitter?: string;
+  imageUrl?: string;
+  vTokensInBondingCurve: number;
+  vSolInBondingCurve: number;
+  devWallet?: string;
+  createdAt?: string;
+  recentTrades?: TokenTrade[];
+}
 
 interface TokenCardProps {
   token: Token;
@@ -26,7 +55,7 @@ interface TokenMetrics {
   topHoldersPercentage: number;
   devWalletPercentage: number;
   insiderPercentage: number;
-  insiderRisk: number; 
+  insiderRisk: number;
   snipersCount: number;
   holdersCount: number;
 }
@@ -93,7 +122,7 @@ const calculateTokenMetrics = (
   const insiderBalances = Array.from(insiderWallets)
     .reduce((sum, wallet) => sum + (holdersMap.get(wallet) || 0), 0);
   const insiderPercentage = (insiderBalances / totalSupply) * 100;
-  const insiderRisk = Math.round(insiderPercentage / 10); 
+  const insiderRisk = Math.round(insiderPercentage / 10);
 
   return {
     marketCapSol: token.vSolInBondingCurve,
@@ -101,7 +130,7 @@ const calculateTokenMetrics = (
     topHoldersPercentage,
     devWalletPercentage,
     insiderPercentage,
-    insiderRisk, 
+    insiderRisk,
     snipersCount: snipers.size,
     holdersCount: holdersMap.size
   };
@@ -235,8 +264,8 @@ export const TokenCard: FC<TokenCardProps> = ({
     percentage <= 15 ? "text-green-400" : "text-red-400";
 
   const getInsiderColor = (count: number) =>
-    count === 0 ? "text-green-400" : 
-    count <= 4 ? "text-yellow-400" : "text-red-400";
+    count === 0 ? "text-green-400" :
+      count <= 4 ? "text-yellow-400" : "text-red-400";
 
   const getSnipersColor = (count: number) =>
     count <= 5 ? "text-green-400" : "text-red-400";
@@ -377,9 +406,11 @@ export const TokenCard: FC<TokenCardProps> = ({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors flex items-center gap-1"
+                    title="Website"
                   >
                     <Globe size={14} />
+                    <span>🌐</span>
                   </a>
                 )}
                 {socialLinks.twitter && (
@@ -388,9 +419,11 @@ export const TokenCard: FC<TokenCardProps> = ({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors flex items-center gap-1"
+                    title="Twitter/X"
                   >
                     <XIcon className="w-3.5 h-3.5" />
+                    <span>𝕏</span>
                   </a>
                 )}
                 {socialLinks.telegram && (
@@ -399,9 +432,11 @@ export const TokenCard: FC<TokenCardProps> = ({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors flex items-center gap-1"
+                    title="Telegram"
                   >
                     <TelegramIcon className="w-3.5 h-3.5" />
+                    <span>📱</span>
                   </a>
                 )}
                 <a
@@ -409,9 +444,11 @@ export const TokenCard: FC<TokenCardProps> = ({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                  className="text-blue-400/70 hover:text-blue-300 transition-colors flex items-center gap-1"
+                  title="PumpFun"
                 >
                   <PumpFunIcon className="w-3.5 h-3.5" />
+                  <span>🚀</span>
                 </a>
               </div>
 
