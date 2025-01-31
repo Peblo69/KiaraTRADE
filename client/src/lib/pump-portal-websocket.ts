@@ -6,7 +6,6 @@ import { calculatePumpFunTokenMetrics, calculateVolumeMetrics, calculateTokenRis
 // Constants
 const MAX_TRADES_PER_TOKEN = 100;
 const MAX_TOKENS_IN_LIST = 50;
-const CURRENT_USER = "Peblo69";
 
 // Debug helper
 const DEBUG = true;
@@ -100,7 +99,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   solPrice: 0,
   lastUpdate: Date.now(),
   activeTokenView: null,
-  currentUser: CURRENT_USER,
+  currentUser: "",
 
   // This function maps the websocket data to our token format
   addToken: (tokenData) => set((state) => {
@@ -143,9 +142,8 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         imageUrl: imageUrl,
         creators: tokenData.creators || []
       },
-      lastAnalyzedAt: Date.now().toString(),
-      analyzedBy: CURRENT_USER,
-      createdAt: tokenData.txType === 'create' ? Date.now().toString() : undefined
+      lastAnalyzedAt: tokenData.timestamp?.toString(),
+      createdAt: tokenData.txType === 'create' ? tokenData.timestamp?.toString() : undefined
     };
 
     const existingTokenIndex = state.tokens.findIndex(t => t.address === newToken.address);
