@@ -1,9 +1,18 @@
 import React from 'react';
 import { TokenDiscussions as TokenDiscussionsComponent } from '@/components/social/TokenDiscussions';
 import { useSocialFeatures } from "@/hooks/use-social-features";
+import type { Discussion } from '@/types/social';
 
 const TokenDiscussions: React.FC = () => {
   const { discussions, addDiscussion, voteDiscussion } = useSocialFeatures("default");
+
+  const handleAddDiscussion = (discussion: Omit<Discussion, "id" | "createdAt">) => {
+    addDiscussion.mutate({
+      ...discussion,
+      user_id: "default", // Will be replaced with actual user ID
+      token_address: "default"
+    });
+  };
 
   return (
     <div className="container mx-auto p-6">
@@ -13,7 +22,7 @@ const TokenDiscussions: React.FC = () => {
         <TokenDiscussionsComponent
           tokenAddress="default"
           discussions={discussions || []}
-          onAddDiscussion={addDiscussion.mutate}
+          onAddDiscussion={handleAddDiscussion}
           onUpvote={(id) => voteDiscussion.mutate({ discussionId: id, voteType: 'up' })}
           onDownvote={(id) => voteDiscussion.mutate({ discussionId: id, voteType: 'down' })}
         />

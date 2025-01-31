@@ -12,6 +12,9 @@ import { InsiderIcon } from './icons/InsiderIcon';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import type { Token, TokenTrade } from '@/types/token';
 import { formatDistanceToNow } from 'date-fns';
+import { SocialMetrics } from './SocialMetrics';
+import { useSocialFeatures } from '@/hooks/use-social-features';
+import { useTokenSocialMetricsStore } from '@/lib/social-metrics';
 
 interface TokenCardProps {
   token: Token;
@@ -144,6 +147,9 @@ export const TokenCard: FC<TokenCardProps> = ({
   ), [token]);
 
   const [metrics, setMetrics] = useState<TokenMetrics>(initialMetrics);
+
+  const socialFeatures = useSocialFeatures(token.address);
+  const socialMetrics = useTokenSocialMetricsStore(state => state.getMetrics(token.address));
 
   useEffect(() => {
     const updateTimeSinceLaunch = () => {
@@ -437,6 +443,15 @@ export const TokenCard: FC<TokenCardProps> = ({
           </div>
         </div>
       </div>
+
+      {socialMetrics && (
+        <div className="relative p-2 mt-2">
+          <SocialMetrics
+            tokenAddress={token.address}
+            metrics={socialMetrics}
+          />
+        </div>
+      )}
 
       <div className="absolute bottom-0 left-0 w-full h-0.5 bg-purple-900/20">
         <div
