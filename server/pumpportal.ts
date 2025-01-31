@@ -120,12 +120,9 @@ export function initializePumpPortalWebSocket() {
                             marketCapSol: data.vSolInBondingCurve || 0,
                             timestamp: Date.now(),
                             isNewToken: true,
-                            socials: {
-                                twitter: data.twitter || tokenMetadata?.twitter || null,
-                                telegram: data.telegram || tokenMetadata?.telegram || null,
-                                website: data.website || tokenMetadata?.website || null,
-                                pumpfun: `https://pump.fun/coin/${data.mint}`
-                            }
+                            twitter: tokenMetadata?.twitter || data.twitter,
+                            telegram: tokenMetadata?.telegram || data.telegram,
+                            website: tokenMetadata?.website || data.website
                         };
 
                         log('[PumpPortal] Enriched token data:', JSON.stringify(enrichedData, null, 2));

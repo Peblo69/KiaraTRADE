@@ -371,9 +371,9 @@ export const TokenCard: FC<TokenCardProps> = ({
 
             <div className="flex items-center justify-between text-[11px] mt-2">
               <div className="flex items-center gap-2">
-                {token.socials?.website && (
+                {socialLinks.website && (
                   <a
-                    href={validateSocialUrl(token.socials.website)}
+                    href={validateSocialUrl(socialLinks.website)}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
@@ -382,9 +382,9 @@ export const TokenCard: FC<TokenCardProps> = ({
                     <Globe size={14} />
                   </a>
                 )}
-                {token.socials?.twitter && (
+                {socialLinks.twitter && (
                   <a
-                    href={validateSocialUrl(token.socials.twitter)}
+                    href={validateSocialUrl(socialLinks.twitter)}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
@@ -393,9 +393,9 @@ export const TokenCard: FC<TokenCardProps> = ({
                     <XIcon className="w-3.5 h-3.5" />
                   </a>
                 )}
-                {token.socials?.telegram && (
+                {socialLinks.telegram && (
                   <a
-                    href={validateSocialUrl(token.socials.telegram)}
+                    href={validateSocialUrl(socialLinks.telegram)}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
@@ -404,17 +404,15 @@ export const TokenCard: FC<TokenCardProps> = ({
                     <TelegramIcon className="w-3.5 h-3.5" />
                   </a>
                 )}
-                {token.socials?.pumpfun && (
-                  <a
-                    href={token.socials.pumpfun}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                  >
-                    <PumpFunIcon className="w-3.5 h-3.5" />
-                  </a>
-                )}
+                <a
+                  href={socialLinks.pumpfun}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                >
+                  <PumpFunIcon className="w-3.5 h-3.5" />
+                </a>
               </div>
 
               <div className="flex items-center gap-3">
