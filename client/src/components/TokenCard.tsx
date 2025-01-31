@@ -123,12 +123,6 @@ const InsiderMetricsDisplay = ({metrics}: {metrics: InsiderMetrics}) => (
       )} 
     />
     <span>{metrics.risk}</span>
-    {metrics.patterns.quickFlips > 0 && (
-      <span className="text-xs" title="Quick Flips Detected">🔄</span>
-    )}
-    {metrics.patterns.coordinatedBuys > 0 && (
-      <span className="text-xs" title="Coordinated Buying">👥</span>
-    )}
   </div>
 );
 

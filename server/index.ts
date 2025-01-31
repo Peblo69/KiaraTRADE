@@ -29,7 +29,7 @@ async function startServer() {
       serveStatic(app);
     }
 
-    const PORT = 5000;
+    const PORT = process.env.PORT || 3000;
 
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server running on port ${PORT}`);
