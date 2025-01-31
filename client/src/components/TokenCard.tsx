@@ -384,10 +384,10 @@ export const TokenCard: FC<TokenCardProps> = ({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors text-lg"
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
                     title="Website"
                   >
-                    🌐
+                    <Globe className="w-4 h-4" />
                   </a>
                 )}
                 {socialLinks.twitter && (
@@ -396,10 +396,10 @@ export const TokenCard: FC<TokenCardProps> = ({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors text-lg"
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
                     title="Twitter"
                   >
-                    🐦
+                    <XIcon className="w-4 h-4" />
                   </a>
                 )}
                 {socialLinks.telegram && (
@@ -408,10 +408,10 @@ export const TokenCard: FC<TokenCardProps> = ({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors text-lg"
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
                     title="Telegram"
                   >
-                    📱
+                    <TelegramIcon className="w-4 h-4" />
                   </a>
                 )}
                 <a
@@ -419,10 +419,10 @@ export const TokenCard: FC<TokenCardProps> = ({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="text-blue-400/70 hover:text-blue-300 transition-colors text-lg"
+                  className="text-blue-400/70 hover:text-blue-300 transition-colors"
                   title="PumpFun"
                 >
-                  🚀
+                  <PumpFunIcon className="w-4 h-4" />
                 </a>
               </div>
 
