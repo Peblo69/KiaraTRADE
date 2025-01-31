@@ -29,25 +29,13 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // Try port 5000 first, then 5001 if busy
     const PORT = 5000;
-
+    
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server running on port ${PORT}`);
     }).on('error', (error: any) => {
-      if (error.code === 'EADDRINUSE') {
-        // Try alternate port
-        const ALT_PORT = 5001;
-        server.listen(ALT_PORT, "0.0.0.0", () => {
-          log(`Server running on alternate port ${ALT_PORT}`);
-        }).on('error', (altError) => {
-          log(`Failed to start server on alternate port: ${altError.message}`);
-          process.exit(1);
-        });
-      } else {
-        log(`Failed to start server: ${error.message}`);
-        process.exit(1);
-      }
+      log(`Failed to start server: ${error.message}`);
+      process.exit(1);
     });
 
   } catch (error) {
