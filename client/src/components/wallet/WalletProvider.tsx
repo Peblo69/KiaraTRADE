@@ -1,4 +1,3 @@
-// src/components/wallet/WalletProvider.tsx
 import { FC, ReactNode, useEffect } from 'react';
 import { ConnectionProvider, WalletProvider as SolanaWalletProvider } from '@solana/wallet-adapter-react';
 import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
@@ -10,13 +9,25 @@ interface Props {
   children: ReactNode;
 }
 
+// Add Phantom type definitions
+declare global {
+  interface Window {
+    phantom?: {
+      solana?: {
+        isPhantom?: boolean;
+        connect(opts?: { onlyIfTrusted?: boolean }): Promise<{ publicKey: any }>;
+        disconnect(): Promise<void>;
+        on(event: string, handler: (args: any) => void): void;
+        removeListener?(event: string, handler: (args: any) => void): void;
+        publicKey: any;
+      };
+    };
+  }
+}
+
 export const WalletProvider: FC<Props> = ({ children }) => {
   const { toast } = useToast();
-
-  // Use multiple endpoints for redundancy
   const endpoint = clusterApiUrl('mainnet-beta');
-
-  // Initialize wallet adapter
   const wallets = [new PhantomWalletAdapter()];
 
   const onError = (error: WalletError) => {
@@ -28,31 +39,34 @@ export const WalletProvider: FC<Props> = ({ children }) => {
     });
   };
 
-  // Add proper Phantom provider detection
   useEffect(() => {
     const provider = window.phantom?.solana;
 
     if (provider?.isPhantom) {
-      provider.on('connect', (publicKey: any) => {
+      const handleConnect = (publicKey: any) => {
         console.log('Wallet connected:', publicKey.toString());
         toast({
           title: "Wallet Connected",
           description: `Connected to ${publicKey.toString().slice(0, 8)}...`,
         });
-      });
+      };
 
-      provider.on('disconnect', () => {
+      const handleDisconnect = () => {
         console.log('Wallet disconnected');
         toast({
           title: "Wallet Disconnected",
           description: "Successfully disconnected from Phantom wallet",
         });
-      });
+      };
 
-      // Cleanup event listeners
+      provider.on('connect', handleConnect);
+      provider.on('disconnect', handleDisconnect);
+
       return () => {
-        provider.removeAllListeners('connect');
-        provider.removeAllListeners('disconnect');
+        if (provider.removeListener) {
+          provider.removeListener('connect', handleConnect);
+          provider.removeListener('disconnect', handleDisconnect);
+        }
       };
     }
   }, [toast]);
@@ -69,21 +83,5 @@ export const WalletProvider: FC<Props> = ({ children }) => {
     </ConnectionProvider>
   );
 };
-
-// Add Phantom type definitions
-declare global {
-  interface Window {
-    phantom?: {
-      solana?: {
-        isPhantom?: boolean;
-        connect(opts?: { onlyIfTrusted?: boolean }): Promise<{ publicKey: any }>;
-        disconnect(): Promise<void>;
-        on(event: string, handler: (args: any) => void): void;
-        removeAllListeners(event: string): void;
-        publicKey: any;
-      };
-    };
-  }
-}
 
 export default WalletProvider;

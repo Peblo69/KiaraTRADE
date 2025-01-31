@@ -31,7 +31,7 @@ export const WalletButton: FC = () => {
     <Button 
       variant={publicKey ? "outline" : "default"}
       onClick={handleClick}
-      className="relative group flex items-center gap-2"
+      className="relative group flex items-center gap-2 hover:bg-accent transition-colors duration-300 cursor-pointer"
     >
       <Wallet className="w-4 h-4" />
       {publicKey ? (

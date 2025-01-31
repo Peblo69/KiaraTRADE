@@ -11,7 +11,6 @@ import { DevHoldingIcon } from './icons/DevHoldingIcon';
 import { InsiderIcon } from './icons/InsiderIcon';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import type { Token, TokenTrade } from '@/types/token';
-import { formatDistanceToNow } from 'date-fns';
 
 interface TokenCardProps {
   token: Token;
@@ -113,7 +112,6 @@ const getInsiderRiskColor = (metrics: InsiderMetrics) => {
   return "text-red-400";
 };
 
-// In the JSX where insider metrics are displayed
 const InsiderMetricsDisplay = ({metrics}: {metrics: InsiderMetrics}) => (
   <div className="flex items-center gap-1">
     <InsiderIcon
@@ -257,16 +255,28 @@ export const TokenCard: FC<TokenCardProps> = ({
     window.open(`https://www.google.com/search?q=${searchQuery}&tbm=isch`, '_blank', 'noopener,noreferrer');
   };
 
-  const socialLinks = useMemo(() => ({
-    website: token.website || token.metadata?.website || token.socials?.website,
-    telegram: token.telegram || token.metadata?.telegram || token.socials?.telegram,
-    twitter: token.twitter || token.metadata?.twitter || token.socials?.twitter,
-    pumpfun: `https://pump.fun/coin/${token.address}`
-  }), [token]);
+  const socialLinks = useMemo(() => {
+    const website = token.website || token.metadata?.website || token.socials?.website;
+    const telegram = token.telegram || token.metadata?.telegram || token.socials?.telegram;
+    const twitter = token.twitter || token.metadata?.twitter || token.socials?.twitter;
 
-  //Assumed insider metrics are available in the metrics object.  Adjust as needed based on your actual data structure.
+    if (token.pump_portal_data) {
+      twitter = twitter || token.pump_portal_data.twitter;
+      telegram = telegram || token.pump_portal_data.telegram;
+      website = website || token.pump_portal_data.website;
+    }
+
+    const validatedLinks = {
+      website: validateSocialUrl(website),
+      telegram: validateSocialUrl(telegram),
+      twitter: validateSocialUrl(twitter),
+      pumpfun: `https://pump.fun/coin/${token.address}`
+    };
+
+    return validatedLinks;
+  }, [token]);
+
   const insiderMetrics: InsiderMetrics = { risk: metrics.insiderRisk, patterns: { quickFlips: 0, coordinatedBuys: 0 } };
-
 
   return (
     <Card
@@ -371,37 +381,40 @@ export const TokenCard: FC<TokenCardProps> = ({
 
             <div className="flex items-center justify-between text-[11px] mt-2">
               <div className="flex items-center gap-2">
-                {socialLinks.website && (
-                  <a
-                    href={validateSocialUrl(socialLinks.website)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                  >
-                    <Globe size={14} />
-                  </a>
-                )}
                 {socialLinks.twitter && (
                   <a
-                    href={validateSocialUrl(socialLinks.twitter)}
+                    href={socialLinks.twitter}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors relative group cursor-pointer"
                   >
                     <XIcon className="w-3.5 h-3.5" />
+                    <div className="absolute inset-0 bg-blue-400/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
                   </a>
                 )}
                 {socialLinks.telegram && (
                   <a
-                    href={validateSocialUrl(socialLinks.telegram)}
+                    href={socialLinks.telegram}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors relative group cursor-pointer"
                   >
                     <TelegramIcon className="w-3.5 h-3.5" />
+                    <div className="absolute inset-0 bg-blue-400/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
+                  </a>
+                )}
+                {socialLinks.website && (
+                  <a
+                    href={socialLinks.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors relative group cursor-pointer"
+                  >
+                    <Globe size={14} />
+                    <div className="absolute inset-0 bg-blue-400/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
                   </a>
                 )}
                 <a
@@ -409,9 +422,10 @@ export const TokenCard: FC<TokenCardProps> = ({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                  className="text-blue-400/70 hover:text-blue-300 transition-colors relative group cursor-pointer"
                 >
                   <PumpFunIcon className="w-3.5 h-3.5" />
+                  <div className="absolute inset-0 bg-blue-400/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
                 </a>
               </div>
 

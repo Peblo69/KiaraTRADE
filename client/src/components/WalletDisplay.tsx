@@ -32,7 +32,7 @@ export const WalletDisplay: FC = () => {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <CryptoIcon symbol="SOL-USDT" size="sm" />
+              <CryptoIcon symbol="SOL" size="sm" />
               <div>
                 <span className="font-mono">{balance.toFixed(4)} SOL</span>
                 {balanceUsd !== null && (
@@ -61,7 +61,7 @@ export const WalletDisplay: FC = () => {
           <div className="space-y-4">
             <Card className="p-4">
               <div className="flex items-center gap-2">
-                <CryptoIcon symbol="SOL-USDT" size="md" />
+                <CryptoIcon symbol="SOL" size="md" />
                 <div>
                   <div className="font-semibold">Solana</div>
                   <div className="flex items-baseline gap-2">
@@ -88,7 +88,6 @@ export const WalletDisplay: FC = () => {
                       key={token.mint} 
                       className="p-4 cursor-pointer hover:bg-accent transition-colors"
                       onClick={() => {
-                        // Navigate to the token's project page
                         setLocation(`/project/${token.mint}`);
                       }}
                     >
@@ -96,7 +95,6 @@ export const WalletDisplay: FC = () => {
                         <CryptoIcon 
                           symbol={token.mint} 
                           size="sm" 
-                          isSolanaAddress={true}
                         />
                         <div>
                           <div className="font-mono text-sm text-muted-foreground">
