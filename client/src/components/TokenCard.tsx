@@ -257,12 +257,27 @@ export const TokenCard: FC<TokenCardProps> = ({
     window.open(`https://www.google.com/search?q=${searchQuery}&tbm=isch`, '_blank', 'noopener,noreferrer');
   };
 
-  const socialLinks = useMemo(() => ({
-    website: token.metadata?.website || token.website,
-    telegram: token.metadata?.telegram || token.telegram,
-    twitter: token.metadata?.twitter || token.twitter,
-    pumpfun: `https://pump.fun/coin/${token.address}`
-  }), [token]);
+  const socialMetrics = useTokenSocialMetricsStore(state => state.getMetrics(token.address));
+  
+  const socialLinks = useMemo(() => {
+    const links = {
+      website: token.metadata?.website || token.website,
+      telegram: token.metadata?.telegram || token.telegram,
+      twitter: token.metadata?.twitter || token.twitter,
+      pumpfun: `https://pump.fun/coin/${token.address}`
+    };
+
+    // Override with validated links from metrics store if available
+    if (socialMetrics?.links) {
+      Object.assign(links, socialMetrics.links);
+    }
+
+    return Object.entries(links).reduce((acc, [key, url]) => {
+      const validUrl = validateSocialUrl(url);
+      if (validUrl) acc[key] = validUrl;
+      return acc;
+    }, {} as Record<string, string>);
+  }, [token, socialMetrics]);
 
   //Assumed insider metrics are available in the metrics object.  Adjust as needed based on your actual data structure.
   const insiderMetrics: InsiderMetrics = { risk: metrics.insiderRisk, patterns: { quickFlips: 0, coordinatedBuys: 0 } };
