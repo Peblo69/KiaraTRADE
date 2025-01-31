@@ -128,6 +128,8 @@ export const TokenSecurityPanel: React.FC<TokenSecurityPanelProps> = ({
 }) => {
   // PumpPortal store integration
   const tokens = usePumpPortalStore(state => state.tokens);
+  const currentTime = usePumpPortalStore(state => state.currentTime);
+  const currentUser = usePumpPortalStore(state => state.currentUser);
   const isConnected = usePumpPortalStore(state => state.isConnected);
 
   if (!isOpen) return null;
@@ -199,7 +201,16 @@ export const TokenSecurityPanel: React.FC<TokenSecurityPanelProps> = ({
             <ShieldAlert className="h-5 w-5 text-purple-500" />
             <span className="font-semibold text-white">Security Analysis</span>
           </div>
-          {/* Removed time and user display */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <Clock className="h-4 w-4" />
+              <span>{currentTime}</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <User className="h-4 w-4" />
+              <span>{currentUser}</span>
+            </div>
+          </div>
         </div>
 
         {/* Token Count */}

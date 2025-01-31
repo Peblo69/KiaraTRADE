@@ -23,10 +23,10 @@ const PumpFunVision: FC = () => {
     setActiveTokenView(null);
   }, [setActiveTokenView]);
 
-  // Get filtered tokens using store selectors
-  const newTokens = usePumpPortalStore(state => state.getNewTokens());
-  const aboutToGraduate = usePumpPortalStore(state => state.getAboutToGraduateTokens());
-  const graduated = usePumpPortalStore(state => state.getGraduatedTokens());
+  // Filter tokens based on their stage
+  const newTokens = tokens.filter(t => t.isNew);
+  const aboutToGraduate = tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol < 100);
+  const graduated = tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol >= 100);
 
   // Loading state
   if (!isConnected) {

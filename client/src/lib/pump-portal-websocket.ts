@@ -6,6 +6,7 @@ import { calculatePumpFunTokenMetrics, calculateVolumeMetrics, calculateTokenRis
 // Constants
 const MAX_TRADES_PER_TOKEN = 100;
 const MAX_TOKENS_IN_LIST = 50;
+const CURRENT_USER = "Peblo69";
 
 // Debug helper
 const DEBUG = true;
@@ -87,9 +88,6 @@ interface PumpPortalStore {
   getToken: (address: string) => PumpPortalToken | undefined;
   updateTokenPrice: (address: string, priceInUsd: number) => void;
   fetchTokenUri: (address: string) => Promise<string | null>;
-  getNewTokens: () => PumpPortalToken[];
-  getAboutToGraduateTokens: () => PumpPortalToken[];
-  getGraduatedTokens: () => PumpPortalToken[];
 }
 
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
@@ -99,7 +97,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   solPrice: 0,
   lastUpdate: Date.now(),
   activeTokenView: null,
-  currentUser: "",
+  currentUser: CURRENT_USER,
 
   // This function maps the websocket data to our token format
   addToken: (tokenData) => set((state) => {
@@ -142,8 +140,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         imageUrl: imageUrl,
         creators: tokenData.creators || []
       },
-      lastAnalyzedAt: tokenData.timestamp?.toString(),
-      createdAt: tokenData.txType === 'create' ? tokenData.timestamp?.toString() : undefined
+      lastAnalyzedAt: Date.now().toString(),
+      analyzedBy: CURRENT_USER,
+      createdAt: tokenData.txType === 'create' ? Date.now().toString() : undefined
     };
 
     const existingTokenIndex = state.tokens.findIndex(t => t.address === newToken.address);
@@ -372,19 +371,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     }
 
     return uri;
-  },
-
-  getNewTokens: () => {
-    const { tokens } = get();
-    return tokens.filter(t => t.isNew);
-  },
-  getAboutToGraduateTokens: () => {
-    const { tokens } = get();
-    return tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol >= 70 && t.marketCapSol < 100);
-  },
-  getGraduatedTokens: () => {
-    const { tokens } = get();
-    return tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol >= 100);
   }
 }));
 
