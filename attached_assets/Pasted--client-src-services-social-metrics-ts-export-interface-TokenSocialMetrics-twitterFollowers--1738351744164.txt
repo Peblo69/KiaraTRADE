@@ -1,0 +1,169 @@
+// client/src/services/social-metrics.ts
+
+export interface TokenSocialMetrics {
+  twitterFollowers?: number;
+  telegramMembers?: number;
+  lastUpdated?: number;
+}
+
+export class SocialMetricsService {
+  private static async fetchWithTimeout(url: string): Promise<string> {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        timeout: 5000
+      });
+      return response.text();
+    } catch (error) {
+      console.error('Fetch error:', error);
+      throw error;
+    }
+  }
+
+  private static extractNumber(text: string): number {
+    const match = text.match(/[\d,]+/);
+    return match ? parseInt(match[0].replace(/,/g, '')) : 0;
+  }
+
+  public static async getSocialMetrics(token: Token): Promise<TokenSocialMetrics> {
+    const metrics: TokenSocialMetrics = {
+      lastUpdated: Date.now()
+    };
+
+    if (token.metadata?.twitter || token.twitter) {
+      try {
+        const twitterUrl = validateSocialUrl(token.metadata?.twitter || token.twitter, 'twitter');
+        if (twitterUrl) {
+          const html = await this.fetchWithTimeout(twitterUrl);
+          const followersMatch = html.match(/Followers<\/div><div[^>]*>([^<]*)/i);
+          if (followersMatch) {
+            metrics.twitterFollowers = this.extractNumber(followersMatch[1]);
+          }
+        }
+      } catch (error) {
+        console.error('Twitter metrics error:', error);
+      }
+    }
+
+    if (token.metadata?.telegram || token.telegram) {
+      try {
+        const telegramUrl = validateSocialUrl(token.metadata?.telegram || token.telegram, 'telegram');
+        if (telegramUrl) {
+          const html = await this.fetchWithTimeout(telegramUrl);
+          const membersMatch = html.match(/Members<\/div><div[^>]*>([^<]*)/i);
+          if (membersMatch) {
+            metrics.telegramMembers = this.extractNumber(membersMatch[1]);
+          }
+        }
+      } catch (error) {
+        console.error('Telegram metrics error:', error);
+      }
+    }
+
+    return metrics;
+  }
+}
+
+// Update TokenCard.tsx to include social metrics fetching
+const TokenCard: FC<TokenCardProps> = ({ token, onClick, onBuyClick, onCopyAddress }) => {
+  // ... existing code ...
+  const [socialMetrics, setSocialMetrics] = useState<TokenSocialMetrics>({});
+
+  useEffect(() => {
+    const fetchSocialMetrics = async () => {
+      if (!token.twitter && !token.telegram && !token.metadata?.twitter && !token.metadata?.telegram) {
+        return;
+      }
+
+      try {
+        const metrics = await SocialMetricsService.getSocialMetrics(token);
+        setSocialMetrics(metrics);
+      } catch (error) {
+        console.error('Error fetching social metrics:', error);
+      }
+    };
+
+    fetchSocialMetrics();
+    const interval = setInterval(fetchSocialMetrics, 5 * 60 * 1000); // Update every 5 minutes
+
+    return () => clearInterval(interval);
+  }, [token.twitter, token.telegram, token.metadata?.twitter, token.metadata?.telegram]);
+
+  // Update your social links section to include the metrics
+  const socialLinks = useMemo(() => ({
+    website: token.metadata?.website || token.website,
+    telegram: {
+      url: token.metadata?.telegram || token.telegram,
+      members: socialMetrics.telegramMembers
+    },
+    twitter: {
+      url: token.metadata?.twitter || token.twitter,
+      followers: socialMetrics.twitterFollowers
+    },
+    pumpfun: `https://pump.fun/coin/${token.address}`
+  }), [token, socialMetrics]);
+
+  // In your render method, update the social links display:
+  return (
+    <Card {...props}>
+      {/* ... existing card content ... */}
+      <div className="flex items-center gap-2">
+        {socialLinks.website && (
+          <a
+            href={validateSocialUrl(socialLinks.website, 'website')}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-blue-400/70 hover:text-blue-300 transition-colors"
+          >
+            <Globe size={14} />
+          </a>
+        )}
+        {socialLinks.twitter.url && (
+          <a
+            href={validateSocialUrl(socialLinks.twitter.url, 'twitter')}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-blue-400/70 hover:text-blue-300 transition-colors group relative"
+          >
+            <XIcon className="w-3.5 h-3.5" />
+            {socialLinks.twitter.followers && (
+              <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-xs bg-gray-800 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                {socialLinks.twitter.followers.toLocaleString()}
+              </span>
+            )}
+          </a>
+        )}
+        {socialLinks.telegram.url && (
+          <a
+            href={validateSocialUrl(socialLinks.telegram.url, 'telegram')}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-blue-400/70 hover:text-blue-300 transition-colors group relative"
+          >
+            <TelegramIcon className="w-3.5 h-3.5" />
+            {socialLinks.telegram.members && (
+              <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-xs bg-gray-800 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                {socialLinks.telegram.members.toLocaleString()}
+              </span>
+            )}
+          </a>
+        )}
+        <a
+          href={socialLinks.pumpfun}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-blue-400/70 hover:text-blue-300 transition-colors"
+        >
+          <PumpFunIcon className="w-3.5 h-3.5" />
+        </a>
+      </div>
+      {/* ... rest of the card content ... */}
+    </Card>
+  );
+};
