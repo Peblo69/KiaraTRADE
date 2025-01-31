@@ -46,6 +46,9 @@ export interface Token {
     telegram?: string;
     pumpfun?: string;
   };
+  website?: string;
+  twitter?: string;
+  telegram?: string;
   bondingCurveKey?: string;
   devWallet?: string;
   lastAnalyzedAt?: string;

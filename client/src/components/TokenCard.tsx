@@ -251,9 +251,9 @@ export const TokenCard: FC<TokenCardProps> = ({
   };
 
   const socialLinks = useMemo(() => {
-    const website = (token.metadata?.website || token.website)?.trim();
-    const telegram = (token.metadata?.telegram || token.telegram)?.trim();
-    const twitter = (token.metadata?.twitter || token.twitter)?.trim();
+    const website = token.website?.trim();
+    const telegram = token.telegram?.trim();
+    const twitter = token.twitter?.trim();
     const pumpfun = `https://pump.fun/coin/${token.address}`;
 
     return {
