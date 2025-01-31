@@ -1,9 +1,8 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { WalletConnectButton } from "@/lib/wallet";
-import { LineChart, Wallet } from "lucide-react";
+import { LineChart, Wallet, Users, MessageSquare, Star } from "lucide-react";
 
 export default function Navbar() {
   return (
@@ -36,11 +35,15 @@ export default function Navbar() {
                 { href: "/project", label: "Project" },
                 { href: "/kiara-stage-i", label: "Kiara Stage I", highlight: true },
                 { href: "/pumpfun-vision", label: "PumpFun Vision", highlight: true },
+                { href: "/social", label: "Community Hub", icon: Users },
+                { href: "/watchlists", label: "Watchlists", icon: Star },
+                { href: "/discussions", label: "Discussions", icon: MessageSquare },
                 { href: "/subscriptions", label: "Subscriptions" }
-              ].map(({ href, label, highlight }) => (
+              ].map(({ href, label, highlight, icon: Icon }) => (
                 <Link key={href} href={href}>
                   <Button variant="ghost" className="relative overflow-hidden group">
-                    <span className={`relative z-10 ${highlight ? 'text-purple-400/90' : 'text-slate-300'} group-hover:text-cyan-300 transition-all duration-300`}>
+                    <span className={`relative z-10 ${highlight ? 'text-purple-400/90' : 'text-slate-300'} group-hover:text-cyan-300 transition-all duration-300 flex items-center gap-2`}>
+                      {Icon && <Icon className="w-4 h-4" />}
                       {label}
                     </span>
                     <div className="absolute inset-0 group-hover:opacity-100 opacity-0 transition-opacity duration-300">

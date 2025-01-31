@@ -22,6 +22,12 @@ import WalletTracking from "@/pages/wallet-tracking";
 import MarketDataBar from "@/components/MarketDataBar";
 import Navbar from "@/components/Navbar";
 
+// Social Pages
+import SocialHub from "@/pages/social/SocialHub";
+import Watchlists from "@/pages/social/Watchlists";
+import TokenDiscussions from "@/pages/social/TokenDiscussions";
+import TraderProfiles from "@/pages/social/TraderProfiles";
+
 // Store and Services
 import { initializeHeliusWebSocket } from './lib/helius-websocket';
 import { useUnifiedTokenStore } from './lib/unified-token-store';
@@ -62,6 +68,13 @@ function Router() {
           <Route path="/pumpfun-vision" component={PumpFunVision} />
           <Route path="/predictions" component={Predictions} />
           <Route path="/wallet-tracking" component={WalletTracking} />
+
+          {/* Social Feature Routes */}
+          <Route path="/social" component={SocialHub} />
+          <Route path="/watchlists" component={Watchlists} />
+          <Route path="/discussions" component={TokenDiscussions} />
+          <Route path="/traders" component={TraderProfiles} />
+
           <Route component={NotFound} />
         </Switch>
       </main>
