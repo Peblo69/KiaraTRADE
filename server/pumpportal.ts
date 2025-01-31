@@ -119,7 +119,10 @@ export function initializePumpPortalWebSocket() {
                             priceInSol: data.solAmount ? (data.solAmount / (data.tokenAmount || TOTAL_SUPPLY)) : 0,
                             marketCapSol: data.vSolInBondingCurve || 0,
                             timestamp: Date.now(),
-                            isNewToken: true
+                            isNewToken: true,
+                            twitter: tokenMetadata?.twitter || data.twitter,
+                            telegram: tokenMetadata?.telegram || data.telegram,
+                            website: tokenMetadata?.website || data.website
                         };
 
                         log('[PumpPortal] Enriched token data:', JSON.stringify(enrichedData, null, 2));

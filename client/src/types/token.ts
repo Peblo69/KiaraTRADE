@@ -52,3 +52,12 @@ export interface Token {
   analyzedBy?: string;
   createdAt?: string;
 }
+
+export interface PumpPortalToken {
+  symbol: string;
+  name: string;
+  address: string;
+  twitter?: string;
+  telegram?: string;
+  website?: string;
+}
