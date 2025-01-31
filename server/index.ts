@@ -30,7 +30,7 @@ async function startServer() {
     }
 
     const PORT = 5000;
-    
+
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server running on port ${PORT}`);
     }).on('error', (error: any) => {
