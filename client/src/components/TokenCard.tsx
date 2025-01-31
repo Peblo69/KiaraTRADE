@@ -26,7 +26,7 @@ interface TokenMetrics {
   topHoldersPercentage: number;
   devWalletPercentage: number;
   insiderPercentage: number;
-  insiderRisk: number; 
+  insiderRisk: number;
   snipersCount: number;
   holdersCount: number;
 }
@@ -93,7 +93,7 @@ const calculateTokenMetrics = (
   const insiderBalances = Array.from(insiderWallets)
     .reduce((sum, wallet) => sum + (holdersMap.get(wallet) || 0), 0);
   const insiderPercentage = (insiderBalances / totalSupply) * 100;
-  const insiderRisk = Math.round(insiderPercentage / 10); 
+  const insiderRisk = Math.round(insiderPercentage / 10);
 
   return {
     marketCapSol: token.vSolInBondingCurve,
@@ -101,7 +101,7 @@ const calculateTokenMetrics = (
     topHoldersPercentage,
     devWalletPercentage,
     insiderPercentage,
-    insiderRisk, 
+    insiderRisk,
     snipersCount: snipers.size,
     holdersCount: holdersMap.size
   };
@@ -235,8 +235,8 @@ export const TokenCard: FC<TokenCardProps> = ({
     percentage <= 15 ? "text-green-400" : "text-red-400";
 
   const getInsiderColor = (count: number) =>
-    count === 0 ? "text-green-400" : 
-    count <= 4 ? "text-yellow-400" : "text-red-400";
+    count === 0 ? "text-green-400" :
+      count <= 4 ? "text-yellow-400" : "text-red-400";
 
   const getSnipersColor = (count: number) =>
     count <= 5 ? "text-green-400" : "text-red-400";
@@ -257,12 +257,19 @@ export const TokenCard: FC<TokenCardProps> = ({
     window.open(`https://www.google.com/search?q=${searchQuery}&tbm=isch`, '_blank', 'noopener,noreferrer');
   };
 
-  const socialLinks = useMemo(() => ({
-    website: token.metadata?.website || token.website,
-    telegram: token.metadata?.telegram || token.telegram,
-    twitter: token.metadata?.twitter || token.twitter,
-    pumpfun: `https://pump.fun/coin/${token.address}`
-  }), [token]);
+  const socialLinks = useMemo(() => {
+    const website = (token.metadata?.website || token.website)?.trim();
+    const telegram = (token.metadata?.telegram || token.telegram)?.trim();
+    const twitter = (token.metadata?.twitter || token.twitter)?.trim();
+    const pumpfun = `https://pump.fun/coin/${token.address}`;
+
+    return {
+      website: validateSocialUrl(website),
+      telegram: validateSocialUrl(telegram),
+      twitter: validateSocialUrl(twitter),
+      pumpfun
+    };
+  }, [token]);
 
   //Assumed insider metrics are available in the metrics object.  Adjust as needed based on your actual data structure.
   const insiderMetrics: InsiderMetrics = { risk: metrics.insiderRisk, patterns: { quickFlips: 0, coordinatedBuys: 0 } };
@@ -373,35 +380,38 @@ export const TokenCard: FC<TokenCardProps> = ({
               <div className="flex items-center gap-2">
                 {socialLinks.website && (
                   <a
-                    href={validateSocialUrl(socialLinks.website)}
+                    href={socialLinks.website}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors text-lg"
+                    title="Website"
                   >
-                    <Globe size={14} />
+                    🌐
                   </a>
                 )}
                 {socialLinks.twitter && (
                   <a
-                    href={validateSocialUrl(socialLinks.twitter)}
+                    href={socialLinks.twitter}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors text-lg"
+                    title="Twitter"
                   >
-                    <XIcon className="w-3.5 h-3.5" />
+                    🐦
                   </a>
                 )}
                 {socialLinks.telegram && (
                   <a
-                    href={validateSocialUrl(socialLinks.telegram)}
+                    href={socialLinks.telegram}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors text-lg"
+                    title="Telegram"
                   >
-                    <TelegramIcon className="w-3.5 h-3.5" />
+                    📱
                   </a>
                 )}
                 <a
@@ -409,9 +419,10 @@ export const TokenCard: FC<TokenCardProps> = ({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                  className="text-blue-400/70 hover:text-blue-300 transition-colors text-lg"
+                  title="PumpFun"
                 >
-                  <PumpFunIcon className="w-3.5 h-3.5" />
+                  🚀
                 </a>
               </div>
 
