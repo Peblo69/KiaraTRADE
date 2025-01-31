@@ -113,7 +113,6 @@ const getInsiderRiskColor = (metrics: InsiderMetrics) => {
   return "text-red-400";
 };
 
-// In the JSX where insider metrics are displayed
 const InsiderMetricsDisplay = ({metrics}: {metrics: InsiderMetrics}) => (
   <div className="flex items-center gap-1">
     <InsiderIcon 
@@ -265,9 +264,7 @@ export const TokenCard: FC<TokenCardProps> = ({
     };
   }, [token]);
 
-  //Assumed insider metrics are available in the metrics object.  Adjust as needed based on your actual data structure.
   const insiderMetrics: InsiderMetrics = { risk: metrics.insiderRisk, patterns: { quickFlips: 0, coordinatedBuys: 0 } };
-
 
   return (
     <Card
@@ -408,16 +405,18 @@ export const TokenCard: FC<TokenCardProps> = ({
                     <TelegramIcon className="w-4 h-4" />
                   </a>
                 )}
-                <a
-                  href={socialLinks.pumpfun}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                  title="PumpFun"
-                >
-                  <PumpFunIcon className="w-4 h-4" />
-                </a>
+                {socialLinks.pumpfun && (
+                  <a
+                    href={socialLinks.pumpfun}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                    title="PumpFun"
+                  >
+                    <PumpFunIcon className="w-4 h-4" />
+                  </a>
+                )}
               </div>
 
               <div className="flex items-center gap-3">
