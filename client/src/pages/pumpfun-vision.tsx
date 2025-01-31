@@ -1,12 +1,10 @@
-import React, { FC, useState, useCallback, Suspense, useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import React, { FC, useState, useCallback, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Filter } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import TokenChart from "@/components/TokenChart";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import TokenCard from "@/components/TokenCard";
-import { SocialBar } from "@/components/SocialBar";
 
 const PumpFunVision: FC = () => {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
@@ -39,7 +37,6 @@ const PumpFunVision: FC = () => {
   }
 
   if (selectedToken) {
-    const token = tokens.find(t => t.address === selectedToken);
     return (
       <Suspense fallback={
         <div className="flex items-center justify-center h-screen">
@@ -47,13 +44,10 @@ const PumpFunVision: FC = () => {
         </div>
       }>
         <ErrorBoundary>
-          <div className="flex flex-col min-h-screen">
-            <SocialBar selectedToken={token} />
-            <TokenChart 
-              tokenAddress={selectedToken} 
-              onBack={handleBack}
-            />
-          </div>
+          <TokenChart 
+            tokenAddress={selectedToken} 
+            onBack={handleBack}
+          />
         </ErrorBoundary>
       </Suspense>
     );
