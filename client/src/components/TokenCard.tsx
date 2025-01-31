@@ -251,18 +251,20 @@ export const TokenCard: FC<TokenCardProps> = ({
   };
 
   const socialLinks = useMemo(() => {
-    const website = token.website?.trim();
-    const telegram = token.telegram?.trim();
-    const twitter = token.twitter?.trim();
-    const pumpfun = `https://pump.fun/coin/${token.address}`;
-
-    return {
-      website: validateSocialUrl(website),
-      telegram: validateSocialUrl(telegram),
-      twitter: validateSocialUrl(twitter),
-      pumpfun
+    const validLinks = {
+      website: token.website && validateSocialUrl(token.website.trim()),
+      telegram: token.telegram && validateSocialUrl(token.telegram.trim()),
+      twitter: token.twitter && validateSocialUrl(token.twitter.trim()),
+      pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : null
     };
-  }, [token]);
+
+    return Object.entries(validLinks)
+      .filter(([_, value]) => value && value !== '#')
+      .reduce((acc, [key, value]) => {
+        acc[key] = value;
+        return acc;
+      }, {} as Record<string, string>);
+  }, [token.website, token.telegram, token.twitter, token.address]);
 
   const insiderMetrics: InsiderMetrics = { risk: metrics.insiderRisk, patterns: { quickFlips: 0, coordinatedBuys: 0 } };
 
@@ -369,54 +371,75 @@ export const TokenCard: FC<TokenCardProps> = ({
 
             <div className="flex items-center justify-between text-[11px] mt-2">
               <div className="flex items-center gap-2">
-                {socialLinks.website && (
-                  <a
-                    href={socialLinks.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                    title="Website"
-                  >
-                    <Globe className="w-4 h-4" />
-                  </a>
-                )}
-                {socialLinks.twitter && (
-                  <a
-                    href={socialLinks.twitter}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                    title="Twitter"
-                  >
-                    <XIcon className="w-4 h-4" />
-                  </a>
-                )}
-                {socialLinks.telegram && (
-                  <a
-                    href={socialLinks.telegram}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                    title="Telegram"
-                  >
-                    <TelegramIcon className="w-4 h-4" />
-                  </a>
-                )}
-                {socialLinks.pumpfun && (
-                  <a
-                    href={socialLinks.pumpfun}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                    title="PumpFun"
-                  >
-                    <PumpFunIcon className="w-4 h-4" />
-                  </a>
-                )}
+                {Object.entries(socialLinks).map(([platform, url]) => {
+                  if (!url || url === '#') return null;
+
+                  return platform === 'website' ? (
+                    <a
+                      key={platform}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                      }}
+                      className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                      title="Website"
+                    >
+                      <Globe className="w-4 h-4" />
+                    </a>
+                  ) : platform === 'twitter' ? (
+                    <a
+                      key={platform}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                      }}
+                      className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                      title="Twitter"
+                    >
+                      <XIcon className="w-4 h-4" />
+                    </a>
+                  ) : platform === 'telegram' ? (
+                    <a
+                      key={platform}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                      }}
+                      className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                      title="Telegram"
+                    >
+                      <TelegramIcon className="w-4 h-4" />
+                    </a>
+                  ) : platform === 'pumpfun' ? (
+                    <a
+                      key={platform}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                      }}
+                      className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                      title="PumpFun"
+                    >
+                      <PumpFunIcon className="w-4 h-4" />
+                    </a>
+                  ) : null;
+                })}
               </div>
 
               <div className="flex items-center gap-3">
