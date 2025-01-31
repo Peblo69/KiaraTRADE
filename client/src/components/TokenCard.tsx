@@ -138,6 +138,24 @@ export const TokenCard: FC<TokenCardProps> = ({
   onBuyClick = () => console.log('Buy clicked'),
   onCopyAddress = () => console.log('Address copied')
 }) => {
+  const [isMoving, setIsMoving] = useState(false);
+  const prevMarketCapRef = useRef(token.marketCapSol);
+
+  useEffect(() => {
+    if (token.marketCapSol !== prevMarketCapRef.current) {
+      const wasAboutToGraduate = prevMarketCapRef.current >= 70 && prevMarketCapRef.current < 100;
+      const wasGraduated = prevMarketCapRef.current >= 100;
+      const isAboutToGraduate = token.marketCapSol >= 70 && token.marketCapSol < 100;
+      const isGraduated = token.marketCapSol >= 100;
+
+      if ((wasAboutToGraduate !== isAboutToGraduate) || (wasGraduated !== isGraduated)) {
+        setIsMoving(true);
+        setTimeout(() => setIsMoving(false), 1000);
+      }
+
+      prevMarketCapRef.current = token.marketCapSol;
+    }
+  }, [token.marketCapSol]);
   const [imageError, setImageError] = useState(false);
   const [validatedImageUrl, setValidatedImageUrl] = useState<string | null>(null);
   const [currentProgress, setCurrentProgress] = useState(0);

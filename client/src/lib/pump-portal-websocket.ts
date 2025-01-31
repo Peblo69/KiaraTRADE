@@ -88,6 +88,9 @@ interface PumpPortalStore {
   getToken: (address: string) => PumpPortalToken | undefined;
   updateTokenPrice: (address: string, priceInUsd: number) => void;
   fetchTokenUri: (address: string) => Promise<string | null>;
+  getNewTokens: () => PumpPortalToken[];
+  getAboutToGraduateTokens: () => PumpPortalToken[];
+  getGraduatedTokens: () => PumpPortalToken[];
 }
 
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
@@ -371,6 +374,19 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     }
 
     return uri;
+  },
+
+  getNewTokens: () => {
+    const { tokens } = get();
+    return tokens.filter(t => t.isNew);
+  },
+  getAboutToGraduateTokens: () => {
+    const { tokens } = get();
+    return tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol >= 70 && t.marketCapSol < 100);
+  },
+  getGraduatedTokens: () => {
+    const { tokens } = get();
+    return tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol >= 100);
   }
 }));
 
