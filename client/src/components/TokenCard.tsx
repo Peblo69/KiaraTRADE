@@ -26,7 +26,7 @@ interface TokenMetrics {
   topHoldersPercentage: number;
   devWalletPercentage: number;
   insiderPercentage: number;
-  insiderRisk: number; 
+  insiderRisk: number;
   snipersCount: number;
   holdersCount: number;
 }
@@ -93,7 +93,7 @@ const calculateTokenMetrics = (
   const insiderBalances = Array.from(insiderWallets)
     .reduce((sum, wallet) => sum + (holdersMap.get(wallet) || 0), 0);
   const insiderPercentage = (insiderBalances / totalSupply) * 100;
-  const insiderRisk = Math.round(insiderPercentage / 10); 
+  const insiderRisk = Math.round(insiderPercentage / 10);
 
   return {
     marketCapSol: token.vSolInBondingCurve,
@@ -101,7 +101,7 @@ const calculateTokenMetrics = (
     topHoldersPercentage,
     devWalletPercentage,
     insiderPercentage,
-    insiderRisk, 
+    insiderRisk,
     snipersCount: snipers.size,
     holdersCount: holdersMap.size
   };
@@ -114,13 +114,13 @@ const getInsiderRiskColor = (metrics: InsiderMetrics) => {
 };
 
 // In the JSX where insider metrics are displayed
-const InsiderMetricsDisplay = ({metrics}: {metrics: InsiderMetrics}) => (
+const InsiderMetricsDisplay = ({ metrics }: { metrics: InsiderMetrics }) => (
   <div className="flex items-center gap-1">
-    <InsiderIcon 
+    <InsiderIcon
       className={cn(
         "current-color",
         getInsiderRiskColor(metrics)
-      )} 
+      )}
     />
     <span>{metrics.risk}</span>
     {metrics.patterns.quickFlips > 0 && (
@@ -235,8 +235,8 @@ export const TokenCard: FC<TokenCardProps> = ({
     percentage <= 15 ? "text-green-400" : "text-red-400";
 
   const getInsiderColor = (count: number) =>
-    count === 0 ? "text-green-400" : 
-    count <= 4 ? "text-yellow-400" : "text-red-400";
+    count === 0 ? "text-green-400" :
+      count <= 4 ? "text-yellow-400" : "text-red-400";
 
   const getSnipersColor = (count: number) =>
     count <= 5 ? "text-green-400" : "text-red-400";
@@ -258,11 +258,20 @@ export const TokenCard: FC<TokenCardProps> = ({
   };
 
   const socialLinks = useMemo(() => ({
-    website: token.metadata?.website || token.website,
-    telegram: token.metadata?.telegram || token.telegram,
-    twitter: token.metadata?.twitter || token.twitter,
+    website: token.socials?.website,
+    telegram: token.socials?.telegram,
+    twitter: token.socials?.twitter,
     pumpfun: `https://pump.fun/coin/${token.address}`
   }), [token]);
+
+  const handleSocialClick = (e: React.MouseEvent, url: string | undefined, type: 'website' | 'twitter' | 'telegram') => {
+    if (!url) return;
+    e.stopPropagation();
+    const validUrl = validateSocialUrl(url, type);
+    if (validUrl) {
+      window.open(validUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   //Assumed insider metrics are available in the metrics object.  Adjust as needed based on your actual data structure.
   const insiderMetrics: InsiderMetrics = { risk: metrics.insiderRisk, patterns: { quickFlips: 0, coordinatedBuys: 0 } };
@@ -372,37 +381,28 @@ export const TokenCard: FC<TokenCardProps> = ({
             <div className="flex items-center justify-between text-[11px] mt-2">
               <div className="flex items-center gap-2">
                 {socialLinks.website && (
-                  <a
-                    href={validateSocialUrl(socialLinks.website)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                  <div
+                    onClick={(e) => handleSocialClick(e, socialLinks.website, 'website')}
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors cursor-pointer"
                   >
                     <Globe size={14} />
-                  </a>
+                  </div>
                 )}
                 {socialLinks.twitter && (
-                  <a
-                    href={validateSocialUrl(socialLinks.twitter)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                  <div
+                    onClick={(e) => handleSocialClick(e, socialLinks.twitter, 'twitter')}
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors cursor-pointer"
                   >
                     <XIcon className="w-3.5 h-3.5" />
-                  </a>
+                  </div>
                 )}
                 {socialLinks.telegram && (
-                  <a
-                    href={validateSocialUrl(socialLinks.telegram)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                  <div
+                    onClick={(e) => handleSocialClick(e, socialLinks.telegram, 'telegram')}
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors cursor-pointer"
                   >
                     <TelegramIcon className="w-3.5 h-3.5" />
-                  </a>
+                  </div>
                 )}
                 <a
                   href={socialLinks.pumpfun}
