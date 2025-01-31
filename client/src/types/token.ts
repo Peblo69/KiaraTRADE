@@ -21,6 +21,7 @@ export interface Token {
   marketCapSol?: number;
   solPrice?: number;
   vSolInBondingCurve?: number;
+  vTokensInBondingCurve?: number;
   metadata?: {
     name: string;
     symbol: string;
@@ -31,6 +32,9 @@ export interface Token {
       verified: boolean;
       share: number;
     }>;
+    telegram?: string;
+    twitter?: string;
+    website?: string;
   };
   imageUrl?: string;
   recentTrades?: TokenTrade[];
@@ -40,6 +44,9 @@ export interface Token {
   insiderPercentage?: number;
   top10HoldersPercentage?: number;
   snipersCount?: number;
+  telegram?: string;
+  twitter?: string;
+  website?: string;
   socials?: {
     website?: string;
     twitter?: string;

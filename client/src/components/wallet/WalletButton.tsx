@@ -1,57 +1,43 @@
 import { FC } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet } from '@/lib/wallet';
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Wallet } from "lucide-react";
 
 export const WalletButton: FC = () => {
-  const { wallet, connect, disconnect, connecting, connected } = useWallet();
+  const { connect, disconnect, isConnecting, isDisconnecting, publicKey } = useWallet();
 
-  const handleClick = () => {
-    console.log('WalletButton click:', {
-      wallet: !!wallet,
-      connecting,
-      connected,
-      phantom: {
-        available: !!window.phantom?.solana,
-        isPhantom: window.phantom?.solana?.isPhantom
+  const handleClick = async () => {
+    try {
+      if (publicKey) {
+        await disconnect();
+      } else {
+        await connect();
       }
-    });
-
-    if (connected) {
-      disconnect();
-    } else {
-      connect().catch((error) => {
-        console.error('WalletButton connection error:', {
-          error,
-          name: error.name,
-          message: error.message
-        });
-      });
+    } catch (error) {
+      console.error('Wallet connection error:', error);
     }
   };
 
-  if (!wallet) {
-    console.log('No wallet adapter found');
+  if (isConnecting || isDisconnecting) {
     return (
-      <Button variant="outline" onClick={() => window.open('https://phantom.app/', '_blank')}>
-        Install Phantom
+      <Button disabled variant="outline" className="gap-2">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        {isConnecting ? 'Connecting...' : 'Disconnecting...'}
       </Button>
     );
   }
 
   return (
     <Button 
-      variant={connected ? "outline" : "default"}
+      variant={publicKey ? "outline" : "default"}
       onClick={handleClick}
-      disabled={connecting}
+      className="relative group flex items-center gap-2"
     >
-      {connecting ? (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Connecting
-        </>
-      ) : connected ? (
-        'Disconnect'
+      <Wallet className="w-4 h-4" />
+      {publicKey ? (
+        <span>
+          {publicKey.toString().slice(0, 4)}...{publicKey.toString().slice(-4)}
+        </span>
       ) : (
         'Connect Phantom'
       )}

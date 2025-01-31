@@ -26,7 +26,7 @@ interface TokenMetrics {
   topHoldersPercentage: number;
   devWalletPercentage: number;
   insiderPercentage: number;
-  insiderRisk: number; 
+  insiderRisk: number;
   snipersCount: number;
   holdersCount: number;
 }
@@ -93,7 +93,7 @@ const calculateTokenMetrics = (
   const insiderBalances = Array.from(insiderWallets)
     .reduce((sum, wallet) => sum + (holdersMap.get(wallet) || 0), 0);
   const insiderPercentage = (insiderBalances / totalSupply) * 100;
-  const insiderRisk = Math.round(insiderPercentage / 10); 
+  const insiderRisk = Math.round(insiderPercentage / 10);
 
   return {
     marketCapSol: token.vSolInBondingCurve,
@@ -101,7 +101,7 @@ const calculateTokenMetrics = (
     topHoldersPercentage,
     devWalletPercentage,
     insiderPercentage,
-    insiderRisk, 
+    insiderRisk,
     snipersCount: snipers.size,
     holdersCount: holdersMap.size
   };
@@ -116,11 +116,11 @@ const getInsiderRiskColor = (metrics: InsiderMetrics) => {
 // In the JSX where insider metrics are displayed
 const InsiderMetricsDisplay = ({metrics}: {metrics: InsiderMetrics}) => (
   <div className="flex items-center gap-1">
-    <InsiderIcon 
+    <InsiderIcon
       className={cn(
         "current-color",
         getInsiderRiskColor(metrics)
-      )} 
+      )}
     />
     <span>{metrics.risk}</span>
     {metrics.patterns.quickFlips > 0 && (
@@ -235,8 +235,8 @@ export const TokenCard: FC<TokenCardProps> = ({
     percentage <= 15 ? "text-green-400" : "text-red-400";
 
   const getInsiderColor = (count: number) =>
-    count === 0 ? "text-green-400" : 
-    count <= 4 ? "text-yellow-400" : "text-red-400";
+    count === 0 ? "text-green-400" :
+      count <= 4 ? "text-yellow-400" : "text-red-400";
 
   const getSnipersColor = (count: number) =>
     count <= 5 ? "text-green-400" : "text-red-400";
@@ -258,9 +258,9 @@ export const TokenCard: FC<TokenCardProps> = ({
   };
 
   const socialLinks = useMemo(() => ({
-    website: token.metadata?.website || token.website,
-    telegram: token.metadata?.telegram || token.telegram,
-    twitter: token.metadata?.twitter || token.twitter,
+    website: token.website || token.metadata?.website || token.socials?.website,
+    telegram: token.telegram || token.metadata?.telegram || token.socials?.telegram,
+    twitter: token.twitter || token.metadata?.twitter || token.socials?.twitter,
     pumpfun: `https://pump.fun/coin/${token.address}`
   }), [token]);
 

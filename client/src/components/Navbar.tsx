@@ -1,8 +1,7 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { WalletConnectButton } from "@/lib/wallet";
+import { WalletButton } from "@/components/wallet/WalletButton";
 import { LineChart, Wallet } from "lucide-react";
 
 export default function Navbar() {
@@ -12,7 +11,7 @@ export default function Navbar() {
         <div className="absolute inset-0 bg-gradient-to-r from-purple-950/10 via-indigo-950/5 to-purple-950/10">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMjAgMjBMNDAgMjBNMjAgMjBMMjAgNDBNMjAgMjBMMCwyME0yMCAyMEwyMCAwIiBzdHJva2U9InJnYmEoMTQ3LCA1MSwgMjM0LCAwLjEpIiBzdHJva2Utd2lkdGg9IjAuNSIvPjwvc3ZnPg==')] opacity-20" />
         </div>
-        
+
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
@@ -64,7 +63,7 @@ export default function Navbar() {
                   </div>
                 </Button>
               </Link>
-              
+
               <Link href="/wallet-tracking">
                 <Button 
                   variant="outline" 
@@ -82,7 +81,7 @@ export default function Navbar() {
 
               <div className="relative group">
                 <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-700/30 via-indigo-700/30 to-purple-700/30 rounded-lg blur opacity-30 group-hover:opacity-100 transition duration-1000 group-hover:duration-200" />
-                <WalletConnectButton />
+                <WalletButton />
               </div>
             </div>
           </div>
