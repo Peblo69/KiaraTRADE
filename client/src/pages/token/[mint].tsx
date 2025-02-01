@@ -12,7 +12,29 @@ export default function TokenPage({ mint }: Props) {
     const [tokenData, setTokenData] = useState<TokenData | null>(null);
     const [error, setError] = useState<string | null>(null);
 
+    console.log('🚨 COMPONENT LOADED WITH MINT:', mint);
+    console.log('🤖 HELIUS CLIENT:', !!heliusClient);
+    console.log('🌐 HELIUS CONNECTION:', !!heliusClient.connection);
+
     useEffect(() => {
+        // Test Helius directly
+        const testHelius = async () => {
+            try {
+                const key = import.meta.env.VITE_HELIUS_API_KEY;
+                console.log('🔑 HELIUS KEY EXISTS:', !!key);
+
+                const response = await fetch(
+                    `https://api.helius.xyz/v0/token-metrics/${mint}?api-key=${key}`
+                );
+                const data = await response.json();
+                console.log('📊 DIRECT HELIUS TEST:', data);
+            } catch (error) {
+                console.error('💀 DIRECT TEST FAILED:', error);
+            }
+        };
+
+        testHelius();
+
         try {
             console.log('🔌 Trying to connect to:', mint);
 
@@ -24,6 +46,15 @@ export default function TokenPage({ mint }: Props) {
                     console.error('❌ Subscribe failed:', err);
                     setError('Failed to subscribe to token updates');
                 });
+
+            // Debug WebSocket status
+            wsManager.on('connected', (id) => {
+                console.log('🔌 WEBSOCKET CONNECTED:', id);
+            });
+
+            wsManager.on('disconnected', (id) => {
+                console.log('❌ WEBSOCKET DIED:', id);
+            });
 
             // Debug incoming data
             wsManager.on('heliusUpdate', (data) => {
