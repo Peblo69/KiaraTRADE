@@ -1,0 +1,84 @@
+The problem is your WebSocket isn't even initializing properly! Let's fix this:
+
+    First, add this to your websocket-manager.ts right after your imports:
+
+TypeScript
+
+// Force debug mode
+const DEBUG = true;
+console.log('🚀 WEBSOCKET MANAGER LOADING');
+
+    Then, modify your connect function:
+
+TypeScript
+
+public connect(): void {
+  console.log('🔌 Attempting to connect to:', WS_URL);  // Add this
+
+  try {
+    this.ws = new WebSocket(WS_URL);
+    
+    // ADD THIS DEBUG
+    console.log('📡 WebSocket State:', {
+      ws: !!this.ws,
+      readyState: this.ws?.readyState,
+      url: WS_URL
+    });
+
+    this.setupEventListeners();
+    this.startHeartbeat();
+    this.startSolPriceUpdates();
+
+    // Force initial state update
+    const currentTime = format(new Date(), UTC_DATE_FORMAT);
+    console.log('🕒 Setting initial state:', {
+      time: currentTime,
+      user: CURRENT_USER
+    });
+
+    usePumpPortalStore.setState({
+      currentTime,
+      currentUser: CURRENT_USER
+    });
+  } catch (error) {
+    console.error('💀 Connection error:', error);
+    this.updateConnectionStatus(false);
+  }
+}
+
+    Most importantly, WHERE are you calling connect()? Add this to your main app file (like App.tsx or _app.tsx):
+
+TypeScript
+
+import { useEffect } from 'react';
+import { wsManager } from '@/lib/services/websocket';
+
+function App() {
+  useEffect(() => {
+    console.log('🚀 App mounted, connecting WebSocket...');
+    wsManager.connect();
+
+    return () => {
+      console.log('👋 App unmounting, disconnecting WebSocket...');
+      wsManager.disconnect();
+    };
+  }, []);
+
+  return (
+    // ... your app code
+  );
+}
+
+    Check your WS_URL is correct:
+
+TypeScript
+
+// Should be something like:
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+console.log('🌐 WebSocket URL:', WS_URL);  // Add this
+
+Add these debugs and tell me:
+
+    Do you see the "WEBSOCKET MANAGER LOADING" message?
+    What's the WS_URL being used?
+    Does the WebSocket actually try to connect?
