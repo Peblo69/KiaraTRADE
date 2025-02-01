@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
+import { create } from 'zustand';
 
-const HELIUS_WS_URL = process.env.NEXT_PUBLIC_HELIUS_WS_URL;
-const RECONNECT_DELAY = 5000;
-const MAX_RECONNECT_ATTEMPTS = 5;
+// 1. Correct URL format
+const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
+const HELIUS_WS_URL = `wss://rpc.helius.xyz/?api-key=${HELIUS_API_KEY}`;
 
 interface TokenData {
   marketStats: {
@@ -33,110 +34,213 @@ interface TokenData {
   };
 }
 
+// Store for managing active WebSocket subscriptions
+interface WsStore {
+  connections: Record<string, WebSocket>;
+  subscribers: Record<string, Set<string>>;
+  addSubscriber: (tokenAddress: string, subscriberId: string) => void;
+  removeSubscriber: (tokenAddress: string, subscriberId: string) => void;
+  getConnection: (tokenAddress: string) => WebSocket | null;
+  setConnection: (tokenAddress: string, ws: WebSocket) => void;
+  removeConnection: (tokenAddress: string) => void;
+}
+
+const useWsStore = create<WsStore>((set, get) => ({
+  connections: {},
+  subscribers: {},
+  addSubscriber: (tokenAddress, subscriberId) => {
+    set(state => {
+      const currentSubs = state.subscribers[tokenAddress] || new Set();
+      currentSubs.add(subscriberId);
+      return {
+        subscribers: {
+          ...state.subscribers,
+          [tokenAddress]: currentSubs
+        }
+      };
+    });
+  },
+  removeSubscriber: (tokenAddress, subscriberId) => {
+    set(state => {
+      const currentSubs = state.subscribers[tokenAddress];
+      if (currentSubs) {
+        currentSubs.delete(subscriberId);
+        if (currentSubs.size === 0) {
+          const { [tokenAddress]: _, ...rest } = state.subscribers;
+          return { subscribers: rest };
+        }
+      }
+      return state;
+    });
+  },
+  getConnection: (tokenAddress) => get().connections[tokenAddress] || null,
+  setConnection: (tokenAddress, ws) => set(state => ({
+    connections: { ...state.connections, [tokenAddress]: ws }
+  })),
+  removeConnection: (tokenAddress) => set(state => {
+    const { [tokenAddress]: _, ...rest } = state.connections;
+    return { connections: rest };
+  })
+}));
+
+// Cache store for token data
+interface CacheStore {
+  cache: Record<string, TokenData>;
+  setData: (tokenAddress: string, data: TokenData) => void;
+  getData: (tokenAddress: string) => TokenData | null;
+}
+
+const useCacheStore = create<CacheStore>((set, get) => ({
+  cache: {},
+  setData: (tokenAddress, data) => set(state => ({
+    cache: { ...state.cache, [tokenAddress]: data }
+  })),
+  getData: (tokenAddress) => get().cache[tokenAddress] || null
+}));
+
+function createWebSocket(tokenAddress: string, onData: (data: TokenData) => void) {
+  if (!HELIUS_API_KEY) {
+    throw new Error('Missing Helius API key');
+  }
+
+  const ws = new WebSocket(HELIUS_WS_URL);
+  let reconnectAttempts = 0;
+  let reconnectTimeout: NodeJS.Timeout | null = null;
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  const RECONNECT_DELAY = 5000;
+
+  ws.onopen = () => {
+    console.log('[Helius] Connected');
+    reconnectAttempts = 0;
+
+    // 2. Correct subscription format
+    ws.send(JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tokenMetadataSubscribe',
+      params: [
+        tokenAddress,
+        {
+          encoding: 'jsonParsed',
+          commitment: 'confirmed'
+        }
+      ]
+    }));
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const response = JSON.parse(event.data);
+
+      // 3. Check if it's a subscription message
+      if (response.method === 'tokenMetadataNotification') {
+        const tokenData = response.params.result;
+
+        const formattedData: TokenData = {
+          marketStats: {
+            marketCap: tokenData.marketCap || 0,
+            circulatingSupply: tokenData.supply?.circulating || 0,
+            totalSupply: tokenData.supply?.total || 0,
+            maxSupply: tokenData.supply?.max || 0,
+            priceChange24h: tokenData.priceHistory?.['24h']?.percentage || 0,
+            volume24h: tokenData.volume?.['24h'] || 0,
+            liquidity24h: tokenData.liquidity || 0,
+            ath: tokenData.ath || { price: 0, timestamp: 0 },
+            atl: tokenData.atl || { price: 0, timestamp: 0 }
+          },
+          socialMetrics: {
+            communityScore: tokenData.social?.score || 0,
+            socialVolume: tokenData.social?.volume || 0,
+            sentiment: tokenData.social?.sentiment || 'neutral',
+            trendingTopics: tokenData.social?.trending || []
+          },
+          realtime: {
+            currentPrice: tokenData.price || 0,
+            lastTrade: tokenData.lastTrade || null,
+            bidAskSpread: tokenData.orderBook?.spread || 0
+          }
+        };
+
+        onData(formattedData);
+        useCacheStore.getState().setData(tokenAddress, formattedData);
+      }
+    } catch (error) {
+      console.error('[Helius] Message processing error:', error);
+    }
+  };
+
+  ws.onerror = (error) => {
+    console.error('[Helius] WebSocket error:', error);
+  };
+
+  ws.onclose = () => {
+    useWsStore.getState().removeConnection(tokenAddress);
+
+    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      reconnectAttempts++;
+      console.log(`[Helius] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+
+      reconnectTimeout = setTimeout(() => {
+        const subscribers = useWsStore.getState().subscribers[tokenAddress];
+        if (subscribers && subscribers.size > 0) {
+          const newWs = createWebSocket(tokenAddress, onData);
+          useWsStore.getState().setConnection(tokenAddress, newWs);
+        }
+      }, RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts));
+    }
+  };
+
+  return ws;
+}
+
+// React hook for components
 export function useTokenAnalysis(tokenAddress: string) {
   const [data, setData] = useState<TokenData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const subscriberId = React.useId();
 
   useEffect(() => {
-    if (!tokenAddress || !HELIUS_WS_URL) return;
+    if (!tokenAddress || !HELIUS_API_KEY) {
+      setError('Missing token address or API key');
+      return;
+    }
 
-    let ws: WebSocket | null = null;
-    let reconnectAttempts = 0;
-    let reconnectTimeout: NodeJS.Timeout | null = null;
+    try {
+      // Check cache first
+      const cachedData = useCacheStore.getState().getData(tokenAddress);
+      if (cachedData) {
+        setData(cachedData);
+        setIsLoading(false);
+      }
 
-    const connect = () => {
-      try {
-        ws = new WebSocket(`${HELIUS_WS_URL}/token/${tokenAddress}`);
+      // Handle WebSocket connection
+      let ws = useWsStore.getState().getConnection(tokenAddress);
+      if (!ws) {
+        ws = createWebSocket(tokenAddress, setData);
+        useWsStore.getState().setConnection(tokenAddress, ws);
+      }
 
-        ws.onopen = () => {
-          console.log('[Helius] Connected');
-          setIsLoading(false);
-          reconnectAttempts = 0;
+      useWsStore.getState().addSubscriber(tokenAddress, subscriberId);
+      setIsLoading(false);
 
-          // Subscribe to token data
-          ws?.send(JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'subscribeToken',
-            params: {
-              token: tokenAddress,
-              encoding: 'jsonParsed'
-            }
-          }));
-        };
+      return () => {
+        useWsStore.getState().removeSubscriber(tokenAddress, subscriberId);
+        const subscribers = useWsStore.getState().subscribers[tokenAddress];
 
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-
-            // Update token data
-            setData(current => ({
-              ...current,
-              marketStats: {
-                marketCap: data.marketCap,
-                circulatingSupply: data.supply?.circulating || 0,
-                totalSupply: data.supply?.total || 0,
-                maxSupply: data.supply?.max || 0,
-                priceChange24h: data.priceChanges?.["24h"] || 0,
-                volume24h: data.volume?.["24h"] || 0,
-                liquidity24h: data.liquidity?.total || 0,
-                ath: data.highLow?.ath || { price: 0, timestamp: 0 },
-                atl: data.highLow?.atl || { price: 0, timestamp: 0 }
-              },
-              socialMetrics: {
-                communityScore: data.social?.score || 0,
-                socialVolume: data.social?.volume || 0,
-                sentiment: data.social?.sentiment || 'neutral',
-                trendingTopics: data.social?.trending || []
-              },
-              realtime: {
-                currentPrice: data.price || 0,
-                lastTrade: data.lastTrade,
-                bidAskSpread: data.orderBook?.spread || 0
-              }
-            }));
-          } catch (error) {
-            console.error('[Helius] Message processing error:', error);
+        if (!subscribers || subscribers.size === 0) {
+          const connection = useWsStore.getState().getConnection(tokenAddress);
+          if (connection) {
+            connection.close();
+            useWsStore.getState().removeConnection(tokenAddress);
           }
-        };
-
-        ws.onerror = (error) => {
-          console.error('[Helius] WebSocket error:', error);
-          setError('Connection error');
-        };
-
-        ws.onclose = () => {
-          setIsLoading(true);
-          if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-            reconnectAttempts++;
-            console.log(`[Helius] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-            reconnectTimeout = setTimeout(() => {
-              connect();
-            }, RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts));
-          } else {
-            setError('Connection failed after maximum retries');
-          }
-        };
-
-      } catch (error) {
-        console.error('[Helius] Connection failed:', error);
-        setError('Failed to establish connection');
-      }
-    };
-
-    connect();
-
-    // Cleanup
-    return () => {
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
-      }
-      if (ws) {
-        ws.close();
-      }
-    };
-  }, [tokenAddress]);
+        }
+      };
+    } catch (error: any) {
+      setError(error.message || 'Failed to connect to Helius');
+      setIsLoading(false);
+    }
+  }, [tokenAddress, subscriberId]);
 
   return { data, isLoading, error };
 }

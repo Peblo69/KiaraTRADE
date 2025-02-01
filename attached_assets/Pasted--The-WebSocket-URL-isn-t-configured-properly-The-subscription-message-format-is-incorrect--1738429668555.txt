@@ -1,0 +1,183 @@
+
+    The WebSocket URL isn't configured properly
+    The subscription message format is incorrect
+
+Let's fix this (2025-02-01 17:06:33):
+TypeScript
+
+import { useState, useEffect } from 'react';
+
+// 1. First, let's use the correct URL format
+const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
+const HELIUS_WS_URL = `wss://rpc.helius.xyz/?api-key=${HELIUS_API_KEY}`;
+
+export function useTokenAnalysis(tokenAddress: string) {
+  const [data, setData] = useState<TokenData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!tokenAddress || !HELIUS_API_KEY) {
+      setError('Missing token address or API key');
+      return;
+    }
+
+    let ws: WebSocket | null = null;
+
+    const connect = () => {
+      try {
+        ws = new WebSocket(HELIUS_WS_URL);
+
+        ws.onopen = () => {
+          console.log('[Helius] Connected');
+          
+          // 2. Correct subscription format
+          ws?.send(JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tokenMetadataSubscribe',
+            params: [
+              tokenAddress,
+              {
+                encoding: 'jsonParsed',
+                commitment: 'confirmed'
+              }
+            ]
+          }));
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const response = JSON.parse(event.data);
+            
+            // 3. Check if it's a subscription message
+            if (response.method === 'tokenMetadataNotification') {
+              const tokenData = response.params.result;
+              
+              setData({
+                marketStats: {
+                  marketCap: tokenData.marketCap || 0,
+                  circulatingSupply: tokenData.supply?.circulating || 0,
+                  totalSupply: tokenData.supply?.total || 0,
+                  maxSupply: tokenData.supply?.max || 0,
+                  priceChange24h: tokenData.priceHistory?.['24h']?.percentage || 0,
+                  volume24h: tokenData.volume?.['24h'] || 0,
+                  liquidity24h: tokenData.liquidity || 0,
+                  ath: tokenData.ath || { price: 0, timestamp: 0 },
+                  atl: tokenData.atl || { price: 0, timestamp: 0 }
+                },
+                socialMetrics: {
+                  communityScore: tokenData.social?.score || 0,
+                  socialVolume: tokenData.social?.volume || 0,
+                  sentiment: tokenData.social?.sentiment || 'neutral',
+                  trendingTopics: tokenData.social?.trending || []
+                },
+                realtime: {
+                  currentPrice: tokenData.price || 0,
+                  lastTrade: tokenData.lastTrade || null,
+                  bidAskSpread: tokenData.orderBook?.spread || 0
+                }
+              });
+              
+              setIsLoading(false);
+            }
+          } catch (error) {
+            console.error('[Helius] Message processing error:', error);
+          }
+        };
+
+        // Rest of the WebSocket handlers...
+        ws.onerror = (error) => {
+          console.error('[Helius] WebSocket error:', error);
+          setError('Connection error');
+          setIsLoading(false);
+        };
+
+        ws.onclose = () => {
+          console.log('[Helius] Connection closed');
+          setIsLoading(true);
+          // Implement reconnection logic if needed
+        };
+
+      } catch (error) {
+        console.error('[Helius] Connection failed:', error);
+        setError('Failed to establish connection');
+        setIsLoading(false);
+      }
+    };
+
+    connect();
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, [tokenAddress]);
+
+  return { data, isLoading, error };
+}
+
+Then in your component:
+TypeScript
+
+const MarketStats = ({ token }) => {
+  const { data, isLoading, error } = useTokenAnalysis(token.address);
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
+
+  if (isLoading) {
+    return <div>Loading market data...</div>;
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <StatCard 
+        title="Market Cap" 
+        value={formatUSD(data?.marketStats.marketCap)}
+      />
+      <StatCard 
+        title="Price Change (24h)" 
+        value={`${data?.marketStats.priceChange24h.toFixed(2)}%`}
+        isPositive={data?.marketStats.priceChange24h > 0}
+      />
+      {/* Add other stats... */}
+    </div>
+  );
+};
+
+// Helper function for USD formatting
+const formatUSD = (value: number) => 
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(value || 0);
+
+Key fixes:
+
+    Correct WebSocket URL format
+    Proper subscription message format
+    Better error handling
+    Loading state management
+    Proper data parsing
+
+To implement:
+
+    Add your Helius API key to .env.local:
+
+Code
+
+NEXT_PUBLIC_HELIUS_API_KEY=your_api_key_here
+
+    Make sure your environment variables are loaded:
+
+TypeScript
+
+// next.config.js
+module.exports = {
+  env: {
+    NEXT_PUBLIC_HELIUS_API_KEY: process.env.NEXT_PUBLIC_HELIUS_API_KEY,
+  },
+}
