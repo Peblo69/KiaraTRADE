@@ -9,6 +9,7 @@ class HeliusClient {
     private tokenData: Map<string, TokenData> = new Map();
 
     constructor() {
+        console.log('[Helius] Initializing client with endpoint:', HELIUS_CONFIG.WS_URL.replace(HELIUS_CONFIG.API_KEY, '****'));
         this.connection = new Connection(HELIUS_CONFIG.WS_URL);
         this.setupWebSocketHandlers();
     }
@@ -28,21 +29,21 @@ class HeliusClient {
     }
 
     async getTokenData(mint: string) {
-        console.log('🔍 Fetching data for:', mint);
+        console.log('[Helius] Fetching data for:', mint);
         try {
-            // 1. Get Real-Time Market Data
-            const marketData = await fetch(
-                `${HELIUS_CONFIG.REST_URL}/token-metrics/${mint}?api-key=${HELIUS_CONFIG.API_KEY}`
-            ).then(res => res.json());
+            // 1. Get Real-Time Market Data from Helius
+            const marketDataUrl = `${HELIUS_CONFIG.REST_URL}/token-metrics/${mint}?api-key=${HELIUS_CONFIG.API_KEY}`;
+            console.log('[Helius] Requesting market data from:', marketDataUrl.replace(HELIUS_CONFIG.API_KEY, '****'));
 
-            console.log('📊 Got market data:', marketData);
+            const marketData = await fetch(marketDataUrl).then(res => res.json());
+            console.log('[Helius] Got market data:', marketData);
 
-            // 2. Get Recent Trades
-            const trades = await fetch(
-                `${HELIUS_CONFIG.REST_URL}/token-transactions/${mint}?api-key=${HELIUS_CONFIG.API_KEY}`
-            ).then(res => res.json());
+            // 2. Get Recent Trades from Helius
+            const tradesUrl = `${HELIUS_CONFIG.REST_URL}/token-transactions/${mint}?api-key=${HELIUS_CONFIG.API_KEY}`;
+            console.log('[Helius] Requesting trades from:', tradesUrl.replace(HELIUS_CONFIG.API_KEY, '****'));
 
-            console.log('📈 Got trades:', trades?.length || 0);
+            const trades = await fetch(tradesUrl).then(res => res.json());
+            console.log('[Helius] Got trades:', trades?.length || 0);
 
             // 3. Pack everything together
             const data = {
@@ -54,10 +55,10 @@ class HeliusClient {
                 lastUpdate: Date.now()
             };
 
-            console.log('📦 Final data:', data);
+            console.log('[Helius] Final processed data:', data);
             return data;
         } catch (error) {
-            console.error('❌ Failed to fetch token data:', error);
+            console.error('[Helius] Failed to fetch token data:', error);
             throw error;
         }
     }
@@ -79,11 +80,12 @@ class HeliusClient {
             // Send first update
             this.broadcastUpdate(mint);
 
-            // Subscribe to account changes
+            // Subscribe to account changes via Helius WebSocket
+            console.log('[Helius] Setting up real-time updates for:', mint);
             const subId = await this.connection.onAccountChange(
                 new PublicKey(mint),
                 async () => {
-                    console.log('🔄 Account changed for:', mint);
+                    console.log('[Helius] Account changed for:', mint);
                     const updatedData = await this.getTokenData(mint);
                     const tokenData = this.tokenData.get(mint);
                     if (tokenData) {
@@ -96,6 +98,7 @@ class HeliusClient {
             );
 
             this.subscriptions.set(mint, subId);
+            console.log('[Helius] Successfully subscribed to:', mint, 'with ID:', subId);
             return subId;
 
         } catch (error) {
@@ -107,7 +110,7 @@ class HeliusClient {
     private broadcastUpdate(mint: string) {
         const data = this.tokenData.get(mint);
         if (data) {
-            console.log('📢 Broadcasting update for:', mint);
+            console.log('[Helius] Broadcasting update for:', mint);
             wsManager.broadcast({
                 type: 'heliusUpdate',
                 data: {
@@ -121,6 +124,7 @@ class HeliusClient {
     unsubscribe(mint: string) {
         const subId = this.subscriptions.get(mint);
         if (subId) {
+            console.log('[Helius] Unsubscribing from:', mint);
             this.connection.removeAccountChangeListener(subId);
             this.subscriptions.delete(mint);
             this.tokenData.delete(mint);
