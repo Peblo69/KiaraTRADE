@@ -139,7 +139,7 @@ const PumpFunVision: FC = () => {
                   <Filter className="h-4 w-4" /> Filter
                 </Button>
               </div>
-              <div className="token-column space-y-3 max-h-[80vh] overflow-y-auto pr-2">
+              <div className="token-column space-y-3 max-h-[80vh] overflow-y-auto">
                 {tokens.map((token) => (
                   <TokenCard
                     key={token.address}
