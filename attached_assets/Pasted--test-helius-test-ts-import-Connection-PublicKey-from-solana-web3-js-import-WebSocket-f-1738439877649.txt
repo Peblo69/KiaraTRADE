@@ -1,0 +1,100 @@
+// test/helius-test.ts
+import { Connection, PublicKey } from '@solana/web3.js';
+import WebSocket from 'ws';
+
+const HELIUS_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
+const TEST_DURATION = 60000; // 1 minute test
+
+async function testHeliusConnection() {
+    console.log('🚀 Starting Helius Connection Test');
+    
+    // Initialize connection
+    const ws = new WebSocket(`wss://rpc.helius.xyz/?api-key=${HELIUS_KEY}`);
+    
+    // Test metrics
+    let updateCount = 0;
+    let totalLatency = 0;
+    const startTime = Date.now();
+    
+    // Listen for connection
+    ws.on('open', () => {
+        console.log('✅ WebSocket Connected!');
+        
+        // Subscribe to a known active token (replace with your test token)
+        const testToken = "YOUR_TEST_TOKEN_ADDRESS";
+        
+        // Subscribe to token updates
+        ws.send(JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "accountSubscribe",
+            params: [
+                testToken,
+                {
+                    encoding: "jsonParsed",
+                    commitment: "processed"
+                }
+            ]
+        }));
+    });
+    
+    // Handle messages
+    ws.on('message', (data: WebSocket.Data) => {
+        const messageTime = Date.now();
+        updateCount++;
+        
+        const latency = messageTime - startTime;
+        totalLatency += latency;
+        
+        console.log(`📊 Update #${updateCount}`);
+        console.log(`⚡ Latency: ${latency}ms`);
+        console.log('📦 Data:', data.toString());
+        console.log('-------------------');
+    });
+    
+    // Handle errors
+    ws.on('error', (error) => {
+        console.error('❌ WebSocket Error:', error);
+    });
+    
+    // Run test for specified duration
+    setTimeout(() => {
+        const avgLatency = totalLatency / updateCount;
+        
+        console.log('\n📈 TEST RESULTS:');
+        console.log(`Total Updates: ${updateCount}`);
+        console.log(`Updates/Second: ${(updateCount / (TEST_DURATION / 1000)).toFixed(2)}`);
+        console.log(`Average Latency: ${avgLatency.toFixed(2)}ms`);
+        
+        ws.close();
+        process.exit(0);
+    }, TEST_DURATION);
+}
+
+// Run the test
+testHeliusConnection().catch(console.error);
+
+To run this test:
+
+    Create the file in your Replit project
+    Add a test script to your package.json:
+
+JSON
+
+{
+  "scripts": {
+    "test-helius": "ts-node test/helius-test.ts"
+  }
+}
+
+    Run it:
+
+bash
+
+npm run test-helius
+
+This will tell us:
+
+    ⚡ How fast updates come in
+    📊 What data we get
+    🎯 If it's reliable
