@@ -41,14 +41,15 @@ export interface Token {
   top10HoldersPercentage?: number;
   snipersCount?: number;
   socials?: {
-    website?: string;
-    twitter?: string;
-    telegram?: string;
-    pumpfun?: string;
+    website?: string | null;
+    twitter?: string | null;
+    telegram?: string | null;
+    pumpfun?: string | null;
   };
-  website?: string;
-  twitter?: string;
-  telegram?: string;
+  // Backwards compatibility
+  website?: string | null;
+  twitter?: string | null;
+  telegram?: string | null;
   bondingCurveKey?: string;
   devWallet?: string;
   lastAnalyzedAt?: string;

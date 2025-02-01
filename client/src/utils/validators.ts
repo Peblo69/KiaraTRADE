@@ -8,36 +8,57 @@ export const validateImageUrl = (url?: string): string | null => {
   }
 };
 
-export const validateSocialUrl = (url: string | undefined | null, platform: 'website' | 'telegram' | 'twitter' | 'pumpfun'): string | null => {
+export const validateSocialUrl = (url: string | null | undefined, platform: string): string | null => {
   if (!url) return null;
 
   try {
-    const parsed = new URL(url);
+    const parsedUrl = new URL(url);
 
     switch (platform) {
       case 'website':
-        return parsed.protocol === 'https:' ? url : null;
+        return parsedUrl.protocol === 'https:' ? url : null;
       case 'telegram':
-        return parsed.hostname === 't.me' ? 
-          `https://t.me/${parsed.pathname.split('/').filter(Boolean)[0]}` : null;
+        return parsedUrl.hostname === 't.me' ? url : null;
       case 'twitter':
-        return (parsed.hostname === 'twitter.com' || parsed.hostname === 'x.com') ? 
-          `https://x.com/${parsed.pathname.split('/').filter(Boolean)[0]}` : null;
-      case 'pumpfun':
-        return parsed.hostname === 'pump.fun' ? url : null;
+        return ['twitter.com', 'x.com'].includes(parsedUrl.hostname) ? url : null;
       default:
-        return null;
+        return url;
     }
   } catch {
     return null;
   }
 };
 
-export const formatSocialLinks = (token: any) => {
-  return {
-    website: validateSocialUrl(token.website, 'website'),
-    telegram: validateSocialUrl(token.telegram, 'telegram'),
-    twitter: validateSocialUrl(token.twitter, 'twitter'),
-    pumpfun: validateSocialUrl(token.pumpfun, 'pumpfun')
-  };
-};
+export function formatSocialLinks(links: {
+  website?: string | null;
+  telegram?: string | null;
+  twitter?: string | null;
+  pumpfun?: string | null;
+}) {
+  const validLinks: Record<string, string | null> = {};
+
+  // Website validation
+  if (links.website) {
+    const validWebsite = validateSocialUrl(links.website, 'website');
+    if (validWebsite) validLinks.website = validWebsite;
+  }
+
+  // Telegram validation
+  if (links.telegram) {
+    const validTelegram = validateSocialUrl(links.telegram, 'telegram');
+    if (validTelegram) validLinks.telegram = validTelegram;
+  }
+
+  // Twitter validation
+  if (links.twitter) {
+    const validTwitter = validateSocialUrl(links.twitter, 'twitter');
+    if (validTwitter) validLinks.twitter = validTwitter;
+  }
+
+  // PumpFun link
+  if (links.pumpfun) {
+    validLinks.pumpfun = links.pumpfun;
+  }
+
+  return validLinks;
+}

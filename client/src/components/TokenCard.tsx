@@ -251,15 +251,28 @@ export const TokenCard: FC<TokenCardProps> = ({
   };
 
   const socialLinks = useMemo(() => {
-    if (!token) return {};
+    // Debug log to check incoming data
+    console.log('Token socials:', {
+      fromSocials: token.socials,
+      fromDirect: {
+        website: token.website,
+        telegram: token.telegram,
+        twitter: token.twitter
+      }
+    });
 
     return formatSocialLinks({
-      website: token.socials?.website || token.website,
-      telegram: token.socials?.telegram || token.telegram,
-      twitter: token.socials?.twitter || token.twitter,
+      // Try socials object first, fall back to direct properties
+      website: token.socials?.website || token.website || null,
+      telegram: token.socials?.telegram || token.telegram || null,
+      twitter: token.socials?.twitter || token.twitter || null,
       pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : null
     });
-  }, [token]);
+  }, [token.socials, token.website, token.telegram, token.twitter, token.address]);
+
+  useEffect(() => {
+    console.log('Social links updated:', socialLinks);
+  }, [socialLinks]);
 
   const insiderMetrics: InsiderMetrics = { risk: metrics.insiderRisk, patterns: { quickFlips: 0, coordinatedBuys: 0 } };
 

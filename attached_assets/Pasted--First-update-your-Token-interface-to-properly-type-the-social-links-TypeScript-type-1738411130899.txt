@@ -1,0 +1,147 @@
+
+    First, update your Token interface to properly type the social links:
+
+TypeScript
+
+// types/token.ts
+export interface Token {
+  // ... other properties
+  socials?: {
+    website?: string | null;
+    telegram?: string | null;
+    twitter?: string | null;
+  };
+  // Backwards compatibility
+  website?: string | null;
+  telegram?: string | null;
+  twitter?: string | null;
+  // ... other properties
+}
+
+    Add or update the formatSocialLinks function in your validators:
+
+TypeScript
+
+// utils/validators.ts
+export function validateSocialUrl(url: string | null | undefined, platform: string): string | null {
+  if (!url) return null;
+  
+  try {
+    const parsedUrl = new URL(url);
+    
+    switch (platform) {
+      case 'website':
+        return parsedUrl.protocol === 'https:' ? url : null;
+      case 'telegram':
+        return parsedUrl.hostname === 't.me' ? url : null;
+      case 'twitter':
+        return ['twitter.com', 'x.com'].includes(parsedUrl.hostname) ? url : null;
+      default:
+        return url;
+    }
+  } catch {
+    return null;
+  }
+}
+
+export function formatSocialLinks(links: {
+  website?: string | null;
+  telegram?: string | null;
+  twitter?: string | null;
+  pumpfun?: string | null;
+}) {
+  const validLinks: Record<string, string | null> = {};
+
+  // Website validation
+  if (links.website) {
+    const validWebsite = validateSocialUrl(links.website, 'website');
+    if (validWebsite) validLinks.website = validWebsite;
+  }
+
+  // Telegram validation
+  if (links.telegram) {
+    const validTelegram = validateSocialUrl(links.telegram, 'telegram');
+    if (validTelegram) validLinks.telegram = validTelegram;
+  }
+
+  // Twitter validation
+  if (links.twitter) {
+    const validTwitter = validateSocialUrl(links.twitter, 'twitter');
+    if (validTwitter) validLinks.twitter = validTwitter;
+  }
+
+  // PumpFun link
+  if (links.pumpfun) {
+    validLinks.pumpfun = links.pumpfun;
+  }
+
+  return validLinks;
+}
+
+    Update the socialLinks useMemo in your TokenCard:
+
+TypeScript
+
+const socialLinks = useMemo(() => {
+  // Debug log to check incoming data
+  console.log('Token socials:', {
+    fromSocials: token.socials,
+    fromDirect: {
+      website: token.website,
+      telegram: token.telegram,
+      twitter: token.twitter
+    }
+  });
+
+  return formatSocialLinks({
+    // Try socials object first, fall back to direct properties
+    website: token.socials?.website || token.website || null,
+    telegram: token.socials?.telegram || token.telegram || null,
+    twitter: token.socials?.twitter || token.twitter || null,
+    pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : null
+  });
+}, [token.socials, token.website, token.telegram, token.twitter, token.address]);
+
+    Add debugging to track social links updates:
+
+TypeScript
+
+useEffect(() => {
+  console.log('Social links updated:', socialLinks);
+}, [socialLinks]);
+
+    Make sure your PumpPortal WebSocket is properly mapping the social links:
+
+TypeScript
+
+// In your pump-portal-websocket.ts
+addToken: (tokenData) => set((state) => {
+  debugLog('addToken', tokenData);
+  
+  // Extract social links
+  const socials = {
+    website: tokenData.website || tokenData.socials?.website || null,
+    telegram: tokenData.telegram || tokenData.socials?.telegram || null,
+    twitter: tokenData.twitter || tokenData.socials?.twitter || null
+  };
+
+  const newToken = {
+    // ... other token properties
+    socials,
+    // Keep direct properties for backwards compatibility
+    website: socials.website,
+    telegram: socials.telegram,
+    twitter: socials.twitter,
+    // ... other properties
+  };
+
+  // ... rest of the addToken logic
+});
+
+These changes will:
+
+    Properly type and validate social links
+    Handle both new (socials object) and old (direct properties) formats
+    Validate URLs before displaying them
+    Add debugging to help track social link issues
+    Ensure PumpPortal data is properly mapped
