@@ -84,7 +84,7 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
 // Provide compatibility with old name
 export const useUnifiedTokenStore = useUnifiedStore;
 
-// Sync with stores
+// Sync with PumpPortal store
 if (typeof window !== 'undefined') {
   // Subscribe to PumpPortal updates
   usePumpPortalStore.subscribe((state) => {
@@ -94,22 +94,6 @@ if (typeof window !== 'undefined') {
     if (store.activeToken) {
       const pumpToken = state.getToken(store.activeToken);
       if (pumpToken) {
-        // Get existing trades from Helius
-        const existingToken = store.getToken(store.activeToken);
-        const heliusTrades = existingToken?.realTime?.trades || [];
-
-        // Combine and deduplicate trades
-        const allTrades = [...(pumpToken.recentTrades || []), ...heliusTrades]
-          .reduce((map, trade) => {
-            map.set(trade.signature, {
-              ...trade,
-              type: trade.txType || trade.type,
-              priceInUsd: trade.solAmount * (state.solPrice || 0),
-              priceInSol: trade.solAmount
-            });
-            return map;
-          }, new Map());
-
         store.updateToken(store.activeToken, {
           address: pumpToken.address,
           name: pumpToken.name,
@@ -131,15 +115,6 @@ if (typeof window !== 'undefined') {
             telegram: pumpToken.telegram,
             website: pumpToken.website,
           },
-          realTime: {
-            ...existingToken?.realTime,
-            currentPrice: pumpToken.priceInUsd || 0,
-            priceInSol: pumpToken.priceInSol || 0,
-            volume24h: pumpToken.volume24h || 0,
-            trades: Array.from(allTrades.values())
-              .sort((a, b) => b.timestamp - a.timestamp)
-              .slice(0, 100)
-          }
         });
       }
     }
@@ -153,31 +128,13 @@ if (typeof window !== 'undefined') {
     if (store.activeToken) {
       const heliusData = state.tokenData[store.activeToken];
       if (heliusData) {
-        const existingToken = store.getToken(store.activeToken);
-        const pumpTrades = existingToken?.realTime?.trades || [];
-
-        // Combine and deduplicate trades
-        const allTrades = [...pumpTrades, ...(heliusData.trades || [])]
-          .reduce((map, trade) => {
-            map.set(trade.signature, {
-              ...trade,
-              type: trade.txType || trade.type,
-              priceInUsd: trade.priceInUsd || (trade.solAmount * (usePumpPortalStore.getState().solPrice || 0)),
-              priceInSol: trade.priceInSol || trade.solAmount
-            });
-            return map;
-          }, new Map());
-
         store.updateToken(store.activeToken, {
           realTime: {
-            ...existingToken?.realTime,
-            currentPrice: heliusData.lastPrice || existingToken?.realTime.currentPrice || 0,
-            priceInSol: heliusData.trades?.[0]?.priceInSol || existingToken?.realTime.priceInSol || 0,
-            volume24h: heliusData.volume24h || existingToken?.realTime.volume24h || 0,
-            trades: Array.from(allTrades.values())
-              .sort((a, b) => b.timestamp - a.timestamp)
-              .slice(0, 100)
-          }
+            currentPrice: heliusData.lastPrice || 0,
+            priceInSol: heliusData.trades?.[0]?.priceInSol || 0,
+            volume24h: heliusData.volume24h || 0,
+            trades: heliusData.trades || [],
+          },
         });
       }
     }
