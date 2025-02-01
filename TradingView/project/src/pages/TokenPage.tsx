@@ -3,6 +3,9 @@ import TokenMarketStats from '@/components/TokenMarketStats';
 import TradeHistory from '@/components/TradeHistory';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
+const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
+const HELIUS_WS_URL = `wss://rpc.helius.xyz/?api-key=${HELIUS_API_KEY}`;
+
 interface Props {
   tokenAddress: string;
 }
@@ -12,28 +15,31 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
   const ws = useRef<WebSocket | null>(null);
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
 
+  // Shared WebSocket connection for both components
   useEffect(() => {
-    if (!tokenAddress) return;
-    console.log('🔌 Connecting to PumpPortal for:', tokenAddress);
+    if (!tokenAddress || !HELIUS_API_KEY) return;
 
-    // Listen for WebSocket status
-    wsManager.on('connected', (id) => {
-      console.log('🔌 WEBSOCKET CONNECTED:', id);
+    ws.current = new WebSocket(HELIUS_WS_URL);
+
+    ws.current.onopen = () => {
+      console.log('[Helius] Token Page Connected');
+      ws.current?.send(JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'accountSubscribe',
+        params: [
+          tokenAddress,
+          {
+            commitment: 'confirmed',
+            encoding: 'jsonParsed'
+          }
+        ]
+      }));
       setIsLoading(false);
-    });
-
-    wsManager.on('disconnected', (id) => {
-      console.log('❌ WEBSOCKET DISCONNECTED:', id);
-    });
-
-    // Handle PumpPortal updates
-    wsManager.on('pumpUpdate', (data) => {
-      console.log('📨 Received update:', data);
-    });
+    };
 
     return () => {
-      console.log('🔄 Cleaning up subscription for:', tokenAddress);
-      wsManager.removeAllListeners('pumpUpdate');
+      ws.current?.close();
     };
   }, [tokenAddress]);
 

@@ -17,12 +17,13 @@ export interface Token {
   address: string;
   name: string;
   symbol: string;
+  website?: string | null;
+  twitter?: string | null;
+  telegram?: string | null;
   priceInUsd?: number;
   marketCapSol?: number;
   solPrice?: number;
   vSolInBondingCurve?: number;
-  bondingCurveKey?: string;
-  vTokensInBondingCurve?: number;
   metadata?: {
     name: string;
     symbol: string;
@@ -37,19 +38,36 @@ export interface Token {
   imageUrl?: string;
   recentTrades?: TokenTrade[];
   isNew?: boolean;
+  holdersCount?: number;
+  devWalletPercentage?: number;
+  insiderPercentage?: number;
+  top10HoldersPercentage?: number;
+  snipersCount?: number;
+  socials?: {
+    website?: string | null;
+    twitter?: string | null;
+    telegram?: string | null;
+    pumpfun?: string | null;
+  };
+  // Backwards compatibility
+  website?: string | null;
+  twitter?: string | null;
+  telegram?: string | null;
+  bondingCurveKey?: string;
+  devWallet?: string;
+  lastAnalyzedAt?: string;
+  analyzedBy?: string;
+  createdAt?: string;
+}
+
+export interface PumpPortalToken {
+  symbol: string;
+  name: string;
+  address: string;
   socials?: {
     website?: string;
     twitter?: string;
     telegram?: string;
     pumpfun?: string;
   };
-}
-
-export interface PumpPortalToken extends Token {
-  // Additional PumpPortal specific fields
-  pool?: string;
-  devWallet?: string;
-  createdAt?: string;
-  lastAnalyzedAt?: string;
-  analyzedBy?: string;
 }
