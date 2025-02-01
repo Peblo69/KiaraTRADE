@@ -42,8 +42,9 @@ export function initializePumpPortalWebSocket() {
 
             ws.onopen = () => {
                 log('[PumpPortal] WebSocket connected');
-                reconnectAttempt = 0;
+                reconnectAttempt = 0; // Reset reconnect attempts on successful connection
 
+                // Subscribe to events
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
                         method: "subscribeNewToken",
@@ -56,11 +57,13 @@ export function initializePumpPortalWebSocket() {
                     }));
                 }
 
+                // Broadcast connection status
                 wsManager.broadcast({
                     type: 'connection_status',
                     data: {
                         isConnected: true,
-                        currentTime: new Date().toISOString()
+                        currentTime: new Date().toISOString(),
+                        currentUser: "Peblo69"
                     }
                 });
             };
@@ -68,8 +71,8 @@ export function initializePumpPortalWebSocket() {
             ws.onmessage = async (event) => {
                 try {
                     const data = JSON.parse(event.data.toString());
+                    log('[PumpPortal] Received raw data:', data);
 
-                    // Only log important events, not raw data
                     if (data.message?.includes('Successfully subscribed')) {
                         log('[PumpPortal] Subscription confirmed:', data.message);
                         return;
@@ -129,6 +132,7 @@ export function initializePumpPortalWebSocket() {
                             data: enrichedData
                         });
 
+                        // Subscribe to trades for the new token
                         if (ws && ws.readyState === WebSocket.OPEN) {
                             ws.send(JSON.stringify({
                                 method: "subscribeTokenTrade",
@@ -137,15 +141,6 @@ export function initializePumpPortalWebSocket() {
                         }
                     }
                     else if (['buy', 'sell'].includes(data.txType) && data.mint) {
-                        // Only log trades over 0.1 SOL
-                        if (data.solAmount > 0.1) {
-                            log('[PumpPortal] Significant trade:', {
-                                type: data.txType,
-                                mint: data.mint,
-                                amount: data.solAmount
-                            });
-                        }
-
                         const tradeData = {
                             ...data,
                             timestamp: Date.now()
@@ -164,14 +159,17 @@ export function initializePumpPortalWebSocket() {
             ws.onclose = () => {
                 log('[PumpPortal] WebSocket disconnected');
 
+                // Broadcast disconnection status
                 wsManager.broadcast({
                     type: 'connection_status',
                     data: {
                         isConnected: false,
-                        currentTime: new Date().toISOString()
+                        currentTime: new Date().toISOString(),
+                        currentUser: "Peblo69"
                     }
                 });
 
+                // Attempt reconnection if not max attempts
                 if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
                     reconnectAttempt++;
                     log(`[PumpPortal] Attempting reconnect ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}`);
@@ -194,6 +192,7 @@ export function initializePumpPortalWebSocket() {
         }
     }
 
+    // Start the initial connection
     connect();
 
     return () => {
