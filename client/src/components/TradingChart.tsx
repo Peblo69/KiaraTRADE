@@ -1,9 +1,8 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Button } from '@/components/ui/button';
-import { LineChart, Settings, Maximize2, ChevronDown } from 'lucide-react';
-import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { createChart } from 'lightweight-charts';
-import type { IChartApi, CandlestickData, Time } from 'lightweight-charts';
+import { FC, useState, useEffect, useRef, useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import { Settings, Maximize2, LineChart } from "lucide-react";
+import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
+import { createChart, IChartApi, CandlestickData } from 'lightweight-charts';
 
 interface Props {
   tokenAddress: string;
@@ -18,25 +17,20 @@ const INTERVALS = [
   { label: '1d', value: '86400' }
 ];
 
-function getTimeframeMs(timeframe: string): number {
-  return parseInt(timeframe) * 1000;
-}
-
-const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
+const TradingChart: FC<Props> = ({ tokenAddress }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<any>(null);
-  const volumeSeriesRef = useRef<any>(null);
-  const [selectedTimeframe, setSelectedTimeframe] = useState('60');
+  const [selectedInterval, setSelectedInterval] = useState('60');
 
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
 
-  const { candleData, volumeData } = useMemo(() => {
+  const { candleData } = useMemo(() => {
     if (!token?.recentTrades?.length) {
-      return { candleData: [], volumeData: [] };
+      return { candleData: [] };
     }
 
-    const timeframeMs = getTimeframeMs(selectedTimeframe);
+    const timeframeMs = parseInt(selectedInterval) * 1000;
     const groupedTrades: Record<number, any[]> = {};
 
     token.recentTrades.forEach(trade => {
@@ -47,43 +41,28 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
       groupedTrades[timestamp].push(trade);
     });
 
-    const candles: CandlestickData<Time>[] = [];
-    const volumes: any[] = [];
-
-    Object.entries(groupedTrades).forEach(([time, trades]) => {
+    const candles: CandlestickData[] = Object.entries(groupedTrades).map(([time, trades]) => {
       const prices = trades.map(t => t.priceInUsd || 0);
-      const tokenVolumes = trades.map(t => t.tokenAmount);
-      const totalVolume = tokenVolumes.reduce((a, b) => a + b, 0);
-
-      const timestamp = parseInt(time) / 1000;
-
-      candles.push({
-        time: timestamp as Time,
+      return {
+        time: parseInt(time) / 1000,
         open: prices[0],
         high: Math.max(...prices),
         low: Math.min(...prices),
         close: prices[prices.length - 1],
-      });
-
-      volumes.push({
-        time: timestamp as Time,
-        value: totalVolume,
-        color: prices[prices.length - 1] >= prices[0] ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)'
-      });
+      };
     });
 
     return {
-      candleData: candles.sort((a, b) => (a.time as number) - (b.time as number)),
-      volumeData: volumes.sort((a, b) => (a.time as number) - (b.time as number))
+      candleData: candles.sort((a, b) => a.time - b.time)
     };
-  }, [token?.recentTrades, selectedTimeframe]);
+  }, [token?.recentTrades, selectedInterval]);
 
   useEffect(() => {
     if (!chartContainerRef.current || chartRef.current) return;
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { color: '#0A0A0A' },
+        background: { color: '#0D0B1F' },
         textColor: '#d1d4dc',
       },
       grid: {
@@ -107,15 +86,8 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
       wickDownColor: '#ef5350',
     });
 
-    const volumeSeries = chart.addHistogramSeries({
-      color: '#26a69a',
-      priceFormat: { type: 'volume' },
-      priceScaleId: '',
-    });
-
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
-    volumeSeriesRef.current = volumeSeries;
 
     return () => {
       chart.remove();
@@ -124,64 +96,43 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
   }, []);
 
   useEffect(() => {
-    if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
+    if (!candleSeriesRef.current) return;
 
-    requestAnimationFrame(() => {
-      candleSeriesRef.current.setData(candleData);
-      volumeSeriesRef.current.setData(volumeData);
+    candleSeriesRef.current.setData(candleData);
 
-      if (chartRef.current && candleData.length > 0) {
-        chartRef.current.timeScale().fitContent();
-      }
-    });
-  }, [candleData, volumeData]);
+    if (chartRef.current && candleData.length > 0) {
+      chartRef.current.timeScale().fitContent();
+    }
+  }, [candleData]);
 
   if (!token) return null;
 
-  const currentPrice = token.priceInUsd?.toFixed(8) || '0.00000000';
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold text-white">{token.symbol}</h2>
-            <span className="text-sm text-purple-400">${currentPrice}</span>
-          </div>
-          <p className="text-sm text-gray-400">Real-time market data</p>
+    <div className="relative bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
+      <div className="absolute inset-0 bg-gradient-to-b from-purple-900/10 to-transparent pointer-events-none" />
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-2">
+          <LineChart className="w-5 h-5 text-purple-400" />
+          <h2 className="text-purple-100 font-semibold">{token.symbol} Price Chart</h2>
         </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex gap-2 bg-[#1A1A1A] p-2 rounded-lg border border-purple-500/10">
-            {INTERVALS.map((interval) => (
-              <button
-                key={interval.value}
-                onClick={() => setSelectedTimeframe(interval.value)}
-                className={`
-                  px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200
-                  ${selectedTimeframe === interval.value 
-                    ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' 
-                    : 'text-gray-400 hover:bg-purple-500/20'
-                  }
-                `}
-              >
-                {interval.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" className="hover:bg-purple-500/20">
-              <Settings className="h-4 w-4" />
-            </Button>
-            <Button size="sm" variant="outline" className="hover:bg-purple-500/20">
-              <Maximize2 className="h-4 w-4" />
-            </Button>
-          </div>
+        <div className="flex space-x-2">
+          {INTERVALS.map(({ label, value }) => (
+            <button
+              key={value}
+              className={`px-3 py-1 rounded ${
+                selectedInterval === value
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-purple-900/20 text-purple-300 hover:bg-purple-900/40'
+              } transition-colors`}
+              onClick={() => setSelectedInterval(value)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div ref={chartContainerRef} className="w-full h-[500px] rounded-lg overflow-hidden" />
+      <div ref={chartContainerRef} className="h-[500px] rounded-lg overflow-hidden" />
     </div>
   );
 };
