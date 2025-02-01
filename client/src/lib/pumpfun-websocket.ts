@@ -1,2 +1,3 @@
-// File intentionally emptied - deprecated WebSocket implementation removed
+
+// File intentionally emptied - using pump-portal-websocket.ts instead
 export {};
