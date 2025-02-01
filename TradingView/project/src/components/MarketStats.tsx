@@ -1,15 +1,18 @@
 import React from 'react';
 import { BarChart2 } from 'lucide-react';
-import { useTokenAnalysis } from '@/lib/helius-token-analysis';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
 interface Props {
   tokenAddress: string;
 }
 
 const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
-  const { marketData, isLoading } = useTokenAnalysis(tokenAddress);
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const solPrice = usePumpPortalStore(state => state.solPrice);
 
-  if (isLoading) {
+  const loading = !token;
+
+  if (loading) {
     return (
       <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 space-y-4">
         <div className="animate-pulse space-y-4">
@@ -24,7 +27,20 @@ const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
     );
   }
 
-  if (!marketData) return null;
+  if (!token) return null;
+
+  const marketData = {
+    price: token.priceInUsd?.toFixed(8) || '0',
+    priceChange24h: {
+      isPositive: true,
+      value: 0
+    },
+    marketCap: (token.vTokensInBondingCurve * (token.priceInUsd || 0)).toFixed(2),
+    volume24h: token.recentTrades?.reduce((sum, trade) => 
+      sum + (trade.tokenAmount * (trade.priceInUsd || 0)), 0) || 0,
+    liquidity: (token.vSolInBondingCurve || 0) * solPrice,
+    totalSupply: token.vTokensInBondingCurve?.toString() || '0'
+  };
 
   return (
     <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30">
@@ -39,7 +55,7 @@ const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
         <div className="space-y-3">
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">Price</span>
-            <span className="text-sm font-medium text-purple-100">{marketData.price}</span>
+            <span className="text-sm font-medium text-purple-100">${marketData.price}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">24h Change</span>
@@ -51,37 +67,22 @@ const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
           </div>
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">Market Cap</span>
-            <span className="text-sm font-medium text-purple-100">{marketData.marketCap}</span>
+            <span className="text-sm font-medium text-purple-100">${marketData.marketCap}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">24h Volume</span>
-            <span className="text-sm font-medium text-purple-100">{marketData.volume24h}</span>
+            <span className="text-sm font-medium text-purple-100">${marketData.volume24h.toFixed(2)}</span>
           </div>
         </div>
 
         <div className="border-t border-purple-900/30 pt-4 space-y-3">
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">Liquidity</span>
-            <span className="text-sm font-medium text-purple-100">{marketData.liquidity}</span>
+            <span className="text-sm font-medium text-purple-100">${marketData.liquidity.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-purple-300">ATH</span>
-            <span className="text-sm font-medium text-purple-100">{marketData.ath}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-purple-300">ATL</span>
-            <span className="text-sm font-medium text-purple-100">{marketData.atl}</span>
-          </div>
-        </div>
-
-        <div className="border-t border-purple-900/30 pt-4 space-y-3">
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">Total Supply</span>
             <span className="text-sm font-medium text-purple-100">{marketData.totalSupply}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-purple-300">Circulating Supply</span>
-            <span className="text-sm font-medium text-purple-100">{marketData.circulatingSupply}</span>
           </div>
         </div>
       </div>
