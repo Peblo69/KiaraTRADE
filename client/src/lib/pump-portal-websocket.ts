@@ -1,32 +1,35 @@
-
 import { create } from 'zustand';
 import { format } from 'date-fns';
 import axios from 'axios';
 import { calculatePumpFunTokenMetrics, calculateVolumeMetrics, calculateTokenRisk } from "@/utils/token-calculations";
+// Placeholder import -  This needs to be replaced with the actual import path for SocialLinks
+import SocialLinks from './SocialLinks'; //  Replace './SocialLinks' with the correct path
 
 // Constants
 const MAX_TRADES_PER_TOKEN = 100;
 const MAX_TOKENS_IN_LIST = 50;
-const DEBUG = true;
 
+// Debug helper
+const DEBUG = true;
 function debugLog(action: string, data?: any) {
   if (DEBUG) {
     console.log(`[PumpPortal][${action}]`, data || '');
   }
 }
 
+// TokenMetadata interface that includes imageUrl
 export interface TokenMetadata {
-  name: string;
-  symbol: string;
-  decimals: number;
-  uri?: string;
-  mint?: string;
-  imageUrl?: string;
-  creators?: Array<{
-    address: string;
-    verified: boolean;
-    share: number;
-  }>;
+    name: string;
+    symbol: string;
+    decimals: number;
+    uri?: string;
+    mint?: string;
+    imageUrl?: string;
+    creators?: Array<{
+        address: string;
+        verified: boolean;
+        share: number;
+    }>;
 }
 
 export interface TokenTrade {
@@ -104,20 +107,30 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   solPrice: 0,
   activeTokenView: null,
 
+  // This function maps the websocket data to our token format
   addToken: (tokenData) => set((state) => {
     debugLog('addToken', tokenData);
     debugLog('Token URI:', tokenData.uri || tokenData.metadata?.uri);
 
+    // Extract basic token info
+    const tokenName = tokenData.metadata?.name || tokenData.name;
+    const tokenSymbol = tokenData.metadata?.symbol || tokenData.symbol;
+    const mintAddress = tokenData.mint || tokenData.address || '';
+    const imageUrl = tokenData.metadata?.imageUrl || tokenData.imageUrl;
+
+    // Calculate token metrics
     const tokenMetrics = calculatePumpFunTokenMetrics({
       vSolInBondingCurve: tokenData.vSolInBondingCurve || 0,
       vTokensInBondingCurve: tokenData.vTokensInBondingCurve || 0,
-      solPrice: state.solPrice
+      solPrice: state.solPrice // Access solPrice from state instead of global store
     });
 
+    debugLog('Token metrics calculated:', tokenMetrics);
+
     const newToken = {
-      symbol: tokenData.symbol || tokenData.metadata?.symbol || tokenData.address.slice(0, 6).toUpperCase(),
-      name: tokenData.name || tokenData.metadata?.name || `Token ${tokenData.address.slice(0, 8)}`,
-      address: tokenData.mint || tokenData.address,
+      symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
+      name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
+      address: mintAddress,
       bondingCurveKey: tokenData.bondingCurveKey || '',
       vTokensInBondingCurve: tokenData.vTokensInBondingCurve || 0,
       vSolInBondingCurve: tokenData.vSolInBondingCurve || 0,
@@ -127,14 +140,16 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       devWallet: tokenData.devWallet || tokenData.traderPublicKey,
       recentTrades: [],
       metadata: {
-        name: tokenData.name || tokenData.metadata?.name || `Token ${tokenData.address.slice(0, 8)}`,
-        symbol: tokenData.symbol || tokenData.metadata?.symbol || tokenData.address.slice(0, 6).toUpperCase(),
+        name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
+        symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
         decimals: 9,
-        mint: tokenData.mint || tokenData.address,
+        mint: mintAddress,
         uri: tokenData.uri || '',
-        imageUrl: tokenData.metadata?.imageUrl || tokenData.imageUrl,
+        imageUrl: imageUrl,
         creators: tokenData.creators || []
       },
+      lastAnalyzedAt: tokenData.timestamp?.toString(),
+      createdAt: tokenData.txType === 'create' ? tokenData.timestamp?.toString() : undefined,
       website: tokenData.website || null,
       twitter: tokenData.twitter || null,
       telegram: tokenData.telegram || null,
@@ -162,6 +177,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
       return {
         tokens: updatedTokens,
+        lastUpdate: Date.now(),
         ...(isViewed && {
           viewedTokens: {
             ...state.viewedTokens,
@@ -171,13 +187,29 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       };
     }
 
+    // Add new token with isNew flag
     const tokenWithFlag = {
       ...newToken,
       isNew: true
     };
 
+    // Calculate initial risk metrics if we have trade history
+    if (tokenData.recentTrades?.length) {
+      const volumeMetrics = calculateVolumeMetrics(tokenData.recentTrades);
+      const riskMetrics = calculateTokenRisk({
+        ...tokenWithFlag,
+        recentTrades: tokenData.recentTrades
+      });
+
+      Object.assign(tokenWithFlag, {
+        volume24h: volumeMetrics.volume24h,
+        riskMetrics
+      });
+    }
+
     return {
       tokens: [tokenWithFlag, ...state.tokens].slice(0, MAX_TOKENS_IN_LIST),
+      lastUpdate: Date.now(),
       ...(isViewed && {
         viewedTokens: {
           ...state.viewedTokens,
@@ -187,7 +219,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     };
   }),
 
-  addTradeToHistory: (address, tradeData) => set((state) => {
+  addTradeToHistory: (address: string, tradeData: TokenTrade) => set((state) => {
     debugLog('addTradeToHistory', {
       token: address,
       type: tradeData.txType,
@@ -197,6 +229,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const token = state.viewedTokens[address] || state.tokens.find(t => t.address === address);
     if (!token) return state;
 
+    // Add new trade and calculate updated metrics
     const updatedTrades = [tradeData, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN);
 
     const tokenMetrics = calculatePumpFunTokenMetrics({
@@ -229,6 +262,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
     return {
       tokens: updatedTokens,
+      lastUpdate: Date.now(),
       ...(state.viewedTokens[address] && {
         viewedTokens: {
           ...state.viewedTokens,
@@ -240,17 +274,17 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
   setConnected: (connected) => {
     debugLog('setConnected', { connected });
-    set({ isConnected: connected });
+    set({ isConnected: connected, lastUpdate: Date.now() });
   },
 
   setSolPrice: (price) => {
     debugLog('setSolPrice', { price });
-    set({ solPrice: price });
+    set({ solPrice: price, lastUpdate: Date.now() });
   },
 
   resetTokens: () => {
     debugLog('resetTokens');
-    set({ tokens: [], viewedTokens: {}, activeTokenView: null });
+    set({ tokens: [], viewedTokens: {}, activeTokenView: null, lastUpdate: Date.now() });
   },
 
   addToViewedTokens: (address) => set((state) => {
@@ -261,14 +295,15 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       viewedTokens: {
         ...state.viewedTokens,
         [address]: token
-      }
+      },
+      lastUpdate: Date.now()
     };
   }),
 
   setActiveTokenView: (address) => set((state) => {
     debugLog('setActiveTokenView', { address });
     if (!address) {
-      return { activeTokenView: null };
+      return { activeTokenView: null, lastUpdate: Date.now() };
     }
     const token = state.tokens.find(t => t.address === address);
     if (!token) return state;
@@ -277,7 +312,8 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       viewedTokens: {
         ...state.viewedTokens,
         [address]: token
-      }
+      },
+      lastUpdate: Date.now()
     };
   }),
 
@@ -287,7 +323,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     return state.viewedTokens[address] || state.tokens.find(t => t.address === address);
   },
 
-  updateTokenPrice: (address, priceInUsd) => set(state => {
+  updateTokenPrice: (address: string, priceInUsd: number) => set(state => {
     debugLog('updateTokenPrice', { address, priceInUsd });
     const priceInSol = priceInUsd / state.solPrice;
 
@@ -297,6 +333,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
     return {
       tokens: updatedTokens,
+      lastUpdate: Date.now(),
       ...(state.viewedTokens[address] && {
         viewedTokens: {
           ...state.viewedTokens,
@@ -306,17 +343,20 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     };
   }),
 
-  fetchTokenUri: async (address) => {
+  fetchTokenUri: async (address: string) => {
     const token = get().getToken(address);
     debugLog('fetchTokenUri', { address });
 
+    // If we already have a URI, return it
     if (token?.metadata?.uri) {
       debugLog('URI already exists:', token.metadata.uri);
       return token.metadata.uri;
     }
 
+    // Try to fetch from chain
     const uri = await fetchTokenMetadataFromChain(address);
     if (uri) {
+      // Update token with new URI
       set(state => ({
         tokens: state.tokens.map(t => {
           if (t.address === address) {
@@ -352,12 +392,10 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const { tokens } = get();
     return tokens.filter(t => t.isNew);
   },
-
   getAboutToGraduateTokens: () => {
     const { tokens } = get();
     return tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol >= 70 && t.marketCapSol < 100);
   },
-
   getGraduatedTokens: () => {
     const { tokens } = get();
     return tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol >= 100);
