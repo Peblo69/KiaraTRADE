@@ -1,88 +1,57 @@
-import { useEffect, useState } from 'react';
-import { heliusClient } from '@/lib/helius/client';
+import { useEffect } from 'react';
 import { wsManager } from '@/lib/services/websocket';
-import { TokenData } from '@/lib/helius/types';
 import { Card } from "@/components/ui/card";
-import TradeHistory from "@/components/TradeHistory";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 
 interface Props {
   mint: string;
 }
 
+// Make sure this matches PumpPortal's format
+interface Trade {
+  signature: string;
+  timestamp: number;
+  mint: string;
+  txType: 'buy' | 'sell';
+  tokenAmount: number;
+  solAmount: number;
+  priceInUsd: number;
+  traderPublicKey: string;
+}
+
 export default function TokenPage({ mint }: Props) {
-    const [tokenData, setTokenData] = useState<TokenData | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    // Get everything we need from PumpPortal store
     const token = usePumpPortalStore(state => state.getToken(mint));
     const addTradeToHistory = usePumpPortalStore(state => state.addTradeToHistory);
-
-    console.log('🚨 COMPONENT LOADED WITH MINT:', mint);
-    console.log('🤖 HELIUS CLIENT:', !!heliusClient);
-    console.log('🌐 HELIUS CONNECTION:', !!heliusClient.connection);
+    const addToViewedTokens = usePumpPortalStore(state => state.addToViewedTokens);
+    const setActiveTokenView = usePumpPortalStore(state => state.setActiveTokenView);
 
     useEffect(() => {
-        // FORCE INIT TEST
-        console.log('🚀 STARTING HELIUS TEST');
+        console.log('🚀 Setting up token view:', mint);
 
-        if (!import.meta.env.VITE_HELIUS_API_KEY) {
-            console.error('❌ NO HELIUS KEY FOUND!');
-            return;
-        }
+        // Set this token as active
+        addToViewedTokens(mint);
+        setActiveTokenView(mint);
 
-        // Test direct connection
-        fetch(`https://api.helius.xyz/v0/token-metrics/${mint}?api-key=${import.meta.env.VITE_HELIUS_API_KEY}`)
-            .then(res => res.json())
-            .then(data => {
-                console.log('✅ HELIUS DIRECT TEST:', data);
-            })
-            .catch(err => {
-                console.error('💀 HELIUS TEST FAILED:', err);
-            });
+        // Listen for trades
+        wsManager.on('trade', (tradeData: Trade) => {
+            if (tradeData.mint === mint) {
+                console.log('💰 New trade:', tradeData);
+                addTradeToHistory(mint, tradeData);
+            }
+        });
 
-        try {
-            console.log('🔌 Trying to connect to:', mint);
+        return () => {
+            setActiveTokenView(null);
+            wsManager.off('trade');
+        };
+    }, [mint, addToViewedTokens, setActiveTokenView, addTradeToHistory]);
 
-            heliusClient.subscribeToToken(mint)
-                .then(() => {
-                    console.log('✅ Subscribed successfully to:', mint);
-                })
-                .catch(err => {
-                    console.error('❌ Subscribe failed:', err);
-                    setError('Failed to subscribe to token updates');
-                });
-
-            // Debug WebSocket status
-            wsManager.on('connected', (id) => {
-                console.log('🔌 WEBSOCKET CONNECTED:', id);
-            });
-
-            wsManager.on('disconnected', (id) => {
-                console.log('❌ WEBSOCKET DIED:', id);
-            });
-
-            // Listen for PumpPortal trades
-            wsManager.on('trade', (tradeData) => {
-                if (tradeData.mint === mint) {
-                    console.log('🔥 NEW TRADE:', tradeData);
-                    addTradeToHistory(mint, tradeData);
-                }
-            });
-
-            return () => {
-                console.log('🔄 Cleaning up subscription for:', mint);
-                heliusClient.unsubscribe(mint);
-            };
-        } catch (error) {
-            console.error('💀 SETUP BROKE:', error);
-            setError('Something went wrong setting up token tracking');
-        }
-    }, [mint, addTradeToHistory]);
-
-    if (error) {
+    if (!token) {
         return (
             <div className="p-6">
-                <Card className="p-4 bg-red-500/10 text-red-500">
-                    {error}
+                <Card className="p-6">
+                    <p>Loading token data... 🚀</p>
                 </Card>
             </div>
         );
@@ -90,31 +59,107 @@ export default function TokenPage({ mint }: Props) {
 
     return (
         <div className="p-6 space-y-6">
-            {token && (
-                <Card className="p-6">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="space-y-2">
-                            <h3 className="text-sm text-purple-400 font-medium">Price</h3>
-                            <p className="text-xl font-bold">${token.priceInUsd?.toFixed(8)}</p>
+            {/* Price Card */}
+            <Card className="p-6">
+                <h2 className="text-2xl font-bold mb-4">
+                    {token.name} ({token.symbol})
+                </h2>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <p className="text-gray-400">Price</p>
+                        <p className="text-2xl font-bold">
+                            ${token.priceInUsd?.toFixed(6) || '0.000000'}
+                        </p>
+                    </div>
+                    <div>
+                        <p className="text-gray-400">24h Volume</p>
+                        <p className="text-xl">
+                            ${token.volume24h?.toFixed(2) || '0.00'}
+                        </p>
+                    </div>
+                </div>
+            </Card>
+
+            {/* Trade History */}
+            <Card className="p-6">
+                <h2 className="text-xl font-bold mb-4">Recent Trades</h2>
+                <div className="space-y-2">
+                    {token.recentTrades?.map((trade, i) => (
+                        <div 
+                            key={`${trade.signature}-${i}`}
+                            className={`p-3 rounded flex justify-between items-center ${
+                                trade.txType === 'buy' ? 'bg-green-500/10' : 'bg-red-500/10'
+                            }`}
+                        >
+                            <div>
+                                <span className={trade.txType === 'buy' ? 'text-green-400' : 'text-red-400'}>
+                                    {trade.txType.toUpperCase()}
+                                </span>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-sm opacity-75">
+                                    {trade.tokenAmount.toFixed(2)} tokens
+                                </div>
+                                <div className="font-bold">
+                                    ${trade.priceInUsd?.toFixed(6)}
+                                </div>
+                            </div>
+                            <div className="text-sm opacity-50">
+                                {new Date(trade.timestamp).toLocaleTimeString()}
+                            </div>
                         </div>
-                        <div className="space-y-2">
-                            <h3 className="text-sm text-purple-400 font-medium">Market Cap</h3>
-                            <p className="text-xl font-bold">${token.marketCapSol?.toFixed(2)}</p>
-                        </div>
-                        <div className="space-y-2">
-                            <h3 className="text-sm text-purple-400 font-medium">Volume</h3>
-                            <p className="text-xl font-bold">${token.volume24h || '0.00'}</p>
-                        </div>
-                        <div className="space-y-2">
-                            <h3 className="text-sm text-purple-400 font-medium">Liquidity</h3>
-                            <p className="text-xl font-bold">${token.vSolInBondingCurve?.toFixed(2)}</p>
+                    ))}
+                    {(!token.recentTrades || token.recentTrades.length === 0) && (
+                        <p className="text-center text-gray-400">
+                            No trades yet... 🎯
+                        </p>
+                    )}
+                </div>
+            </Card>
+
+            {/* Token Info */}
+            <Card className="p-6">
+                <h2 className="text-xl font-bold mb-4">Token Info</h2>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <p className="text-gray-400">Market Cap (SOL)</p>
+                        <p className="text-xl">
+                            {token.marketCapSol?.toFixed(2) || '0.00'} SOL
+                        </p>
+                    </div>
+                    <div>
+                        <p className="text-gray-400">Market Cap (USD)</p>
+                        <p className="text-xl">
+                            ${(token.marketCapSol * token.priceInUsd)?.toFixed(2) || '0.00'}
+                        </p>
+                    </div>
+                </div>
+                {token.socials && (
+                    <div className="mt-4">
+                        <p className="text-gray-400 mb-2">Links</p>
+                        <div className="flex space-x-4">
+                            {token.socials.website && (
+                                <a href={token.socials.website} target="_blank" rel="noopener noreferrer" 
+                                   className="text-blue-400 hover:text-blue-300">
+                                    Website
+                                </a>
+                            )}
+                            {token.socials.twitter && (
+                                <a href={token.socials.twitter} target="_blank" rel="noopener noreferrer"
+                                   className="text-blue-400 hover:text-blue-300">
+                                    Twitter
+                                </a>
+                            )}
+                            {token.socials.telegram && (
+                                <a href={token.socials.telegram} target="_blank" rel="noopener noreferrer"
+                                   className="text-blue-400 hover:text-blue-300">
+                                    Telegram
+                                </a>
+                            )}
                         </div>
                     </div>
-                </Card>
-            )}
-
-            {/* Trade History Component */}
-            <TradeHistory tokenAddress={mint} />
+                )}
+            </Card>
         </div>
     );
 }
