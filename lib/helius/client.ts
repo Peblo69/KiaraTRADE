@@ -9,9 +9,26 @@ class HeliusClient {
     private tokenData: Map<string, TokenData> = new Map();
 
     constructor() {
-        console.log('🌟 [HELIUS] Initializing client with endpoint:', HELIUS_CONFIG.WS_URL.replace(HELIUS_CONFIG.API_KEY, '****'));
-        this.connection = new Connection(HELIUS_CONFIG.WS_URL);
-        this.setupWebSocketHandlers();
+        try {
+            console.log('🌟 [HELIUS] Initializing client...');
+
+            if (!HELIUS_CONFIG.API_KEY) {
+                throw new Error('Missing Helius API key');
+            }
+
+            this.connection = new Connection(HELIUS_CONFIG.WS_URL);
+            console.log('🌟 [HELIUS] Connection initialized');
+
+            // Test connection
+            this.connection.getVersion()
+                .then(() => console.log('🌟 [HELIUS] Connection test successful'))
+                .catch(err => console.error('❌ [HELIUS] Connection test failed:', err));
+
+            this.setupWebSocketHandlers();
+        } catch (error) {
+            console.error('❌ [HELIUS] Failed to initialize client:', error);
+            throw error;
+        }
     }
 
     private setupWebSocketHandlers() {
@@ -33,26 +50,37 @@ class HeliusClient {
         try {
             // 1. Get Real-Time Market Data from Helius
             const marketDataUrl = `${HELIUS_CONFIG.REST_URL}/token-metrics/${mint}?api-key=${HELIUS_CONFIG.API_KEY}`;
-            console.log('🌟 [HELIUS] Requesting market data from:', marketDataUrl.replace(HELIUS_CONFIG.API_KEY, '****'));
+            console.log('🌟 [HELIUS] Requesting market data...');
 
-            const marketData = await fetch(marketDataUrl).then(res => res.json());
+            const marketResponse = await fetch(marketDataUrl);
+            if (!marketResponse.ok) {
+                throw new Error(`Market data fetch failed: ${marketResponse.status}`);
+            }
+            const marketData = await marketResponse.json();
             console.log('🌟 [HELIUS] Got market data:', marketData);
 
             // 2. Get Recent Trades from Helius
             const tradesUrl = `${HELIUS_CONFIG.REST_URL}/token-transactions/${mint}?api-key=${HELIUS_CONFIG.API_KEY}`;
-            console.log('🌟 [HELIUS] Requesting trades from:', tradesUrl.replace(HELIUS_CONFIG.API_KEY, '****'));
+            console.log('🌟 [HELIUS] Requesting trades...');
 
-            const trades = await fetch(tradesUrl).then(res => res.json());
+            const tradesResponse = await fetch(tradesUrl);
+            if (!tradesResponse.ok) {
+                throw new Error(`Trades fetch failed: ${tradesResponse.status}`);
+            }
+            const trades = await tradesResponse.json();
             console.log('🌟 [HELIUS] Got trades:', trades?.length || 0);
 
             // 3. Pack everything together
             const data = {
-                price: marketData.price,
-                priceUSD: marketData.priceUSD,
-                volume24h: marketData.volume24h,
-                marketCap: marketData.marketCap,
-                recentTrades: trades.slice(0, 30), // Last 30 trades
-                lastUpdate: Date.now()
+                mint,
+                stats: {
+                    price: marketData.price,
+                    priceUSD: marketData.priceUSD,
+                    volume24h: marketData.volume24h,
+                    marketCap: marketData.marketCap,
+                    recentTrades: trades.slice(0, 30), // Last 30 trades
+                    lastUpdate: Date.now()
+                }
             };
 
             console.log('🌟 [HELIUS] Final processed data:', data);
@@ -67,15 +95,18 @@ class HeliusClient {
         try {
             console.log('🌟 [HELIUS] Starting subscription for:', mint);
 
+            // Test connection first
+            await this.connection.getVersion();
+
             // Get initial data
             const initialData = await this.getTokenData(mint);
             console.log('🌟 [HELIUS] Got initial data for:', mint);
 
             this.tokenData.set(mint, {
                 mint,
-                stats: initialData,
-                trades: initialData.recentTrades,
-                recentTrades: initialData.recentTrades,
+                stats: initialData.stats,
+                trades: initialData.stats.recentTrades,
+                recentTrades: initialData.stats.recentTrades,
                 priceHistory: []
             });
 
@@ -91,8 +122,8 @@ class HeliusClient {
                     const updatedData = await this.getTokenData(mint);
                     const tokenData = this.tokenData.get(mint);
                     if (tokenData) {
-                        tokenData.stats = updatedData;
-                        tokenData.recentTrades = updatedData.recentTrades;
+                        tokenData.stats = updatedData.stats;
+                        tokenData.recentTrades = updatedData.stats.recentTrades;
                         this.broadcastUpdate(mint);
                     }
                 },
