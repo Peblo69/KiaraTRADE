@@ -436,17 +436,6 @@ import { create } from 'zustand';
 import { format } from 'date-fns';
 import { calculatePumpFunTokenMetrics } from "@/utils/token-calculations";
 
-// Constants
-const MAX_TRADES_PER_TOKEN = 100;
-const MAX_TOKENS_IN_LIST = 50;
-const DEBUG = true;
-
-function debugLog(action: string, data?: any) {
-  if (DEBUG) {
-    console.log(`[PumpPortal][${action}]`, data || '');
-  }
-}
-
 export interface TokenMetadata {
   name: string;
   symbol: string;
