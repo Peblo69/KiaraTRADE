@@ -6,9 +6,10 @@ import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
 interface Props {
   tokenAddress: string;
+  webSocket: WebSocket | null;
 }
 
-const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
+const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
   const [copiedAddress, setCopiedAddress] = React.useState<string | null>(null);
   const { trades, isLoading } = useTradeHistory(tokenAddress);
   const solPrice = usePumpPortalStore(state => state.solPrice);
