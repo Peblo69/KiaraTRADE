@@ -8,6 +8,12 @@ interface Props {
   tokenAddress: string;
 }
 
+// Whale detection function
+const isWhale = (solAmount: number) => {
+  const WHALE_THRESHOLD = 15; // 15 SOL threshold for whale trades
+  return solAmount >= WHALE_THRESHOLD;
+};
+
 const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
   const [copiedAddress, setCopiedAddress] = React.useState<string | null>(null);
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
@@ -75,7 +81,7 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
 
         <AnimatePresence initial={false}>
           {trades.map((trade, index) => {
-            const total = trade.solAmount * (solPrice || 0);
+            const total = trade.solAmount * solPrice;
             const isNew = index === 0;
 
             return (
@@ -94,11 +100,16 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
                 </span>
 
                 <div className="flex items-center space-x-1">
-                  <button
-                    className={`text-${trade.txType === 'buy' ? 'green' : 'red'}-400 hover:underline`}
-                  >
-                    {trade.traderPublicKey.slice(0, 6)}...{trade.traderPublicKey.slice(-4)}
-                  </button>
+                  <div className="flex items-center">
+                    <button
+                      className={`text-${trade.txType === 'buy' ? 'green' : 'red'}-400 hover:underline`}
+                    >
+                      {trade.traderPublicKey.slice(0, 6)}...{trade.traderPublicKey.slice(-4)}
+                    </button>
+                    {isWhale(trade.solAmount) && (
+                      <span className="ml-1" title={`Whale Trade: ${trade.solAmount} SOL`}>🐋</span>
+                    )}
+                  </div>
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                     <button
                       onClick={() => copyToClipboard(trade.traderPublicKey)}
