@@ -1,0 +1,192 @@
+From your token.ts I can see the TokenTrade interface:
+TypeScript
+
+export interface TokenTrade {
+  timestamp: number;
+  txType: 'buy' | 'sell' | 'create';
+  traderPublicKey: string;
+  counterpartyPublicKey?: string;
+  tokenAmount: number;
+  solAmount: number;
+  signature: string;
+  mint: string;
+}
+
+Let's create a real-time trade history component:
+TypeScript
+
+// hooks/useTradeHistory.ts
+import { useState, useEffect, useRef } from 'react';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { TokenTrade } from '@/types/token';
+
+export function useTradeHistory(tokenAddress: string) {
+  const [trades, setTrades] = useState<TokenTrade[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const ws = useRef<WebSocket | null>(null);
+
+  // Get PumpPortal data
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const solPrice = usePumpPortalStore(state => state.solPrice);
+
+  useEffect(() => {
+    if (!tokenAddress) return;
+
+    // Initialize with PumpPortal trade history
+    if (token?.recentTrades) {
+      setTrades(token.recentTrades);
+      setIsLoading(false);
+    }
+
+    // Connect to Helius for real-time trades
+    ws.current = new WebSocket(HELIUS_WS_URL);
+
+    ws.current.onopen = () => {
+      console.log('[Helius] Trade History Connected');
+      ws.current?.send(JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'accountSubscribe',
+        params: [
+          tokenAddress,
+          {
+            commitment: 'confirmed',
+            encoding: 'jsonParsed',
+            filters: [{ dataSize: 165 }] // Filter for token transactions
+          }
+        ]
+      }));
+    };
+
+    ws.current.onmessage = (event) => {
+      try {
+        const response = JSON.parse(event.data);
+        
+        if (response.method === 'accountNotification') {
+          const txInfo = response.params.result.value;
+          
+          // Create new trade entry
+          const newTrade: TokenTrade = {
+            timestamp: Date.now(),
+            txType: determineTxType(txInfo),
+            traderPublicKey: txInfo.owner,
+            tokenAmount: txInfo.tokenAmount?.uiAmount || 0,
+            solAmount: txInfo.lamports / 1e9,
+            signature: txInfo.txId,
+            mint: tokenAddress
+          };
+
+          // Update trades list
+          setTrades(current => [newTrade, ...current].slice(0, 100)); // Keep last 100 trades
+        }
+      } catch (error) {
+        console.error('[Helius] Trade processing error:', error);
+      }
+    };
+
+    return () => {
+      ws.current?.close();
+    };
+  }, [tokenAddress, token]);
+
+  return { trades, isLoading };
+}
+
+// components/TradeHistory.tsx
+import { FC } from 'react';
+import { useTradeHistory } from '@/hooks/useTradeHistory';
+import { formatDistanceToNow } from 'date-fns';
+
+const TradeHistory: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const { trades, isLoading } = useTradeHistory(tokenAddress);
+  const solPrice = usePumpPortalStore(state => state.solPrice);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4 animate-pulse">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="h-16 bg-gray-200 rounded"></div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {trades.map((trade, index) => (
+        <div 
+          key={trade.signature}
+          className={`flex items-center justify-between p-4 rounded-lg border ${
+            trade.txType === 'buy' 
+              ? 'border-green-500/20 bg-green-500/10' 
+              : 'border-red-500/20 bg-red-500/10'
+          }`}
+        >
+          <div className="flex flex-col">
+            <a 
+              href={`https://solscan.io/tx/${trade.signature}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-400 hover:text-blue-300"
+            >
+              {trade.signature.slice(0, 8)}...
+            </a>
+            <a 
+              href={`https://solscan.io/account/${trade.traderPublicKey}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-gray-400 hover:text-gray-300"
+            >
+              {trade.traderPublicKey.slice(0, 6)}...{trade.traderPublicKey.slice(-4)}
+            </a>
+          </div>
+
+          <div className="flex flex-col items-end">
+            <span className="font-medium">
+              {trade.tokenAmount.toLocaleString()} tokens
+            </span>
+            <div className="flex gap-2 text-sm text-gray-400">
+              <span>${(trade.solAmount * solPrice).toFixed(2)}</span>
+              <span>({trade.solAmount.toFixed(3)} SOL)</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end">
+            <span className={trade.txType === 'buy' ? 'text-green-400' : 'text-red-400'}>
+              {trade.txType.toUpperCase()}
+            </span>
+            <span className="text-xs text-gray-400">
+              {formatDistanceToNow(trade.timestamp, { addSuffix: true })}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default TradeHistory;
+
+Use it in your main component:
+TypeScript
+
+const TokenPage = ({ tokenAddress }) => {
+  return (
+    <div className="space-y-8">
+      <TokenMarketStats tokenAddress={tokenAddress} />
+      <div className="p-6 rounded-lg border border-purple-500/20 bg-card">
+        <h2 className="text-xl font-semibold mb-4">Trade History</h2>
+        <TradeHistory tokenAddress={tokenAddress} />
+      </div>
+    </div>
+  );
+};
+
+Features:
+
+    Real-time trade updates
+    Clickable wallet addresses
+    Transaction links
+    Amount in SOL and USD
+    Time ago format
+    Color coding for buys/sells
