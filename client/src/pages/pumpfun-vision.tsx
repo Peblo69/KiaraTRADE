@@ -1,10 +1,7 @@
-import React, { FC, useState, useCallback, Suspense, useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import React, { FC, useState, useCallback, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Filter, ArrowLeft } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import TokenChart from "@/components/TokenChart";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
 import TokenCard from "@/components/TokenCard";
 import MarketStats from "@/components/MarketStats";
 import SocialMetrics from "@/components/SocialMetrics";
@@ -12,6 +9,7 @@ import TradingChart from "@/components/TradingChart";
 import TradeHistory from "@/components/TradeHistory";
 import TradingForm from "@/components/TradingForm";
 import HolderAnalytics from "@/components/HolderAnalytics";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const PumpFunVision: FC = () => {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
@@ -53,34 +51,48 @@ const PumpFunVision: FC = () => {
       }>
         <ErrorBoundary>
           <div className="min-h-screen bg-[#070510] text-white">
-            <div className="container mx-auto px-4">
-              <div className="flex items-center mb-4">
-                <Button variant="ghost" onClick={handleBack} className="text-purple-400">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
+            <div className="max-w-[1800px] mx-auto p-6">
+              <div className="flex items-center mb-6">
+                <Button 
+                  variant="ghost" 
+                  onClick={handleBack}
+                  className="flex items-center gap-2 text-purple-400 hover:bg-purple-500/10"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back to Tokens</span>
                 </Button>
               </div>
-              <div className="grid grid-cols-12 gap-4">
-                {/* Left sidebar - Market Stats & Social Metrics */}
+
+              {/* Main Trading View Grid */}
+              <div className="grid grid-cols-12 gap-6">
+                {/* Left sidebar - Market Stats */}
                 <div className="col-span-2 space-y-4">
-                  <MarketStats tokenAddress={selectedToken} />
-                  <SocialMetrics tokenAddress={selectedToken} />
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                    <MarketStats tokenAddress={selectedToken} />
+                  </div>
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                    <SocialMetrics tokenAddress={selectedToken} />
+                  </div>
                 </div>
 
                 {/* Main content - Chart & Trade History */}
                 <div className="col-span-7 space-y-4">
-                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 hover:border-purple-500/40 transition-all duration-300">
                     <TradingChart tokenAddress={selectedToken} />
                   </div>
-                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30">
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 hover:border-purple-500/40 transition-all duration-300">
                     <TradeHistory tokenAddress={selectedToken} />
                   </div>
                 </div>
 
                 {/* Right sidebar - Trading Form & Analytics */}
                 <div className="col-span-3 space-y-4">
-                  <TradingForm tokenAddress={selectedToken} />
-                  <HolderAnalytics tokenAddress={selectedToken} />
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 hover:border-purple-500/40 transition-all duration-300">
+                    <TradingForm tokenAddress={selectedToken} />
+                  </div>
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 hover:border-purple-500/40 transition-all duration-300">
+                    <HolderAnalytics tokenAddress={selectedToken} />
+                  </div>
                 </div>
               </div>
             </div>
@@ -91,9 +103,9 @@ const PumpFunVision: FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-[1800px] mx-auto p-4">
-        <div className="grid grid-cols-3 gap-4">
+    <div className="min-h-screen bg-[#070510]">
+      <div className="max-w-[1800px] mx-auto p-6">
+        <div className="grid grid-cols-3 gap-6">
           {/* New Tokens Column */}
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-4">
