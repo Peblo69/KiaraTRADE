@@ -273,27 +273,43 @@ export const TokenCard: FC<TokenCardProps> = ({
   }, [token]);
 
   const socialLinks = useMemo(() => {
-    console.group(`Token Social Links Debug [${token.symbol}]`);
-    console.log('Raw token data:', {
-      address: token.address,
-      socials: token.socials,
+    console.log('Processing social links for token:', {
+      symbol: token.symbol,
       website: token.website,
+      twitter: token.twitter,
       telegram: token.telegram,
-      twitter: token.twitter
+      socials: token.socials
     });
 
-    const links = formatSocialLinks({
-      website: token.socials?.website || token.website || null,
-      telegram: token.socials?.telegram || token.telegram || null,
-      twitter: token.socials?.twitter || token.twitter || null,
+    const links = {
+      website: token.website || token.socials?.website || null,
+      telegram: token.telegram || token.socials?.telegram || null,
+      twitter: token.twitter || token.socials?.twitter || null,
       pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : null
+    };
+
+    console.log('Pre-formatted links:', links);
+
+    const formatted = formatSocialLinks(links);
+
+    console.log('Formatted social links:', formatted);
+
+    return formatted;
+  }, [token.website, token.telegram, token.twitter, token.socials, token.address]);
+
+  // Add debug effect
+  useEffect(() => {
+    console.group(`Social Links Debug - ${token.symbol}`);
+    console.log('Token data:', {
+      address: token.address,
+      website: token.website,
+      twitter: token.twitter,
+      telegram: token.telegram,
+      socials: token.socials
     });
-
-    console.log('Processed social links:', links);
+    console.log('Processed social links:', socialLinks);
     console.groupEnd();
-    return links;
-  }, [token.socials, token.website, token.telegram, token.twitter, token.address]);
-
+  }, [token, socialLinks]);
 
   return (
     <Card
@@ -399,31 +415,19 @@ export const TokenCard: FC<TokenCardProps> = ({
             <div className="flex items-center justify-between text-[11px] mt-2">
              <div className="flex items-center gap-2">
                 {Object.entries(socialLinks).map(([platform, url]) => {
-                  if (!url) {
-                    console.log(`[TokenCard] Skipping ${platform} - no valid URL`);
-                    return null;
-                  }
+                    // Debug logging
+                  console.log(`Rendering social link: ${platform} -> ${url}`);
 
-                  let IconComponent;
-                  switch (platform) {
-                    case 'website':
-                      IconComponent = Globe;
-                      break;
-                    case 'telegram':
-                      IconComponent = TelegramIcon;
-                      break;
-                    case 'twitter':
-                      IconComponent = XIcon;
-                      break;
-                    case 'pumpfun':
-                      IconComponent = PumpFunIcon;
-                      break;
-                    default:
-                      console.log(`[TokenCard] Skipping ${platform} - no icon component`);
-                      return null;
-                  }
+                  if (!url) return null;
 
-                  console.log(`[TokenCard] Rendering ${platform} link:`, url);
+                  const IconComponent = {
+                    website: Globe,
+                    telegram: TelegramIcon,
+                    twitter: XIcon,
+                    pumpfun: PumpFunIcon
+                  }[platform as keyof typeof socialLinks];
+
+                  if (!IconComponent) return null;
 
                   return (
                     <a
@@ -434,7 +438,6 @@ export const TokenCard: FC<TokenCardProps> = ({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log(`[TokenCard] Opening ${platform} link:`, url);
                         window.open(url, '_blank', 'noopener,noreferrer');
                       }}
                       className="text-blue-400/70 hover:text-blue-300 transition-colors"

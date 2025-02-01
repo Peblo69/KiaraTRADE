@@ -70,32 +70,38 @@ export function formatSocialLinks(links: {
   website?: string | null;
   telegram?: string | null;
   twitter?: string | null;
-    pumpfun?: string | null;
+  pumpfun?: string | null;
 }) {
   const validLinks: Record<string, string | null> = {};
+
+  console.log('Formatting social links:', links);
 
   // Website validation
   if (links.website) {
     const validWebsite = validateSocialUrl(links.website, 'website');
+    console.log('Validated website:', validWebsite);
     if (validWebsite) validLinks.website = validWebsite;
-  }
-
-  // Telegram validation
-  if (links.telegram) {
-    const validTelegram = validateSocialUrl(links.telegram, 'telegram');
-    if (validTelegram) validLinks.telegram = validTelegram;
   }
 
   // Twitter validation
   if (links.twitter) {
     const validTwitter = validateSocialUrl(links.twitter, 'twitter');
+    console.log('Validated twitter:', validTwitter);
     if (validTwitter) validLinks.twitter = validTwitter;
   }
 
-    // PumpFun link
-    if (links.pumpfun) {
-      validLinks.pumpfun = links.pumpfun;
-    }
+  // Telegram validation
+  if (links.telegram) {
+    const validTelegram = validateSocialUrl(links.telegram, 'telegram');
+    console.log('Validated telegram:', validTelegram);
+    if (validTelegram) validLinks.telegram = validTelegram;
+  }
 
+  // PumpFun link (no validation needed as we construct it)
+  if (links.pumpfun) {
+    validLinks.pumpfun = links.pumpfun;
+  }
+
+  console.log('Final valid links:', validLinks);
   return validLinks;
 }

@@ -1,0 +1,155 @@
+
+    First, update your Token interface to better match the incoming data:
+
+TypeScript
+
+export interface Token {
+  // ... other properties
+  website?: string | null;
+  twitter?: string | null;
+  telegram?: string | null;
+  // The socials object might not exist in the incoming data
+  socials?: {
+    website?: string | null;
+    twitter?: string | null;
+    telegram?: string | null;
+  };
+}
+
+    Update your social links processing in the TokenCard:
+
+TypeScript
+
+const socialLinks = useMemo(() => {
+  console.log('Processing social links for token:', {
+    symbol: token.symbol,
+    website: token.website,
+    twitter: token.twitter,
+    telegram: token.telegram,
+    socials: token.socials
+  });
+
+  const links = {
+    website: token.website || token.socials?.website || null,
+    telegram: token.telegram || token.socials?.telegram || null,
+    twitter: token.twitter || token.socials?.twitter || null,
+    pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : null
+  };
+
+  console.log('Pre-formatted links:', links);
+  
+  const formatted = formatSocialLinks(links);
+  
+  console.log('Formatted social links:', formatted);
+  
+  return formatted;
+}, [token.website, token.telegram, token.twitter, token.socials, token.address]);
+
+    Update your formatSocialLinks function:
+
+TypeScript
+
+export function formatSocialLinks(links: {
+  website?: string | null;
+  telegram?: string | null;
+  twitter?: string | null;
+  pumpfun?: string | null;
+}) {
+  const validLinks: Record<string, string | null> = {};
+
+  console.log('Formatting social links:', links);
+
+  // Website validation
+  if (links.website) {
+    const validWebsite = validateSocialUrl(links.website, 'website');
+    console.log('Validated website:', validWebsite);
+    if (validWebsite) validLinks.website = validWebsite;
+  }
+
+  // Twitter validation
+  if (links.twitter) {
+    const validTwitter = validateSocialUrl(links.twitter, 'twitter');
+    console.log('Validated twitter:', validTwitter);
+    if (validTwitter) validLinks.twitter = validTwitter;
+  }
+
+  // Telegram validation
+  if (links.telegram) {
+    const validTelegram = validateSocialUrl(links.telegram, 'telegram');
+    console.log('Validated telegram:', validTelegram);
+    if (validTelegram) validLinks.telegram = validTelegram;
+  }
+
+  // PumpFun link (no validation needed as we construct it)
+  if (links.pumpfun) {
+    validLinks.pumpfun = links.pumpfun;
+  }
+
+  console.log('Final valid links:', validLinks);
+  return validLinks;
+}
+
+    Update the social links rendering section:
+
+TypeScript
+
+<div className="flex items-center gap-2">
+  {Object.entries(socialLinks).map(([platform, url]) => {
+    // Debug logging
+    console.log(`Rendering social link: ${platform} -> ${url}`);
+    
+    if (!url) return null;
+
+    const IconComponent = {
+      website: Globe,
+      telegram: TelegramIcon,
+      twitter: XIcon,
+      pumpfun: PumpFunIcon
+    }[platform as keyof typeof socialLinks];
+
+    if (!IconComponent) return null;
+
+    return (
+      <a
+        key={platform}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }}
+        className="text-blue-400/70 hover:text-blue-300 transition-colors"
+        title={platform.charAt(0).toUpperCase() + platform.slice(1)}
+      >
+        <IconComponent className="w-4 h-4" />
+      </a>
+    );
+  })}
+</div>
+
+    Add a debug effect to track social links updates:
+
+TypeScript
+
+// Add this near your other useEffects in TokenCard
+useEffect(() => {
+  console.group(`Social Links Debug - ${token.symbol}`);
+  console.log('Token data:', {
+    address: token.address,
+    website: token.website,
+    twitter: token.twitter,
+    telegram: token.telegram,
+    socials: token.socials
+  });
+  console.log('Processed social links:', socialLinks);
+  console.groupEnd();
+}, [token, socialLinks]);
+
+These changes should:
+
+    Properly handle the social links that are coming at the root level of the token data
+    Provide better debugging information
+    Fix the validation and display of social links
+    Handle both the root-level links and the socials object (if it exists)
