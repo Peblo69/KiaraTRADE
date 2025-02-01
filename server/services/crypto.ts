@@ -10,7 +10,6 @@ interface PriceData {
 }
 
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
-const CACHE_DURATION = 60000; // 1 minute cache
 
 interface MarketOverview {
   total_coins: number;
@@ -55,6 +54,7 @@ class CryptoService {
   };
   private readonly MIN_REQUEST_INTERVAL = 2000; // 2 seconds between requests
   private readonly REQUEST_TIMEOUT = 10000; // 10 seconds
+  private readonly CACHE_DURATION = 20000; // 20 seconds cache duration
 
   private async fetchWithRetry<T>(url: string, retries = 3): Promise<T> {
     let lastError;
@@ -77,7 +77,7 @@ class CryptoService {
   async getMarketOverview(): Promise<MarketOverview> {
     const now = Date.now();
 
-    // Return cache if fresh (30 seconds)
+    // Return cache if fresh (20 seconds)
     if (this.marketOverviewCache.data && now - this.marketOverviewCache.lastUpdated < this.CACHE_DURATION) {
       return this.marketOverviewCache.data;
     }
@@ -129,7 +129,7 @@ class CryptoService {
     const cached = this.cache.get(symbol);
     const now = Date.now();
 
-    if (cached && now - cached.lastUpdated < CACHE_DURATION) {
+    if (cached && now - cached.lastUpdated < this.CACHE_DURATION) {
       return cached;
     }
 
@@ -160,8 +160,8 @@ class CryptoService {
         price: parseFloat(statsResponse.data.last),
         change24h: parseFloat(statsResponse.data.changeRate) * 100,
         volume: parseFloat(statsResponse.data.vol),
-        historicalPrices: historicalData.map(d => d.price),
-        historicalVolumes: historicalData.map(d => d.volume),
+        historicalPrices: historicalData.map((d: any) => d.price),
+        historicalVolumes: historicalData.map((d: any) => d.volume),
         lastUpdated: now
       };
 

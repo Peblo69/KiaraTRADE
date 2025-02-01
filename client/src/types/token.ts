@@ -60,7 +60,10 @@ export interface PumpPortalToken {
   symbol: string;
   name: string;
   address: string;
-  twitter?: string;
-  telegram?: string;
-  website?: string;
+  socials?: {
+    website?: string;
+    twitter?: string;
+    telegram?: string;
+    pumpfun?: string;
+  };
 }

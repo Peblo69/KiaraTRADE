@@ -252,19 +252,21 @@ export const TokenCard: FC<TokenCardProps> = ({
 
   const socialLinks = useMemo(() => {
     const validLinks = {
-      website: token.website && validateSocialUrl(token.website.trim()),
-      telegram: token.telegram && validateSocialUrl(token.telegram.trim()),
-      twitter: token.twitter && validateSocialUrl(token.twitter.trim()),
+      website: token.socials?.website || token.website,
+      telegram: token.socials?.telegram || token.telegram,
+      twitter: token.socials?.twitter || token.twitter,
       pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : null
     };
-
+  
     return Object.entries(validLinks)
-      .filter(([_, value]) => value && value !== '#')
-      .reduce((acc, [key, value]) => {
-        acc[key] = value;
+      .reduce((acc, [platform, url]) => {
+        const validUrl = validateSocialUrl(url, platform as 'website' | 'telegram' | 'twitter' | 'pumpfun');
+        if (validUrl) {
+          acc[platform] = validUrl;
+        }
         return acc;
       }, {} as Record<string, string>);
-  }, [token.website, token.telegram, token.twitter, token.address]);
+  }, [token.socials, token.website, token.telegram, token.twitter, token.address]);
 
   const insiderMetrics: InsiderMetrics = { risk: metrics.insiderRisk, patterns: { quickFlips: 0, coordinatedBuys: 0 } };
 
@@ -372,9 +374,16 @@ export const TokenCard: FC<TokenCardProps> = ({
             <div className="flex items-center justify-between text-[11px] mt-2">
               <div className="flex items-center gap-2">
                 {Object.entries(socialLinks).map(([platform, url]) => {
-                  if (!url || url === '#') return null;
+                  const IconComponent = {
+                    website: Globe,
+                    telegram: TelegramIcon,
+                    twitter: XIcon,
+                    pumpfun: PumpFunIcon
+                  }[platform];
 
-                  return platform === 'website' ? (
+                  if (!url || !IconComponent) return null;
+
+                  return (
                     <a
                       key={platform}
                       href={url}
@@ -386,59 +395,11 @@ export const TokenCard: FC<TokenCardProps> = ({
                         window.open(url, '_blank', 'noopener,noreferrer');
                       }}
                       className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                      title="Website"
+                      title={platform.charAt(0).toUpperCase() + platform.slice(1)}
                     >
-                      <Globe className="w-4 h-4" />
+                      <IconComponent className="w-4 h-4" />
                     </a>
-                  ) : platform === 'twitter' ? (
-                    <a
-                      key={platform}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        window.open(url, '_blank', 'noopener,noreferrer');
-                      }}
-                      className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                      title="Twitter"
-                    >
-                      <XIcon className="w-4 h-4" />
-                    </a>
-                  ) : platform === 'telegram' ? (
-                    <a
-                      key={platform}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        window.open(url, '_blank', 'noopener,noreferrer');
-                      }}
-                      className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                      title="Telegram"
-                    >
-                      <TelegramIcon className="w-4 h-4" />
-                    </a>
-                  ) : platform === 'pumpfun' ? (
-                    <a
-                      key={platform}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        window.open(url, '_blank', 'noopener,noreferrer');
-                      }}
-                      className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                      title="PumpFun"
-                    >
-                      <PumpFunIcon className="w-4 h-4" />
-                    </a>
-                  ) : null;
+                  );
                 })}
               </div>
 

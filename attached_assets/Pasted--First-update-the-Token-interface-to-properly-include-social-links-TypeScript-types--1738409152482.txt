@@ -1,0 +1,157 @@
+
+    First, update the Token interface to properly include social links:
+
+TypeScript
+
+// types/token.ts
+export interface Token {
+  // ... other properties
+  socials?: {
+    website?: string;
+    telegram?: string;
+    twitter?: string;
+    pumpfun?: string;
+  };
+  // ... other properties
+}
+
+    Update the PumpPortalToken interface in your websocket store:
+
+TypeScript
+
+export interface PumpPortalToken {
+  // ... other properties
+  socials?: {
+    website?: string;
+    telegram?: string;
+    twitter?: string;
+    pumpfun?: string;
+  };
+  // ... other properties
+}
+
+    Modify the mapTokenData function in your websocket store to include social links:
+
+TypeScript
+
+// In your websocket store
+export function mapTokenData(data: any): PumpPortalToken {
+  // ... other mappings
+  
+  const newToken = {
+    // ... other properties
+    socials: {
+      website: data.socials?.website || null,
+      telegram: data.socials?.telegram || null,
+      twitter: data.socials?.twitter || null,
+      pumpfun: data.address ? `https://pump.fun/coin/${data.address}` : null
+    },
+    // ... other properties
+  };
+
+  return newToken;
+}
+
+    Update the social links section in your TokenCard component:
+
+TypeScript
+
+// In TokenCard.tsx
+const socialLinks = useMemo(() => {
+  if (!token.socials) return {};
+  
+  const validLinks = {
+    website: token.socials.website && validateSocialUrl(token.socials.website, 'website'),
+    telegram: token.socials.telegram && validateSocialUrl(token.socials.telegram, 'telegram'),
+    twitter: token.socials.twitter && validateSocialUrl(token.socials.twitter, 'twitter'),
+    pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : null
+  };
+
+  return Object.entries(validLinks)
+    .filter(([_, value]) => value)
+    .reduce((acc, [key, value]) => {
+      acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
+}, [token.socials, token.address]);
+
+    Update the validators utility:
+
+TypeScript
+
+// utils/validators.ts
+export function validateSocialUrl(url: string | undefined | null, platform: 'website' | 'telegram' | 'twitter' | 'pumpfun'): string | null {
+  if (!url) return null;
+  
+  try {
+    const parsedUrl = new URL(url);
+    
+    switch (platform) {
+      case 'website':
+        return parsedUrl.protocol === 'https:' ? url : null;
+      case 'telegram':
+        return parsedUrl.hostname === 't.me' ? url : null;
+      case 'twitter':
+        return parsedUrl.hostname === 'twitter.com' ? url : null;
+      case 'pumpfun':
+        return parsedUrl.hostname === 'pump.fun' ? url : null;
+      default:
+        return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
+    Add a debug log to track social links:
+
+TypeScript
+
+// In TokenCard.tsx
+useEffect(() => {
+  console.log('Token socials:', token.socials);
+  console.log('Validated social links:', socialLinks);
+}, [token.socials, socialLinks]);
+
+    Finally, ensure the social links section in your JSX properly uses the validated links:
+
+TSX
+
+<div className="flex items-center gap-2">
+  {Object.entries(socialLinks).map(([platform, url]) => {
+    if (!url) return null;
+
+    const IconComponent = {
+      website: Globe,
+      telegram: TelegramIcon,
+      twitter: XIcon,
+      pumpfun: PumpFunIcon
+    }[platform];
+
+    return (
+      <a
+        key={platform}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }}
+        className="text-blue-400/70 hover:text-blue-300 transition-colors"
+        title={platform.charAt(0).toUpperCase() + platform.slice(1)}
+      >
+        <IconComponent className="w-4 h-4" />
+      </a>
+    );
+  })}
+</div>
+
+These changes should ensure that:
+
+    Social links are properly received from PumpPortal
+    Links are validated before being displayed
+    Icons are shown only for valid links
+    Links open in a new tab when clicked
+    The component properly updates when new token data is received

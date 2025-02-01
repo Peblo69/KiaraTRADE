@@ -31,25 +31,8 @@ async function startServer() {
 
     const PORT = process.env.PORT || 3000;
 
-    // Try to find an available port if the default one is in use
-    const findAvailablePort = (startPort: number): Promise<number> => {
-      return new Promise((resolve) => {
-        const testServer = createServer();
-        testServer.on('error', () => {
-          resolve(findAvailablePort(startPort + 1));
-        });
-        testServer.on('listening', () => {
-          testServer.close(() => resolve(startPort));
-        });
-        testServer.listen(startPort);
-      });
-    };
-
-    const availablePort = await findAvailablePort(Number(PORT));
-    log(`Found available port: ${availablePort}`);
-
-    server.listen(availablePort, () => {
-      log(`Server running on port ${availablePort}`);
+    server.listen(PORT, "0.0.0.0", () => {
+      log(`Server running on port ${PORT}`);
     }).on('error', (error: any) => {
       log(`Failed to start server: ${error.message}`);
       process.exit(1);
