@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { Token, TokenTrade } from '@/types/token';
+import { TokenTrade } from '@/types/token';
 
 const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
 const HELIUS_WS_URL = `wss://rpc.helius.xyz/?api-key=${HELIUS_API_KEY}`;
@@ -10,99 +10,97 @@ export function useTradeHistory(tokenAddress: string) {
   const [isLoading, setIsLoading] = useState(true);
   const ws = useRef<WebSocket | null>(null);
 
-  // Get PumpPortal data
+  // Get PumpPortal data and subscribe to its updates
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
   const solPrice = usePumpPortalStore(state => state.solPrice);
 
+  // Subscribe to PumpPortal trade updates
   useEffect(() => {
-    if (!tokenAddress || !HELIUS_API_KEY) {
-      setIsLoading(false);
-      return;
-    }
+    const unsubscribe = usePumpPortalStore.subscribe((state, prevState) => {
+      const currentToken = state.getToken(tokenAddress);
+      const prevToken = prevState.getToken(tokenAddress);
 
-    // Initialize with PumpPortal trade history
-    if (token?.recentTrades) {
-      setTrades(token.recentTrades.sort((a, b) => b.timestamp - a.timestamp));
-      setIsLoading(false);
-    }
+      if (currentToken?.recentTrades !== prevToken?.recentTrades) {
+        setTrades(currentToken?.recentTrades || []);
+      }
+    });
 
-    // Connect to Helius for real-time trades
+    return () => unsubscribe();
+  }, [tokenAddress]);
+
+  // Subscribe to Helius for real-time updates
+  useEffect(() => {
+    console.log('[Helius] Connecting for token:', tokenAddress);
+
     ws.current = new WebSocket(HELIUS_WS_URL);
 
     ws.current.onopen = () => {
-      console.log('[Helius] Trade History Connected');
+      console.log('[Helius] Connected');
+      // Subscribe to token trades
       ws.current?.send(JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
-        method: 'accountSubscribe',
+        method: 'subscribeTransactions',  // Changed this
         params: [
-          tokenAddress,
           {
+            account: tokenAddress,
             commitment: 'confirmed',
-            encoding: 'jsonParsed',
-            filters: [{ 
-              memcmp: {
-                offset: 0,
-                bytes: tokenAddress
-              }
-            }]
+            encoding: 'jsonParsed'
           }
         ]
       }));
     };
 
+    let reconnectTimeout: NodeJS.Timeout;
+
     ws.current.onmessage = (event) => {
       try {
         const response = JSON.parse(event.data);
+        console.log('[Helius] Received:', response);
 
-        if (response.method === 'accountNotification') {
-          const txInfo = response.params.result.value;
-          const amount = txInfo.tokenAmount?.uiAmount || 0;
+        if (response.method === 'transactionNotification') {
+          const tx = response.params.result;
 
-          // Skip empty trades
-          if (amount === 0) return;
-
-          // Create new trade entry
+          // Create new trade
           const newTrade: TokenTrade = {
             timestamp: Date.now(),
-            type: amount > 0 ? 'buy' : 'sell',
-            traderPublicKey: txInfo.owner,
-            tokenAmount: Math.abs(amount),
-            solAmount: txInfo.lamports / 1e9,
-            signature: txInfo.txId || response.params.result.signature,
-            mint: tokenAddress
+            txType: tx.type === 'buy' ? 'buy' : 'sell',
+            traderPublicKey: tx.accountData.owner,
+            tokenAmount: Math.abs(tx.tokenTransfers?.[0]?.amount || 0),
+            solAmount: tx.nativeTransfers?.[0]?.amount / 1e9 || 0,
+            signature: tx.signature,
+            mint: tokenAddress,
+            priceInUsd: (tx.nativeTransfers?.[0]?.amount / 1e9) * solPrice
           };
 
-          // Add new trade to the list
+          console.log('[Helius] New trade:', newTrade);
+
           setTrades(current => {
             const updated = [newTrade, ...current];
-            // Keep last 100 trades
-            return updated.slice(0, 100);
+            console.log('[Helius] Updated trades:', updated);
+            return updated.slice(0, 100); // Keep last 100 trades
           });
         }
       } catch (error) {
-        console.error('[Helius] Trade processing error:', error);
+        console.error('[Helius] Process error:', error);
       }
     };
 
-    ws.current.onerror = (error) => {
-      console.error('[Helius] WebSocket error:', error);
-    };
-
     ws.current.onclose = () => {
-      console.log('[Helius] Connection closed');
-      // Attempt to reconnect
-      setTimeout(() => {
-        if (token) {
-          ws.current = new WebSocket(HELIUS_WS_URL);
-        }
+      console.log('[Helius] Disconnected');
+      reconnectTimeout = setTimeout(() => {
+        console.log('[Helius] Attempting reconnect...');
+        ws.current = new WebSocket(HELIUS_WS_URL);
       }, 5000);
     };
 
+    setIsLoading(false);
+
     return () => {
+      clearTimeout(reconnectTimeout);
       ws.current?.close();
     };
-  }, [tokenAddress, token]);
+  }, [tokenAddress, solPrice]);
 
   return { trades, isLoading };
 }

@@ -1,0 +1,217 @@
+The problem is in the subscription filter. Let's fix both the hook and how we use it (2025-02-01 17:58:42):
+TypeScript
+
+// hooks/useTradeHistory.ts
+import { useState, useEffect, useRef } from 'react';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { TokenTrade } from '@/types/token';
+
+const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
+const HELIUS_WS_URL = `wss://rpc.helius.xyz/?api-key=${HELIUS_API_KEY}`;
+
+export function useTradeHistory(tokenAddress: string) {
+  const [trades, setTrades] = useState<TokenTrade[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const ws = useRef<WebSocket | null>(null);
+
+  // Get PumpPortal data and subscribe to its updates
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const solPrice = usePumpPortalStore(state => state.solPrice);
+
+  // Subscribe to PumpPortal trade updates
+  useEffect(() => {
+    const unsubscribe = usePumpPortalStore.subscribe((state, prevState) => {
+      const currentToken = state.getToken(tokenAddress);
+      const prevToken = prevState.getToken(tokenAddress);
+      
+      if (currentToken?.recentTrades !== prevToken?.recentTrades) {
+        setTrades(currentToken?.recentTrades || []);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [tokenAddress]);
+
+  // Subscribe to Helius for real-time updates
+  useEffect(() => {
+    console.log('[Helius] Connecting for token:', tokenAddress);
+    
+    ws.current = new WebSocket(HELIUS_WS_URL);
+
+    ws.current.onopen = () => {
+      console.log('[Helius] Connected');
+      // Subscribe to token trades
+      ws.current?.send(JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'subscribeTransactions',  // Changed this
+        params: [
+          {
+            account: tokenAddress,
+            commitment: 'confirmed',
+            encoding: 'jsonParsed'
+          }
+        ]
+      }));
+    };
+
+    let reconnectTimeout: NodeJS.Timeout;
+
+    ws.current.onmessage = (event) => {
+      try {
+        const response = JSON.parse(event.data);
+        console.log('[Helius] Received:', response);
+
+        if (response.method === 'transactionNotification') {
+          const tx = response.params.result;
+          
+          // Create new trade
+          const newTrade: TokenTrade = {
+            timestamp: Date.now(),
+            txType: tx.type === 'buy' ? 'buy' : 'sell',
+            traderPublicKey: tx.accountData.owner,
+            tokenAmount: Math.abs(tx.tokenTransfers?.[0]?.amount || 0),
+            solAmount: tx.nativeTransfers?.[0]?.amount / 1e9 || 0,
+            signature: tx.signature,
+            mint: tokenAddress,
+            priceInUsd: (tx.nativeTransfers?.[0]?.amount / 1e9) * solPrice
+          };
+
+          console.log('[Helius] New trade:', newTrade);
+
+          setTrades(current => {
+            const updated = [newTrade, ...current];
+            console.log('[Helius] Updated trades:', updated);
+            return updated.slice(0, 100); // Keep last 100 trades
+          });
+        }
+      } catch (error) {
+        console.error('[Helius] Process error:', error);
+      }
+    };
+
+    ws.current.onclose = () => {
+      console.log('[Helius] Disconnected');
+      reconnectTimeout = setTimeout(() => {
+        console.log('[Helius] Attempting reconnect...');
+        ws.current = new WebSocket(HELIUS_WS_URL);
+      }, 5000);
+    };
+
+    setIsLoading(false);
+
+    return () => {
+      clearTimeout(reconnectTimeout);
+      ws.current?.close();
+    };
+  }, [tokenAddress, solPrice]);
+
+  return { trades, isLoading };
+}
+
+// components/TradeHistory.tsx
+import { FC, useEffect } from "react";
+import { useTradeHistory } from "@/hooks/useTradeHistory";
+import { History, ExternalLink, Copy } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
+interface Props {
+  tokenAddress: string;
+}
+
+const TradeHistory: FC<Props> = ({ tokenAddress }) => {
+  const { trades, isLoading } = useTradeHistory(tokenAddress);
+
+  useEffect(() => {
+    console.log('Current trades:', trades);
+  }, [trades]);
+
+  const formatTime = (timestamp: number) => {
+    return new Date(timestamp).toLocaleTimeString('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
+  if (isLoading) {
+    return <div>Loading trades...</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <History className="w-5 h-5 text-purple-400" />
+          <h2 className="text-lg font-semibold text-purple-100">Trade History</h2>
+        </div>
+      </div>
+
+      <div className="custom-scrollbar h-[calc(100vh-220px)] overflow-y-auto">
+        <div className="grid grid-cols-6 text-xs text-purple-400 pb-2 sticky top-0 bg-[#0D0B1F] p-2">
+          <span>Time</span>
+          <span>Wallet</span>
+          <span className="text-right">Price</span>
+          <span className="text-right">Amount</span>
+          <span className="text-right">SOL</span>
+          <span className="text-right">Total</span>
+        </div>
+
+        <AnimatePresence>
+          {trades.map((trade, index) => (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.2 }}
+              key={`${trade.signature}-${index}`}
+              className={`grid grid-cols-6 text-xs p-2 hover:bg-purple-900/20 rounded group ${
+                index === 0 ? 'bg-purple-500/10' : ''
+              }`}
+            >
+              {/* Rest of your trade row content */}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+};
+
+export default TradeHistory;
+
+Key changes:
+
+    Changed to subscribeTransactions instead of accountSubscribe
+    Added PumpPortal subscription for trade updates
+    Better logging for debugging
+    Improved trade processing
+    Added AnimatePresence for smooth transitions
+
+Also add this debug component temporarily:
+TypeScript
+
+const DebugTrades: FC<{ trades: TokenTrade[] }> = ({ trades }) => {
+  return (
+    <div className="fixed bottom-4 right-4 p-4 bg-black/80 text-white text-xs">
+      <pre>{JSON.stringify(trades, null, 2)}</pre>
+    </div>
+  );
+};
+
+Add it to your TradeHistory component temporarily:
+TypeScript
+
+return (
+  <div>
+    {/* Your existing JSX */}
+    <DebugTrades trades={trades} />
+  </div>
+);
+
+This will help us see if:
+
+    Trades are being received
+    Data is being processed correctly
+    UI is updating properly
