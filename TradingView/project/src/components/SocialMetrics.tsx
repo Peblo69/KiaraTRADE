@@ -1,7 +1,14 @@
 import React from 'react';
 import { Users, MessageCircle, Star, Activity } from 'lucide-react';
+import { useTokenAnalysis } from '@/lib/helius-token-analysis';
 
-const SocialMetrics: React.FC = () => {
+interface Props {
+  tokenAddress: string;
+}
+
+const SocialMetrics: React.FC<Props> = ({ tokenAddress }) => {
+  const { data, isLoading } = useTokenAnalysis(tokenAddress);
+
   return (
     <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30">
       <div className="p-4 border-b border-purple-900/30">
@@ -18,7 +25,9 @@ const SocialMetrics: React.FC = () => {
               <MessageCircle className="w-4 h-4 text-purple-400" />
               <span className="text-sm text-purple-300">Community Score</span>
             </div>
-            <span className="text-sm font-medium text-purple-100">1/10</span>
+            <span className="text-sm font-medium text-purple-100">
+              {data?.socialMetrics.communityScore ?? 'Loading...'}/10
+            </span>
           </div>
 
           <div className="flex justify-between items-center">
@@ -26,7 +35,9 @@ const SocialMetrics: React.FC = () => {
               <Activity className="w-4 h-4 text-purple-400" />
               <span className="text-sm text-purple-300">Social Volume</span>
             </div>
-            <span className="text-sm font-medium text-purple-400">1%</span>
+            <span className="text-sm font-medium text-purple-400">
+              {data?.socialMetrics.socialVolume ?? 'Loading...'}
+            </span>
           </div>
 
           <div className="flex justify-between items-center">
@@ -34,7 +45,13 @@ const SocialMetrics: React.FC = () => {
               <Star className="w-4 h-4 text-purple-400" />
               <span className="text-sm text-purple-300">Sentiment</span>
             </div>
-            <span className="text-sm font-medium text-purple-400">Neutral</span>
+            <span className={`text-sm font-medium ${
+              data?.socialMetrics.sentiment === 'bullish' ? 'text-green-400' :
+              data?.socialMetrics.sentiment === 'bearish' ? 'text-red-400' :
+              'text-purple-400'
+            }`}>
+              {data?.socialMetrics.sentiment ?? 'Loading...'}
+            </span>
           </div>
         </div>
 
@@ -42,9 +59,16 @@ const SocialMetrics: React.FC = () => {
           <div className="space-y-2">
             <div className="text-sm text-purple-300">Trending Topics</div>
             <div className="space-y-1">
-              <div className="text-xs bg-purple-900/20 text-purple-100 px-2 py-1 rounded">
-                Initial Launch Discussion
-              </div>
+              {data?.socialMetrics.trendingTopics.map((topic, index) => (
+                <div 
+                  key={index}
+                  className="text-xs bg-purple-900/20 text-purple-100 px-2 py-1 rounded"
+                >
+                  {topic}
+                </div>
+              )) ?? (
+                <div className="text-xs text-purple-400">Loading trending topics...</div>
+              )}
             </div>
           </div>
         </div>
