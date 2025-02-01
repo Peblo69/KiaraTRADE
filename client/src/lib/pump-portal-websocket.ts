@@ -432,3 +432,291 @@ async function fetchTokenMetadataFromChain(mintAddress: string) {
 }
 
 export default usePumpPortalStore;
+import { create } from 'zustand';
+import { format } from 'date-fns';
+import { calculatePumpFunTokenMetrics } from "@/utils/token-calculations";
+
+// Constants
+const MAX_TRADES_PER_TOKEN = 100;
+const MAX_TOKENS_IN_LIST = 50;
+const DEBUG = true;
+
+function debugLog(action: string, data?: any) {
+  if (DEBUG) {
+    console.log(`[PumpPortal][${action}]`, data || '');
+  }
+}
+
+export interface TokenMetadata {
+  name: string;
+  symbol: string;
+  decimals: number;
+  uri?: string;
+  mint?: string;
+  imageUrl?: string;
+  creators?: Array<{
+    address: string;
+    verified: boolean;
+    share: number;
+  }>;
+}
+
+export interface TokenTrade {
+  signature: string;
+  timestamp: number;
+  mint: string;
+  txType: 'buy' | 'sell';
+  tokenAmount: number;
+  solAmount: number;
+  traderPublicKey: string;
+  counterpartyPublicKey: string;
+  bondingCurveKey: string;
+  vTokensInBondingCurve: number;
+  vSolInBondingCurve: number;
+  marketCapSol: number;
+  priceInSol: number;
+  priceInUsd: number;
+  isDevTrade?: boolean;
+}
+
+export interface PumpPortalToken {
+  symbol: string;
+  name: string;
+  address: string;
+  bondingCurveKey: string;
+  vTokensInBondingCurve: number;
+  vSolInBondingCurve: number;
+  marketCapSol: number;
+  priceInSol?: number;
+  priceInUsd?: number;
+  devWallet?: string;
+  recentTrades: TokenTrade[];
+  metadata?: TokenMetadata;
+  lastAnalyzedAt?: string;
+  analyzedBy?: string;
+  createdAt?: string;
+  volume24h?: number;
+  riskMetrics?: any;
+  isNew?: boolean;
+  website?: string | null;
+  twitter?: string | null;
+  telegram?: string | null;
+  socials?: {
+    website: string | null;
+    twitter: string | null;
+    telegram: string | null;
+  };
+}
+
+interface PumpPortalStore {
+  tokens: PumpPortalToken[];
+  viewedTokens: { [key: string]: PumpPortalToken };
+  isConnected: boolean;
+  solPrice: number;
+  activeTokenView: string | null;
+  addToken: (tokenData: any) => void;
+  addTradeToHistory: (address: string, tradeData: TokenTrade) => void;
+  setConnected: (connected: boolean) => void;
+  setSolPrice: (price: number) => void;
+  resetTokens: () => void;
+  addToViewedTokens: (address: string) => void;
+  setActiveTokenView: (address: string | null) => void;
+  getToken: (address: string) => PumpPortalToken | undefined;
+  updateTokenPrice: (address: string, priceInUsd: number) => void;
+}
+
+export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
+  tokens: [],
+  viewedTokens: {},
+  isConnected: false,
+  solPrice: 0,
+  activeTokenView: null,
+
+  addToken: (tokenData) => set((state) => {
+    debugLog('addToken', tokenData);
+
+    const tokenMetrics = calculatePumpFunTokenMetrics({
+      vSolInBondingCurve: tokenData.vSolInBondingCurve || 0,
+      vTokensInBondingCurve: tokenData.vTokensInBondingCurve || 0,
+      solPrice: state.solPrice
+    });
+
+    const newToken: PumpPortalToken = {
+      symbol: tokenData.symbol || tokenData.metadata?.symbol || tokenData.address.slice(0, 6).toUpperCase(),
+      name: tokenData.name || tokenData.metadata?.name || `Token ${tokenData.address.slice(0, 8)}`,
+      address: tokenData.mint || tokenData.address,
+      bondingCurveKey: tokenData.bondingCurveKey || '',
+      vTokensInBondingCurve: tokenData.vTokensInBondingCurve || 0,
+      vSolInBondingCurve: tokenData.vSolInBondingCurve || 0,
+      marketCapSol: tokenMetrics.marketCap.sol,
+      priceInSol: tokenMetrics.price.sol,
+      priceInUsd: tokenMetrics.price.usd,
+      devWallet: tokenData.devWallet || tokenData.traderPublicKey,
+      recentTrades: [],
+      metadata: tokenData.metadata,
+      website: tokenData.website || null,
+      twitter: tokenData.twitter || null,
+      telegram: tokenData.telegram || null,
+      socials: {
+        website: tokenData.website || null,
+        twitter: tokenData.twitter || null,
+        telegram: tokenData.telegram || null
+      }
+    };
+
+    const existingTokenIndex = state.tokens.findIndex(t => t.address === newToken.address);
+    const isViewed = state.activeTokenView === newToken.address;
+
+    if (existingTokenIndex >= 0) {
+      const updatedTokens = state.tokens.map((t, i) => {
+        if (i === existingTokenIndex) {
+          return {
+            ...t,
+            ...newToken,
+            recentTrades: [...(t.recentTrades || []), ...(tokenData.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN)
+          };
+        }
+        return t;
+      });
+
+      return {
+        tokens: updatedTokens,
+        ...(isViewed && {
+          viewedTokens: {
+            ...state.viewedTokens,
+            [newToken.address]: updatedTokens[existingTokenIndex]
+          }
+        })
+      };
+    }
+
+    const tokenWithFlag = {
+      ...newToken,
+      isNew: true
+    };
+
+    return {
+      tokens: [tokenWithFlag, ...state.tokens].slice(0, MAX_TOKENS_IN_LIST),
+      ...(isViewed && {
+        viewedTokens: {
+          ...state.viewedTokens,
+          [newToken.address]: tokenWithFlag
+        }
+      })
+    };
+  }),
+
+  addTradeToHistory: (address: string, tradeData: TokenTrade) => set((state) => {
+    debugLog('addTradeToHistory', {
+      token: address,
+      type: tradeData.txType,
+      amount: tradeData.solAmount
+    });
+
+    const token = state.viewedTokens[address] || state.tokens.find(t => t.address === address);
+    if (!token) return state;
+
+    const updatedTrades = [tradeData, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN);
+
+    const tokenMetrics = calculatePumpFunTokenMetrics({
+      vSolInBondingCurve: tradeData.vSolInBondingCurve,
+      vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
+      solPrice: state.solPrice
+    });
+
+    const updatedToken = {
+      ...token,
+      recentTrades: updatedTrades,
+      bondingCurveKey: tradeData.bondingCurveKey,
+      vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
+      vSolInBondingCurve: tradeData.vSolInBondingCurve,
+      marketCapSol: tokenMetrics.marketCap.sol,
+      priceInSol: tokenMetrics.price.sol,
+      priceInUsd: tokenMetrics.price.usd
+    };
+
+    const updatedTokens = state.tokens.map(t =>
+      t.address === address ? updatedToken : t
+    );
+
+    return {
+      tokens: updatedTokens,
+      ...(state.viewedTokens[address] && {
+        viewedTokens: {
+          ...state.viewedTokens,
+          [address]: updatedToken
+        }
+      })
+    };
+  }),
+
+  setConnected: (connected) => {
+    debugLog('setConnected', { connected });
+    set({ isConnected: connected });
+  },
+
+  setSolPrice: (price) => {
+    debugLog('setSolPrice', { price });
+    set({ solPrice: price });
+  },
+
+  resetTokens: () => {
+    debugLog('resetTokens');
+    set({ tokens: [], viewedTokens: {}, activeTokenView: null });
+  },
+
+  addToViewedTokens: (address) => set((state) => {
+    debugLog('addToViewedTokens', { address });
+    const token = state.tokens.find(t => t.address === address);
+    if (!token) return state;
+    return {
+      viewedTokens: {
+        ...state.viewedTokens,
+        [address]: token
+      }
+    };
+  }),
+
+  setActiveTokenView: (address) => set((state) => {
+    debugLog('setActiveTokenView', { address });
+    if (!address) {
+      return { activeTokenView: null };
+    }
+    const token = state.tokens.find(t => t.address === address);
+    if (!token) return state;
+    return {
+      activeTokenView: address,
+      viewedTokens: {
+        ...state.viewedTokens,
+        [address]: token
+      }
+    };
+  }),
+
+  getToken: (address) => {
+    debugLog('getToken', { address });
+    const state = get();
+    return state.viewedTokens[address] || state.tokens.find(t => t.address === address);
+  },
+
+  updateTokenPrice: (address: string, priceInUsd: number) => set(state => {
+    debugLog('updateTokenPrice', { address, priceInUsd });
+    const priceInSol = priceInUsd / state.solPrice;
+
+    const updatedTokens = state.tokens.map(token =>
+      token.address === address ? { ...token, priceInUsd, priceInSol } : token
+    );
+
+    return {
+      tokens: updatedTokens,
+      ...(state.viewedTokens[address] && {
+        viewedTokens: {
+          ...state.viewedTokens,
+          [address]: { ...state.viewedTokens[address], priceInUsd, priceInSol }
+        }
+      })
+    };
+  })
+}));
+
+export default usePumpPortalStore;
