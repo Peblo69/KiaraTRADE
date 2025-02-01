@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { Token, TokenTrade } from '@/types/token';
 
+const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
+const HELIUS_WS_URL = `wss://rpc.helius.xyz/?api-key=${HELIUS_API_KEY}`;
+
 export function useTradeHistory(tokenAddress: string) {
   const [trades, setTrades] = useState<TokenTrade[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -12,7 +15,10 @@ export function useTradeHistory(tokenAddress: string) {
   const solPrice = usePumpPortalStore(state => state.solPrice);
 
   useEffect(() => {
-    if (!tokenAddress) return;
+    if (!tokenAddress || !HELIUS_API_KEY) {
+      setIsLoading(false);
+      return;
+    }
 
     // Initialize with PumpPortal trade history
     if (token?.recentTrades) {
