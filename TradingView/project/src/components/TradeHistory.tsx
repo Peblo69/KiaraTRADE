@@ -1,19 +1,30 @@
 import React from 'react';
 import { History, ExternalLink, Copy, CheckCircle } from 'lucide-react';
-import { useTradeHistory } from '@/hooks/useTradeHistory';
-import { formatDistanceToNow } from 'date-fns';
-import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { motion, AnimatePresence } from 'framer-motion';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { useHeliusStore } from '@/lib/helius-websocket';
 
 interface Props {
   tokenAddress: string;
-  webSocket: WebSocket | null;
 }
 
-const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
+const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
   const [copiedAddress, setCopiedAddress] = React.useState<string | null>(null);
-  const { trades, isLoading } = useTradeHistory(tokenAddress);
+
+  // Get data from both sources
+  const pumpTrades = usePumpPortalStore(state => state.getToken(tokenAddress)?.recentTrades || []);
+  const heliusTrades = useHeliusStore(state => state.tokenData[tokenAddress]?.trades || []);
   const solPrice = usePumpPortalStore(state => state.solPrice);
+
+  // Combine and sort trades
+  const trades = React.useMemo(() => {
+    const combined = [...pumpTrades, ...heliusTrades]
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 100); // Keep last 100 trades
+
+    console.log('Combined trades:', combined);
+    return combined;
+  }, [pumpTrades, heliusTrades]);
 
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString('en-US', {
@@ -24,26 +35,25 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
     });
   };
 
-  if (isLoading) {
-    return (
-      <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 space-y-4">
-        <div className="animate-pulse space-y-4">
-          <div className="h-4 bg-purple-900/20 rounded w-1/4"></div>
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-16 bg-purple-900/20 rounded"></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const copyToClipboard = (address: string) => {
     navigator.clipboard.writeText(address);
     setCopiedAddress(address);
     setTimeout(() => setCopiedAddress(null), 2000);
   };
+
+  if (trades.length === 0) {
+    return (
+      <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+        <div className="flex items-center space-x-2 mb-4">
+          <History className="w-5 h-5 text-purple-400" />
+          <h2 className="text-purple-100 font-semibold">Trade History</h2>
+        </div>
+        <div className="text-center text-purple-400 py-8">
+          No trades yet
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30">
@@ -68,6 +78,7 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
           {trades.map((trade, index) => {
             const total = trade.solAmount * (solPrice || 0);
             const isNew = index === 0;
+            const type = trade.txType || trade.type;
 
             return (
               <motion.div
@@ -86,7 +97,7 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
 
                 <div className="flex items-center space-x-1">
                   <button
-                    className={`text-${trade.type === 'buy' ? 'green' : 'red'}-400 hover:underline`}
+                    className={`text-${type === 'buy' ? 'green' : 'red'}-400 hover:underline`}
                   >
                     {trade.traderPublicKey.slice(0, 6)}...{trade.traderPublicKey.slice(-4)}
                   </button>
@@ -113,9 +124,9 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
                 </div>
 
                 <span className={`text-right font-medium ${
-                  trade.type === 'buy' ? 'text-green-400' : 'text-red-400'
+                  type === 'buy' ? 'text-green-400' : 'text-red-400'
                 }`}>
-                  {trade.type.toUpperCase()}
+                  {type.toUpperCase()}
                 </span>
 
                 <span className="text-right text-purple-300">

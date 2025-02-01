@@ -1,52 +1,28 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import TokenMarketStats from '@/components/TokenMarketStats';
 import TradeHistory from '@/components/TradeHistory';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-
-const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
-const HELIUS_WS_URL = `wss://rpc.helius.xyz/?api-key=${HELIUS_API_KEY}`;
+import { setupTokenSubscription } from '@/lib/helius-websocket';
+import { Loader2 } from 'lucide-react';
 
 interface Props {
   tokenAddress: string;
 }
 
 const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
-  const [isLoading, setIsLoading] = useState(true);
-  const ws = useRef<WebSocket | null>(null);
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
 
-  // Shared WebSocket connection for both components
+  // Set up both data sources
   useEffect(() => {
-    if (!tokenAddress || !HELIUS_API_KEY) return;
-
-    ws.current = new WebSocket(HELIUS_WS_URL);
-
-    ws.current.onopen = () => {
-      console.log('[Helius] Token Page Connected');
-      ws.current?.send(JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'accountSubscribe',
-        params: [
-          tokenAddress,
-          {
-            commitment: 'confirmed',
-            encoding: 'jsonParsed'
-          }
-        ]
-      }));
-      setIsLoading(false);
-    };
-
-    return () => {
-      ws.current?.close();
-    };
+    if (tokenAddress) {
+      setupTokenSubscription(tokenAddress);
+    }
   }, [tokenAddress]);
 
   if (!token) {
     return (
       <div className="flex items-center justify-center h-[50vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+        <Loader2 className="w-12 h-12 animate-spin text-purple-500" />
       </div>
     );
   }
@@ -73,10 +49,7 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
         <div className="grid gap-8 md:grid-cols-2">
           <div className="space-y-8">
             <div className="p-6 rounded-lg border border-purple-500/20 bg-card">
-              <TokenMarketStats 
-                tokenAddress={tokenAddress} 
-                webSocket={ws.current}
-              />
+              <TokenMarketStats tokenAddress={tokenAddress} />
             </div>
 
             {/* Social Links */}
@@ -121,10 +94,7 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
 
           {/* Trade History */}
           <div className="p-6 rounded-lg border border-purple-500/20 bg-card">
-            <TradeHistory 
-              tokenAddress={tokenAddress} 
-              webSocket={ws.current}
-            />
+            <TradeHistory tokenAddress={tokenAddress} />
           </div>
         </div>
       </div>
