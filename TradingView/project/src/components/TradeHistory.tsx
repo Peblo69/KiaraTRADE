@@ -14,6 +14,25 @@ const isWhale = (solAmount: number) => {
   return solAmount >= WHALE_THRESHOLD;
 };
 
+// Bot detection functions
+const checkTradeSpeed = (trades: any[], currentTrade: any) => {
+  // Get only trades from the same wallet we're checking
+  const walletTrades = trades
+    .filter(t => t.traderPublicKey === currentTrade.traderPublicKey)
+    .sort((a, b) => b.timestamp - a.timestamp);
+
+  if (walletTrades.length < 2) return null;
+
+  // Get time between trades in milliseconds
+  return Math.abs(walletTrades[0].timestamp - walletTrades[1].timestamp);
+};
+
+const isSuspiciouslyFast = (speed: number | null) => {
+  if (speed === null) return false;
+  const BOT_SPEED_THRESHOLD = 500; // 0.5 seconds
+  return speed < BOT_SPEED_THRESHOLD;
+};
+
 const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
   const [copiedAddress, setCopiedAddress] = React.useState<string | null>(null);
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
@@ -106,6 +125,14 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
                     >
                       {trade.traderPublicKey.slice(0, 6)}...{trade.traderPublicKey.slice(-4)}
                     </button>
+                    {isSuspiciouslyFast(checkTradeSpeed(trades, trade)) && (
+                      <span 
+                        className="ml-1" 
+                        title="Bot-like trading pattern detected"
+                      >
+                        🤖
+                      </span>
+                    )}
                     {isWhale(trade.solAmount) && (
                       <span className="ml-1" title={`Whale Trade: ${trade.solAmount} SOL`}>🐋</span>
                     )}
