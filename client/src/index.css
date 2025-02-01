@@ -50,6 +50,17 @@
   border: 1px solid rgba(var(--theme-primary), 0.2);
 }
 
+/* Hide scrollbars but keep functionality */
+.token-column {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.token-column::-webkit-scrollbar {
+  width: 0;
+  background: transparent;
+}
+
 /* Trading Button Styles */
 .trading-button {
   @apply px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200;
@@ -78,26 +89,38 @@
   pointer-events: none;
 }
 
-/* Custom Scrollbar */
+/* Custom scrollbar for trade history */
 .custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(var(--theme-primary), 0.3) transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
+  width: 0;
+  background: transparent;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(var(--theme-primary), 0.1);
-  border-radius: 5px;
+/* Token Card Styles */
+.token-card {
+  @apply relative overflow-hidden rounded-lg;
+  background: rgba(147, 51, 234, 0.05);
+  border: 1px solid rgba(147, 51, 234, 0.2);
+  transition: all 0.3s ease;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(var(--theme-primary), 0.3);
-  border-radius: 5px;
+.token-card:hover {
+  border-color: rgba(147, 51, 234, 0.4);
+  background: rgba(147, 51, 234, 0.1);
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(var(--theme-primary), 0.5);
+.token-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    45deg,
+    rgba(147, 51, 234, 0.1),
+    rgba(147, 51, 234, 0.05)
+  );
+  pointer-events: none;
 }
