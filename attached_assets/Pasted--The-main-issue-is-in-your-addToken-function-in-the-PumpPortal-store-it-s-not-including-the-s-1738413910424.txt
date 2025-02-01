@@ -1,0 +1,146 @@
+
+    The main issue is in your addToken function in the PumpPortal store - it's not including the social links in the new token object. Here's how to fix it:
+
+TypeScript
+
+// In usePumpPortalStore.ts, update the addToken function:
+addToken: (tokenData) => set((state) => {
+  debugLog('addToken', tokenData);
+
+  // Extract basic token info
+  const tokenName = tokenData.metadata?.name || tokenData.name;
+  const tokenSymbol = tokenData.metadata?.symbol || tokenData.symbol;
+  const mintAddress = tokenData.mint || tokenData.address || '';
+  const imageUrl = tokenData.metadata?.imageUrl || tokenData.imageUrl;
+
+  // Add this section to properly handle social links
+  const socials = {
+    website: tokenData.website || null,
+    twitter: tokenData.twitter || null,
+    telegram: tokenData.telegram || null
+  };
+
+  console.log('Processing social links:', socials); // Debug log
+
+  const newToken = {
+    symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
+    name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
+    address: mintAddress,
+    bondingCurveKey: tokenData.bondingCurveKey || '',
+    vTokensInBondingCurve: tokenData.vTokensInBondingCurve || 0,
+    vSolInBondingCurve: tokenData.vSolInBondingCurve || 0,
+    marketCapSol: tokenMetrics.marketCap.sol,
+    priceInSol: tokenMetrics.price.sol,
+    priceInUsd: tokenMetrics.price.usd,
+    devWallet: tokenData.devWallet || tokenData.traderPublicKey,
+    recentTrades: [],
+    // Add social links both in socials object and at root level
+    socials,
+    website: socials.website,
+    twitter: socials.twitter,
+    telegram: socials.telegram,
+    metadata: {
+      name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
+      symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
+      decimals: 9,
+      mint: mintAddress,
+      uri: tokenData.uri || '',
+      imageUrl: imageUrl,
+      creators: tokenData.creators || []
+    },
+    lastAnalyzedAt: tokenData.timestamp?.toString(),
+    createdAt: tokenData.txType === 'create' ? tokenData.timestamp?.toString() : undefined
+  };
+
+  // Rest of your addToken logic...
+
+    Update your PumpPortalToken interface to include social links:
+
+TypeScript
+
+export interface PumpPortalToken {
+  // ... existing properties
+  socials?: {
+    website?: string | null;
+    twitter?: string | null;
+    telegram?: string | null;
+  };
+  website?: string | null;
+  twitter?: string | null;
+  telegram?: string | null;
+  // ... rest of properties
+}
+
+    In your pumpportal.ts WebSocket handler, ensure social links are being properly extracted:
+
+TypeScript
+
+// In initializePumpPortalWebSocket function
+const enrichedData = {
+  ...data,
+  name: baseMetadata.name,
+  symbol: baseMetadata.symbol,
+  metadata: baseMetadata,
+  imageUrl: imageUrl,
+  uri: baseMetadata.uri,
+  creators: baseMetadata.creators,
+  initialBuy: data.tokenAmount || 0,
+  priceInSol: data.solAmount ? (data.solAmount / (data.tokenAmount || TOTAL_SUPPLY)) : 0,
+  marketCapSol: data.vSolInBoundingCurve || 0,
+  timestamp: Date.now(),
+  isNewToken: true,
+  // Add explicit social links handling
+  socials: {
+    website: tokenMetadata?.website || data.website || null,
+    twitter: tokenMetadata?.twitter || data.twitter || null,
+    telegram: tokenMetadata?.telegram || data.telegram || null
+  },
+  // Keep root level properties for backwards compatibility
+  website: tokenMetadata?.website || data.website || null,
+  twitter: tokenMetadata?.twitter || data.twitter || null,
+  telegram: tokenMetadata?.telegram || data.telegram || null
+};
+
+// Add debug logging
+console.log('Token social links:', {
+  fromMetadata: {
+    website: tokenMetadata?.website,
+    twitter: tokenMetadata?.twitter,
+    telegram: tokenMetadata?.telegram
+  },
+  fromData: {
+    website: data.website,
+    twitter: data.twitter,
+    telegram: data.telegram
+  },
+  final: enrichedData.socials
+});
+
+    Add debug logging in your TokenCard component:
+
+TypeScript
+
+const TokenCard: FC<TokenCardProps> = ({ token, onClick, onBuyClick, onCopyAddress }) => {
+  // Add debug logging for social links
+  useEffect(() => {
+    console.group(`TokenCard Social Links [${token.symbol}]`);
+    console.log('Token data:', {
+      address: token.address,
+      socials: token.socials,
+      website: token.website,
+      twitter: token.twitter,
+      telegram: token.telegram
+    });
+    console.log('Processed social links:', socialLinks);
+    console.groupEnd();
+  }, [token, socialLinks]);
+
+  // ... rest of your component
+};
+
+These changes will:
+
+    Properly include social links in the token data
+    Maintain both the socials object and root-level properties
+    Add debug logging to track the social links data flow
+    Ensure the links are being properly passed through the WebSocket connection
