@@ -10,7 +10,7 @@ const SocialMetrics: React.FC = () => {
           <h2 className="text-purple-100 font-semibold">Social Metrics</h2>
         </div>
       </div>
-      
+
       <div className="p-4 space-y-4">
         <div className="space-y-3">
           <div className="flex justify-between items-center">
@@ -18,23 +18,23 @@ const SocialMetrics: React.FC = () => {
               <MessageCircle className="w-4 h-4 text-purple-400" />
               <span className="text-sm text-purple-300">Community Score</span>
             </div>
-            <span className="text-sm font-medium text-purple-100">8.9/10</span>
+            <span className="text-sm font-medium text-purple-100">0/10</span>
           </div>
-          
+
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
               <Activity className="w-4 h-4 text-purple-400" />
               <span className="text-sm text-purple-300">Social Volume</span>
             </div>
-            <span className="text-sm font-medium text-green-400">+12.5%</span>
+            <span className="text-sm font-medium text-purple-400">0%</span>
           </div>
-          
+
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
               <Star className="w-4 h-4 text-purple-400" />
               <span className="text-sm text-purple-300">Sentiment</span>
             </div>
-            <span className="text-sm font-medium text-green-400">Bullish</span>
+            <span className="text-sm font-medium text-purple-400">N/A</span>
           </div>
         </div>
 
@@ -43,13 +43,7 @@ const SocialMetrics: React.FC = () => {
             <div className="text-sm text-purple-300">Trending Topics</div>
             <div className="space-y-1">
               <div className="text-xs bg-purple-900/20 text-purple-100 px-2 py-1 rounded">
-                #Bitcoin
-              </div>
-              <div className="text-xs bg-purple-900/20 text-purple-100 px-2 py-1 rounded">
-                #BullMarket
-              </div>
-              <div className="text-xs bg-purple-900/20 text-purple-100 px-2 py-1 rounded">
-                #CryptoTrading
+                No trending topics
               </div>
             </div>
           </div>
