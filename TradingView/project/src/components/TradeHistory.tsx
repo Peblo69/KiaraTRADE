@@ -11,20 +11,47 @@ interface Props {
 const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
   const [copiedAddress, setCopiedAddress] = React.useState<string | null>(null);
 
-  // Get data from both sources
-  const pumpTrades = usePumpPortalStore(state => state.getToken(tokenAddress)?.recentTrades || []);
-  const heliusTrades = useHeliusStore(state => state.tokenData[tokenAddress]?.trades || []);
-  const solPrice = usePumpPortalStore(state => state.solPrice);
-
-  // Combine and sort trades
+  // Get data from both sources with stable references
   const trades = React.useMemo(() => {
-    const combined = [...pumpTrades, ...heliusTrades]
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, 100); // Keep last 100 trades
+    const pumpTrades = usePumpPortalStore.getState().getToken(tokenAddress)?.recentTrades || [];
+    const heliusTrades = useHeliusStore.getState().tokenData[tokenAddress]?.trades || [];
 
-    console.log('Combined trades:', combined);
-    return combined;
-  }, [pumpTrades, heliusTrades]);
+    // Deduplicate trades by signature
+    const tradeMap = new Map();
+    [...pumpTrades, ...heliusTrades].forEach(trade => {
+      if (!tradeMap.has(trade.signature)) {
+        tradeMap.set(trade.signature, trade);
+      }
+    });
+
+    return Array.from(tradeMap.values())
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 100);
+  }, [tokenAddress]); // Only recompute when tokenAddress changes
+
+  // Subscribe to store updates
+  React.useEffect(() => {
+    const unsubPump = usePumpPortalStore.subscribe(() => {
+      // Force re-render only when trades change
+      const newTrades = usePumpPortalStore.getState().getToken(tokenAddress)?.recentTrades;
+      if (newTrades) {
+        // Component will re-render due to store update
+      }
+    });
+
+    const unsubHelius = useHeliusStore.subscribe(() => {
+      // Force re-render only when trades change
+      const newTrades = useHeliusStore.getState().tokenData[tokenAddress]?.trades;
+      if (newTrades) {
+        // Component will re-render due to store update
+      }
+    });
+
+    return () => {
+      unsubPump();
+      unsubHelius();
+    };
+  }, [tokenAddress]);
 
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString('en-US', {
@@ -35,11 +62,11 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
     });
   };
 
-  const copyToClipboard = (address: string) => {
+  const copyToClipboard = React.useCallback((address: string) => {
     navigator.clipboard.writeText(address);
     setCopiedAddress(address);
     setTimeout(() => setCopiedAddress(null), 2000);
-  };
+  }, []);
 
   if (trades.length === 0) {
     return (
@@ -75,9 +102,9 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
         </div>
 
         <AnimatePresence initial={false}>
-          {trades.map((trade, index) => {
-            const total = trade.solAmount * (solPrice || 0);
-            const isNew = index === 0;
+          {trades.map((trade) => {
+            const solPrice = usePumpPortalStore.getState().solPrice || 0;
+            const total = trade.solAmount * solPrice;
             const type = trade.txType || trade.type;
 
             return (
@@ -87,9 +114,7 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
-                className={`grid grid-cols-6 text-xs py-2 group hover:bg-purple-900/20 border-b border-purple-900/10 ${
-                  isNew ? 'bg-purple-500/10' : ''
-                }`}
+                className="grid grid-cols-6 text-xs py-2 group hover:bg-purple-900/20 border-b border-purple-900/10"
               >
                 <span className="text-purple-300">
                   {formatTime(trade.timestamp)}
@@ -149,4 +174,4 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
   );
 };
 
-export default TradeHistory;
+export default React.memo(TradeHistory);

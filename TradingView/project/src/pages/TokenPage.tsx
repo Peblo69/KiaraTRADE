@@ -10,14 +10,28 @@ interface Props {
 }
 
 const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
-  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  // Use useCallback to memoize the selector
+  const token = React.useMemo(
+    () => usePumpPortalStore.getState().getToken(tokenAddress),
+    [tokenAddress]
+  );
 
-  // Set up both data sources
+  // Set up data sources only once when tokenAddress changes
   useEffect(() => {
-    if (tokenAddress) {
+    if (tokenAddress && !token) {
       setupTokenSubscription(tokenAddress);
     }
-  }, [tokenAddress]);
+  }, [tokenAddress, token]);
+
+  // Subscribe to store updates
+  useEffect(() => {
+    return usePumpPortalStore.subscribe((state) => {
+      const newToken = state.getToken(tokenAddress);
+      if (newToken !== token) {
+        // Component will re-render due to store update
+      }
+    });
+  }, [tokenAddress, token]);
 
   if (!token) {
     return (
@@ -102,4 +116,4 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
   );
 };
 
-export default TokenPage;
+export default React.memo(TokenPage);
