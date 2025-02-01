@@ -3,50 +3,43 @@ import TokenMarketStats from '@/components/TokenMarketStats';
 import TradeHistory from '@/components/TradeHistory';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
-const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
-const HELIUS_WS_URL = `wss://rpc.helius.xyz/?api-key=${HELIUS_API_KEY}`;
-
 interface Props {
   tokenAddress: string;
 }
 
 const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
   const [isLoading, setIsLoading] = useState(true);
-  const ws = useRef<WebSocket | null>(null);
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const addToViewedTokens = usePumpPortalStore(state => state.addToViewedTokens);
+  const setActiveTokenView = usePumpPortalStore(state => state.setActiveTokenView);
 
-  // Shared WebSocket connection for both components
+  // Tell store we're viewing this token
   useEffect(() => {
-    if (!tokenAddress || !HELIUS_API_KEY) return;
+    console.log('TokenPage Mount:', {
+      tokenAddress,
+      hasToken: !!token,
+      tradesCount: token?.recentTrades?.length || 0
+    });
 
-    ws.current = new WebSocket(HELIUS_WS_URL);
+    addToViewedTokens(tokenAddress);
+    setActiveTokenView(tokenAddress);
+    setIsLoading(false);
 
-    ws.current.onopen = () => {
-      console.log('[Helius] Token Page Connected');
-      ws.current?.send(JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'accountSubscribe',
-        params: [
-          tokenAddress,
-          {
-            commitment: 'confirmed',
-            encoding: 'jsonParsed'
-          }
-        ]
-      }));
-      setIsLoading(false);
-    };
+    return () => setActiveTokenView(null);
+  }, [tokenAddress, addToViewedTokens, setActiveTokenView]);
 
-    return () => {
-      ws.current?.close();
-    };
-  }, [tokenAddress]);
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[50vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+      </div>
+    );
+  }
 
   if (!token) {
     return (
       <div className="flex items-center justify-center h-[50vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+        <div className="text-purple-400">Token not found</div>
       </div>
     );
   }
@@ -73,10 +66,7 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
         <div className="grid gap-8 md:grid-cols-2">
           <div className="space-y-8">
             <div className="p-6 rounded-lg border border-purple-500/20 bg-card">
-              <TokenMarketStats 
-                tokenAddress={tokenAddress} 
-                webSocket={ws.current}
-              />
+              <TokenMarketStats tokenAddress={tokenAddress} />
             </div>
 
             {/* Social Links */}
@@ -86,7 +76,7 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
                 <div className="flex gap-4">
                   {token.twitter && (
                     <a 
-                      href={`https://twitter.com/${token.twitter}`}
+                      href={token.twitter}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-purple-400 hover:text-purple-300"
@@ -96,7 +86,7 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
                   )}
                   {token.telegram && (
                     <a 
-                      href={`https://t.me/${token.telegram}`}
+                      href={token.telegram}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-purple-400 hover:text-purple-300"
@@ -121,10 +111,7 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
 
           {/* Trade History */}
           <div className="p-6 rounded-lg border border-purple-500/20 bg-card">
-            <TradeHistory 
-              tokenAddress={tokenAddress} 
-              webSocket={ws.current}
-            />
+            <TradeHistory tokenAddress={tokenAddress} />
           </div>
         </div>
       </div>

@@ -1,0 +1,106 @@
+You got:
+
+    TradeHistory.tsx - This is READY but needs data
+    pump-portal-websocket.ts - Your store is SET UP
+    websocket-manager.ts - It's at least showing time/user
+
+Let's make a BASIC ASS component to show SOMETHING:
+TypeScript
+
+// pages/token/[mint].tsx
+import { useEffect } from 'react';
+import { Card } from "@/components/ui/card";
+import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
+import TradeHistory from "@/components/TradeHistory";
+
+export default function TokenPage({ mint }: { mint: string }) {
+    const token = usePumpPortalStore(state => state.getToken(mint));
+    const addToViewedTokens = usePumpPortalStore(state => state.addToViewedTokens);
+    const setActiveTokenView = usePumpPortalStore(state => state.setActiveTokenView);
+
+    // DEBUG OUTPUT
+    useEffect(() => {
+        console.log('🎯 TokenPage Mount:', {
+            mint,
+            hasToken: !!token,
+            trades: token?.recentTrades?.length || 0
+        });
+        
+        // Tell store we're viewing this token
+        addToViewedTokens(mint);
+        setActiveTokenView(mint);
+
+        return () => setActiveTokenView(null);
+    }, [mint]);
+
+    // TEST DATA - Remove this later!
+    const testTrade = {
+        signature: "test123",
+        timestamp: Date.now(),
+        mint: mint,
+        txType: 'buy' as const,
+        tokenAmount: 1000,
+        solAmount: 1.5,
+        traderPublicKey: "TestWallet123456",
+        priceInUsd: 0.42,
+    };
+
+    return (
+        <div className="p-6 bg-[#0D0B1F] min-h-screen">
+            {/* Debug Info Card */}
+            <Card className="p-4 mb-6 bg-purple-900/20">
+                <h3 className="text-purple-100 font-bold">Debug Info</h3>
+                <div className="text-sm text-purple-300">
+                    <p>Token Address: {mint}</p>
+                    <p>Has Token: {token ? "✅" : "❌"}</p>
+                    <p>Trade Count: {token?.recentTrades?.length || 0}</p>
+                </div>
+            </Card>
+
+            {/* Test Trade History */}
+            <Card className="p-4 mb-6">
+                <h2 className="text-xl text-purple-100 font-bold mb-4">Test Trade</h2>
+                {/* This tests your TradeHistory component */}
+                <div className="grid grid-cols-6 text-xs text-purple-400 p-2">
+                    <span>Time</span>
+                    <span>Wallet</span>
+                    <span className="text-right">Price</span>
+                    <span className="text-right">Amount</span>
+                    <span className="text-right">SOL</span>
+                    <span className="text-right">Total</span>
+                </div>
+                <div className="grid grid-cols-6 text-xs p-2 hover:bg-purple-900/20 rounded">
+                    <span className="text-purple-300">
+                        {new Date().toLocaleTimeString()}
+                    </span>
+                    <span className="text-green-400">
+                        {testTrade.traderPublicKey.slice(0, 6)}...
+                    </span>
+                    <span className="text-right text-purple-300">
+                        ${testTrade.priceInUsd?.toFixed(8)}
+                    </span>
+                    <span className="text-right text-purple-300">
+                        {testTrade.tokenAmount.toLocaleString()}
+                    </span>
+                    <span className="text-right text-purple-300">
+                        {testTrade.solAmount.toFixed(3)}
+                    </span>
+                    <span className="text-right text-purple-300">
+                        ${(testTrade.solAmount * (testTrade.priceInUsd || 0)).toFixed(2)}
+                    </span>
+                </div>
+            </Card>
+
+            {/* Real Trade History */}
+            <TradeHistory tokenAddress={mint} />
+        </div>
+    );
+}
+
+This will:
+
+    Show debug info ✅
+    Show a test trade to verify styling ✅
+    Try to show real trades if they exist ✅
+
+Put this in your pages/token/[mint].tsx

@@ -8,9 +8,25 @@ interface Props {
 }
 
 const TradeHistory: FC<Props> = ({ tokenAddress }) => {
+  // Get token data from PumpPortal store
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
 
-  if (!token?.recentTrades?.length) return null;
+  // Add debug logging to help trace data flow
+  console.log('TradeHistory Component:', {
+    tokenAddress,
+    hasToken: !!token,
+    tradesCount: token?.recentTrades?.length || 0,
+    trades: token?.recentTrades
+  });
+
+  if (!token?.recentTrades?.length) {
+    return (
+      <div className="p-4 text-center text-purple-400">
+        <History className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p>No trades yet</p>
+      </div>
+    );
+  }
 
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString('en-US', {
@@ -27,6 +43,9 @@ const TradeHistory: FC<Props> = ({ tokenAddress }) => {
         <div className="flex items-center space-x-2">
           <History className="w-5 h-5 text-purple-400" />
           <h2 className="text-lg font-semibold text-purple-100">Trade History</h2>
+        </div>
+        <div className="text-xs text-purple-400">
+          {token.recentTrades.length} trades
         </div>
       </div>
 
