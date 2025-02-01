@@ -8,6 +8,9 @@ import SocialLinks from './SocialLinks'; //  Replace './SocialLinks' with the co
 // Constants
 const MAX_TRADES_PER_TOKEN = 100;
 const MAX_TOKENS_IN_LIST = 50;
+const RECONNECT_DELAY = 5000;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
 
 // Debug helper
 const DEBUG = true;
@@ -98,6 +101,93 @@ interface PumpPortalStore {
   getNewTokens: () => PumpPortalToken[];
   getAboutToGraduateTokens: () => PumpPortalToken[];
   getGraduatedTokens: () => PumpPortalToken[];
+}
+
+// Create singleton instance
+let wsInstance: WebSocket | null = null;
+let reconnectTimeout: NodeJS.Timeout | null = null;
+let reconnectAttempts = 0;
+let isManualDisconnect = false;
+
+function initializeWebSocket() {
+  if (!process.env.VITE_PUMPPORTAL_WS_URL) {
+    console.error('[PumpPortal] WebSocket URL not configured');
+    return;
+  }
+
+  if (wsInstance) {
+    console.log('[PumpPortal] WebSocket already exists');
+    return;
+  }
+
+  try {
+    console.log('[PumpPortal] Connecting WebSocket...');
+    wsInstance = new WebSocket(process.env.VITE_PUMPPORTAL_WS_URL);
+
+    wsInstance.onopen = () => {
+      console.log('[PumpPortal] Connected');
+      reconnectAttempts = 0;
+      usePumpPortalStore.getState().setConnected(true);
+    };
+
+    wsInstance.onclose = () => {
+      console.log('[PumpPortal] Disconnected');
+      usePumpPortalStore.getState().setConnected(false);
+      wsInstance = null;
+
+      if (!isManualDisconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+        }
+
+        reconnectTimeout = setTimeout(() => {
+          initializeWebSocket();
+        }, RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts));
+      }
+    };
+
+    wsInstance.onerror = (error) => {
+      console.error('[PumpPortal] WebSocket error:', error);
+      if (wsInstance) {
+        wsInstance.close();
+      }
+    };
+
+    wsInstance.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        debugLog('Received message:', data);
+
+        if (data.type === 'trade') {
+          handleTradeMessage(data.data);
+        } else if (data.type === 'newToken') {
+          handleNewTokenMessage(data.data);
+        }
+      } catch (error) {
+        console.error('[PumpPortal] Message processing error:', error);
+      }
+    };
+  } catch (error) {
+    console.error('[PumpPortal] Connection failed:', error);
+  }
+}
+
+function disconnect() {
+  console.log('[PumpPortal] Disconnecting...');
+  isManualDisconnect = true;
+
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
+
+  if (wsInstance) {
+    wsInstance.close();
+    wsInstance = null;
+  }
 }
 
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
@@ -430,5 +520,18 @@ async function fetchTokenMetadataFromChain(mintAddress: string) {
     return null;
   }
 }
+
+function handleTradeMessage(tradeData: any) {
+  debugLog('handleTradeMessage', tradeData);
+    usePumpPortalStore.getState().addTradeToHistory(tradeData.mint, tradeData);
+}
+
+function handleNewTokenMessage(tokenData: any) {
+  debugLog('handleNewTokenMessage', tokenData);
+  usePumpPortalStore.getState().addToken(tokenData);
+}
+
+// Initialize WebSocket on store creation
+initializeWebSocket();
 
 export default usePumpPortalStore;
