@@ -1,71 +1,29 @@
-import { FC } from 'react';
+import React from 'react';
+import { Card } from '@/components/ui/card';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { Card } from "@/components/ui/card";
 
-export const TradeHistory: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
-  const trades = usePumpPortalStore(state => 
-    state.getToken(tokenAddress)?.recentTrades || []
-  );
+interface Props {
+  tokenAddress: string;
+}
+
+const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const trades = usePumpPortalStore(state => state.getTradeHistory(tokenAddress));
+
+  if (!token || !trades) return null;
 
   return (
-    <Card className="h-[400px] overflow-y-auto bg-card rounded-lg border border-purple-500/20">
-      <div className="sticky top-0 bg-card border-b border-purple-500/20 p-3">
-        <h3 className="font-semibold">Recent Trades</h3>
-      </div>
-      
-      <div className="p-2">
-        <table className="w-full">
-          <thead className="text-xs text-muted-foreground">
-            <tr>
-              <th className="text-left p-2">Time</th>
-              <th className="text-left p-2">Type</th>
-              <th className="text-right p-2">Price USD</th>
-              <th className="text-right p-2">Amount</th>
-              <th className="text-right p-2">Total USD</th>
-              <th className="text-left p-2">Wallet</th>
-            </tr>
-          </thead>
-          <tbody>
-            {trades.map(trade => {
-              const totalUsd = trade.priceInUsd * trade.tokenAmount;
-              
-              return (
-                <tr 
-                  key={trade.signature}
-                  className={`text-sm border-t border-purple-500/20
-                    ${trade.txType === 'buy' ? 'text-green-400' : 'text-red-400'}
-                  `}
-                >
-                  <td className="p-2 text-muted-foreground">
-                    {new Date(trade.timestamp).toLocaleTimeString()}
-                  </td>
-                  <td className="p-2">
-                    {trade.txType.toUpperCase()}
-                  </td>
-                  <td className="p-2 text-right">
-                    ${trade.priceInUsd.toFixed(8)}
-                  </td>
-                  <td className="p-2 text-right">
-                    {Number(trade.tokenAmount).toLocaleString()}
-                  </td>
-                  <td className="p-2 text-right">
-                    ${totalUsd.toFixed(2)}
-                  </td>
-                  <td className="p-2 font-mono text-xs">
-                    <a 
-                      href={`https://solscan.io/account/${trade.traderPublicKey}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:underline"
-                    >
-                      {`${trade.traderPublicKey.slice(0,4)}...${trade.traderPublicKey.slice(-4)}`}
-                    </a>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+    <Card className="p-4 bg-[#0D0B1F] border-purple-900/30">
+      <h2 className="text-lg font-semibold text-purple-100 mb-4">Recent Trades</h2>
+      <div className="space-y-2">
+        {trades.map((trade, index) => (
+          <div key={index} className="flex justify-between text-sm">
+            <span className={trade.type === 'buy' ? 'text-green-400' : 'text-red-400'}>
+              {trade.type.toUpperCase()}
+            </span>
+            <span className="text-purple-300">{trade.amount.toFixed(6)} SOL</span>
+          </div>
+        ))}
       </div>
     </Card>
   );

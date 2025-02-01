@@ -1,55 +1,23 @@
-import { useEffect, useRef } from 'react';
-import { Card } from "@/components/ui/card";
+import React from 'react';
+import { Card } from '@/components/ui/card';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
-declare global {
-  interface Window {
-    TradingView: any;
-  }
+interface Props {
+  tokenAddress: string;
 }
 
-export default function TradingChart() {
-  const container = useRef<HTMLDivElement>(null);
+const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
 
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://s3.tradingview.com/tv.js';
-    script.async = true;
-    script.onload = () => {
-      if (container.current && window.TradingView) {
-        new window.TradingView.widget({
-          container_id: container.current.id,
-          width: "100%",
-          height: "400",
-          symbol: "BINANCE:BTCUSDT",
-          interval: "D",
-          timezone: "Etc/UTC",
-          theme: "dark",
-          style: "1",
-          locale: "en",
-          toolbar_bg: "#f1f3f6",
-          enable_publishing: false,
-          hide_side_toolbar: false,
-          allow_symbol_change: true,
-          details: true,
-          studies: ["RSI@tv-basicstudies"],
-          container: container.current,
-        });
-      }
-    };
-    document.head.appendChild(script);
-
-    return () => {
-      script.remove();
-    };
-  }, []);
+  if (!token) return null;
 
   return (
-    <Card className="p-4 backdrop-blur-sm bg-transparent border-purple-500/20">
-      <div 
-        id="tradingview_chart"
-        ref={container}
-        className="w-full h-[400px]"
-      />
+    <Card className="p-4 bg-[#0D0B1F] border-purple-900/30 h-[400px]">
+      <div className="h-full flex items-center justify-center text-purple-300">
+        Trading chart implementation coming soon
+      </div>
     </Card>
   );
-}
+};
+
+export default TradingChart;
