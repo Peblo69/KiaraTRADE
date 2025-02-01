@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import TokenMarketStats from '@/components/TokenMarketStats';
 import TradeHistory from '@/components/TradeHistory';
-import { useUnifiedToken, useUnifiedStore } from '@/lib/unified-token-store';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { setupTokenSubscription } from '@/lib/helius-websocket';
 import { Loader2 } from 'lucide-react';
 
 interface Props {
@@ -9,14 +10,28 @@ interface Props {
 }
 
 const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
-  const setActiveToken = useUnifiedStore(state => state.setActiveToken);
-  const token = useUnifiedToken(tokenAddress);
+  // Use useCallback to memoize the selector
+  const token = React.useMemo(
+    () => usePumpPortalStore.getState().getToken(tokenAddress),
+    [tokenAddress]
+  );
 
-  // Set active token when the component mounts
+  // Set up data sources only once when tokenAddress changes
   useEffect(() => {
-    setActiveToken(tokenAddress);
-    return () => setActiveToken(null);
-  }, [tokenAddress, setActiveToken]);
+    if (tokenAddress && !token) {
+      setupTokenSubscription(tokenAddress);
+    }
+  }, [tokenAddress, token]);
+
+  // Subscribe to store updates
+  useEffect(() => {
+    return usePumpPortalStore.subscribe((state) => {
+      const newToken = state.getToken(tokenAddress);
+      if (newToken !== token) {
+        // Component will re-render due to store update
+      }
+    });
+  }, [tokenAddress, token]);
 
   if (!token) {
     return (
@@ -52,13 +67,13 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
             </div>
 
             {/* Social Links */}
-            {(token.socialLinks?.twitter || token.socialLinks?.telegram || token.socialLinks?.website) && (
+            {(token.twitter || token.telegram || token.website) && (
               <div className="p-6 rounded-lg border border-purple-500/20 bg-card">
                 <h2 className="text-lg font-semibold mb-4">Links</h2>
                 <div className="flex gap-4">
-                  {token.socialLinks.twitter && (
+                  {token.twitter && (
                     <a 
-                      href={`https://twitter.com/${token.socialLinks.twitter}`}
+                      href={`https://twitter.com/${token.twitter}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-purple-400 hover:text-purple-300"
@@ -66,9 +81,9 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
                       Twitter
                     </a>
                   )}
-                  {token.socialLinks.telegram && (
+                  {token.telegram && (
                     <a 
-                      href={`https://t.me/${token.socialLinks.telegram}`}
+                      href={`https://t.me/${token.telegram}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-purple-400 hover:text-purple-300"
@@ -76,9 +91,9 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
                       Telegram
                     </a>
                   )}
-                  {token.socialLinks.website && (
+                  {token.website && (
                     <a 
-                      href={token.socialLinks.website}
+                      href={token.website}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-purple-400 hover:text-purple-300"
