@@ -22,7 +22,7 @@ export function useTradeHistory(tokenAddress: string) {
 
     // Initialize with PumpPortal trade history
     if (token?.recentTrades) {
-      setTrades(token.recentTrades);
+      setTrades(token.recentTrades.sort((a, b) => b.timestamp - a.timestamp));
       setIsLoading(false);
     }
 
@@ -40,7 +40,12 @@ export function useTradeHistory(tokenAddress: string) {
           {
             commitment: 'confirmed',
             encoding: 'jsonParsed',
-            filters: [{ dataSize: 165 }] // Filter for token transactions
+            filters: [{ 
+              memcmp: {
+                offset: 0,
+                bytes: tokenAddress
+              }
+            }]
           }
         ]
       }));
@@ -52,20 +57,28 @@ export function useTradeHistory(tokenAddress: string) {
 
         if (response.method === 'accountNotification') {
           const txInfo = response.params.result.value;
+          const amount = txInfo.tokenAmount?.uiAmount || 0;
+
+          // Skip empty trades
+          if (amount === 0) return;
 
           // Create new trade entry
           const newTrade: TokenTrade = {
             timestamp: Date.now(),
-            type: txInfo.tokenAmount?.uiAmount > 0 ? 'buy' : 'sell',
+            type: amount > 0 ? 'buy' : 'sell',
             traderPublicKey: txInfo.owner,
-            tokenAmount: Math.abs(txInfo.tokenAmount?.uiAmount || 0),
+            tokenAmount: Math.abs(amount),
             solAmount: txInfo.lamports / 1e9,
-            signature: txInfo.txId,
+            signature: txInfo.txId || response.params.result.signature,
             mint: tokenAddress
           };
 
-          // Update trades list
-          setTrades(current => [newTrade, ...current].slice(0, 100)); // Keep last 100 trades
+          // Add new trade to the list
+          setTrades(current => {
+            const updated = [newTrade, ...current];
+            // Keep last 100 trades
+            return updated.slice(0, 100);
+          });
         }
       } catch (error) {
         console.error('[Helius] Trade processing error:', error);
@@ -77,6 +90,7 @@ export function useTradeHistory(tokenAddress: string) {
     };
 
     ws.current.onclose = () => {
+      console.log('[Helius] Connection closed');
       // Attempt to reconnect
       setTimeout(() => {
         if (token) {

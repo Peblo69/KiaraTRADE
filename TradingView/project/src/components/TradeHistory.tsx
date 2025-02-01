@@ -3,6 +3,7 @@ import { History, ExternalLink, Copy, CheckCircle } from 'lucide-react';
 import { useTradeHistory } from '@/hooks/useTradeHistory';
 import { formatDistanceToNow } from 'date-fns';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Props {
   tokenAddress: string;
@@ -13,6 +14,15 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
   const [copiedAddress, setCopiedAddress] = React.useState<string | null>(null);
   const { trades, isLoading } = useTradeHistory(tokenAddress);
   const solPrice = usePumpPortalStore(state => state.solPrice);
+
+  const formatTime = (timestamp: number) => {
+    return new Date(timestamp).toLocaleTimeString('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
 
   if (isLoading) {
     return (
@@ -44,24 +54,34 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
         </div>
       </div>
 
-      <div className="p-2">
-        <div className="grid grid-cols-6 text-xs text-purple-400 pb-2">
+      <div className="p-2 max-h-[600px] overflow-y-auto custom-scrollbar">
+        <div className="grid grid-cols-6 text-xs text-purple-400 pb-2 sticky top-0 bg-[#0D0B1F] border-b border-purple-900/30">
           <span>Time</span>
           <span>Wallet</span>
           <span className="text-right">Type</span>
           <span className="text-right">Amount</span>
-          <span className="text-right">SOL Amount</span>
+          <span className="text-right">SOL</span>
           <span className="text-right">Total</span>
         </div>
 
-        <div className="space-y-0.5">
-          {trades.map((trade) => {
+        <AnimatePresence initial={false}>
+          {trades.map((trade, index) => {
             const total = trade.solAmount * (solPrice || 0);
+            const isNew = index === 0;
 
             return (
-              <div key={trade.signature} className="grid grid-cols-6 text-xs group hover:bg-purple-900/20">
+              <motion.div
+                key={trade.signature}
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className={`grid grid-cols-6 text-xs py-2 group hover:bg-purple-900/20 border-b border-purple-900/10 ${
+                  isNew ? 'bg-purple-500/10' : ''
+                }`}
+              >
                 <span className="text-purple-300">
-                  {formatDistanceToNow(trade.timestamp, { addSuffix: true })}
+                  {formatTime(trade.timestamp)}
                 </span>
 
                 <div className="flex items-center space-x-1">
@@ -70,24 +90,26 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
                   >
                     {trade.traderPublicKey.slice(0, 6)}...{trade.traderPublicKey.slice(-4)}
                   </button>
-                  <button
-                    className="p-1 hover:bg-purple-900/40 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => copyToClipboard(trade.traderPublicKey)}
-                  >
-                    {copiedAddress === trade.traderPublicKey ? (
-                      <CheckCircle className="w-3 h-3 text-green-400" />
-                    ) : (
-                      <Copy className="w-3 h-3 text-purple-400" />
-                    )}
-                  </button>
-                  <a
-                    href={`https://solscan.io/account/${trade.traderPublicKey}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-1 hover:bg-purple-900/40 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <ExternalLink className="w-3 h-3 text-purple-400" />
-                  </a>
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                    <button
+                      onClick={() => copyToClipboard(trade.traderPublicKey)}
+                      className="p-1 hover:bg-purple-900/40 rounded"
+                    >
+                      {copiedAddress === trade.traderPublicKey ? (
+                        <CheckCircle className="w-3 h-3 text-green-400" />
+                      ) : (
+                        <Copy className="w-3 h-3 text-purple-400" />
+                      )}
+                    </button>
+                    <a
+                      href={`https://solscan.io/account/${trade.traderPublicKey}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1 hover:bg-purple-900/40 rounded"
+                    >
+                      <ExternalLink className="w-3 h-3 text-purple-400" />
+                    </a>
+                  </div>
                 </div>
 
                 <span className={`text-right font-medium ${
@@ -107,10 +129,10 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
                 <span className="text-right text-purple-300">
                   ${total.toFixed(2)}
                 </span>
-              </div>
+              </motion.div>
             );
           })}
-        </div>
+        </AnimatePresence>
       </div>
     </div>
   );
