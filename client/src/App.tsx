@@ -23,7 +23,6 @@ import MarketDataBar from "@/components/MarketDataBar";
 import Navbar from "@/components/Navbar";
 
 // Store and Services
-import { initializeHeliusWebSocket } from './lib/helius-websocket';
 import { useUnifiedTokenStore } from './lib/unified-token-store';
 import { queryClient } from "./lib/queryClient";
 import { WalletContextProvider } from "@/lib/wallet";
@@ -69,7 +68,6 @@ function Router() {
   );
 }
 
-// Error Boundary Component
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean }
@@ -105,45 +103,25 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-interface PumpPortalState {
-  isConnected: boolean;
-  setConnected: (connected: boolean) => void;
-}
-
 const App: React.FC = () => {
   const setConnected = useUnifiedTokenStore(state => state.setConnected);
 
   // Initialize WebSocket connections and handle cleanup
   React.useEffect(() => {
-    let heliusInitialized = false;
+    try {
+      // Initialize PumpPortal WebSocket
+      wsManager.connect();
+      console.log('[App] PumpPortal WebSocket initialized');
 
-    const initializeConnections = async () => {
-      try {
-        // Initialize Helius WebSocket
-        await initializeHeliusWebSocket();
-        heliusInitialized = true;
-        console.log('[App] Helius WebSocket initialized');
-
-        // Initialize PumpPortal WebSocket
-        wsManager.connect();
-        console.log('[App] PumpPortal WebSocket initialized');
-
-        // Initialize store connection status
-        usePumpPortalStore.setState({ isConnected: true });
-
-      } catch (error) {
-        console.error('[App] Error initializing connections:', error);
-        setConnected(false);
-      }
-    };
-
-    // Delay initial connection
-    const initTimeout = setTimeout(initializeConnections, INITIAL_CONNECTION_DELAY);
+      // Initialize store connection status
+      usePumpPortalStore.setState({ isConnected: true });
+    } catch (error) {
+      console.error('[App] Error initializing connections:', error);
+      setConnected(false);
+    }
 
     // Cleanup function
     return () => {
-      clearTimeout(initTimeout);
-      if (heliusInitialized) setConnected(false);
       wsManager.disconnect();
       usePumpPortalStore.setState({ isConnected: false });
     };
