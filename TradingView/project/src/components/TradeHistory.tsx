@@ -1,36 +1,9 @@
-import React, { useState } from 'react';
-import { History, ExternalLink, Copy, CheckCircle } from 'lucide-react';
-import type { Trade } from '../types/trading';
+import React from 'react';
+import { History, ExternalLink, Copy } from 'lucide-react';
+import { usePumpPortalStore } from '../lib/pump-portal-websocket';
 
 const TradeHistory: React.FC = () => {
-  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
-
-  const mockTrades: Trade[] = [
-    { 
-      id: '1', 
-      price: 46789.50, 
-      amount: 0.2345,
-      amountUSD: 10972.14,
-      amountSOL: 146.23,
-      side: 'buy', 
-      timestamp: Date.now() - 5000, 
-      wallet: '0x1234...5678',
-      maker: true,
-      fee: 0.1
-    },
-    { 
-      id: '2', 
-      price: 46788.00, 
-      amount: 0.1678,
-      amountUSD: 7851.03,
-      amountSOL: 104.87,
-      side: 'sell', 
-      timestamp: Date.now() - 10000, 
-      wallet: '0x8765...4321',
-      maker: false,
-      fee: 0.1
-    }
-  ];
+  const trades = usePumpPortalStore(state => state.trades);
 
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString('en-US', {
@@ -48,12 +21,6 @@ const TradeHistory: React.FC = () => {
     });
   };
 
-  const copyToClipboard = (address: string) => {
-    navigator.clipboard.writeText(address);
-    setCopiedAddress(address);
-    setTimeout(() => setCopiedAddress(null), 2000);
-  };
-
   return (
     <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30">
       <div className="p-4 border-b border-purple-900/30">
@@ -62,39 +29,33 @@ const TradeHistory: React.FC = () => {
           <h2 className="text-purple-100 font-semibold">Trade History</h2>
         </div>
       </div>
-      
+
       <div className="p-2">
         <div className="grid grid-cols-6 text-xs text-purple-400 pb-2">
           <span>Time</span>
           <span>Wallet</span>
           <span className="text-right">Price (USD)</span>
           <span className="text-right">Amount</span>
-          <span className="text-right">SOL Amount</span>
+          <span className="text-right">SOL</span>
           <span className="text-right">Total</span>
         </div>
-        
+
         <div className="space-y-0.5">
-          {mockTrades.map((trade) => (
-            <div key={trade.id} className="grid grid-cols-6 text-xs group hover:bg-purple-900/20">
+          {trades.map((trade) => (
+            <div key={trade.signature} className="grid grid-cols-6 text-xs group hover:bg-purple-900/20">
               <span className="text-purple-300">{formatTime(trade.timestamp)}</span>
               <div className="flex items-center space-x-1">
-                <button
-                  className={`text-${trade.side === 'buy' ? 'green' : 'red'}-400 hover:underline`}
-                >
-                  {trade.wallet}
-                </button>
+                <span className={`text-${trade.txType === 'buy' ? 'green' : 'red'}-400`}>
+                  {trade.traderPublicKey.slice(0, 6)}...{trade.traderPublicKey.slice(-4)}
+                </span>
                 <button
                   className="p-1 hover:bg-purple-900/40 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => copyToClipboard(trade.wallet)}
+                  onClick={() => navigator.clipboard.writeText(trade.traderPublicKey)}
                 >
-                  {copiedAddress === trade.wallet ? (
-                    <CheckCircle className="w-3 h-3 text-green-400" />
-                  ) : (
-                    <Copy className="w-3 h-3 text-purple-400" />
-                  )}
+                  <Copy className="w-3 h-3 text-purple-400" />
                 </button>
                 <a
-                  href={`https://explorer.solana.com/address/${trade.wallet}`}
+                  href={`https://solscan.io/tx/${trade.signature}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-1 hover:bg-purple-900/40 rounded opacity-0 group-hover:opacity-100 transition-opacity"
@@ -103,18 +64,18 @@ const TradeHistory: React.FC = () => {
                 </a>
               </div>
               <span className={`text-right font-medium ${
-                trade.side === 'buy' ? 'text-green-400' : 'text-red-400'
+                trade.txType === 'buy' ? 'text-green-400' : 'text-red-400'
               }`}>
-                ${formatNumber(trade.price, 2)}
+                ${formatNumber(trade.priceInUsd || 0, 8)}
               </span>
               <span className="text-right text-purple-300">
-                {formatNumber(trade.amount, 4)}
+                {formatNumber(trade.tokenAmount, 4)}
               </span>
               <span className="text-right text-purple-300">
-                {formatNumber(trade.amountSOL, 2)} SOL
+                {formatNumber(trade.solAmount, 3)} SOL
               </span>
               <span className="text-right text-purple-300">
-                ${formatNumber(trade.amountUSD, 2)}
+                ${formatNumber((trade.solAmount * (trade.priceInUsd || 0)), 2)}
               </span>
             </div>
           ))}
