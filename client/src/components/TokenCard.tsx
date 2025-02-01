@@ -1,4 +1,5 @@
 import { FC, useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { SocialLinks } from './SocialLinks';
 import { Card } from "@/components/ui/card";
 import { ImageIcon, Globe, Search, Users, Crosshair, UserPlus, Copy } from 'lucide-react';
 import { validateImageUrl,  } from '@/utils/validators';
