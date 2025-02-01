@@ -20,6 +20,7 @@ const PumpFunVision: FC = () => {
   const setActiveTokenView = usePumpPortalStore(state => state.setActiveTokenView);
 
   const handleTokenSelect = useCallback((address: string) => {
+    console.log('Token selected:', address);
     setSelectedToken(address);
     setActiveTokenView(address);
   }, [setActiveTokenView]);
@@ -60,14 +61,23 @@ const PumpFunVision: FC = () => {
                 </Button>
               </div>
               <div className="grid grid-cols-12 gap-4">
+                {/* Left sidebar - Market Stats & Social Metrics */}
                 <div className="col-span-2 space-y-4">
                   <MarketStats tokenAddress={selectedToken} />
                   <SocialMetrics tokenAddress={selectedToken} />
                 </div>
+
+                {/* Main content - Chart & Trade History */}
                 <div className="col-span-7 space-y-4">
-                  <TradingChart tokenAddress={selectedToken} />
-                  <TradeHistory tokenAddress={selectedToken} />
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                    <TradingChart tokenAddress={selectedToken} />
+                  </div>
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30">
+                    <TradeHistory tokenAddress={selectedToken} />
+                  </div>
                 </div>
+
+                {/* Right sidebar - Trading Form & Analytics */}
                 <div className="col-span-3 space-y-4">
                   <TradingForm tokenAddress={selectedToken} />
                   <HolderAnalytics tokenAddress={selectedToken} />
@@ -79,10 +89,6 @@ const PumpFunVision: FC = () => {
       </Suspense>
     );
   }
-
-  const handleCopyAddress = (address: string) => {
-    navigator.clipboard.writeText(address);
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -102,7 +108,6 @@ const PumpFunVision: FC = () => {
                   key={token.address}
                   token={token}
                   onClick={() => handleTokenSelect(token.address)}
-                  onCopyAddress={() => handleCopyAddress(token.address)}
                 />
               ))}
             </div>
@@ -122,7 +127,6 @@ const PumpFunVision: FC = () => {
                   key={token.address}
                   token={token}
                   onClick={() => handleTokenSelect(token.address)}
-                  onCopyAddress={() => handleCopyAddress(token.address)}
                 />
               ))}
             </div>
@@ -142,7 +146,6 @@ const PumpFunVision: FC = () => {
                   key={token.address}
                   token={token}
                   onClick={() => handleTokenSelect(token.address)}
-                  onCopyAddress={() => handleCopyAddress(token.address)}
                 />
               ))}
             </div>
