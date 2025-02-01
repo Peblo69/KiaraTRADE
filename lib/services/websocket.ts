@@ -1,5 +1,11 @@
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
+import { HELIUS_CONFIG } from '../helius/config';
+
+console.log('🔌 WEBSOCKET MANAGER CONFIG:', {
+    heliusKey: !!import.meta.env.VITE_HELIUS_API_KEY,
+    wsUrl: HELIUS_CONFIG.WS_URL
+});
 
 class WebSocketManager extends EventEmitter {
     private connections: Map<string, WebSocket> = new Map();
@@ -9,6 +15,7 @@ class WebSocketManager extends EventEmitter {
 
     constructor() {
         super();
+        console.log('🌟 Initializing WebSocket Manager');
     }
 
     connect(url: string, id: string): WebSocket {
@@ -16,8 +23,10 @@ class WebSocketManager extends EventEmitter {
             return this.connections.get(id)!;
         }
 
+        console.log(`🔌 Connecting to ${id} at ${url.replace(/api-key=([^&]+)/, 'api-key=****')}`);
+
         const ws = new WebSocket(url);
-        
+
         ws.on('open', () => {
             console.log(`[WebSocket] Connected: ${id}`);
             this.reconnectAttempts.set(id, 0);

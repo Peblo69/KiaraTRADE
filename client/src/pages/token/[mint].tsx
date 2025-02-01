@@ -17,23 +17,23 @@ export default function TokenPage({ mint }: Props) {
     console.log('🌐 HELIUS CONNECTION:', !!heliusClient.connection);
 
     useEffect(() => {
-        // Test Helius directly
-        const testHelius = async () => {
-            try {
-                const key = import.meta.env.VITE_HELIUS_API_KEY;
-                console.log('🔑 HELIUS KEY EXISTS:', !!key);
+        // FORCE INIT TEST
+        console.log('🚀 STARTING HELIUS TEST');
 
-                const response = await fetch(
-                    `https://api.helius.xyz/v0/token-metrics/${mint}?api-key=${key}`
-                );
-                const data = await response.json();
-                console.log('📊 DIRECT HELIUS TEST:', data);
-            } catch (error) {
-                console.error('💀 DIRECT TEST FAILED:', error);
-            }
-        };
+        if (!import.meta.env.VITE_HELIUS_API_KEY) {
+            console.error('❌ NO HELIUS KEY FOUND!');
+            return;
+        }
 
-        testHelius();
+        // Test direct connection
+        fetch(`https://api.helius.xyz/v0/token-metrics/${mint}?api-key=${import.meta.env.VITE_HELIUS_API_KEY}`)
+            .then(res => res.json())
+            .then(data => {
+                console.log('✅ HELIUS DIRECT TEST:', data);
+            })
+            .catch(err => {
+                console.error('💀 HELIUS TEST FAILED:', err);
+            });
 
         try {
             console.log('🔌 Trying to connect to:', mint);
