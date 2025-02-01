@@ -1,8 +1,7 @@
 import React from 'react';
 import { History, ExternalLink, Copy, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { useHeliusStore } from '@/lib/helius-websocket';
+import { useTokenTrades } from '@/lib/unified-token-store';
 
 interface Props {
   tokenAddress: string;
@@ -10,48 +9,7 @@ interface Props {
 
 const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
   const [copiedAddress, setCopiedAddress] = React.useState<string | null>(null);
-
-  // Get data from both sources with stable references
-  const trades = React.useMemo(() => {
-    const pumpTrades = usePumpPortalStore.getState().getToken(tokenAddress)?.recentTrades || [];
-    const heliusTrades = useHeliusStore.getState().tokenData[tokenAddress]?.trades || [];
-
-    // Deduplicate trades by signature
-    const tradeMap = new Map();
-    [...pumpTrades, ...heliusTrades].forEach(trade => {
-      if (!tradeMap.has(trade.signature)) {
-        tradeMap.set(trade.signature, trade);
-      }
-    });
-
-    return Array.from(tradeMap.values())
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, 100);
-  }, [tokenAddress]); // Only recompute when tokenAddress changes
-
-  // Subscribe to store updates
-  React.useEffect(() => {
-    const unsubPump = usePumpPortalStore.subscribe(() => {
-      // Force re-render only when trades change
-      const newTrades = usePumpPortalStore.getState().getToken(tokenAddress)?.recentTrades;
-      if (newTrades) {
-        // Component will re-render due to store update
-      }
-    });
-
-    const unsubHelius = useHeliusStore.subscribe(() => {
-      // Force re-render only when trades change
-      const newTrades = useHeliusStore.getState().tokenData[tokenAddress]?.trades;
-      if (newTrades) {
-        // Component will re-render due to store update
-      }
-    });
-
-    return () => {
-      unsubPump();
-      unsubHelius();
-    };
-  }, [tokenAddress]);
+  const trades = useTokenTrades(tokenAddress);
 
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString('en-US', {
@@ -68,7 +26,7 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
     setTimeout(() => setCopiedAddress(null), 2000);
   }, []);
 
-  if (trades.length === 0) {
+  if (!trades?.length) {
     return (
       <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
         <div className="flex items-center space-x-2 mb-4">
@@ -102,72 +60,66 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
         </div>
 
         <AnimatePresence initial={false}>
-          {trades.map((trade) => {
-            const solPrice = usePumpPortalStore.getState().solPrice || 0;
-            const total = trade.solAmount * solPrice;
-            const type = trade.txType || trade.type;
+          {trades.map((trade) => (
+            <motion.div
+              key={trade.signature}
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="grid grid-cols-6 text-xs py-2 group hover:bg-purple-900/20 border-b border-purple-900/10"
+            >
+              <span className="text-purple-300">
+                {formatTime(trade.timestamp)}
+              </span>
 
-            return (
-              <motion.div
-                key={trade.signature}
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
-                className="grid grid-cols-6 text-xs py-2 group hover:bg-purple-900/20 border-b border-purple-900/10"
-              >
-                <span className="text-purple-300">
-                  {formatTime(trade.timestamp)}
-                </span>
-
-                <div className="flex items-center space-x-1">
+              <div className="flex items-center space-x-1">
+                <button
+                  className={`text-${trade.type === 'buy' ? 'green' : 'red'}-400 hover:underline`}
+                >
+                  {trade.traderPublicKey.slice(0, 6)}...{trade.traderPublicKey.slice(-4)}
+                </button>
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                   <button
-                    className={`text-${type === 'buy' ? 'green' : 'red'}-400 hover:underline`}
+                    onClick={() => copyToClipboard(trade.traderPublicKey)}
+                    className="p-1 hover:bg-purple-900/40 rounded"
                   >
-                    {trade.traderPublicKey.slice(0, 6)}...{trade.traderPublicKey.slice(-4)}
+                    {copiedAddress === trade.traderPublicKey ? (
+                      <CheckCircle className="w-3 h-3 text-green-400" />
+                    ) : (
+                      <Copy className="w-3 h-3 text-purple-400" />
+                    )}
                   </button>
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                    <button
-                      onClick={() => copyToClipboard(trade.traderPublicKey)}
-                      className="p-1 hover:bg-purple-900/40 rounded"
-                    >
-                      {copiedAddress === trade.traderPublicKey ? (
-                        <CheckCircle className="w-3 h-3 text-green-400" />
-                      ) : (
-                        <Copy className="w-3 h-3 text-purple-400" />
-                      )}
-                    </button>
-                    <a
-                      href={`https://solscan.io/account/${trade.traderPublicKey}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1 hover:bg-purple-900/40 rounded"
-                    >
-                      <ExternalLink className="w-3 h-3 text-purple-400" />
-                    </a>
-                  </div>
+                  <a
+                    href={`https://solscan.io/account/${trade.traderPublicKey}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1 hover:bg-purple-900/40 rounded"
+                  >
+                    <ExternalLink className="w-3 h-3 text-purple-400" />
+                  </a>
                 </div>
+              </div>
 
-                <span className={`text-right font-medium ${
-                  type === 'buy' ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  {type.toUpperCase()}
-                </span>
+              <span className={`text-right font-medium ${
+                trade.type === 'buy' ? 'text-green-400' : 'text-red-400'
+              }`}>
+                {trade.type.toUpperCase()}
+              </span>
 
-                <span className="text-right text-purple-300">
-                  {trade.tokenAmount.toLocaleString()}
-                </span>
+              <span className="text-right text-purple-300">
+                {trade.tokenAmount.toLocaleString()}
+              </span>
 
-                <span className="text-right text-purple-300">
-                  {trade.solAmount.toFixed(3)} SOL
-                </span>
+              <span className="text-right text-purple-300">
+                {trade.solAmount.toFixed(3)} SOL
+              </span>
 
-                <span className="text-right text-purple-300">
-                  ${total.toFixed(2)}
-                </span>
-              </motion.div>
-            );
-          })}
+              <span className="text-right text-purple-300">
+                ${trade.priceInUsd.toFixed(2)}
+              </span>
+            </motion.div>
+          ))}
         </AnimatePresence>
       </div>
     </div>

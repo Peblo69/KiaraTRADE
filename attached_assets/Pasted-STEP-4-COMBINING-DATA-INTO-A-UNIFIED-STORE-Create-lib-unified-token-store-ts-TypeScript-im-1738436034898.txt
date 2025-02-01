@@ -1,0 +1,179 @@
+STEP 4 - COMBINING DATA INTO A UNIFIED STORE
+
+Create lib/unified-token-store.ts:
+TypeScript
+
+import { create } from 'zustand';
+import { usePumpPortalStore } from './pump-portal-websocket';
+import { useHeliusStore } from './helius-websocket';
+
+interface UnifiedToken {
+  // Base data from PumpPortal
+  address: string;
+  bondingCurve: {
+    key: string;
+    vTokens: number;
+    vSol: number;
+  };
+  metadata: {
+    name: string;
+    symbol: string;
+    imageUrl?: string;
+  };
+  devWallet?: string;
+
+  // Real-time data from Helius
+  realTime: {
+    currentPrice: number;
+    lastTrade?: {
+      type: 'buy' | 'sell';
+      amount: number;
+      price: number;
+      timestamp: number;
+    };
+    volume24h: number;
+    trades: any[];
+  };
+}
+
+interface UnifiedStore {
+  tokens: Record<string, UnifiedToken>;
+  activeToken: string | null;
+  
+  // Actions
+  setActiveToken: (address: string) => void;
+  updateTokenData: (address: string, data: Partial<UnifiedToken>) => void;
+}
+
+export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
+  tokens: {},
+  activeToken: null,
+
+  setActiveToken: (address) => {
+    // Setup subscriptions
+    usePumpPortalStore.getState().addToViewedTokens(address);
+    useHeliusStore.getState().subscribeToToken(address);
+    
+    set({ activeToken: address });
+  },
+
+  updateTokenData: (address, data) => {
+    set(state => ({
+      tokens: {
+        ...state.tokens,
+        [address]: {
+          ...state.tokens[address],
+          ...data
+        }
+      }
+    }));
+  }
+}));
+
+// Subscription to keep stores in sync
+if (typeof window !== 'undefined') {
+  // Listen to PumpPortal updates
+  usePumpPortalStore.subscribe((state, prevState) => {
+    const changedTokens = new Set<string>();
+    
+    // Check which tokens changed
+    Object.keys(state.viewedTokens).forEach(address => {
+      if (state.viewedTokens[address] !== prevState.viewedTokens[address]) {
+        changedTokens.add(address);
+      }
+    });
+
+    // Update unified store
+    changedTokens.forEach(address => {
+      const token = state.viewedTokens[address];
+      if (!token) return;
+
+      useUnifiedStore.getState().updateTokenData(address, {
+        address: token.address,
+        bondingCurve: {
+          key: token.bondingCurveKey,
+          vTokens: token.vTokensInBondingCurve,
+          vSol: token.vSolInBondingCurve
+        },
+        metadata: token.metadata
+      });
+    });
+  });
+
+  // Listen to Helius updates
+  useHeliusStore.subscribe((state, prevState) => {
+    Object.keys(state.tokenData).forEach(address => {
+      const newData = state.tokenData[address];
+      const oldData = prevState.tokenData[address];
+      
+      if (newData !== oldData) {
+        useUnifiedStore.getState().updateTokenData(address, {
+          realTime: {
+            currentPrice: newData.lastPrice,
+            volume24h: newData.volume24h,
+            trades: newData.trades,
+            lastTrade: newData.trades[0]
+          }
+        });
+      }
+    });
+  });
+}
+
+// Helper hooks
+export function useTokenData(address: string) {
+  return useUnifiedStore(state => state.tokens[address]);
+}
+
+export function useRealTimePrice(address: string) {
+  return useUnifiedStore(state => state.tokens[address]?.realTime.currentPrice);
+}
+
+export function useLatestTrades(address: string) {
+  return useUnifiedStore(state => state.tokens[address]?.realTime.trades || []);
+}
+
+Now update your components to use the unified store:
+TypeScript
+
+// In TradingChart.tsx
+const TradingChart: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const tokenData = useTokenData(tokenAddress);
+  const latestTrades = useLatestTrades(tokenAddress);
+
+  useEffect(() => {
+    if (tokenAddress) {
+      useUnifiedStore.getState().setActiveToken(tokenAddress);
+    }
+  }, [tokenAddress]);
+
+  // Your chart logic using tokenData and latestTrades...
+};
+
+// In TokenMarketStats.tsx
+const TokenMarketStats: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const tokenData = useTokenData(tokenAddress);
+  const currentPrice = useRealTimePrice(tokenAddress);
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <StatCard
+        title="Price"
+        value={`$${currentPrice?.toFixed(8) || '0.00'}`}
+        change={calculatePriceChange(tokenData)}
+      />
+      <StatCard
+        title="24h Volume"
+        value={`$${tokenData?.realTime.volume24h?.toLocaleString() || '0.00'}`}
+      />
+      {/* Other stats... */}
+    </div>
+  );
+};
+
+This unified store:
+
+    Combines both data sources
+    Handles all updates automatically
+    Provides easy-to-use hooks
+    Keeps everything in sync
