@@ -11,6 +11,8 @@ export interface TokenTrade {
   traderPublicKey: string;
   priceInUsd?: number;
   priceInSol?: number;
+  counterpartyPublicKey?: string;
+  isDevTrade?: boolean;
 }
 
 export interface PumpPortalToken {
@@ -19,67 +21,69 @@ export interface PumpPortalToken {
   symbol: string;
   priceInUsd?: number;
   priceInSol?: number;
+  vTokensInBondingCurve: number;
+  vSolInBondingCurve: number;
   marketCapSol: number;
   volume24h?: number;
-  trades: TokenTrade[];
+  recentTrades: TokenTrade[];
+  devWallet?: string;
 }
 
 interface PumpPortalStore {
   tokens: PumpPortalToken[];
-  trades: TokenTrade[];
-  solPrice: number;
   isConnected: boolean;
+  solPrice: number;
   getToken: (address: string) => PumpPortalToken | undefined;
   addToken: (token: PumpPortalToken) => void;
-  updateTokenMetrics: (address: string, metrics: { 
-    priceInUsd?: number;
-    priceInSol?: number;
-    marketCapSol?: number;
-    volume24h?: number;
-  }) => void;
-  addTrade: (trade: TokenTrade) => void;
+  updateTokenPrice: (address: string, priceInUsd: number) => void;
+  addTradeToHistory: (tokenAddress: string, trade: TokenTrade) => void;
   setSolPrice: (price: number) => void;
   setConnected: (connected: boolean) => void;
 }
 
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
-  trades: [],
-  solPrice: 0,
   isConnected: false,
+  solPrice: 0,
 
   getToken: (address) => {
     return get().tokens.find(t => t.address === address);
   },
 
   addToken: (token) => set(state => ({
-    tokens: [...state.tokens, { ...token, trades: [] }]
+    tokens: [...state.tokens, { ...token, recentTrades: [] }]
   })),
 
-  updateTokenMetrics: (address, metrics) => set(state => ({
+  updateTokenPrice: (address, priceInUsd) => set(state => ({
     tokens: state.tokens.map(token =>
       token.address === address
-        ? { ...token, ...metrics }
+        ? { ...token, priceInUsd }
         : token
     )
   })),
 
-  addTrade: (trade) => set(state => {
-    // Add to global trades list
-    const updatedTrades = [trade, ...state.trades].slice(0, 1000); // Keep last 1000 trades
+  addTradeToHistory: (tokenAddress, trade) => set(state => {
+    const token = state.tokens.find(t => t.address === tokenAddress);
+    if (!token) return state;
 
-    // Add to token's trades list
-    const updatedTokens = state.tokens.map(token => {
-      if (token.address === trade.mint) {
-        const tokenTrades = [trade, ...(token.trades || [])].slice(0, 100); // Keep last 100 trades per token
-        return { ...token, trades: tokenTrades };
-      }
-      return token;
-    });
+    // Add trade to token's history
+    const updatedToken = {
+      ...token,
+      recentTrades: [trade, ...token.recentTrades].slice(0, 100), // Keep last 100 trades
+    };
 
+    // Update token price calculations
+    if (trade.solAmount && trade.tokenAmount) {
+      const priceInSol = trade.solAmount / trade.tokenAmount;
+      updatedToken.priceInSol = priceInSol;
+      updatedToken.priceInUsd = priceInSol * state.solPrice;
+    }
+
+    // Update the tokens list
     return {
-      trades: updatedTrades,
-      tokens: updatedTokens
+      tokens: state.tokens.map(t =>
+        t.address === tokenAddress ? updatedToken : t
+      )
     };
   }),
 
