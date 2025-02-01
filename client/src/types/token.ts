@@ -17,6 +17,9 @@ export interface Token {
   address: string;
   name: string;
   symbol: string;
+  website?: string | null;
+  twitter?: string | null;
+  telegram?: string | null;
   priceInUsd?: number;
   marketCapSol?: number;
   solPrice?: number;

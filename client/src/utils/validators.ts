@@ -8,60 +8,36 @@ export const validateImageUrl = (url?: string): string | null => {
   }
 };
 
-export const validateSocialUrl = (url: string | null | undefined, platform: string): string | null => {
-  if (!url) {
-    console.log(`[Validate Social] ${platform}: No URL provided`);
-    return null;
-  }
+export const validateSocialUrl = (url: string | null | undefined): string | null => {
+  if (!url) return null;
 
   try {
-    const parsedUrl = new URL(url);
-    let isValid = false;
-    let validatedUrl = url;
-
-    switch (platform) {
-      case 'website':
-        isValid = parsedUrl.protocol === 'https:';
-        break;
-      case 'telegram':
-        isValid = parsedUrl.hostname === 't.me';
-        // Add t.me prefix if missing
-        if (!url.startsWith('https://t.me/')) {
-          validatedUrl = `https://t.me/${url.replace(/^@/, '')}`;
-          isValid = true;
-        }
-        break;
-      case 'twitter':
-        isValid = ['twitter.com', 'x.com'].includes(parsedUrl.hostname);
-        // Add twitter.com prefix if missing
-        if (!url.startsWith('https://twitter.com/')) {
-          validatedUrl = `https://twitter.com/${url.replace(/^@/, '')}`;
-          isValid = true;
-        }
-        break;
-        case 'pumpfun':
-            isValid = parsedUrl.hostname === 'pump.fun';
-            break;
-      default:
-        isValid = true;
-    }
-
-    console.log(`[Validate Social] ${platform}: ${isValid ? 'Valid' : 'Invalid'} URL: ${validatedUrl}`);
-    return isValid ? validatedUrl : null;
-  } catch (error) {
-    console.log(`[Validate Social] ${platform}: Invalid URL format: ${url}`);
-
-    // Try to fix common issues
-    if (platform === 'telegram' && !url.includes('://')) {
-      const fixed = `https://t.me/${url.replace(/^@/, '')}`;
-      console.log(`[Validate Social] ${platform}: Fixed telegram URL: ${fixed}`);
-      return fixed;
-    }
-      if (platform === 'twitter' && !url.includes('://')) {
-          const fixed = `https://twitter.com/${url.replace(/^@/, '')}`;
-          console.log(`[Validate Social] ${platform}: Fixed twitter URL: ${fixed}`);
-          return fixed;
+    // Handle common shorthand formats
+    if (url.startsWith('@')) {
+      if (url.includes('twitter.com') || url.includes('x.com')) {
+        return `https://twitter.com/${url.replace('@', '')}`;
       }
+      return `https://t.me/${url.replace('@', '')}`;
+    }
+
+    // Add https if missing
+    if (!url.startsWith('http')) {
+      url = 'https://' + url;
+    }
+
+    const parsed = new URL(url);
+
+    // Validate and format based on platform
+    if (parsed.hostname === 't.me' || parsed.hostname.includes('telegram')) {
+      return `https://t.me/${parsed.pathname.replace('/', '')}`;
+    }
+
+    if (parsed.hostname === 'twitter.com' || parsed.hostname === 'x.com') {
+      return `https://twitter.com/${parsed.pathname.replace('/', '')}`;
+    }
+
+    return url;
+  } catch {
     return null;
   }
 };

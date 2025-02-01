@@ -387,79 +387,12 @@ const TokenCard: FC<TokenCardProps> = ({
             </div>
 
             <div className="flex items-center justify-between text-[11px] mt-2">
-             <div className="flex items-center gap-2">
-                {/* Website */}
-                {socialLinks.website && (
-                  <a
-                    href={socialLinks.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      window.open(socialLinks.website, '_blank', 'noopener,noreferrer');
-                    }}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                    title="Website"
-                  >
-                    <Globe className="w-4 h-4" />
-                  </a>
-                )}
-
-                {/* Twitter */}
-                {socialLinks.twitter && (
-                  <a
-                    href={socialLinks.twitter}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      window.open(socialLinks.twitter, '_blank', 'noopener,noreferrer');
-                    }}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                    title="Twitter"
-                  >
-                    <XIcon className="w-4 h-4" />
-                  </a>
-                )}
-
-                {/* Telegram */}
-                {socialLinks.telegram && (
-                  <a
-                    href={socialLinks.telegram}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      window.open(socialLinks.telegram, '_blank', 'noopener,noreferrer');
-                    }}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                    title="Telegram"
-                  >
-                    <TelegramIcon className="w-4 h-4" />
-                  </a>
-                )}
-
-                {/* PumpFun */}
-                {socialLinks.pumpfun && (
-                  <a
-                    href={socialLinks.pumpfun}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      window.open(socialLinks.pumpfun, '_blank', 'noopener,noreferrer');
-                    }}
-                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                    title="PumpFun"
-                  >
-                    <PumpFunIcon className="w-4 h-4" />
-                  </a>
-                )}
-              </div>
+             <SocialLinks
+                website={token.website}
+                telegram={token.telegram}
+                twitter={token.twitter}
+                address={token.address}
+              />
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
                   <Users size={12} className="text-gray-400" />
