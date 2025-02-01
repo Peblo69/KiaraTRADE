@@ -6,6 +6,12 @@ import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import TokenChart from "@/components/TokenChart";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import TokenCard from "@/components/TokenCard";
+import MarketStats from "@/components/MarketStats";
+import SocialMetrics from "@/components/SocialMetrics";
+import TradingChart from "@/components/TradingChart";
+import TradeHistory from "@/components/TradeHistory";
+import TradingForm from "@/components/TradingForm";
+import HolderAnalytics from "@/components/HolderAnalytics";
 
 const PumpFunVision: FC = () => {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
