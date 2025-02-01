@@ -1,0 +1,120 @@
+
+    Missing real-time updates:
+
+TypeScript
+
+// Current approach
+async function analyzeToken() {...}  // One-time call
+
+// What we need
+const ws = new WebSocket(`wss://helius-ws.com/v1/${tokenAddress}`); // Continuous updates
+
+Let me show you a better way:
+TypeScript
+
+// hooks/useHeliusToken.ts
+import { useState, useEffect } from 'react';
+
+const HELIUS_WS_URL = process.env.NEXT_PUBLIC_HELIUS_WS_URL;
+
+export const useHeliusToken = (tokenAddress: string) => {
+  const [tokenData, setTokenData] = useState({
+    marketStats: {
+      marketCap: 0,
+      circulatingSupply: 0,
+      totalSupply: 0,
+      maxSupply: 0,
+      priceChange24h: 0,
+      volume24h: 0,
+      liquidity24h: 0,
+      ath: { price: 0, timestamp: 0 },
+      atl: { price: 0, timestamp: 0 }
+    },
+    realtime: {
+      currentPrice: 0,
+      lastTrade: null,
+      bidAskSpread: 0
+    }
+  });
+
+  useEffect(() => {
+    if (!tokenAddress) return;
+
+    const ws = new WebSocket(`${HELIUS_WS_URL}/token/${tokenAddress}`);
+    
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      // Real-time updates from Helius
+      setTokenData(current => ({
+        ...current,
+        marketStats: {
+          marketCap: data.marketCap,
+          circulatingSupply: data.supply.circulating,
+          totalSupply: data.supply.total,
+          maxSupply: data.supply.max,
+          priceChange24h: data.priceChanges["24h"],
+          volume24h: data.volume["24h"],
+          liquidity24h: data.liquidity.total,
+          ath: data.highLow.ath,
+          atl: data.highLow.atl
+        },
+        realtime: {
+          currentPrice: data.price,
+          lastTrade: data.lastTrade,
+          bidAskSpread: data.orderBook.spread
+        }
+      }));
+    };
+
+    // Handle connection issues
+    ws.onerror = (error) => {
+      console.error('Helius WebSocket error:', error);
+    };
+
+    ws.onclose = () => {
+      // Attempt to reconnect
+      setTimeout(() => {
+        useHeliusToken(tokenAddress);
+      }, 1000);
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, [tokenAddress]);
+
+  return tokenData;
+};
+
+Then use it in your component:
+TypeScript
+
+// components/MarketStats.tsx
+const MarketStats = ({ token }) => {
+  // Get initial data from PumpPortal
+  const pumpData = usePumpPortalStore(state => state.tokens[token.address]);
+  
+  // Get real-time updates from Helius
+  const { marketStats, realtime } = useHeliusToken(token.address);
+
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <StatCard 
+        title="Market Cap" 
+        value={formatUSD(marketStats.marketCap)}
+        updateAnimation={true} // Add animation for real-time updates
+      />
+      {/* ... other stats ... */}
+    </div>
+  );
+};
+
+Advantages over the replit code:
+
+    Real-time WebSocket updates
+    No manual calculations needed
+    Direct data from Helius
+    Better error handling
+    Automatic reconnection
+    Proper state management

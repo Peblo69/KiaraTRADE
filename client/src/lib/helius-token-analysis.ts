@@ -1,11 +1,10 @@
-import axios from 'axios';
-import { create } from 'zustand';
 import { useState, useEffect } from 'react';
 
-const HELIUS_API_KEY = '004f9b13-f526-4952-9998-52f5c7bec6ee';
-const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+const HELIUS_WS_URL = process.env.NEXT_PUBLIC_HELIUS_WS_URL;
+const RECONNECT_DELAY = 5000;
+const MAX_RECONNECT_ATTEMPTS = 5;
 
-export interface TokenAnalysisData {
+interface TokenData {
   marketStats: {
     marketCap: number;
     circulatingSupply: number;
@@ -14,14 +13,8 @@ export interface TokenAnalysisData {
     priceChange24h: number;
     volume24h: number;
     liquidity24h: number;
-    ath: {
-      price: number;
-      timestamp: number;
-    };
-    atl: {
-      price: number;
-      timestamp: number;
-    };
+    ath: { price: number; timestamp: number };
+    atl: { price: number; timestamp: number };
   };
   socialMetrics: {
     communityScore: number;
@@ -29,155 +22,120 @@ export interface TokenAnalysisData {
     sentiment: 'bullish' | 'bearish' | 'neutral';
     trendingTopics: string[];
   };
-}
-
-export async function analyzeToken(tokenAddress: string): Promise<TokenAnalysisData | null> {
-  try {
-    console.log(`\n🔍 Starting analysis for token: ${tokenAddress}`);
-
-    // Get token details from Helius
-    const [assetResponse, transfersResponse] = await Promise.all([
-      axios.post(HELIUS_RPC_URL, {
-        jsonrpc: '2.0',
-        id: 'token-info',
-        method: 'getAsset',
-        params: [tokenAddress]
-      }),
-      axios.post(HELIUS_RPC_URL, {
-        jsonrpc: '2.0',
-        id: 'transfers',
-        method: 'getSignaturesForAsset',
-        params: {
-          assetId: tokenAddress,
-          limit: 100,
-          sortBy: {
-            value: 'blockTime',
-            order: 'desc'
-          }
-        }
-      })
-    ]);
-
-    const asset = assetResponse.data?.result;
-    const transfers = transfersResponse.data?.result || [];
-
-    // Calculate 24h metrics
-    const now = Date.now();
-    const oneDayAgo = now - 24 * 60 * 60 * 1000;
-    const transfersLast24h = transfers.filter((t: any) => t.blockTime * 1000 > oneDayAgo);
-
-    // Calculate volume
-    const volume24h = transfersLast24h.reduce((sum: number, t: any) => {
-      return sum + (t.nativeTransfers?.[0]?.amount || 0);
-    }, 0);
-
-    // Find ATH/ATL
-    let ath = { price: 0, timestamp: 0 };
-    let atl = { price: Infinity, timestamp: 0 };
-
-    transfers.forEach((t: any) => {
-      const price = t.nativeTransfers?.[0]?.amount || 0;
-      if (price > ath.price) {
-        ath = { price, timestamp: t.blockTime * 1000 };
-      }
-      if (price < atl.price && price > 0) {
-        atl = { price, timestamp: t.blockTime * 1000 };
-      }
-    });
-
-    // Calculate social metrics
-    const recentTrades = transfers.slice(0, 20);
-    const buyCount = recentTrades.filter((t: any) => 
-      t.nativeTransfers?.[0]?.fromUserAccount === t.source
-    ).length;
-
-    const sentiment = buyCount > recentTrades.length * 0.6 ? 'bullish' : 
-                     buyCount < recentTrades.length * 0.4 ? 'bearish' : 
-                     'neutral';
-
-    // Return analysis data
-    return {
-      marketStats: {
-        marketCap: asset?.marketCap || 0,
-        circulatingSupply: asset?.supply?.circulating || 0,
-        totalSupply: asset?.supply?.total || 0,
-        maxSupply: asset?.supply?.max || 0,
-        priceChange24h: calculatePriceChange(transfers),
-        volume24h,
-        liquidity24h: volume24h * 0.05, // Estimate liquidity as 5% of volume
-        ath,
-        atl: atl.price === Infinity ? { price: 0, timestamp: 0 } : atl
-      },
-      socialMetrics: {
-        communityScore: Math.min(Math.ceil(transfers.length / 10), 10),
-        socialVolume: Math.min(transfers.length, 100),
-        sentiment,
-        trendingTopics: ['Initial Launch', 'Trading Volume']
-      }
+  realtime: {
+    currentPrice: number;
+    lastTrade: null | {
+      price: number;
+      size: number;
+      side: 'buy' | 'sell';
     };
-
-  } catch (error) {
-    console.error('Error analyzing token:', error);
-    return null;
-  }
+    bidAskSpread: number;
+  };
 }
 
-function calculatePriceChange(transfers: any[]): number {
-  if (transfers.length < 2) return 0;
-
-  const latest = transfers[0].nativeTransfers?.[0]?.amount || 0;
-  const past = transfers[transfers.length - 1].nativeTransfers?.[0]?.amount || 0;
-
-  if (past === 0) return 0;
-  return ((latest - past) / past) * 100;
-}
-
-// Create a store for caching analysis results
-interface AnalysisStore {
-  cache: Record<string, TokenAnalysisData>;
-  setAnalysis: (tokenAddress: string, data: TokenAnalysisData) => void;
-  getAnalysis: (tokenAddress: string) => TokenAnalysisData | null;
-}
-
-const useAnalysisStore = create<AnalysisStore>((set, get) => ({
-  cache: {},
-  setAnalysis: (tokenAddress, data) => 
-    set(state => ({ cache: { ...state.cache, [tokenAddress]: data } })),
-  getAnalysis: (tokenAddress) => get().cache[tokenAddress] || null
-}));
-
-// Export the React hook for components
 export function useTokenAnalysis(tokenAddress: string) {
-  const [isLoading, setIsLoading] = useState(false);
+  const [data, setData] = useState<TokenData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<TokenAnalysisData | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
+    if (!tokenAddress || !HELIUS_WS_URL) return;
+
+    let ws: WebSocket | null = null;
+    let reconnectAttempts = 0;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+
+    const connect = () => {
       try {
-        const result = await analyzeToken(tokenAddress);
-        if (result) {
-          setData(result);
-          useAnalysisStore.getState().setAnalysis(tokenAddress, result);
-        } else {
-          setError('Analysis failed');
-        }
-      } catch (error: any) {
-        setError(error.message || 'Analysis failed');
-      } finally {
-        setIsLoading(false);
+        ws = new WebSocket(`${HELIUS_WS_URL}/token/${tokenAddress}`);
+
+        ws.onopen = () => {
+          console.log('[Helius] Connected');
+          setIsLoading(false);
+          reconnectAttempts = 0;
+
+          // Subscribe to token data
+          ws?.send(JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'subscribeToken',
+            params: {
+              token: tokenAddress,
+              encoding: 'jsonParsed'
+            }
+          }));
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+
+            // Update token data
+            setData(current => ({
+              ...current,
+              marketStats: {
+                marketCap: data.marketCap,
+                circulatingSupply: data.supply?.circulating || 0,
+                totalSupply: data.supply?.total || 0,
+                maxSupply: data.supply?.max || 0,
+                priceChange24h: data.priceChanges?.["24h"] || 0,
+                volume24h: data.volume?.["24h"] || 0,
+                liquidity24h: data.liquidity?.total || 0,
+                ath: data.highLow?.ath || { price: 0, timestamp: 0 },
+                atl: data.highLow?.atl || { price: 0, timestamp: 0 }
+              },
+              socialMetrics: {
+                communityScore: data.social?.score || 0,
+                socialVolume: data.social?.volume || 0,
+                sentiment: data.social?.sentiment || 'neutral',
+                trendingTopics: data.social?.trending || []
+              },
+              realtime: {
+                currentPrice: data.price || 0,
+                lastTrade: data.lastTrade,
+                bidAskSpread: data.orderBook?.spread || 0
+              }
+            }));
+          } catch (error) {
+            console.error('[Helius] Message processing error:', error);
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error('[Helius] WebSocket error:', error);
+          setError('Connection error');
+        };
+
+        ws.onclose = () => {
+          setIsLoading(true);
+          if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            reconnectAttempts++;
+            console.log(`[Helius] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+            reconnectTimeout = setTimeout(() => {
+              connect();
+            }, RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts));
+          } else {
+            setError('Connection failed after maximum retries');
+          }
+        };
+
+      } catch (error) {
+        console.error('[Helius] Connection failed:', error);
+        setError('Failed to establish connection');
       }
     };
 
-    // Try to get cached data first
-    const cachedData = useAnalysisStore.getState().getAnalysis(tokenAddress);
-    if (cachedData) {
-      setData(cachedData);
-    }
+    connect();
 
-    fetchData();
+    // Cleanup
+    return () => {
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      if (ws) {
+        ws.close();
+      }
+    };
   }, [tokenAddress]);
 
   return { data, isLoading, error };
