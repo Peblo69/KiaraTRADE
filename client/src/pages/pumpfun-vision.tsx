@@ -45,10 +45,30 @@ const PumpFunVision: FC = () => {
         </div>
       }>
         <ErrorBoundary>
-          <TokenChart 
-            tokenAddress={selectedToken} 
-            onBack={handleBack}
-          />
+          <div className="min-h-screen bg-[#070510] text-white">
+            <div className="container mx-auto px-4">
+              <div className="flex items-center mb-4">
+                <Button variant="ghost" onClick={handleBack} className="text-purple-400">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+              </div>
+              <div className="grid grid-cols-12 gap-4">
+                <div className="col-span-2 space-y-4">
+                  <MarketStats tokenAddress={selectedToken} />
+                  <SocialMetrics tokenAddress={selectedToken} />
+                </div>
+                <div className="col-span-7 space-y-4">
+                  <TradingChart tokenAddress={selectedToken} />
+                  <TradeHistory tokenAddress={selectedToken} />
+                </div>
+                <div className="col-span-3 space-y-4">
+                  <TradingForm tokenAddress={selectedToken} />
+                  <HolderAnalytics tokenAddress={selectedToken} />
+                </div>
+              </div>
+            </div>
+          </div>
         </ErrorBoundary>
       </Suspense>
     );
