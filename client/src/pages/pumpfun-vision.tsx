@@ -70,7 +70,7 @@ const PumpFunVision: FC = () => {
                 <Filter className="h-4 w-4" /> Filter
               </Button>
             </div>
-            <div className="space-y-3 max-h-[80vh] overflow-y-auto pr-2">
+            <div className="token-column space-y-3 max-h-[80vh] overflow-y-auto pr-2">
               {newTokens.map((token) => (
                 <TokenCard
                   key={token.address}
@@ -90,7 +90,7 @@ const PumpFunVision: FC = () => {
                 <Filter className="h-4 w-4" /> Filter
               </Button>
             </div>
-            <div className="space-y-3 max-h-[80vh] overflow-y-auto pr-2">
+            <div className="token-column space-y-3 max-h-[80vh] overflow-y-auto pr-2">
               {aboutToGraduate.map((token) => (
                 <TokenCard
                   key={token.address}
@@ -110,7 +110,7 @@ const PumpFunVision: FC = () => {
                 <Filter className="h-4 w-4" /> Filter
               </Button>
             </div>
-            <div className="space-y-3 max-h-[80vh] overflow-y-auto pr-2">
+            <div className="token-column space-y-3 max-h-[80vh] overflow-y-auto pr-2">
               {graduated.map((token) => (
                 <TokenCard
                   key={token.address}
