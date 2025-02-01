@@ -41,6 +41,17 @@ const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
   const solPrice = usePumpPortalStore(state => state.solPrice);
 
+  React.useEffect(() => {
+    console.log('MarketStats Component:', {
+      tokenAddress,
+      token,
+      solPrice,
+      marketCapSol: token?.marketCapSol,
+      vTokens: token?.vTokensInBondingCurve,
+      vSol: token?.vSolInBondingCurve
+    });
+  }, [token, tokenAddress, solPrice]);
+
   const metrics = useMemo(() => {
     if (!token) return null;
 
@@ -57,7 +68,7 @@ const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
     const volume24h = last24hTrades.reduce((sum, trade) => 
       sum + (trade.tokenAmount || 0) * (trade.priceInUsd || 0), 0);
 
-    const marketCap = token.vTokensInBondingCurve * (token.priceInUsd || 0);
+    const marketCapUsd = (token.marketCapSol || 0) * solPrice;
     const liquidityUsd = (token.vSolInBondingCurve || 0) * solPrice;
 
     return {
@@ -66,8 +77,8 @@ const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
         change: priceChange
       },
       marketCap: {
-        usd: marketCap,
-        sol: token.vSolInBondingCurve || 0
+        usd: marketCapUsd,
+        sol: token.marketCapSol || 0
       },
       volume: {
         usd: volume24h,
