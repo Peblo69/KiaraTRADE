@@ -12,7 +12,23 @@ export default function TokenPage({ mint }: Props) {
 
     useEffect(() => {
         try {
-            console.log('🔌 Connecting to PumpPortal for:', mint);
+            // FORCE INIT TEST
+            console.log('🚀 STARTING HELIUS TEST');
+
+            if (!import.meta.env.VITE_HELIUS_API_KEY) {
+                console.error('❌ NO HELIUS KEY FOUND!');
+                return;
+            }
+
+            // Test direct connection
+            fetch(`https://api.helius.xyz/v0/token-metrics/${mint}?api-key=${import.meta.env.VITE_HELIUS_API_KEY}`)
+                .then(res => res.json())
+                .then(data => {
+                    console.log('✅ HELIUS DIRECT TEST:', data);
+                })
+                .catch(err => {
+                    console.error('💀 HELIUS TEST FAILED:', err);
+                });
 
             // Listen for WebSocket status
             wsManager.on('connected', (id) => {
