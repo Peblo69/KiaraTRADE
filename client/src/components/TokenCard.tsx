@@ -273,28 +273,19 @@ export const TokenCard: FC<TokenCardProps> = ({
   }, [token]);
 
   const socialLinks = useMemo(() => {
-    console.log('Processing social links for token:', {
-      symbol: token.symbol,
-      website: token.website,
-      twitter: token.twitter,
-      telegram: token.telegram,
-      socials: token.socials
-    });
-
     const links = {
-      website: token.website || token.socials?.website || null,
-      telegram: token.telegram || token.socials?.telegram || null,
-      twitter: token.twitter || token.socials?.twitter || null,
-      pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : null
+      website: token.website || token.socials?.website,
+      telegram: token.telegram || token.socials?.telegram,
+      twitter: token.twitter || token.socials?.twitter,
+      pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : undefined
     };
 
-    console.log('Pre-formatted links:', links);
-
-    const formatted = formatSocialLinks(links);
-
-    console.log('Formatted social links:', formatted);
-
-    return formatted;
+    return {
+      website: validateSocialUrl(links.website, 'website'),
+      telegram: validateSocialUrl(links.telegram, 'telegram'),
+      twitter: validateSocialUrl(links.twitter, 'twitter'),
+      pumpfun: validateSocialUrl(links.pumpfun, 'pumpfun')
+    };
   }, [token.website, token.telegram, token.twitter, token.socials, token.address]);
 
   // Add debug effect
@@ -415,9 +406,6 @@ export const TokenCard: FC<TokenCardProps> = ({
             <div className="flex items-center justify-between text-[11px] mt-2">
              <div className="flex items-center gap-2">
                 {Object.entries(socialLinks).map(([platform, url]) => {
-                    // Debug logging
-                  console.log(`Rendering social link: ${platform} -> ${url}`);
-
                   if (!url) return null;
 
                   const IconComponent = {
@@ -425,7 +413,7 @@ export const TokenCard: FC<TokenCardProps> = ({
                     telegram: TelegramIcon,
                     twitter: XIcon,
                     pumpfun: PumpFunIcon
-                  }[platform as keyof typeof socialLinks];
+                  }[platform as 'website' | 'telegram' | 'twitter' | 'pumpfun'];
 
                   if (!IconComponent) return null;
 
