@@ -173,22 +173,22 @@ class WebSocketManager {
 
       switch (message.type) {
         case 'newToken':
-          console.log('[PumpPortal] Received new token:', message.data.mint);
+          console.log('[PumpPortal] New token:', message.data.mint);
           store.addToken(message.data);
           break;
 
         case 'trade':
-          console.log('[PumpPortal] Received trade:', message.data);
+          // Only log significant trades (> 0.1 SOL)
+          if (message.data && message.data.solAmount > 0.1) {
+            console.log('[PumpPortal] Significant trade:', {
+                mint: message.data.mint,
+                type: message.data.txType,
+                amount: message.data.solAmount
+            });
+          }
           if (message.data && message.data.mint) {
             const priceInSol = message.data.solAmount / BILLION;
             const priceInUsd = priceInSol * this.solPrice;
-
-            console.log('[PumpPortal] Trade price calculation:', {
-              token: message.data.mint,
-              priceInSol,
-              priceInUsd,
-              solPrice: this.solPrice
-            });
 
             const tradeData: TokenTrade = {
               ...message.data,
@@ -198,18 +198,10 @@ class WebSocketManager {
               isDevTrade: this.isDevWalletTrade(message.data)
             };
 
-            if (tradeData.isDevTrade) {
-              console.log('[PumpPortal] Dev wallet trade detected:', {
-                type: message.data.txType,
-                wallet: message.data.traderPublicKey
-              });
-            }
-
             store.addTradeToHistory(message.data.mint, tradeData);
-
             this.calculateTokenPrice({
-              ...message.data,
-              address: message.data.mint
+                ...message.data,
+                address: message.data.mint
             } as PumpPortalToken);
           }
           break;
@@ -220,18 +212,10 @@ class WebSocketManager {
           }
           break;
 
-        case 'heartbeat':
-          this.handleHeartbeat();
-          break;
-
         case 'marketData':
         case 'solPriceUpdate':
-          console.log('[PumpPortal] Received market data:', message.data);
           if (message.data && typeof message.data.solPrice === 'number') {
             const heliusPrice = message.data.solPrice;
-            console.log('[PumpPortal] Received SOL price from Helius:', heliusPrice);
-
-            // Only update if we don't have a CoinGecko price yet
             if (this.solPrice <= 0) {
               this.solPrice = heliusPrice;
               store.setSolPrice(this.solPrice);
@@ -241,7 +225,8 @@ class WebSocketManager {
           break;
 
         default:
-          console.warn('[PumpPortal] Unknown message type:', message.type);
+          // Skip logging unknown message types
+          break;
       }
     } catch (error) {
       console.error('[PumpPortal] Error handling message:', error);
