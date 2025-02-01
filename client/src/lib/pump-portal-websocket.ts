@@ -118,29 +118,11 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const mintAddress = tokenData.mint || tokenData.address || '';
     const imageUrl = tokenData.metadata?.imageUrl || tokenData.imageUrl;
 
-    // Initialize recentTrades array if tokenData includes trade data
-    const initialTrades = tokenData.txType === 'trade' ? [{
-      signature: tokenData.signature,
-      timestamp: tokenData.timestamp,
-      mint: mintAddress,
-      txType: tokenData.txType,
-      tokenAmount: tokenData.tokenAmount || 0,
-      solAmount: tokenData.solAmount || 0,
-      traderPublicKey: tokenData.traderPublicKey,
-      counterpartyPublicKey: tokenData.counterpartyPublicKey,
-      bondingCurveKey: tokenData.bondingCurveKey,
-      vTokensInBondingCurve: tokenData.vTokensInBondingCurve,
-      vSolInBondingCurve: tokenData.vSolInBondingCurve,
-      marketCapSol: tokenData.marketCapSol,
-      priceInSol: tokenData.priceInSol,
-      priceInUsd: tokenData.priceInUsd
-    }] : [];
-
     // Calculate token metrics
     const tokenMetrics = calculatePumpFunTokenMetrics({
       vSolInBondingCurve: tokenData.vSolInBondingCurve || 0,
       vTokensInBondingCurve: tokenData.vTokensInBondingCurve || 0,
-      solPrice: state.solPrice
+      solPrice: state.solPrice // Access solPrice from state instead of global store
     });
 
     debugLog('Token metrics calculated:', tokenMetrics);
@@ -156,7 +138,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       priceInSol: tokenMetrics.price.sol,
       priceInUsd: tokenMetrics.price.usd,
       devWallet: tokenData.devWallet || tokenData.traderPublicKey,
-      recentTrades: initialTrades, // Initialize with trade data if available
+      recentTrades: [],
       metadata: {
         name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
         symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
@@ -184,16 +166,10 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     if (existingTokenIndex >= 0) {
       const updatedTokens = state.tokens.map((t, i) => {
         if (i === existingTokenIndex) {
-          // Preserve existing trades and add new ones
-          const existingTrades = t.recentTrades || [];
-          const updatedTrades = initialTrades.length > 0 
-            ? [...initialTrades, ...existingTrades].slice(0, MAX_TRADES_PER_TOKEN)
-            : existingTrades;
-
           return {
             ...t,
             ...newToken,
-            recentTrades: updatedTrades
+            recentTrades: [...(t.recentTrades || []), ...(tokenData.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN)
           };
         }
         return t;
@@ -201,6 +177,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
       return {
         tokens: updatedTokens,
+        lastUpdate: Date.now(),
         ...(isViewed && {
           viewedTokens: {
             ...state.viewedTokens,
@@ -213,12 +190,26 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     // Add new token with isNew flag
     const tokenWithFlag = {
       ...newToken,
-      isNew: true,
-      recentTrades: initialTrades // Ensure trades are included for new tokens
+      isNew: true
     };
+
+    // Calculate initial risk metrics if we have trade history
+    if (tokenData.recentTrades?.length) {
+      const volumeMetrics = calculateVolumeMetrics(tokenData.recentTrades);
+      const riskMetrics = calculateTokenRisk({
+        ...tokenWithFlag,
+        recentTrades: tokenData.recentTrades
+      });
+
+      Object.assign(tokenWithFlag, {
+        volume24h: volumeMetrics.volume24h,
+        riskMetrics
+      });
+    }
 
     return {
       tokens: [tokenWithFlag, ...state.tokens].slice(0, MAX_TOKENS_IN_LIST),
+      lastUpdate: Date.now(),
       ...(isViewed && {
         viewedTokens: {
           ...state.viewedTokens,
@@ -235,12 +226,8 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       amount: tradeData.solAmount
     });
 
-    // Get the token from either viewedTokens or tokens array
     const token = state.viewedTokens[address] || state.tokens.find(t => t.address === address);
-    if (!token) {
-      console.warn('Token not found for trade:', address);
-      return state;
-    }
+    if (!token) return state;
 
     // Add new trade and calculate updated metrics
     const updatedTrades = [tradeData, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN);
@@ -269,18 +256,13 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       })
     };
 
-    console.log('Updated token with new trade:', {
-      address,
-      tradesCount: updatedTrades.length,
-      latestTrade: tradeData
-    });
-
     const updatedTokens = state.tokens.map(t =>
       t.address === address ? updatedToken : t
     );
 
     return {
       tokens: updatedTokens,
+      lastUpdate: Date.now(),
       ...(state.viewedTokens[address] && {
         viewedTokens: {
           ...state.viewedTokens,
@@ -392,8 +374,11 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           viewedTokens: {
             ...state.viewedTokens,
             [address]: {
-              ...state.viewedTokens[address].metadata,
-              uri
+              ...state.viewedTokens[address],
+              metadata: {
+                ...state.viewedTokens[address].metadata,
+                uri
+              }
             }
           }
         })
