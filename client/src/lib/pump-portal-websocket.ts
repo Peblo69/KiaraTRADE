@@ -1,7 +1,8 @@
+
 import { create } from 'zustand';
 import { format } from 'date-fns';
 import axios from 'axios';
-import { calculatePumpFunTokenMetrics, calculateVolumeMetrics, calculateTokenRisk } from "@/utils/token-calculations";
+import { calculatePumpFunTokenMetrics } from "@/utils/token-calculations";
 
 // Constants
 const MAX_TRADES_PER_TOKEN = 100;
@@ -14,7 +15,6 @@ function debugLog(action: string, data?: any) {
   }
 }
 
-// Interfaces
 export interface TokenMetadata {
   name: string;
   symbol: string;
@@ -346,7 +346,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     }
 
     return uri;
-  }),
+  },
 
   getNewTokens: () => {
     const { tokens } = get();
