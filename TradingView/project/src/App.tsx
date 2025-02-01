@@ -9,8 +9,9 @@ import HolderAnalytics from './components/HolderAnalytics';
 import SocialMetrics from './components/SocialMetrics';
 
 function App() {
-  // Placeholder for currentTokenAddress, this should be passed from higher level in real app
+  // Placeholder for currentTokenAddress, this should come from URL or state management
   const currentTokenAddress = "0x1234567890abcdef";
+
   return (
     <TradingProvider>
       <div className="min-h-screen bg-[#070510] text-white">
@@ -33,12 +34,11 @@ function App() {
         </div>
 
         <TopBar />
-        
+
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-12 gap-4">
             {/* Left Column - Market Stats & Social Metrics */}
             <div className="col-span-2 space-y-4">
-              {/* Pass tokenAddress to MarketStats */}
               <MarketStats tokenAddress={currentTokenAddress} />
               <SocialMetrics />
             </div>

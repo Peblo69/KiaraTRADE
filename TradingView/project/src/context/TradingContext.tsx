@@ -9,7 +9,12 @@ interface TradingContextType {
   error: Error | null;
 }
 
-const TradingContext = createContext<TradingContextType | undefined>(undefined);
+export const TradingContext = createContext<TradingContextType>({
+  trades: [],
+  orderBook: { asks: [], bids: [] },
+  loading: true,
+  error: null
+});
 
 export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -71,7 +76,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
 export function useTradingContext() {
   const context = useContext(TradingContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useTradingContext must be used within a TradingProvider');
   }
   return context;
