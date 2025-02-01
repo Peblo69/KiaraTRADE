@@ -1,6 +1,6 @@
 import { FC, useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { SocialLinks } from './SocialLinks';
 import { Card } from "@/components/ui/card";
+import { SocialLinks } from '@/components/SocialLinks';
 import { ImageIcon, Globe, Search, Users, Crosshair, UserPlus, Copy } from 'lucide-react';
 import { validateImageUrl,  } from '@/utils/validators';
 import { THRESHOLDS, getRiskLevelColor, formatMarketCap, calculateMarketCapProgress } from '@/utils/token-metrics';

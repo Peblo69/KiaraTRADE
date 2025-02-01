@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { format } from 'date-fns';
 import axios from 'axios';
 import { calculatePumpFunTokenMetrics, calculateVolumeMetrics, calculateTokenRisk } from "@/utils/token-calculations";
+// Placeholder import -  This needs to be replaced with the actual import path for SocialLinks
+import SocialLinks from './SocialLinks'; //  Replace './SocialLinks' with the correct path
 
 // Constants
 const MAX_TRADES_PER_TOKEN = 100;
@@ -67,6 +69,14 @@ export interface PumpPortalToken {
   volume24h?: number;
   riskMetrics?: any;
   isNew?: boolean;
+  website?: string | null;
+  twitter?: string | null;
+  telegram?: string | null;
+  socials?: {
+    website: string | null;
+    twitter: string | null;
+    telegram: string | null;
+  };
 }
 
 interface PumpPortalStore {
@@ -139,7 +149,15 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         creators: tokenData.creators || []
       },
       lastAnalyzedAt: tokenData.timestamp?.toString(),
-      createdAt: tokenData.txType === 'create' ? tokenData.timestamp?.toString() : undefined
+      createdAt: tokenData.txType === 'create' ? tokenData.timestamp?.toString() : undefined,
+      website: tokenData.website || null,
+      twitter: tokenData.twitter || null,
+      telegram: tokenData.telegram || null,
+      socials: {
+        website: tokenData.website || null,
+        twitter: tokenData.twitter || null,
+        telegram: tokenData.telegram || null
+      }
     };
 
     const existingTokenIndex = state.tokens.findIndex(t => t.address === newToken.address);
