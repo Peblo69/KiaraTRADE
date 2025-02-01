@@ -125,6 +125,24 @@ const InsiderMetricsDisplay = ({metrics}: {metrics: InsiderMetrics}) => (
   </div>
 );
 
+const debugSocialLinks = (token: Token) => {
+  console.group('Social Links Debug');
+  console.log('Token:', token.symbol);
+  console.log('Direct social links:', {
+    website: token.website,
+    telegram: token.telegram,
+    twitter: token.twitter
+  });
+  console.log('Socials object:', token.socials);
+  console.log('Formatted social links:', formatSocialLinks({
+    website: token.socials?.website || token.website || null,
+    telegram: token.socials?.telegram || token.telegram || null,
+    twitter: token.socials?.twitter || token.twitter || null,
+    pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : null
+  }));
+  console.groupEnd();
+};
+
 export const TokenCard: FC<TokenCardProps> = ({
   token,
   onClick,
@@ -244,37 +262,38 @@ export const TokenCard: FC<TokenCardProps> = ({
     onCopyAddress();
   };
 
-  const handleImageClick = (e: React.MouseEvent) => {
+    const handleImageClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     const searchQuery = encodeURIComponent(`${displayName} ${displaySymbol} token logo`);
     window.open(`https://www.google.com/search?q=${searchQuery}&tbm=isch`, '_blank', 'noopener,noreferrer');
   };
 
+  useEffect(() => {
+    debugSocialLinks(token);
+  }, [token]);
+
   const socialLinks = useMemo(() => {
-    // Debug log to check incoming data
-    console.log('Token socials:', {
-      fromSocials: token.socials,
-      fromDirect: {
-        website: token.website,
-        telegram: token.telegram,
-        twitter: token.twitter
-      }
+    console.group(`Token Social Links Debug [${token.symbol}]`);
+    console.log('Raw token data:', {
+      address: token.address,
+      socials: token.socials,
+      website: token.website,
+      telegram: token.telegram,
+      twitter: token.twitter
     });
 
-    return formatSocialLinks({
-      // Try socials object first, fall back to direct properties
+    const links = formatSocialLinks({
       website: token.socials?.website || token.website || null,
       telegram: token.socials?.telegram || token.telegram || null,
       twitter: token.socials?.twitter || token.twitter || null,
       pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : null
     });
+
+    console.log('Processed social links:', links);
+    console.groupEnd();
+    return links;
   }, [token.socials, token.website, token.telegram, token.twitter, token.address]);
 
-  useEffect(() => {
-    console.log('Social links updated:', socialLinks);
-  }, [socialLinks]);
-
-  const insiderMetrics: InsiderMetrics = { risk: metrics.insiderRisk, patterns: { quickFlips: 0, coordinatedBuys: 0 } };
 
   return (
     <Card
@@ -364,7 +383,7 @@ export const TokenCard: FC<TokenCardProps> = ({
                   </span>
                 )}
                 {metrics.insiderRisk > 0 && (
-                  <InsiderMetricsDisplay metrics={insiderMetrics} />
+                  <InsiderMetricsDisplay metrics={ { risk: metrics.insiderRisk, patterns: { quickFlips: 0, coordinatedBuys: 0 } } } />
                 )}
                 {metrics.snipersCount > 0 && (
                   <span className={cn(
@@ -380,14 +399,25 @@ export const TokenCard: FC<TokenCardProps> = ({
             <div className="flex items-center justify-between text-[11px] mt-2">
               <div className="flex items-center gap-2">
                 {Object.entries(socialLinks).map(([platform, url]) => {
-                  const IconComponent = {
-                    website: Globe,
-                    telegram: TelegramIcon,
-                    twitter: XIcon,
-                    pumpfun: PumpFunIcon
-                  }[platform];
+                  if (!url) return null;
 
-                  if (!url || !IconComponent) return null;
+                  let IconComponent;
+                  switch (platform) {
+                    case 'website':
+                      IconComponent = Globe;
+                      break;
+                    case 'telegram':
+                      IconComponent = TelegramIcon;
+                      break;
+                    case 'twitter':
+                      IconComponent = XIcon;
+                      break;
+                    case 'pumpfun':
+                      IconComponent = PumpFunIcon;
+                      break;
+                    default:
+                      return null;
+                  }
 
                   return (
                     <a

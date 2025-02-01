@@ -1,0 +1,202 @@
+
+    First, add a debug section in the TokenCard to help identify where links might be getting lost:
+
+TypeScript
+
+// Add this right after the socialLinks useMemo
+useEffect(() => {
+  if (token.address) {
+    console.group(`Token Social Links Debug [${token.symbol}]`);
+    console.log('Raw token data:', {
+      address: token.address,
+      socials: token.socials,
+      website: token.website,
+      telegram: token.telegram,
+      twitter: token.twitter
+    });
+    console.log('Processed social links:', socialLinks);
+    console.groupEnd();
+  }
+}, [token, socialLinks]);
+
+    Update the PumpPortal WebSocket mapping in your store:
+
+TypeScript
+
+// In your pump-portal-websocket.ts
+addToken: (tokenData) => set((state) => {
+  debugLog('addToken', tokenData);
+
+  // Extract basic token info
+  const tokenName = tokenData.metadata?.name || tokenData.name;
+  const tokenSymbol = tokenData.metadata?.symbol || tokenData.symbol;
+  const mintAddress = tokenData.mint || tokenData.address || '';
+  const imageUrl = tokenData.metadata?.imageUrl || tokenData.imageUrl;
+
+  // Process social links
+  const socials = {
+    website: tokenData.website || tokenData.socials?.website || null,
+    telegram: tokenData.telegram || tokenData.socials?.telegram || null,
+    twitter: tokenData.twitter || tokenData.socials?.twitter || null,
+    // Add pumpfun link based on address
+    pumpfun: mintAddress ? `https://pump.fun/coin/${mintAddress}` : null
+  };
+
+  const newToken = {
+    // ... existing token properties
+    socials,
+    // Keep direct properties for backwards compatibility
+    website: socials.website,
+    telegram: socials.telegram,
+    twitter: socials.twitter,
+    // ... rest of the properties
+  };
+
+  // Log the processed token data
+  console.log('Processed token data:', {
+    address: newToken.address,
+    socials: newToken.socials,
+    website: newToken.website,
+    telegram: newToken.telegram,
+    twitter: newToken.twitter
+  });
+
+  // ... rest of your addToken logic
+});
+
+    Add social links validation with more detailed error reporting:
+
+TypeScript
+
+// utils/validators.ts
+export const validateSocialUrl = (url: string | null | undefined, platform: string): string | null => {
+  if (!url) {
+    console.log(`[Validate Social] ${platform}: No URL provided`);
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+    let isValid = false;
+    let validatedUrl = url;
+
+    switch (platform) {
+      case 'website':
+        isValid = parsedUrl.protocol === 'https:';
+        break;
+      case 'telegram':
+        isValid = parsedUrl.hostname === 't.me';
+        // Add t.me prefix if missing
+        if (!url.startsWith('https://t.me/')) {
+          validatedUrl = `https://t.me/${url.replace(/^@/, '')}`;
+          isValid = true;
+        }
+        break;
+      case 'twitter':
+        isValid = ['twitter.com', 'x.com'].includes(parsedUrl.hostname);
+        // Add twitter.com prefix if missing
+        if (!url.startsWith('https://twitter.com/')) {
+          validatedUrl = `https://twitter.com/${url.replace(/^@/, '')}`;
+          isValid = true;
+        }
+        break;
+      case 'pumpfun':
+        isValid = parsedUrl.hostname === 'pump.fun';
+        break;
+      default:
+        isValid = true;
+    }
+
+    console.log(`[Validate Social] ${platform}: ${isValid ? 'Valid' : 'Invalid'} URL: ${validatedUrl}`);
+    return isValid ? validatedUrl : null;
+  } catch (error) {
+    console.log(`[Validate Social] ${platform}: Invalid URL format: ${url}`);
+    
+    // Try to fix common issues
+    if (platform === 'telegram' && !url.includes('://')) {
+      const fixed = `https://t.me/${url.replace(/^@/, '')}`;
+      console.log(`[Validate Social] ${platform}: Fixed telegram URL: ${fixed}`);
+      return fixed;
+    }
+    if (platform === 'twitter' && !url.includes('://')) {
+      const fixed = `https://twitter.com/${url.replace(/^@/, '')}`;
+      console.log(`[Validate Social] ${platform}: Fixed twitter URL: ${fixed}`);
+      return fixed;
+    }
+    return null;
+  }
+};
+
+    Update the social links section in TokenCard to handle more cases:
+
+TypeScript
+
+<div className="flex items-center gap-2">
+  {Object.entries(socialLinks).map(([platform, url]) => {
+    if (!url) {
+      console.log(`[TokenCard] Skipping ${platform} - no valid URL`);
+      return null;
+    }
+
+    const IconComponent = {
+      website: Globe,
+      telegram: TelegramIcon,
+      twitter: XIcon,
+      pumpfun: PumpFunIcon
+    }[platform];
+
+    if (!IconComponent) {
+      console.log(`[TokenCard] Skipping ${platform} - no icon component`);
+      return null;
+    }
+
+    console.log(`[TokenCard] Rendering ${platform} link:`, url);
+
+    return (
+      <a
+        key={platform}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log(`[TokenCard] Opening ${platform} link:`, url);
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }}
+        className="text-blue-400/70 hover:text-blue-300 transition-colors"
+        title={platform.charAt(0).toUpperCase() + platform.slice(1)}
+      >
+        <IconComponent className="w-4 h-4" />
+      </a>
+    );
+  })}
+</div>
+
+    Add this debug function to help track where social links might be getting lost:
+
+TypeScript
+
+// Add this at the top of your TokenCard component
+const debugSocialLinks = (token: Token) => {
+  console.group('Social Links Debug');
+  console.log('Token:', token.symbol);
+  console.log('Direct social links:', {
+    website: token.website,
+    telegram: token.telegram,
+    twitter: token.twitter
+  });
+  console.log('Socials object:', token.socials);
+  console.log('Formatted social links:', formatSocialLinks({
+    website: token.socials?.website || token.website || null,
+    telegram: token.socials?.telegram || token.telegram || null,
+    twitter: token.socials?.twitter || token.twitter || null,
+    pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : null
+  }));
+  console.groupEnd();
+};
+
+// Call it in useEffect
+useEffect(() => {
+  debugSocialLinks(token);
+}, [token]);
