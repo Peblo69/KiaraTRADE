@@ -18,7 +18,7 @@ const SocialMetrics: React.FC = () => {
               <MessageCircle className="w-4 h-4 text-purple-400" />
               <span className="text-sm text-purple-300">Community Score</span>
             </div>
-            <span className="text-sm font-medium text-purple-100">0/10</span>
+            <span className="text-sm font-medium text-purple-100">1/10</span>
           </div>
 
           <div className="flex justify-between items-center">
@@ -26,7 +26,7 @@ const SocialMetrics: React.FC = () => {
               <Activity className="w-4 h-4 text-purple-400" />
               <span className="text-sm text-purple-300">Social Volume</span>
             </div>
-            <span className="text-sm font-medium text-purple-400">0%</span>
+            <span className="text-sm font-medium text-purple-400">1%</span>
           </div>
 
           <div className="flex justify-between items-center">
@@ -34,7 +34,7 @@ const SocialMetrics: React.FC = () => {
               <Star className="w-4 h-4 text-purple-400" />
               <span className="text-sm text-purple-300">Sentiment</span>
             </div>
-            <span className="text-sm font-medium text-purple-400">N/A</span>
+            <span className="text-sm font-medium text-purple-400">Neutral</span>
           </div>
         </div>
 
@@ -43,7 +43,7 @@ const SocialMetrics: React.FC = () => {
             <div className="text-sm text-purple-300">Trending Topics</div>
             <div className="space-y-1">
               <div className="text-xs bg-purple-900/20 text-purple-100 px-2 py-1 rounded">
-                No trending topics
+                Initial Launch Discussion
               </div>
             </div>
           </div>

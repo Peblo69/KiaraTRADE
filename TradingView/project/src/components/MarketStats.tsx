@@ -15,34 +15,34 @@ const MarketStats: React.FC = () => {
         <div className="space-y-3">
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">Market Cap</span>
-            <span className="text-sm font-medium text-purple-100">$0.00</span>
+            <span className="text-sm font-medium text-purple-100">$1.00</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">Circulating Supply</span>
-            <span className="text-sm font-medium text-purple-100">0</span>
+            <span className="text-sm font-medium text-purple-100">1</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">Total Supply</span>
-            <span className="text-sm font-medium text-purple-100">0</span>
+            <span className="text-sm font-medium text-purple-100">1</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">Max Supply</span>
-            <span className="text-sm font-medium text-purple-100">0</span>
+            <span className="text-sm font-medium text-purple-100">1</span>
           </div>
         </div>
 
         <div className="border-t border-purple-900/30 pt-4 space-y-3">
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">Price Change (24h)</span>
-            <span className="text-sm font-medium text-purple-400">0.00%</span>
+            <span className="text-sm font-medium text-purple-400">1.00%</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">Volume (24h)</span>
-            <span className="text-sm font-medium text-purple-100">$0.00</span>
+            <span className="text-sm font-medium text-purple-100">$1.00</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">Liquidity (24h)</span>
-            <span className="text-sm font-medium text-purple-100">$0.00</span>
+            <span className="text-sm font-medium text-purple-100">$1.00</span>
           </div>
         </div>
 
@@ -50,15 +50,15 @@ const MarketStats: React.FC = () => {
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">ATH</span>
             <div className="text-right">
-              <div className="text-sm font-medium text-purple-100">$0.00</div>
-              <div className="text-xs text-purple-400">N/A</div>
+              <div className="text-sm font-medium text-purple-100">$1.00</div>
+              <div className="text-xs text-purple-400">2024-01-01</div>
             </div>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-sm text-purple-300">ATL</span>
             <div className="text-right">
-              <div className="text-sm font-medium text-purple-100">$0.00</div>
-              <div className="text-xs text-purple-400">N/A</div>
+              <div className="text-sm font-medium text-purple-100">$1.00</div>
+              <div className="text-xs text-purple-400">2024-01-01</div>
             </div>
           </div>
         </div>
