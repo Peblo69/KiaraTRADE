@@ -9,22 +9,59 @@ export const validateImageUrl = (url?: string): string | null => {
 };
 
 export const validateSocialUrl = (url: string | null | undefined, platform: string): string | null => {
-  if (!url) return null;
+  if (!url) {
+    console.log(`[Validate Social] ${platform}: No URL provided`);
+    return null;
+  }
 
   try {
     const parsedUrl = new URL(url);
+    let isValid = false;
+    let validatedUrl = url;
 
     switch (platform) {
       case 'website':
-        return parsedUrl.protocol === 'https:' ? url : null;
+        isValid = parsedUrl.protocol === 'https:';
+        break;
       case 'telegram':
-        return parsedUrl.hostname === 't.me' ? url : null;
+        isValid = parsedUrl.hostname === 't.me';
+        // Add t.me prefix if missing
+        if (!url.startsWith('https://t.me/')) {
+          validatedUrl = `https://t.me/${url.replace(/^@/, '')}`;
+          isValid = true;
+        }
+        break;
       case 'twitter':
-        return ['twitter.com', 'x.com'].includes(parsedUrl.hostname) ? url : null;
+        isValid = ['twitter.com', 'x.com'].includes(parsedUrl.hostname);
+        // Add twitter.com prefix if missing
+        if (!url.startsWith('https://twitter.com/')) {
+          validatedUrl = `https://twitter.com/${url.replace(/^@/, '')}`;
+          isValid = true;
+        }
+        break;
+        case 'pumpfun':
+            isValid = parsedUrl.hostname === 'pump.fun';
+            break;
       default:
-        return url;
+        isValid = true;
     }
-  } catch {
+
+    console.log(`[Validate Social] ${platform}: ${isValid ? 'Valid' : 'Invalid'} URL: ${validatedUrl}`);
+    return isValid ? validatedUrl : null;
+  } catch (error) {
+    console.log(`[Validate Social] ${platform}: Invalid URL format: ${url}`);
+
+    // Try to fix common issues
+    if (platform === 'telegram' && !url.includes('://')) {
+      const fixed = `https://t.me/${url.replace(/^@/, '')}`;
+      console.log(`[Validate Social] ${platform}: Fixed telegram URL: ${fixed}`);
+      return fixed;
+    }
+      if (platform === 'twitter' && !url.includes('://')) {
+          const fixed = `https://twitter.com/${url.replace(/^@/, '')}`;
+          console.log(`[Validate Social] ${platform}: Fixed twitter URL: ${fixed}`);
+          return fixed;
+      }
     return null;
   }
 };
@@ -33,7 +70,7 @@ export function formatSocialLinks(links: {
   website?: string | null;
   telegram?: string | null;
   twitter?: string | null;
-  pumpfun?: string | null;
+    pumpfun?: string | null;
 }) {
   const validLinks: Record<string, string | null> = {};
 
@@ -55,10 +92,10 @@ export function formatSocialLinks(links: {
     if (validTwitter) validLinks.twitter = validTwitter;
   }
 
-  // PumpFun link
-  if (links.pumpfun) {
-    validLinks.pumpfun = links.pumpfun;
-  }
+    // PumpFun link
+    if (links.pumpfun) {
+      validLinks.pumpfun = links.pumpfun;
+    }
 
   return validLinks;
 }

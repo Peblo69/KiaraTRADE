@@ -397,9 +397,12 @@ export const TokenCard: FC<TokenCardProps> = ({
             </div>
 
             <div className="flex items-center justify-between text-[11px] mt-2">
-              <div className="flex items-center gap-2">
+             <div className="flex items-center gap-2">
                 {Object.entries(socialLinks).map(([platform, url]) => {
-                  if (!url) return null;
+                  if (!url) {
+                    console.log(`[TokenCard] Skipping ${platform} - no valid URL`);
+                    return null;
+                  }
 
                   let IconComponent;
                   switch (platform) {
@@ -416,8 +419,11 @@ export const TokenCard: FC<TokenCardProps> = ({
                       IconComponent = PumpFunIcon;
                       break;
                     default:
+                      console.log(`[TokenCard] Skipping ${platform} - no icon component`);
                       return null;
                   }
+
+                  console.log(`[TokenCard] Rendering ${platform} link:`, url);
 
                   return (
                     <a
@@ -428,6 +434,7 @@ export const TokenCard: FC<TokenCardProps> = ({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        console.log(`[TokenCard] Opening ${platform} link:`, url);
                         window.open(url, '_blank', 'noopener,noreferrer');
                       }}
                       className="text-blue-400/70 hover:text-blue-300 transition-colors"

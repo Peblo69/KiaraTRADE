@@ -1,0 +1,54 @@
+12:19:59 PM [https://ipfs.io/ipfs/QmX4v324sLdLvpTd6x1431cHmU5MzQGteZAM3qGEfTHkK8] [PumpPortal] Token URI:
+12:19:59 PM [https://ipfs.io/ipfs/QmX4v324sLdLvpTd6x1431cHmU5MzQGteZAM3qGEfTHkK8] [PumpPortal] Attempting to fetch metadata from:
+12:19:59 PM [[object Object]] [PumpPortal] Received raw data:
+12:19:59 PM [[object Object]] [PumpPortal] Received raw data:
+12:19:59 PM [[object Object]] [PumpPortal] Received raw data:
+12:19:59 PM [[object Object]] [PumpPortal] Received raw data:
+12:19:59 PM [[object Object]] [PumpPortal] Received raw data:
+12:19:59 PM [[object Object]] [PumpPortal] Received raw data:
+12:19:59 PM [https://ipfs.io/ipfs/QmcvvpvwkrKNAjPTQDPxCnsi5JVB3EtwDi1VqHiXj8KULw] [PumpPortal] Found image URL:
+12:19:59 PM [[object Object]] [PumpPortal] Final processed metadata:
+12:19:59 PM [[object Object]] [PumpPortal] Successfully fetched metadata and image:
+12:19:59 PM [{
+  "name": "CODEX ",
+  "symbol": "CODEX",
+  "uri": "https://ipfs.io/ipfs/QmX4v324sLdLvpTd6x1431cHmU5MzQGteZAM3qGEfTHkK8",
+  "creators": [],
+  "mint": "9hktsVC4F8WNnJPKiUKx6sgmtQ7CRkG7s343CudVpump",
+  "decimals": 9,
+  "imageUrl": "https://ipfs.io/ipfs/QmcvvpvwkrKNAjPTQDPxCnsi5JVB3EtwDi1VqHiXj8KULw"
+}] [PumpPortal] Base Metadata:
+12:19:59 PM [{
+  "signature": "3ACWUL7hbYXB29yUgXKxL1vTJu1wyTaw9RbvDDU1iCyKNSZrsFbbNneb9YSEpubtS8mRpyMUHGuUU7RPpLRhSgNV",
+  "mint": "9hktsVC4F8WNnJPKiUKx6sgmtQ7CRkG7s343CudVpump",
+  "traderPublicKey": "5LFNmcU4wHgcLSuyv6cXpoets7eCDqbDvEjgirScD23Z",
+  "txType": "create",
+  "initialBuy": 0,
+  "solAmount": 0.8,
+  "bondingCurveKey": "EeZwKY2GN5vMybcsxu9W7UNA4WPbtsgRMHwYW1kCYjhB",
+  "vTokensInBondingCurve": 1045129870.129871,
+  "vSolInBondingCurve": 30.799999999999972,
+  "marketCapSol": 30.799999999999972,
+  "name": "CODEX ",
+  "symbol": "CODEX",
+  "uri": "https://ipfs.io/ipfs/QmX4v324sLdLvpTd6x1431cHmU5MzQGteZAM3qGEfTHkK8",
+  "pool": "pump",
+  "metadata": {
+    "name": "CODEX ",
+    "symbol": "CODEX",
+    "uri": "https://ipfs.io/ipfs/QmX4v324sLdLvpTd6x1431cHmU5MzQGteZAM3qGEfTHkK8",
+    "creators": [],
+    "mint": "9hktsVC4F8WNnJPKiUKx6sgmtQ7CRkG7s343CudVpump",
+    "decimals": 9,
+    "imageUrl": "https://ipfs.io/ipfs/QmcvvpvwkrKNAjPTQDPxCnsi5JVB3EtwDi1VqHiXj8KULw"
+  },
+  "imageUrl": "https://ipfs.io/ipfs/QmcvvpvwkrKNAjPTQDPxCnsi5JVB3EtwDi1VqHiXj8KULw",
+  "creators": [],
+  "priceInSol": 8e-10,
+  "timestamp": 1738412399790,
+  "isNewToken": true,
+  "twitter": "https://x.com/CodexSoll",
+  "website": "https://codexcode.xyz/"
+}] [PumpPortal] Enriched token data:
+12:19:59 PM [[object Object]] [PumpPortal] Received raw data:
+12:19:59 PM [Successfully subscribed to keys.] [PumpPortal] Subscription confirmed:
