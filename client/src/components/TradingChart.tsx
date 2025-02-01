@@ -1,8 +1,7 @@
 import { FC, useState, useEffect, useRef, useMemo } from "react";
-import { Button } from "@/components/ui/button";
-import { Settings, Maximize2, LineChart } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { createChart, IChartApi, CandlestickData } from 'lightweight-charts';
+import { LineChart } from "lucide-react";
 
 interface Props {
   tokenAddress: string;
@@ -12,9 +11,9 @@ const INTERVALS = [
   { label: '1s', value: '1' },
   { label: '15s', value: '15' },
   { label: '1m', value: '60' },
-  { label: '30m', value: '1800' },
+  { label: '15m', value: '900' },
   { label: '1h', value: '3600' },
-  { label: '1d', value: '86400' }
+  { label: '4h', value: '14400' }
 ];
 
 const TradingChart: FC<Props> = ({ tokenAddress }) => {
@@ -113,7 +112,7 @@ const TradingChart: FC<Props> = ({ tokenAddress }) => {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-2">
           <LineChart className="w-5 h-5 text-purple-400" />
-          <h2 className="text-purple-100 font-semibold">{token.symbol} Price Chart</h2>
+          <h2 className="text-purple-100 font-semibold">{token.symbol || 'N/A'} Price Chart</h2>
         </div>
         <div className="flex space-x-2">
           {INTERVALS.map(({ label, value }) => (
