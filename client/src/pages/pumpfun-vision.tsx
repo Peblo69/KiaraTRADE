@@ -1,11 +1,11 @@
-import React, { FC, useState, useCallback, Suspense } from "react";
+import { FC, useState, useCallback, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Filter, ArrowLeft } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import TokenCard from "@/components/TokenCard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-// Import Trading View components with correct relative paths
+// Import Trading View components
 import MarketStats from "../../../TradingView/project/src/components/MarketStats";
 import SocialMetrics from "../../../TradingView/project/src/components/SocialMetrics";
 import TradingChart from "../../../TradingView/project/src/components/TradingChart";
@@ -20,7 +20,6 @@ const PumpFunVision: FC = () => {
   const setActiveTokenView = usePumpPortalStore(state => state.setActiveTokenView);
 
   const handleTokenSelect = useCallback((address: string) => {
-    console.log('Token selected:', address);
     setSelectedToken(address);
     setActiveTokenView(address);
   }, [setActiveTokenView]);
@@ -51,62 +50,67 @@ const PumpFunVision: FC = () => {
         </div>
       }>
         <ErrorBoundary>
-          <div className="min-h-screen bg-[#0A0A0A] text-white">
-            <div className="max-w-[1400px] mx-auto p-6">
-              {/* Top Navigation */}
-              <div className="flex items-center justify-between mb-8 bg-[#111111] p-4 rounded-xl border border-purple-500/20">
-                <div className="flex items-center gap-4">
-                  <Button
-                    variant="ghost"
-                    onClick={handleBack}
-                    className="hover:bg-purple-500/20 transition-all duration-300"
-                  >
-                    <ArrowLeft className="h-5 w-5 text-purple-400" />
-                  </Button>
-                  <div>
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
-                      {tokens.find(t => t.address === selectedToken)?.symbol}
-                    </h1>
-                    <p className="text-sm text-gray-400">
-                      ${tokens.find(t => t.address === selectedToken)?.priceInUsd?.toFixed(8) || '0.00000000'}
-                    </p>
-                  </div>
-                </div>
-              </div>
+          <div className="min-h-screen bg-[#070510] text-white">
+            {/* Stars background effect */}
+            <div className="fixed inset-0 pointer-events-none">
+              {[...Array(50)].map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute rounded-full bg-white"
+                  style={{
+                    width: Math.random() * 3 + 'px',
+                    height: Math.random() * 3 + 'px',
+                    top: Math.random() * 100 + '%',
+                    left: Math.random() * 100 + '%',
+                    opacity: Math.random() * 0.5 + 0.25,
+                    animation: `twinkle ${Math.random() * 4 + 2}s infinite`
+                  }}
+                />
+              ))}
+            </div>
 
-              {/* Main Grid */}
-              <div className="grid grid-cols-[1fr_350px] gap-6">
-                {/* Chart Section */}
-                <div className="space-y-6">
-                  <div className="bg-[#111111] rounded-xl border border-purple-500/20 p-6">
+            <div className="container mx-auto px-4 relative">
+              <div className="grid grid-cols-12 gap-4">
+                {/* Left Column - Market Stats & Social Metrics */}
+                <div className="col-span-2 space-y-4">
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                     <MarketStats tokenAddress={selectedToken} />
                   </div>
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                    <SocialMetrics tokenAddress={selectedToken} />
+                  </div>
+                </div>
 
-                  <div className="bg-[#111111] rounded-xl border border-purple-500/20 p-6 hover:border-purple-500/40 transition-all duration-300">
-                    <div className="flex items-center justify-between mb-6">
+                {/* Main Trading Area */}
+                <div className="col-span-7 space-y-4">
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <Button variant="ghost" onClick={handleBack} className="text-purple-400">
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Back
+                      </Button>
                       <div>
-                        <h2 className="text-lg font-semibold text-gray-200">Price Chart</h2>
-                        <p className="text-sm text-gray-400">Real-time market data</p>
+                        <h1 className="text-2xl font-bold text-purple-100">
+                          {tokens.find(t => t.address === selectedToken)?.symbol}
+                        </h1>
+                        <p className="text-sm text-purple-400">
+                          ${tokens.find(t => t.address === selectedToken)?.priceInUsd?.toFixed(8) || '0.00000000'}
+                        </p>
                       </div>
                     </div>
                     <TradingChart tokenAddress={selectedToken} />
                   </div>
-                </div>
-
-                {/* Right Sidebar */}
-                <div className="space-y-6">
-                  {/* Trade History Card */}
-                  <div className="bg-[#111111] rounded-xl border border-purple-500/20 p-6 hover:border-purple-500/40 transition-all duration-300">
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                     <TradeHistory tokenAddress={selectedToken} />
                   </div>
+                </div>
 
-                  {/* Trading Form */}
-                  <div className="bg-[#111111] rounded-xl border border-purple-500/20 p-6 hover:border-purple-500/40 transition-all duration-300">
+                {/* Right Column - Trading Form & Holder Analytics */}
+                <div className="col-span-3 space-y-4">
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                     <TradingForm tokenAddress={selectedToken} />
                   </div>
-
-                  {/* Holder Analytics */}
-                  <div className="bg-[#111111] rounded-xl border border-purple-500/20 p-6 hover:border-purple-500/40 transition-all duration-300">
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                     <HolderAnalytics tokenAddress={selectedToken} />
                   </div>
                 </div>
