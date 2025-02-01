@@ -110,28 +110,30 @@ let reconnectAttempts = 0;
 let isManualDisconnect = false;
 
 function initializeWebSocket() {
-  if (!process.env.VITE_PUMPPORTAL_WS_URL) {
-    console.error('[PumpPortal] WebSocket URL not configured');
+  const wsUrl = process.env.VITE_PUMPPORTAL_WS_URL;
+
+  if (!wsUrl) {
+    console.error('[PumpPortal] WebSocket URL not configured. Please check environment variables.');
     return;
   }
 
   if (wsInstance) {
-    console.log('[PumpPortal] WebSocket already exists');
+    console.log('[PumpPortal] WebSocket instance already exists');
     return;
   }
 
   try {
-    console.log('[PumpPortal] Connecting WebSocket...');
-    wsInstance = new WebSocket(process.env.VITE_PUMPPORTAL_WS_URL);
+    console.log('[PumpPortal] Connecting WebSocket to:', wsUrl);
+    wsInstance = new WebSocket(wsUrl);
 
     wsInstance.onopen = () => {
-      console.log('[PumpPortal] Connected');
+      console.log('[PumpPortal] Successfully connected to WebSocket');
       reconnectAttempts = 0;
       usePumpPortalStore.getState().setConnected(true);
     };
 
     wsInstance.onclose = () => {
-      console.log('[PumpPortal] Disconnected');
+      console.log('[PumpPortal] WebSocket connection closed');
       usePumpPortalStore.getState().setConnected(false);
       wsInstance = null;
 
@@ -151,6 +153,7 @@ function initializeWebSocket() {
 
     wsInstance.onerror = (error) => {
       console.error('[PumpPortal] WebSocket error:', error);
+      console.log('[PumpPortal] Attempting to reconnect after error...');
       if (wsInstance) {
         wsInstance.close();
       }
@@ -171,7 +174,8 @@ function initializeWebSocket() {
       }
     };
   } catch (error) {
-    console.error('[PumpPortal] Connection failed:', error);
+    console.error('[PumpPortal] Failed to initialize WebSocket:', error);
+    usePumpPortalStore.getState().setConnected(false);
   }
 }
 
@@ -464,11 +468,8 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           viewedTokens: {
             ...state.viewedTokens,
             [address]: {
-              ...state.viewedTokens[address],
-              metadata: {
-                ...state.viewedTokens[address].metadata,
-                uri
-              }
+              ...state.viewedTokens[address].metadata,
+              uri
             }
           }
         })
