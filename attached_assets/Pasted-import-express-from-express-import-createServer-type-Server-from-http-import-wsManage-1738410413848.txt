@@ -1,0 +1,192 @@
+import express from 'express';
+import { createServer, type Server } from 'http';
+import { wsManager } from './services/websocket';
+import { initializePumpPortalWebSocket } from './pumpportal';
+import axios from 'axios';
+
+// Constants
+const INTERNAL_PORT = 5000;
+const CACHE_DURATION = 30000; // 30 seconds cache
+const DEBUG = true;
+
+// Debug helper
+function debugLog(source: string, message: string, data?: any) {
+  if (DEBUG) {
+    console.log(`[${source}] ${message}`, data ? data : '');
+  }
+}
+
+// Add request interceptor for rate limiting
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 20;
+
+axios.interceptors.request.use(async (config) => {
+  const now = Date.now();
+  const timeSinceLastRequest = now - lastRequestTime;
+
+  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+    await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest));
+  }
+
+  lastRequestTime = Date.now();
+  return config;
+});
+
+if (!process.env.HELIUS_API_KEY) {
+  throw new Error("HELIUS_API_KEY must be set in environment variables");
+}
+
+// Update Helius RPC URL with API key
+const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
+
+function logHeliusError(error: any, context: string) {
+  console.error(`[Helius ${context} Error]`, {
+    message: error.message,
+    status: error.response?.status,
+    data: error.response?.data,
+    url: error.config?.url,
+    method: error.config?.method,
+    params: error.config?.data
+  });
+}
+
+export function registerRoutes(app: Express): Server {
+  debugLog('Server', `Initializing server for user ${process.env.REPL_OWNER || 'unknown'}`);
+  
+  const server = createServer(app);
+
+  // Initialize WebSocket manager with server instance
+  wsManager.initialize(server);
+
+  // Initialize PumpPortal WebSocket
+  initializePumpPortalWebSocket();
+
+  // Error handling for the server
+  server.on('error', (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`❌ Port ${INTERNAL_PORT} is in use. Please wait...`);
+      setTimeout(() => {
+        server.close();
+        server.listen(INTERNAL_PORT, '0.0.0.0');
+      }, 1000);
+    } else {
+      console.error('❌ Server error:', error);
+    }
+  });
+
+  // Start server
+  try {
+    server.listen(INTERNAL_PORT, '0.0.0.0', () => {
+      console.log(`\n🚀 Server Status:`);
+      console.log(`📡 Internal: Running on 0.0.0.0:${INTERNAL_PORT}`);
+      console.log(`🌍 External: Mapped to port 3000`);
+      console.log(`👤 User: ${process.env.REPL_OWNER || 'unknown'}`);
+      console.log(`⏰ Started at: ${new Date().toISOString()}`);
+      console.log(`\n✅ Server is ready to accept connections\n`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+
+  // Add your routes here
+  app.get('/api/health', (req, res) => {
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      port: INTERNAL_PORT,
+      external_port: 3000
+    });
+  });
+
+  // ... rest of your routes ...
+
+  return server;
+}
+
+// Process handling
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  if (error.code === 'EADDRINUSE') {
+    console.log('⚠️ Port is busy, attempting restart...');
+    process.exit(1); // Replit will automatically restart
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+['SIGTERM', 'SIGINT'].forEach(signal => {
+  process.on(signal, () => {
+    console.log(`\n${signal} received, shutting down gracefully...`);
+    process.exit(0);
+  });
+});
+
+// Export cache for other modules
+export const cache = {
+  prices: { data: null as any, timestamp: 0 },
+  stats24h: { data: null as any, timestamp: 0 },
+  trending: { data: null as any, timestamp: 0 },
+  news: { data: null as any, timestamp: 0 }
+};
+
+// Export constants
+export const NEWSDATA_API_BASE = 'https://newsdata.io/api/1';
+export const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
+
+// Make sure these are also properly configured in your package.json
+/*
+{
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  }
+}
+*/
+
+// And your .replit file should have:
+/*
+[[ports]]
+localPort = 5000
+externalPort = 3000
+
+[env]
+PORT = "5000"
+*/
+
+And in your main index.ts or app.ts:
+TypeScript
+
+import express from 'express';
+import { registerRoutes } from './server';
+
+const app = express();
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// CORS setup if needed
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
+});
+
+// Register routes and start server
+registerRoutes(app);
+
+This configuration:
+
+    Uses internal port 5000 bound to 0.0.0.0
+    Maps to external port 3000
+    Includes proper error handling
+    Has debug logging
+    Includes health check endpoint
+    Handles process signals properly
+    Includes rate limiting for API calls
+    Matches your Replit configuration

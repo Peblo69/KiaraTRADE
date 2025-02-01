@@ -28,19 +28,6 @@ async function startServer() {
       serveStatic(app);
     }
 
-    const PORT = 3000; // Force port 3000
-
-    // Close any existing connections
-    server.close();
-
-    // Bind specifically to 0.0.0.0:3000
-    server.listen(PORT, "0.0.0.0", () => {
-      log(`Server running at http://0.0.0.0:${PORT}`);
-    }).on('error', (error: any) => {
-      log(`Failed to start server: ${error.message}`);
-      process.exit(1);
-    });
-
   } catch (error) {
     log(`Server startup error: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
