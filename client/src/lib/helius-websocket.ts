@@ -27,6 +27,7 @@ interface HeliusStore {
   setTokenData: (tokenAddress: string, data: Partial<TokenData>) => void;
   setConnected: (connected: boolean) => void;
   subscribeToToken: (tokenAddress: string) => void;
+  unsubscribeFromToken: (tokenAddress: string) => void;
 }
 
 export const useHeliusStore = create<HeliusStore>((set, get) => ({
@@ -35,8 +36,13 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
   subscribedTokens: new Set(),
 
   addTrade: (tokenAddress, trade) => {
+    console.log(`[Helius] Adding trade for ${tokenAddress}:`, trade);
     set((state) => {
       const tokenTrades = state.tokenData[tokenAddress]?.trades || [];
+      // Deduplicate trades by signature
+      if (tokenTrades.some(t => t.signature === trade.signature)) {
+        return state;
+      }
       return {
         tokenData: {
           ...state.tokenData,
@@ -65,6 +71,8 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
   setConnected: (connected) => set({ isConnected: connected }),
 
   subscribeToToken: (tokenAddress) => {
+    console.log(`[Helius] Subscribing to token: ${tokenAddress}`);
+
     if (!ws?.readyState === WebSocket.OPEN) {
       console.log('[Helius] WebSocket not ready, queuing subscription');
       return;
@@ -91,17 +99,33 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
         ]
       }));
 
-      store.subscribedTokens.add(tokenAddress);
+      set(state => ({
+        subscribedTokens: new Set([...state.subscribedTokens, tokenAddress])
+      }));
       console.log(`[Helius] Subscribed to token: ${tokenAddress}`);
     } catch (error) {
       console.error('[Helius] Subscribe error:', error);
     }
+  },
+
+  unsubscribeFromToken: (tokenAddress) => {
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'unsubscribeTransactions',
+        params: [tokenAddress]
+      }));
+    }
+    set(state => ({
+      subscribedTokens: new Set([...state.subscribedTokens].filter(t => t !== tokenAddress))
+    }));
   }
 }));
 
 // Helper functions for external use
 export function setupTokenSubscription(tokenAddress: string) {
-  // Subscribe to both data sources
+  console.log(`[Helius] Setting up subscription for: ${tokenAddress}`);
   usePumpPortalStore.getState().addToViewedTokens(tokenAddress);
   useHeliusStore.getState().subscribeToToken(tokenAddress);
 }
@@ -109,7 +133,6 @@ export function setupTokenSubscription(tokenAddress: string) {
 export function getCombinedTokenData(tokenAddress: string) {
   const pumpData = usePumpPortalStore.getState().getToken(tokenAddress);
   const heliusData = useHeliusStore.getState().tokenData[tokenAddress];
-
   return {
     ...pumpData,
     realTimeData: heliusData
@@ -125,6 +148,7 @@ const RECONNECT_DELAY = 5000;
 function handleWebSocketMessage(event: MessageEvent) {
   try {
     const data = JSON.parse(event.data);
+    console.log('[Helius] Received:', data);
 
     if (data.method === 'transactionNotification') {
       const tx = data.params.result;
@@ -149,7 +173,6 @@ function handleWebSocketMessage(event: MessageEvent) {
   }
 }
 
-// Export the initialization function with the name that's being imported
 export function initializeHeliusWebSocket() {
   if (typeof window === 'undefined' || !HELIUS_API_KEY) return;
 

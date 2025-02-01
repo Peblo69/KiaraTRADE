@@ -121,11 +121,9 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
                 </span>
 
                 <div className="flex items-center space-x-1">
-                  <button
-                    className={`text-${type === 'buy' ? 'green' : 'red'}-400 hover:underline`}
-                  >
+                  <span className={type === 'buy' ? 'text-green-400' : 'text-red-400'}>
                     {trade.traderPublicKey.slice(0, 6)}...{trade.traderPublicKey.slice(-4)}
-                  </button>
+                  </span>
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                     <button
                       onClick={() => copyToClipboard(trade.traderPublicKey)}
