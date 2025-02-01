@@ -87,7 +87,8 @@ export class WebSocketManager {
             marketCapSol: data.marketCapSol || 0,
             recentTrades: [],
             vTokensInBondingCurve: data.vTokensInBondingCurve || BILLION,
-            vSolInBondingCurve: data.vSolInBondingCurve || 0
+            vSolInBondingCurve: data.vSolInBondingCurve || 0,
+            volume24h: data.volume24h || 0
         });
     }
 
@@ -95,25 +96,28 @@ export class WebSocketManager {
         const store = usePumpPortalStore.getState();
         const trade = {
             signature: data.signature,
+            mint: data.mint,
             timestamp: data.timestamp,
-            tokenAddress: data.mint,
-            type: data.txType,
-            amount: data.tokenAmount,
+            txType: data.txType,
+            tokenAmount: data.tokenAmount,
+            solAmount: data.solAmount,
+            traderPublicKey: data.traderPublicKey,
             priceInSol: data.priceInSol,
             priceInUsd: data.priceInUsd,
-            volume24h: data.volume24h
+            counterpartyPublicKey: data.counterpartyPublicKey,
+            isDevTrade: false
         };
-        store.addTrade(trade);
+        store.addTradeToHistory(data.mint, trade);
     }
 
     private handleMarketData(data: any): void {
         const store = usePumpPortalStore.getState();
-        store.updateTokenMetrics(data.tokenAddress, {
-            priceInSol: data.priceInSol,
-            priceInUsd: data.priceInUsd,
-            volume24h: data.volume24h,
-            marketCapSol: data.marketCapSol
-        });
+        if (data.solPrice) {
+            store.setSolPrice(data.solPrice);
+        }
+        if (data.tokenAddress && data.priceInUsd) {
+            store.updateTokenPrice(data.tokenAddress, data.priceInUsd);
+        }
     }
 
     private updateConnectionStatus(connected: boolean): void {
