@@ -1,6 +1,7 @@
 import React from 'react';
 import { BarChart2 } from 'lucide-react';
 import { useTradingContext } from '../context/TradingContext';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
 interface Props {
   tokenAddress: string;
@@ -8,10 +9,11 @@ interface Props {
 
 const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
   const { trades, orderBook } = useTradingContext();
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const solPrice = usePumpPortalStore(state => state.solPrice);
 
-  // Calculate market statistics from real-time trade data
   const calculateStats = () => {
-    if (!trades || trades.length === 0) {
+    if (!trades || trades.length === 0 || !token) {
       return {
         marketCap: 0,
         circulatingSupply: 0,
@@ -29,30 +31,32 @@ const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
     const tokenTrades = trades.filter(t => t.mint === tokenAddress);
     const last24hTrades = tokenTrades.filter(t => t.timestamp >= oneDayAgo);
 
-    // Calculate 24h volume
+    // Calculate 24h volume from trades
     const volume24h = last24hTrades.reduce((sum, trade) => sum + trade.amount * trade.price, 0);
 
-    // Calculate price change
-    const currentPrice = tokenTrades[tokenTrades.length - 1]?.price || 0;
+    // Get current price and calculate change
+    const currentPrice = token.priceInUsd || tokenTrades[tokenTrades.length - 1]?.price || 0;
     const yesterdayPrice = tokenTrades.find(t => t.timestamp < oneDayAgo)?.price || currentPrice;
-    const priceChange24h = ((currentPrice - yesterdayPrice) / yesterdayPrice) * 100;
+    const priceChange24h = yesterdayPrice ? ((currentPrice - yesterdayPrice) / yesterdayPrice) * 100 : 0;
 
-    // Find ATH/ATL
-    const prices = tokenTrades.map(t => t.price);
-    const ath = Math.max(...prices, 0);
-    const atl = Math.min(...prices.filter(p => p > 0), currentPrice);
+    // Get supply from PumpPortal data
+    const circulatingSupply = token.vTokensInBondingCurve || 0;
+    const totalSupply = token.totalSupply || circulatingSupply;
 
-    // Calculate market cap and supply
-    const totalSupply = 1000000000; // This should come from token contract
-    const marketCap = totalSupply * currentPrice;
+    // Calculate market cap using current price
+    const marketCap = circulatingSupply * currentPrice;
 
-    // Calculate liquidity from order book
-    const liquidity = orderBook.bids.reduce((sum, [price, size]) => sum + price * size, 0) +
-                     orderBook.asks.reduce((sum, [price, size]) => sum + price * size, 0);
+    // Calculate liquidity from bonding curve
+    const liquidity = (token.vSolInBondingCurve || 0) * solPrice;
+
+    // Find ATH/ATL from trades
+    const prices = tokenTrades.map(t => t.price).filter(p => p > 0);
+    const ath = Math.max(...prices, token.athPrice || 0);
+    const atl = Math.min(...prices, token.atlPrice || 0);
 
     return {
       marketCap,
-      circulatingSupply: totalSupply,
+      circulatingSupply,
       totalSupply,
       priceChange24h,
       volume24h,
