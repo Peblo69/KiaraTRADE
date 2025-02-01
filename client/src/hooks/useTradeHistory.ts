@@ -8,7 +8,6 @@ const HELIUS_WS_URL = `wss://rpc.helius.xyz/?api-key=${HELIUS_API_KEY}`;
 export function useTradeHistory(tokenAddress: string) {
   const [trades, setTrades] = useState<TokenTrade[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const ws = useRef<WebSocket | null>(null);
 
   // Get PumpPortal data and subscribe to its updates
@@ -17,20 +16,20 @@ export function useTradeHistory(tokenAddress: string) {
 
   // Subscribe to PumpPortal trade updates
   useEffect(() => {
-    // Initialize with PumpPortal data
-    if (token?.recentTrades) {
-      setTrades(token.recentTrades);
-      setIsLoading(false);
-    }
-  }, [token?.recentTrades]);
+    const unsubscribe = usePumpPortalStore.subscribe((state, prevState) => {
+      const currentToken = state.getToken(tokenAddress);
+      const prevToken = prevState.getToken(tokenAddress);
+
+      if (currentToken?.recentTrades !== prevToken?.recentTrades) {
+        setTrades(currentToken?.recentTrades || []);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [tokenAddress]);
 
   // Subscribe to Helius for real-time updates
   useEffect(() => {
-    if (!tokenAddress || !HELIUS_API_KEY) {
-      setError('Missing token address or API key');
-      return;
-    }
-
     console.log('[Helius] Connecting for token:', tokenAddress);
 
     ws.current = new WebSocket(HELIUS_WS_URL);
@@ -41,7 +40,7 @@ export function useTradeHistory(tokenAddress: string) {
       ws.current?.send(JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
-        method: 'subscribeTransactions',
+        method: 'subscribeTransactions',  // Changed this
         params: [
           {
             account: tokenAddress,
@@ -71,8 +70,7 @@ export function useTradeHistory(tokenAddress: string) {
             solAmount: tx.nativeTransfers?.[0]?.amount / 1e9 || 0,
             signature: tx.signature,
             mint: tokenAddress,
-            priceInSol: (tx.nativeTransfers?.[0]?.amount / 1e9) || 0,
-            priceInUsd: ((tx.nativeTransfers?.[0]?.amount / 1e9) * (solPrice || 0)) || 0
+            priceInUsd: (tx.nativeTransfers?.[0]?.amount / 1e9) * solPrice
           };
 
           console.log('[Helius] New trade:', newTrade);
@@ -88,19 +86,15 @@ export function useTradeHistory(tokenAddress: string) {
       }
     };
 
-    ws.current.onerror = (error) => {
-      console.error('[Helius] WebSocket error:', error);
-      setError('Connection error');
-    };
-
     ws.current.onclose = () => {
       console.log('[Helius] Disconnected');
-      // Implement reconnection
       reconnectTimeout = setTimeout(() => {
         console.log('[Helius] Attempting reconnect...');
         ws.current = new WebSocket(HELIUS_WS_URL);
       }, 5000);
     };
+
+    setIsLoading(false);
 
     return () => {
       clearTimeout(reconnectTimeout);
@@ -108,5 +102,5 @@ export function useTradeHistory(tokenAddress: string) {
     };
   }, [tokenAddress, solPrice]);
 
-  return { trades, isLoading, error };
+  return { trades, isLoading };
 }

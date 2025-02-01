@@ -1,42 +1,52 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import TokenMarketStats from '@/components/TokenMarketStats';
 import TradeHistory from '@/components/TradeHistory';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { setupTokenSubscription } from '@/lib/helius-websocket';
-import { Loader2 } from 'lucide-react';
+
+const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
+const HELIUS_WS_URL = `wss://rpc.helius.xyz/?api-key=${HELIUS_API_KEY}`;
 
 interface Props {
   tokenAddress: string;
 }
 
 const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
-  // Use useCallback to memoize the selector
-  const token = React.useMemo(
-    () => usePumpPortalStore.getState().getToken(tokenAddress),
-    [tokenAddress]
-  );
+  const [isLoading, setIsLoading] = useState(true);
+  const ws = useRef<WebSocket | null>(null);
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
 
-  // Set up data sources only once when tokenAddress changes
+  // Shared WebSocket connection for both components
   useEffect(() => {
-    if (tokenAddress && !token) {
-      setupTokenSubscription(tokenAddress);
-    }
-  }, [tokenAddress, token]);
+    if (!tokenAddress || !HELIUS_API_KEY) return;
 
-  // Subscribe to store updates
-  useEffect(() => {
-    return usePumpPortalStore.subscribe((state) => {
-      const newToken = state.getToken(tokenAddress);
-      if (newToken !== token) {
-        // Component will re-render due to store update
-      }
-    });
-  }, [tokenAddress, token]);
+    ws.current = new WebSocket(HELIUS_WS_URL);
+
+    ws.current.onopen = () => {
+      console.log('[Helius] Token Page Connected');
+      ws.current?.send(JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'accountSubscribe',
+        params: [
+          tokenAddress,
+          {
+            commitment: 'confirmed',
+            encoding: 'jsonParsed'
+          }
+        ]
+      }));
+      setIsLoading(false);
+    };
+
+    return () => {
+      ws.current?.close();
+    };
+  }, [tokenAddress]);
 
   if (!token) {
     return (
       <div className="flex items-center justify-center h-[50vh]">
-        <Loader2 className="w-12 h-12 animate-spin text-purple-500" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
       </div>
     );
   }
@@ -63,7 +73,10 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
         <div className="grid gap-8 md:grid-cols-2">
           <div className="space-y-8">
             <div className="p-6 rounded-lg border border-purple-500/20 bg-card">
-              <TokenMarketStats tokenAddress={tokenAddress} />
+              <TokenMarketStats 
+                tokenAddress={tokenAddress} 
+                webSocket={ws.current}
+              />
             </div>
 
             {/* Social Links */}
@@ -108,7 +121,10 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
 
           {/* Trade History */}
           <div className="p-6 rounded-lg border border-purple-500/20 bg-card">
-            <TradeHistory tokenAddress={tokenAddress} />
+            <TradeHistory 
+              tokenAddress={tokenAddress} 
+              webSocket={ws.current}
+            />
           </div>
         </div>
       </div>
@@ -116,4 +132,4 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
   );
 };
 
-export default React.memo(TokenPage);
+export default TokenPage;
