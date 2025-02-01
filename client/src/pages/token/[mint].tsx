@@ -13,6 +13,8 @@ interface Props {
 export default function TokenPage({ mint }: Props) {
     const [tokenData, setTokenData] = useState<TokenData | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const token = usePumpPortalStore(state => state.getToken(mint));
+    const addTradeToHistory = usePumpPortalStore(state => state.addTradeToHistory);
 
     console.log('🚨 COMPONENT LOADED WITH MINT:', mint);
     console.log('🤖 HELIUS CLIENT:', !!heliusClient);
@@ -58,12 +60,11 @@ export default function TokenPage({ mint }: Props) {
                 console.log('❌ WEBSOCKET DIED:', id);
             });
 
-            // Debug incoming data
-            wsManager.on('heliusUpdate', (data) => {
-                console.log('📨 Received update:', data);
-                if (data.mint === mint) {
-                    console.log('🔥 NEW PRICE:', data.stats?.priceUSD);
-                    setTokenData(data);
+            // Listen for PumpPortal trades
+            wsManager.on('trade', (tradeData) => {
+                if (tradeData.mint === mint) {
+                    console.log('🔥 NEW TRADE:', tradeData);
+                    addTradeToHistory(mint, tradeData);
                 }
             });
 
@@ -75,7 +76,7 @@ export default function TokenPage({ mint }: Props) {
             console.error('💀 SETUP BROKE:', error);
             setError('Something went wrong setting up token tracking');
         }
-    }, [mint]);
+    }, [mint, addTradeToHistory]);
 
     if (error) {
         return (
@@ -89,14 +90,26 @@ export default function TokenPage({ mint }: Props) {
 
     return (
         <div className="p-6 space-y-6">
-            {tokenData && (
+            {token && (
                 <Card className="p-6">
-                    <h2 className="text-2xl font-bold mb-4">
-                        Price: ${tokenData.stats.priceUSD?.toFixed(4)}
-                    </h2>
-                    <h3 className="text-xl mb-6">
-                        24h Volume: ${tokenData.stats.volume24h?.toFixed(2)}
-                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="space-y-2">
+                            <h3 className="text-sm text-purple-400 font-medium">Price</h3>
+                            <p className="text-xl font-bold">${token.priceInUsd?.toFixed(8)}</p>
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-sm text-purple-400 font-medium">Market Cap</h3>
+                            <p className="text-xl font-bold">${token.marketCapSol?.toFixed(2)}</p>
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-sm text-purple-400 font-medium">Volume</h3>
+                            <p className="text-xl font-bold">${token.volume24h || '0.00'}</p>
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-sm text-purple-400 font-medium">Liquidity</h3>
+                            <p className="text-xl font-bold">${token.vSolInBondingCurve?.toFixed(2)}</p>
+                        </div>
+                    </div>
                 </Card>
             )}
 
