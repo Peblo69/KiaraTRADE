@@ -1,54 +1,29 @@
 import React from 'react';
 import { History, ExternalLink, Copy, CheckCircle } from 'lucide-react';
-import { useTradeHistory } from '@/hooks/useTradeHistory';
 import { formatDistanceToNow } from 'date-fns';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Props {
   tokenAddress: string;
-  webSocket: WebSocket | null;
 }
 
-const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
+const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
   const [copiedAddress, setCopiedAddress] = React.useState<string | null>(null);
-  const { trades, isLoading } = useTradeHistory(tokenAddress);
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const trades = token?.recentTrades || [];
   const solPrice = usePumpPortalStore(state => state.solPrice);
 
-  // DEBUG: Log store state
-  const storeState = usePumpPortalStore.getState();
-  console.log('🏪 FULL STORE STATE:', {
-    isConnected: storeState.isConnected,
-    solPrice: storeState.solPrice,
-    tokenCount: storeState.tokens.length,
-    viewedTokens: Object.keys(storeState.viewedTokens),
-    activeTokenView: storeState.activeTokenView
-  });
-
-  // DEBUG: Watch for token changes
+  // Debug: Log store state and trades
   React.useEffect(() => {
-    console.log('🎯 Token Updated:', {
-      address: tokenAddress,
-      hasToken: !!trades,
-      tradesCount: trades?.length || 0,
-      trades: trades
+    console.log('🎯 TradeHistory Component:', {
+      tokenAddress,
+      hasToken: !!token,
+      tradesCount: trades.length,
+      trades: trades,
+      solPrice
     });
-  }, [trades, tokenAddress]);
-
-  // DEBUG: Subscribe to store changes
-  React.useEffect(() => {
-    const unsubscribe = usePumpPortalStore.subscribe(
-      state => state.tokens,
-      (tokens) => {
-        console.log('🔄 Store Tokens Updated:', {
-          totalTokens: tokens.length,
-          hasOurToken: tokens.some(t => t.address === tokenAddress)
-        });
-      }
-    );
-
-    return () => unsubscribe();
-  }, [tokenAddress]);
+  }, [tokenAddress, token, trades, solPrice]);
 
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString('en-US', {
@@ -59,17 +34,11 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
     });
   };
 
-  if (isLoading) {
+  if (!trades.length) {
     return (
-      <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 space-y-4">
-        <div className="animate-pulse space-y-4">
-          <div className="h-4 bg-purple-900/20 rounded w-1/4"></div>
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-16 bg-purple-900/20 rounded"></div>
-            ))}
-          </div>
-        </div>
+      <div className="p-4 text-center text-purple-400">
+        <History className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p>No trades yet</p>
       </div>
     );
   }
@@ -83,9 +52,14 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
   return (
     <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30">
       <div className="p-4 border-b border-purple-900/30">
-        <div className="flex items-center space-x-2">
-          <History className="w-5 h-5 text-purple-400" />
-          <h2 className="text-purple-100 font-semibold">Trade History</h2>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <History className="w-5 h-5 text-purple-400" />
+            <h2 className="text-purple-100 font-semibold">Trade History</h2>
+          </div>
+          <div className="text-xs text-purple-400">
+            {trades.length} trades
+          </div>
         </div>
       </div>
 
@@ -121,7 +95,7 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
 
                 <div className="flex items-center space-x-1">
                   <button
-                    className={`text-${trade.type === 'buy' ? 'green' : 'red'}-400 hover:underline`}
+                    className={`text-${trade.txType === 'buy' ? 'green' : 'red'}-400 hover:underline`}
                   >
                     {trade.traderPublicKey.slice(0, 6)}...{trade.traderPublicKey.slice(-4)}
                   </button>
@@ -148,9 +122,9 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
                 </div>
 
                 <span className={`text-right font-medium ${
-                  trade.type === 'buy' ? 'text-green-400' : 'text-red-400'
+                  trade.txType === 'buy' ? 'text-green-400' : 'text-red-400'
                 }`}>
-                  {trade.type.toUpperCase()}
+                  {trade.txType.toUpperCase()}
                 </span>
 
                 <span className="text-right text-purple-300">
