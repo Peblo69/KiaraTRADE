@@ -7,6 +7,7 @@ class UnifiedWebSocket {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
   private isManualDisconnect = false;
+  private reconnectTimeout: NodeJS.Timeout | null = null;
 
   constructor() {
     this.connect();
@@ -14,8 +15,13 @@ class UnifiedWebSocket {
 
   private connect() {
     try {
+      if (!process.env.VITE_PUMPPORTAL_WS_URL) {
+        console.error('[UnifiedWebSocket] WebSocket URL not configured');
+        return;
+      }
+
       console.log('[UnifiedWebSocket] Initializing connection...');
-      this.ws = new WebSocket(process.env.VITE_PUMPPORTAL_WS_URL || '');
+      this.ws = new WebSocket(process.env.VITE_PUMPPORTAL_WS_URL);
 
       this.ws.onopen = () => {
         console.log('[UnifiedWebSocket] Connected');
@@ -24,17 +30,32 @@ class UnifiedWebSocket {
       };
 
       this.ws.onclose = () => {
+        console.log('[UnifiedWebSocket] Disconnected');
         useUnifiedTokenStore.getState().setConnected(false);
+
         if (!this.isManualDisconnect && this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
           this.reconnectAttempts++;
           console.log(`[UnifiedWebSocket] Attempting reconnect ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-          setTimeout(() => this.connect(), RECONNECT_DELAY * Math.pow(1.5, this.reconnectAttempts));
+
+          // Clear any existing timeout
+          if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+          }
+
+          this.reconnectTimeout = setTimeout(() => {
+            this.connect();
+          }, RECONNECT_DELAY * Math.pow(1.5, this.reconnectAttempts));
         }
       };
 
       this.ws.onerror = (error) => {
         console.error('[UnifiedWebSocket] Error:', error);
         useUnifiedTokenStore.getState().setError('WebSocket connection error');
+
+        // Force close and reconnect on error
+        if (this.ws) {
+          this.ws.close();
+        }
       };
 
       this.ws.onmessage = this.handleMessage.bind(this);
@@ -56,6 +77,12 @@ class UnifiedWebSocket {
   disconnect() {
     console.log('[UnifiedWebSocket] Disconnecting...');
     this.isManualDisconnect = true;
+
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
     if (this.ws) {
       this.ws.close();
       this.ws = null;
