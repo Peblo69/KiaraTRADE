@@ -1,9 +1,7 @@
-
 import React, { useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { useTradingContext } from '../context/TradingContext';
-import { ArrowUpRight, ArrowDownRight, BarChart2 } from 'lucide-react';
+import { BarChart2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 interface Props {
   tokenAddress: string;
@@ -42,16 +40,15 @@ const MetricDisplay: React.FC<MetricProps> = ({ label, value, subValue, change }
 const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
   const solPrice = usePumpPortalStore(state => state.solPrice);
-  const { trades } = useTradingContext();
 
   const metrics = useMemo(() => {
     if (!token) return null;
 
     const now = Date.now();
     const oneDayAgo = now - 24 * 60 * 60 * 1000;
-    
-    const tokenTrades = [...(token.recentTrades || []), ...trades.filter(t => t.mint === tokenAddress)];
-    const last24hTrades = tokenTrades.filter(t => t.timestamp >= oneDayAgo);
+
+    const recentTrades = token.recentTrades || [];
+    const last24hTrades = recentTrades.filter((t: { timestamp: number }) => t.timestamp >= oneDayAgo);
 
     const currentPrice = token.priceInUsd || 0;
     const oldPrice = last24hTrades[last24hTrades.length - 1]?.priceInUsd || currentPrice;
@@ -81,7 +78,7 @@ const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
         sol: token.vSolInBondingCurve || 0
       }
     };
-  }, [token, trades, solPrice, tokenAddress]);
+  }, [token, solPrice]);
 
   if (!token || !metrics) return null;
 
