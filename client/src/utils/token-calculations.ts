@@ -299,3 +299,25 @@ export const calculateTokenRisk = (token: PumpPortalToken): RiskMetrics => {
     totalRisk: (holdersRisk + volumeRisk + devWalletRisk + (insiderRisk * 10)) / 4
   };
 };
+export function calculateVolumeMetrics(trades: any[]) {
+  const now = Date.now();
+  const oneDayAgo = now - 24 * 60 * 60 * 1000;
+  
+  const volume24h = trades
+    .filter(trade => trade.timestamp > oneDayAgo)
+    .reduce((sum, trade) => sum + trade.solAmount, 0);
+
+  return {
+    volume24h
+  };
+}
+
+export function calculateTokenRisk(token: any) {
+  const { recentTrades = [] } = token;
+  const volume24h = calculateVolumeMetrics(recentTrades).volume24h;
+
+  return {
+    volume24h,
+    risk: volume24h < 1 ? 'high' : volume24h < 5 ? 'medium' : 'low'
+  };
+}

@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { format } from 'date-fns';
 import axios from 'axios';
-import { calculatePumpFunTokenMetrics } from "@/utils/token-calculations";
+import { calculatePumpFunTokenMetrics, calculateVolumeMetrics, calculateTokenRisk } from "@/utils/token-calculations";
 
 // Constants
 const MAX_TRADES_PER_TOKEN = 100;
