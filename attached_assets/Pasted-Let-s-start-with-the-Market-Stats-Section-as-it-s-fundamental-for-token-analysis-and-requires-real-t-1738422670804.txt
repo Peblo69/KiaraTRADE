@@ -1,0 +1,263 @@
+Let's start with the Market Stats Section as it's fundamental for token analysis and requires real-time updates. Here's a detailed implementation plan:
+TypeScript
+
+// types/market-stats.ts
+interface MarketStats {
+  marketCap: {
+    sol: number;
+    usd: number;
+    change24h: number;
+  };
+  supply: {
+    circulating: number;
+    total: number;
+    max: number;
+  };
+  price: {
+    current: number;
+    change24h: number;
+    ath: number;
+    atl: number;
+    athTimestamp: string;
+    atlTimestamp: string;
+  };
+  volume: {
+    sol24h: number;
+    usd24h: number;
+    change24h: number;
+  };
+  liquidity: {
+    sol: number;
+    usd: number;
+    change24h: number;
+  };
+  lastUpdate: string;
+  userLogin: string;
+}
+
+// utils/market-stats.ts
+export class MarketStatsManager {
+  private static instance: MarketStatsManager;
+  private statsCache: Map<string, MarketStats> = new Map();
+  private historicalPrices: Map<string, { price: number; timestamp: string }[]> = new Map();
+  
+  private constructor() {
+    this.initializeWebSocket();
+  }
+
+  static getInstance(): MarketStatsManager {
+    if (!this.instance) {
+      this.instance = new MarketStatsManager();
+    }
+    return this.instance;
+  }
+
+  private initializeWebSocket() {
+    // Initialize PumpPortal WebSocket connection
+    const ws = new WebSocket('wss://pumpportal.fun/api/data');
+    
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'trade' || data.type === 'update') {
+        this.updateStats(data);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+  }
+
+  private updateStats(data: any) {
+    const tokenAddress = data.mint || data.address;
+    const currentStats = this.statsCache.get(tokenAddress) || this.createInitialStats();
+    const now = new Date();
+
+    // Update market cap
+    const marketCap = {
+      sol: data.vSolInBondingCurve || currentStats.marketCap.sol,
+      usd: (data.vSolInBondingCurve || currentStats.marketCap.sol) * this.getSolPrice(),
+      change24h: this.calculate24hChange('marketCap', tokenAddress, data.vSolInBondingCurve)
+    };
+
+    // Update supply metrics
+    const supply = {
+      circulating: data.vTokensInBondingCurve || currentStats.supply.circulating,
+      total: data.totalSupply || currentStats.supply.total,
+      max: data.maxSupply || currentStats.supply.max
+    };
+
+    // Update price metrics
+    const currentPrice = data.priceInUsd || (data.priceInSol * this.getSolPrice());
+    this.updateHistoricalPrices(tokenAddress, currentPrice);
+
+    const price = {
+      current: currentPrice,
+      change24h: this.calculate24hChange('price', tokenAddress, currentPrice),
+      ath: this.getATH(tokenAddress),
+      atl: this.getATL(tokenAddress),
+      athTimestamp: this.getATHTimestamp(tokenAddress),
+      atlTimestamp: this.getATLTimestamp(tokenAddress)
+    };
+
+    // Update volume and liquidity
+    const volume = this.calculateVolumeMetrics(data, currentStats);
+    const liquidity = this.calculateLiquidityMetrics(data, currentStats);
+
+    const updatedStats: MarketStats = {
+      marketCap,
+      supply,
+      price,
+      volume,
+      liquidity,
+      lastUpdate: now.toISOString().replace('T', ' ').slice(0, 19),
+      userLogin: 'Peblo69'
+    };
+
+    this.statsCache.set(tokenAddress, updatedStats);
+    this.notifySubscribers(tokenAddress, updatedStats);
+  }
+
+  private getATH(tokenAddress: string): number {
+    const prices = this.historicalPrices.get(tokenAddress) || [];
+    return Math.max(...prices.map(p => p.price));
+  }
+
+  private getATL(tokenAddress: string): number {
+    const prices = this.historicalPrices.get(tokenAddress) || [];
+    return Math.min(...prices.map(p => p.price));
+  }
+
+  private updateHistoricalPrices(tokenAddress: string, price: number) {
+    const history = this.historicalPrices.get(tokenAddress) || [];
+    const now = new Date().toISOString();
+    
+    history.push({ price, timestamp: now });
+    
+    // Keep last 24 hours of data
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const filtered = history.filter(h => h.timestamp >= dayAgo);
+    
+    this.historicalPrices.set(tokenAddress, filtered);
+  }
+
+  // React component for displaying market stats
+  export const MarketStatsDisplay: React.FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+    const [stats, setStats] = useState<MarketStats | null>(null);
+    
+    useEffect(() => {
+      const manager = MarketStatsManager.getInstance();
+      
+      // Subscribe to updates
+      const unsubscribe = manager.subscribe(tokenAddress, (newStats) => {
+        setStats(newStats);
+      });
+      
+      // Initial stats fetch
+      setStats(manager.getStats(tokenAddress));
+      
+      return () => unsubscribe();
+    }, [tokenAddress]);
+
+    if (!stats) return <div>Loading...</div>;
+
+    return (
+      <div className="market-stats-container">
+        <div className="stats-header">
+          <h2>Market Stats</h2>
+          <div className="update-info">
+            <span>Last Update: {stats.lastUpdate}</span>
+            <span>User: {stats.userLogin}</span>
+          </div>
+        </div>
+
+        <div className="stats-grid">
+          <StatCard
+            title="Market Cap"
+            value={formatUSD(stats.marketCap.usd)}
+            change={stats.marketCap.change24h}
+          />
+          <StatCard
+            title="Price"
+            value={formatUSD(stats.price.current)}
+            change={stats.price.change24h}
+            subtitle={`ATH: ${formatUSD(stats.price.ath)}`}
+          />
+          <StatCard
+            title="Volume (24h)"
+            value={formatUSD(stats.volume.usd24h)}
+            change={stats.volume.change24h}
+          />
+          <StatCard
+            title="Liquidity"
+            value={formatUSD(stats.liquidity.usd)}
+            change={stats.liquidity.change24h}
+          />
+          <StatCard
+            title="Supply"
+            value={formatNumber(stats.supply.circulating)}
+            subtitle={`Total: ${formatNumber(stats.supply.total)}`}
+          />
+        </div>
+      </div>
+    );
+  };
+}
+
+// Format helpers
+const formatUSD = (value: number): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+};
+
+const formatNumber = (value: number): string => {
+  return new Intl.NumberFormat('en-US', {
+    notation: "compact",
+    compactDisplay: "short"
+  }).format(value);
+};
+
+To use this implementation:
+
+    Add to your existing WebSocket setup:
+
+TypeScript
+
+// In your WebSocket initialization
+const marketStats = MarketStatsManager.getInstance();
+
+// In your WebSocket message handler
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  marketStats.processUpdate(data);
+};
+
+    Add the component to your trading view:
+
+TypeScript
+
+// In your TradingView component
+import { MarketStatsDisplay } from './MarketStatsDisplay';
+
+export const TradingView: React.FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  return (
+    <div className="trading-view">
+      <MarketStatsDisplay tokenAddress={tokenAddress} />
+      {/* Other components */}
+    </div>
+  );
+};
+
+Key Features:
+
+    Real-time updates via WebSocket
+    Automatic ATH/ATL tracking
+    24h change calculations
+    Proper UTC time formatting
+    User attribution
+    Efficient caching
+    Memory-efficient historical data management
