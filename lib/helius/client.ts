@@ -28,19 +28,24 @@ class HeliusClient {
     }
 
     async getTokenData(mint: string) {
+        console.log('🔍 Fetching data for:', mint);
         try {
             // 1. Get Real-Time Market Data
             const marketData = await fetch(
                 `${HELIUS_CONFIG.REST_URL}/token-metrics/${mint}?api-key=${HELIUS_CONFIG.API_KEY}`
             ).then(res => res.json());
 
+            console.log('📊 Got market data:', marketData);
+
             // 2. Get Recent Trades
             const trades = await fetch(
                 `${HELIUS_CONFIG.REST_URL}/token-transactions/${mint}?api-key=${HELIUS_CONFIG.API_KEY}`
             ).then(res => res.json());
 
+            console.log('📈 Got trades:', trades?.length || 0);
+
             // 3. Pack everything together
-            return {
+            const data = {
                 price: marketData.price,
                 priceUSD: marketData.priceUSD,
                 volume24h: marketData.volume24h,
@@ -48,8 +53,11 @@ class HeliusClient {
                 recentTrades: trades.slice(0, 30), // Last 30 trades
                 lastUpdate: Date.now()
             };
+
+            console.log('📦 Final data:', data);
+            return data;
         } catch (error) {
-            console.error('Failed to fetch token data:', error);
+            console.error('❌ Failed to fetch token data:', error);
             throw error;
         }
     }
@@ -75,6 +83,7 @@ class HeliusClient {
             const subId = await this.connection.onAccountChange(
                 new PublicKey(mint),
                 async () => {
+                    console.log('🔄 Account changed for:', mint);
                     const updatedData = await this.getTokenData(mint);
                     const tokenData = this.tokenData.get(mint);
                     if (tokenData) {
@@ -98,6 +107,7 @@ class HeliusClient {
     private broadcastUpdate(mint: string) {
         const data = this.tokenData.get(mint);
         if (data) {
+            console.log('📢 Broadcasting update for:', mint);
             wsManager.broadcast({
                 type: 'heliusUpdate',
                 data: {

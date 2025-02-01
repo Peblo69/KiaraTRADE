@@ -14,25 +14,32 @@ export default function TokenPage({ mint }: Props) {
 
     useEffect(() => {
         try {
-            // Subscribe to that shit
+            console.log('🔌 Trying to connect to:', mint);
+
             heliusClient.subscribeToToken(mint)
+                .then(() => {
+                    console.log('✅ Subscribed successfully to:', mint);
+                })
                 .catch(err => {
-                    console.error('💀 SHIT BROKE:', err);
+                    console.error('❌ Subscribe failed:', err);
                     setError('Failed to subscribe to token updates');
                 });
 
-            // Listen for updates
+            // Debug incoming data
             wsManager.on('heliusUpdate', (data) => {
+                console.log('📨 Received update:', data);
                 if (data.mint === mint) {
-                    console.log('🔥 NEW PRICE:', data.stats.priceUSD);
+                    console.log('🔥 NEW PRICE:', data.stats?.priceUSD);
                     setTokenData(data);
                 }
             });
 
-            // Clean that shit up
-            return () => heliusClient.unsubscribe(mint);
+            return () => {
+                console.log('🔄 Cleaning up subscription for:', mint);
+                heliusClient.unsubscribe(mint);
+            };
         } catch (error) {
-            console.error('💀 SHIT BROKE:', error);
+            console.error('💀 SETUP BROKE:', error);
             setError('Something went wrong setting up token tracking');
         }
     }, [mint]);
