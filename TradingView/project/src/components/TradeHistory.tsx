@@ -15,6 +15,41 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress, webSocket }) => {
   const { trades, isLoading } = useTradeHistory(tokenAddress);
   const solPrice = usePumpPortalStore(state => state.solPrice);
 
+  // DEBUG: Log store state
+  const storeState = usePumpPortalStore.getState();
+  console.log('🏪 FULL STORE STATE:', {
+    isConnected: storeState.isConnected,
+    solPrice: storeState.solPrice,
+    tokenCount: storeState.tokens.length,
+    viewedTokens: Object.keys(storeState.viewedTokens),
+    activeTokenView: storeState.activeTokenView
+  });
+
+  // DEBUG: Watch for token changes
+  React.useEffect(() => {
+    console.log('🎯 Token Updated:', {
+      address: tokenAddress,
+      hasToken: !!trades,
+      tradesCount: trades?.length || 0,
+      trades: trades
+    });
+  }, [trades, tokenAddress]);
+
+  // DEBUG: Subscribe to store changes
+  React.useEffect(() => {
+    const unsubscribe = usePumpPortalStore.subscribe(
+      state => state.tokens,
+      (tokens) => {
+        console.log('🔄 Store Tokens Updated:', {
+          totalTokens: tokens.length,
+          hasOurToken: tokens.some(t => t.address === tokenAddress)
+        });
+      }
+    );
+
+    return () => unsubscribe();
+  }, [tokenAddress]);
+
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString('en-US', {
       hour12: false,
