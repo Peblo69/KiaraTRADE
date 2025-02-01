@@ -2,15 +2,21 @@
 import { format } from 'date-fns';
 import { usePumpPortalStore, TokenTrade, PumpPortalToken } from './pump-portal-websocket';
 
+// Force debug mode
+const DEBUG = true;
+console.log('🚀 WEBSOCKET MANAGER LOADING');
+
 // Constants
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+console.log('🌐 WebSocket URL:', WS_URL);
+
 const UTC_DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
 const CURRENT_USER = 'Peblo69';
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const HEARTBEAT_INTERVAL = 30000;
 const BILLION = 1_000_000_000;
-const SOL_PRICE_UPDATE_INTERVAL = 10000; // 10 seconds
+const SOL_PRICE_UPDATE_INTERVAL = 10000;
 const COINGECKO_PRICE_URL = 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd';
 
 interface WebSocketMessage {
@@ -44,17 +50,27 @@ class WebSocketManager {
   private solPriceInterval: number | null = null;
 
   public connect(): void {
+    console.log('🔌 Attempting to connect to:', WS_URL);
+
     try {
-      console.log('[PumpPortal] Connecting WebSocket...');
       this.ws = new WebSocket(WS_URL);
+
+      // ADD THIS DEBUG
+      console.log('📡 WebSocket State:', {
+        ws: !!this.ws,
+        readyState: this.ws?.readyState,
+        url: WS_URL
+      });
+
       this.setupEventListeners();
       this.startHeartbeat();
       this.startSolPriceUpdates();
 
+      // Force initial state update
       const currentTime = format(new Date(), UTC_DATE_FORMAT);
-      console.log('[PumpPortal] Setting initial state:', {
-        currentTime,
-        currentUser: CURRENT_USER
+      console.log('🕒 Setting initial state:', {
+        time: currentTime,
+        user: CURRENT_USER
       });
 
       usePumpPortalStore.setState({
@@ -62,7 +78,7 @@ class WebSocketManager {
         currentUser: CURRENT_USER
       });
     } catch (error) {
-      console.error('[PumpPortal] Connection error:', error);
+      console.error('💀 Connection error:', error);
       this.updateConnectionStatus(false);
     }
   }
@@ -374,6 +390,7 @@ class WebSocketManager {
 
 export const wsManager = new WebSocketManager();
 
+// Make wsManager available globally for debugging
 declare global {
   interface Window {
     wsManager: WebSocketManager;
