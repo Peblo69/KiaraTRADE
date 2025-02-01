@@ -1,7 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { createServer } from "net";
 
 const app = express();
 app.use(express.json());
@@ -29,10 +28,14 @@ async function startServer() {
       serveStatic(app);
     }
 
-    const PORT = process.env.PORT || 3000;
+    const PORT = 3000; // Force port 3000
 
+    // Close any existing connections
+    server.close();
+
+    // Bind specifically to 0.0.0.0:3000
     server.listen(PORT, "0.0.0.0", () => {
-      log(`Server running on port ${PORT}`);
+      log(`Server running at http://0.0.0.0:${PORT}`);
     }).on('error', (error: any) => {
       log(`Failed to start server: ${error.message}`);
       process.exit(1);
