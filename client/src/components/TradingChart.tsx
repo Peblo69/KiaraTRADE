@@ -1,6 +1,6 @@
 import { FC, useState, useEffect, useRef, useMemo } from "react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { createChart, IChartApi, CandlestickData } from 'lightweight-charts';
+import { createChart, IChartApi, Time } from 'lightweight-charts';
 import { LineChart } from "lucide-react";
 
 interface Props {
@@ -15,6 +15,14 @@ const INTERVALS = [
   { label: '1h', value: '3600' },
   { label: '4h', value: '14400' }
 ];
+
+interface CandleData {
+  time: Time;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
 
 const TradingChart: FC<Props> = ({ tokenAddress }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -40,10 +48,10 @@ const TradingChart: FC<Props> = ({ tokenAddress }) => {
       groupedTrades[timestamp].push(trade);
     });
 
-    const candles: CandlestickData[] = Object.entries(groupedTrades).map(([time, trades]) => {
+    const candles: CandleData[] = Object.entries(groupedTrades).map(([time, trades]) => {
       const prices = trades.map(t => t.priceInUsd || 0);
       return {
-        time: parseInt(time) / 1000,
+        time: parseInt(time) / 1000 as Time,
         open: prices[0],
         high: Math.max(...prices),
         low: Math.min(...prices),
@@ -52,7 +60,7 @@ const TradingChart: FC<Props> = ({ tokenAddress }) => {
     });
 
     return {
-      candleData: candles.sort((a, b) => a.time - b.time)
+      candleData: candles.sort((a, b) => (a.time as number) - (b.time as number))
     };
   }, [token?.recentTrades, selectedInterval]);
 
@@ -88,7 +96,18 @@ const TradingChart: FC<Props> = ({ tokenAddress }) => {
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
 
+    const handleResize = () => {
+      if (chartContainerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({ 
+          width: chartContainerRef.current.clientWidth 
+        });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
     return () => {
+      window.removeEventListener('resize', handleResize);
       chart.remove();
       chartRef.current = null;
     };
