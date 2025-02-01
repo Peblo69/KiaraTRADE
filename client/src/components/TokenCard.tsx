@@ -1,7 +1,7 @@
 import { FC, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { ImageIcon, Globe, Search, Users, Crosshair, UserPlus, Copy } from 'lucide-react';
-import { validateImageUrl, validateSocialUrl, formatSocialLinks } from '@/utils/validators';
+import { validateImageUrl,  } from '@/utils/validators';
 import { THRESHOLDS, getRiskLevelColor, formatMarketCap, calculateMarketCapProgress } from '@/utils/token-metrics';
 import { cn } from "@/lib/utils";
 import { PumpFunIcon } from './icons/PumpFunIcon';
@@ -134,16 +134,16 @@ const debugSocialLinks = (token: Token) => {
     twitter: token.twitter
   });
   console.log('Socials object:', token.socials);
-  console.log('Formatted social links:', formatSocialLinks({
+  console.log('Formatted social links:', {
     website: token.socials?.website || token.website || null,
     telegram: token.socials?.telegram || token.telegram || null,
     twitter: token.socials?.twitter || token.twitter || null,
     pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : null
-  }));
+  });
   console.groupEnd();
 };
 
-export const TokenCard: FC<TokenCardProps> = ({
+const TokenCard: FC<TokenCardProps> = ({
   token,
   onClick,
   onBuyClick = () => console.log('Buy clicked'),
@@ -273,34 +273,17 @@ export const TokenCard: FC<TokenCardProps> = ({
   }, [token]);
 
   const socialLinks = useMemo(() => {
-    const links = {
-      website: token.website || token.socials?.website,
-      telegram: token.telegram || token.socials?.telegram,
-      twitter: token.twitter || token.socials?.twitter,
-      pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : undefined
-    };
-
     return {
-      website: validateSocialUrl(links.website, 'website'),
-      telegram: validateSocialUrl(links.telegram, 'telegram'),
-      twitter: validateSocialUrl(links.twitter, 'twitter'),
-      pumpfun: validateSocialUrl(links.pumpfun, 'pumpfun')
+      website: token.website || null,
+      twitter: token.twitter || null,
+      telegram: token.telegram || null,
+      pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : null
     };
-  }, [token.website, token.telegram, token.twitter, token.socials, token.address]);
+  }, [token.website, token.twitter, token.telegram, token.address]);
 
-  // Add debug effect
   useEffect(() => {
-    console.group(`Social Links Debug - ${token.symbol}`);
-    console.log('Token data:', {
-      address: token.address,
-      website: token.website,
-      twitter: token.twitter,
-      telegram: token.telegram,
-      socials: token.socials
-    });
-    console.log('Processed social links:', socialLinks);
-    console.groupEnd();
-  }, [token, socialLinks]);
+    console.log('Token:', token.symbol, 'Social Links:', socialLinks);
+  }, [token.symbol, socialLinks]);
 
   return (
     <Card
@@ -405,38 +388,78 @@ export const TokenCard: FC<TokenCardProps> = ({
 
             <div className="flex items-center justify-between text-[11px] mt-2">
              <div className="flex items-center gap-2">
-                {Object.entries(socialLinks).map(([platform, url]) => {
-                  if (!url) return null;
+                {/* Website */}
+                {socialLinks.website && (
+                  <a
+                    href={socialLinks.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.open(socialLinks.website, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                    title="Website"
+                  >
+                    <Globe className="w-4 h-4" />
+                  </a>
+                )}
 
-                  const IconComponent = {
-                    website: Globe,
-                    telegram: TelegramIcon,
-                    twitter: XIcon,
-                    pumpfun: PumpFunIcon
-                  }[platform as 'website' | 'telegram' | 'twitter' | 'pumpfun'];
+                {/* Twitter */}
+                {socialLinks.twitter && (
+                  <a
+                    href={socialLinks.twitter}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.open(socialLinks.twitter, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                    title="Twitter"
+                  >
+                    <XIcon className="w-4 h-4" />
+                  </a>
+                )}
 
-                  if (!IconComponent) return null;
+                {/* Telegram */}
+                {socialLinks.telegram && (
+                  <a
+                    href={socialLinks.telegram}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.open(socialLinks.telegram, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                    title="Telegram"
+                  >
+                    <TelegramIcon className="w-4 h-4" />
+                  </a>
+                )}
 
-                  return (
-                    <a
-                      key={platform}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        window.open(url, '_blank', 'noopener,noreferrer');
-                      }}
-                      className="text-blue-400/70 hover:text-blue-300 transition-colors"
-                      title={platform.charAt(0).toUpperCase() + platform.slice(1)}
-                    >
-                      <IconComponent className="w-4 h-4" />
-                    </a>
-                  );
-                })}
+                {/* PumpFun */}
+                {socialLinks.pumpfun && (
+                  <a
+                    href={socialLinks.pumpfun}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.open(socialLinks.pumpfun, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="text-blue-400/70 hover:text-blue-300 transition-colors"
+                    title="PumpFun"
+                  >
+                    <PumpFunIcon className="w-4 h-4" />
+                  </a>
+                )}
               </div>
-
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
                   <Users size={12} className="text-gray-400" />
