@@ -1,7 +1,8 @@
 import { FC, useState, useEffect, useRef, useMemo } from "react";
-import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import { createChart, IChartApi, Time } from 'lightweight-charts';
+import { createChart, IChartApi, CrosshairMode } from 'lightweight-charts';
 import { LineChart } from "lucide-react";
+import { ChartDataManager, type ChartCandle } from "@/lib/chart-data-manager";
+import { useUnifiedToken, useTokenTrades } from "@/lib/unified-token-store";
 
 interface Props {
   tokenAddress: string;
@@ -16,54 +17,18 @@ const INTERVALS = [
   { label: '4h', value: '14400' }
 ];
 
-interface CandleData {
-  time: Time;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-}
-
 const TradingChart: FC<Props> = ({ tokenAddress }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<any>(null);
+  const volumeSeriesRef = useRef<any>(null);
+  const dataManagerRef = useRef<ChartDataManager | null>(null);
   const [selectedInterval, setSelectedInterval] = useState('60');
 
-  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const token = useUnifiedToken(tokenAddress);
+  const trades = useTokenTrades(tokenAddress);
 
-  const { candleData } = useMemo(() => {
-    if (!token?.recentTrades?.length) {
-      return { candleData: [] };
-    }
-
-    const timeframeMs = parseInt(selectedInterval) * 1000;
-    const groupedTrades: Record<number, any[]> = {};
-
-    token.recentTrades.forEach(trade => {
-      const timestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
-      if (!groupedTrades[timestamp]) {
-        groupedTrades[timestamp] = [];
-      }
-      groupedTrades[timestamp].push(trade);
-    });
-
-    const candles: CandleData[] = Object.entries(groupedTrades).map(([time, trades]) => {
-      const prices = trades.map(t => t.priceInUsd || 0);
-      return {
-        time: parseInt(time) / 1000 as Time,
-        open: prices[0],
-        high: Math.max(...prices),
-        low: Math.min(...prices),
-        close: prices[prices.length - 1],
-      };
-    });
-
-    return {
-      candleData: candles.sort((a, b) => (a.time as number) - (b.time as number))
-    };
-  }, [token?.recentTrades, selectedInterval]);
-
+  // Initialize chart and data manager
   useEffect(() => {
     if (!chartContainerRef.current || chartRef.current) return;
 
@@ -82,6 +47,9 @@ const TradingChart: FC<Props> = ({ tokenAddress }) => {
         timeVisible: true,
         secondsVisible: true,
       },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+      },
     });
 
     const candleSeries = chart.addCandlestickSeries({
@@ -93,9 +61,36 @@ const TradingChart: FC<Props> = ({ tokenAddress }) => {
       wickDownColor: '#ef5350',
     });
 
+    // Add volume series
+    const volumeSeries = chart.addHistogramSeries({
+      color: '#385263',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: '', // Set as an overlay
+    });
+
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
+    volumeSeriesRef.current = volumeSeries;
 
+    // Initialize data manager
+    dataManagerRef.current = new ChartDataManager(
+      parseInt(selectedInterval),
+      (candles) => {
+        candleSeries.setData(candles);
+        volumeSeries.setData(candles.map(c => ({
+          time: c.time,
+          value: c.volume || 0,
+          color: c.close >= c.open ? '#26a69a50' : '#ef535050'
+        })));
+
+        // Fit content after setting data
+        chart.timeScale().fitContent();
+      }
+    );
+
+    // Handle resize
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
         chartRef.current.applyOptions({ 
@@ -105,7 +100,6 @@ const TradingChart: FC<Props> = ({ tokenAddress }) => {
     };
 
     window.addEventListener('resize', handleResize);
-
     return () => {
       window.removeEventListener('resize', handleResize);
       chart.remove();
@@ -113,15 +107,25 @@ const TradingChart: FC<Props> = ({ tokenAddress }) => {
     };
   }, []);
 
+  // Handle new trades
   useEffect(() => {
-    if (!candleSeriesRef.current) return;
+    if (!dataManagerRef.current || !trades?.length) return;
 
-    candleSeriesRef.current.setData(candleData);
+    trades.forEach(trade => {
+      dataManagerRef.current?.addTrade({
+        timestamp: trade.timestamp,
+        priceInUsd: trade.priceInUsd,
+        tokenAmount: trade.tokenAmount
+      });
+    });
+  }, [trades]);
 
-    if (chartRef.current && candleData.length > 0) {
-      chartRef.current.timeScale().fitContent();
-    }
-  }, [candleData]);
+  // Handle interval changes
+  useEffect(() => {
+    if (!dataManagerRef.current || !trades?.length) return;
+
+    dataManagerRef.current.changeInterval(parseInt(selectedInterval));
+  }, [selectedInterval, trades]);
 
   if (!token) return null;
 

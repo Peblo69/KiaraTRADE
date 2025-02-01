@@ -1,0 +1,195 @@
+STEP 5 - ADDING REAL-TIME CHART UPDATES & PERFORMANCE OPTIMIZATION 🚀
+
+First, let's create a chart data manager to handle real-time updates efficiently:
+TypeScript
+
+// lib/chart-data-manager.ts
+import { Time } from 'lightweight-charts';
+import { debounce } from 'lodash';
+
+interface ChartCandle {
+  time: Time;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
+export class ChartDataManager {
+  private candles: Map<number, ChartCandle> = new Map();
+  private interval: number;
+  private onUpdate: (candles: ChartCandle[]) => void;
+  
+  constructor(interval: number, onUpdate: (candles: ChartCandle[]) => void) {
+    this.interval = interval;
+    this.onUpdate = debounce(onUpdate, 100); // Prevent too many updates
+  }
+
+  addTrade(trade: {
+    timestamp: number;
+    price: number;
+    amount: number;
+  }) {
+    const candleTime = Math.floor(trade.timestamp / (this.interval * 1000)) * (this.interval * 1000);
+    
+    let candle = this.candles.get(candleTime);
+    if (!candle) {
+      candle = {
+        time: candleTime / 1000 as Time,
+        open: trade.price,
+        high: trade.price,
+        low: trade.price,
+        close: trade.price,
+        volume: trade.amount
+      };
+    } else {
+      candle.high = Math.max(candle.high, trade.price);
+      candle.low = Math.min(candle.low, trade.price);
+      candle.close = trade.price;
+      candle.volume! += trade.amount;
+    }
+    
+    this.candles.set(candleTime, candle);
+    this.onUpdate(Array.from(this.candles.values()));
+  }
+
+  setInitialCandles(candles: ChartCandle[]) {
+    this.candles.clear();
+    candles.forEach(candle => {
+      this.candles.set(Number(candle.time) * 1000, candle);
+    });
+    this.onUpdate(Array.from(this.candles.values()));
+  }
+}
+
+Now update your TradingChart component to use it:
+TypeScript
+
+// components/TradingChart.tsx
+import { ChartDataManager } from '@/lib/chart-data-manager';
+import { useUnifiedStore, useTokenData, useLatestTrades } from '@/lib/unified-token-store';
+
+const TradingChart: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const candleSeriesRef = useRef<any>(null);
+  const dataManagerRef = useRef<ChartDataManager | null>(null);
+  const [selectedInterval, setSelectedInterval] = useState('60');
+
+  const tokenData = useTokenData(tokenAddress);
+  const latestTrades = useLatestTrades(tokenAddress);
+
+  // Initialize chart and data manager
+  useEffect(() => {
+    if (!chartContainerRef.current || chartRef.current) return;
+
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { color: '#0D0B1F' },
+        textColor: '#d1d4dc',
+      },
+      grid: {
+        vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: 500,
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: true,
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+      },
+    });
+
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderUpColor: '#26a69a',
+      borderDownColor: '#ef5350',
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+    });
+
+    // Add volume series
+    const volumeSeries = chart.addHistogramSeries({
+      color: '#385263',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: '', // Set as an overlay
+    });
+
+    chartRef.current = chart;
+    candleSeriesRef.current = candleSeries;
+
+    // Initialize data manager
+    dataManagerRef.current = new ChartDataManager(
+      parseInt(selectedInterval),
+      (candles) => {
+        candleSeries.setData(candles);
+        volumeSeries.setData(candles.map(c => ({
+          time: c.time,
+          value: c.volume || 0,
+          color: c.close >= c.open ? '#26a69a50' : '#ef535050'
+        })));
+      }
+    );
+
+    // Handle resize
+    const handleResize = () => {
+      if (chartContainerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({ 
+          width: chartContainerRef.current.clientWidth 
+        });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+      chartRef.current = null;
+    };
+  }, []);
+
+  // Handle new trades
+  useEffect(() => {
+    if (!dataManagerRef.current || !latestTrades.length) return;
+    
+    latestTrades.forEach(trade => {
+      dataManagerRef.current?.addTrade({
+        timestamp: trade.timestamp,
+        price: trade.price,
+        amount: trade.amount
+      });
+    });
+  }, [latestTrades]);
+
+  // Handle interval changes
+  useEffect(() => {
+    if (!dataManagerRef.current || !tokenData) return;
+    
+    const initialCandles = convertTradesToCandles(
+      tokenData.realTime.trades,
+      parseInt(selectedInterval)
+    );
+    
+    dataManagerRef.current.setInitialCandles(initialCandles);
+  }, [selectedInterval, tokenData]);
+
+  return (
+    <div className="relative bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
+      {/* Your existing UI code */}
+    </div>
+  );
+};
+
+This update:
+
+    Manages real-time data efficiently
+    Prevents unnecessary re-renders
+    Handles volume display
+    Optimizes performance
