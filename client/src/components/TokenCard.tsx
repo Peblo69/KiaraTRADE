@@ -1,7 +1,7 @@
 import { FC, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { ImageIcon, Globe, Search, Users, Crosshair, UserPlus, Copy } from 'lucide-react';
-import { validateImageUrl, validateSocialUrl } from '@/utils/validators';
+import { validateImageUrl, validateSocialUrl, formatSocialLinks } from '@/utils/validators';
 import { THRESHOLDS, getRiskLevelColor, formatMarketCap, calculateMarketCapProgress } from '@/utils/token-metrics';
 import { cn } from "@/lib/utils";
 import { PumpFunIcon } from './icons/PumpFunIcon';
@@ -251,22 +251,15 @@ export const TokenCard: FC<TokenCardProps> = ({
   };
 
   const socialLinks = useMemo(() => {
-    const validLinks = {
+    if (!token) return {};
+
+    return formatSocialLinks({
       website: token.socials?.website || token.website,
       telegram: token.socials?.telegram || token.telegram,
       twitter: token.socials?.twitter || token.twitter,
       pumpfun: token.address ? `https://pump.fun/coin/${token.address}` : null
-    };
-  
-    return Object.entries(validLinks)
-      .reduce((acc, [platform, url]) => {
-        const validUrl = validateSocialUrl(url, platform as 'website' | 'telegram' | 'twitter' | 'pumpfun');
-        if (validUrl) {
-          acc[platform] = validUrl;
-        }
-        return acc;
-      }, {} as Record<string, string>);
-  }, [token.socials, token.website, token.telegram, token.twitter, token.address]);
+    });
+  }, [token]);
 
   const insiderMetrics: InsiderMetrics = { risk: metrics.insiderRisk, patterns: { quickFlips: 0, coordinatedBuys: 0 } };
 

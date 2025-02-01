@@ -32,3 +32,12 @@ export const validateSocialUrl = (url: string | undefined | null, platform: 'web
     return null;
   }
 };
+
+export const formatSocialLinks = (token: any) => {
+  return {
+    website: validateSocialUrl(token.website, 'website'),
+    telegram: validateSocialUrl(token.telegram, 'telegram'),
+    twitter: validateSocialUrl(token.twitter, 'twitter'),
+    pumpfun: validateSocialUrl(token.pumpfun, 'pumpfun')
+  };
+};
