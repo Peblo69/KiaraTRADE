@@ -1,8 +1,8 @@
 import React from 'react';
 import { History, ExternalLink, Copy, CheckCircle } from 'lucide-react';
-import { usePumpPortalStore } from '../lib/pump-portal-websocket';
+import { formatDistanceToNow } from 'date-fns';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { motion, AnimatePresence } from 'framer-motion';
-import { WalletProfiler } from '../services/wallet-profiler';
 
 interface Props {
   tokenAddress: string;
@@ -13,8 +13,6 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
   const trades = token?.recentTrades || [];
   const solPrice = usePumpPortalStore(state => state.solPrice);
-  const walletProfiles = usePumpPortalStore(state => state.walletProfiles);
-  const profiler = WalletProfiler.getInstance();
 
   // Debug: Log store state and trades
   React.useEffect(() => {
@@ -23,24 +21,9 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
       hasToken: !!token,
       tradesCount: trades.length,
       trades: trades,
-      solPrice,
-      profiles: walletProfiles
+      solPrice
     });
-  }, [tokenAddress, token, trades, solPrice, walletProfiles]);
-
-  // Profile new wallets
-  React.useEffect(() => {
-    const newWallets = trades
-      .map(t => t.traderPublicKey)
-      .filter(wallet => !walletProfiles.has(wallet));
-
-    if (newWallets.length === 0) return;
-
-    // Profile new wallets
-    newWallets.forEach(wallet => {
-      profiler.profileWallet(wallet).catch(console.error);
-    });
-  }, [trades, walletProfiles]);
+  }, [tokenAddress, token, trades, solPrice]);
 
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString('en-US', {
@@ -81,21 +64,19 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
       </div>
 
       <div className="p-2 max-h-[600px] overflow-y-auto custom-scrollbar">
-        <div className="grid grid-cols-7 text-xs text-purple-400 pb-2 sticky top-0 bg-[#0D0B1F] border-b border-purple-900/30">
+        <div className="grid grid-cols-6 text-xs text-purple-400 pb-2 sticky top-0 bg-[#0D0B1F] border-b border-purple-900/30">
           <span>Time</span>
           <span>Wallet</span>
-          <span>Type</span>
+          <span className="text-right">Type</span>
           <span className="text-right">Amount</span>
           <span className="text-right">SOL</span>
-          <span className="text-right">USD</span>
           <span className="text-right">Total</span>
         </div>
 
         <AnimatePresence initial={false}>
-          {trades.map((trade) => {
+          {trades.map((trade, index) => {
             const total = trade.solAmount * (solPrice || 0);
-            const isNew = trades.indexOf(trade) === 0;
-            const profile = walletProfiles.get(trade.traderPublicKey);
+            const isNew = index === 0;
 
             return (
               <motion.div
@@ -104,7 +85,7 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
-                className={`grid grid-cols-7 text-xs py-2 group hover:bg-purple-900/20 border-b border-purple-900/10 ${
+                className={`grid grid-cols-6 text-xs py-2 group hover:bg-purple-900/20 border-b border-purple-900/10 ${
                   isNew ? 'bg-purple-500/10' : ''
                 }`}
               >
@@ -115,7 +96,6 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
                 <div className="flex items-center space-x-1">
                   <button
                     className={`text-${trade.txType === 'buy' ? 'green' : 'red'}-400 hover:underline`}
-                    title={profile ? `${profile.type} (${profile.confidence}% confidence)` : undefined}
                   >
                     {trade.traderPublicKey.slice(0, 6)}...{trade.traderPublicKey.slice(-4)}
                   </button>
@@ -141,29 +121,18 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
                   </div>
                 </div>
 
-                <span className={`text-xs ${
-                  profile ? (
-                    profile.type === 'whale' ? 'text-yellow-400' :
-                    profile.type === 'bot' ? 'text-red-400' :
-                    profile.type === 'paper' ? 'text-blue-400' :
-                    'text-purple-400'
-                  ) : 'text-purple-400'
-                }`}>
-                  {profile?.type || 'unknown'}
-                </span>
-
                 <span className={`text-right font-medium ${
                   trade.txType === 'buy' ? 'text-green-400' : 'text-red-400'
                 }`}>
+                  {trade.txType.toUpperCase()}
+                </span>
+
+                <span className="text-right text-purple-300">
                   {trade.tokenAmount.toLocaleString()}
                 </span>
 
                 <span className="text-right text-purple-300">
                   {trade.solAmount.toFixed(3)} SOL
-                </span>
-
-                <span className="text-right text-purple-300">
-                  ${(trade.solAmount * solPrice).toFixed(2)}
                 </span>
 
                 <span className="text-right text-purple-300">

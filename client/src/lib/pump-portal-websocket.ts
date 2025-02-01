@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { format } from 'date-fns';
 import axios from 'axios';
 import { calculatePumpFunTokenMetrics, calculateVolumeMetrics, calculateTokenRisk } from "@/utils/token-calculations";
-import { WalletProfile } from '@/types/wallet-profile';
+// Placeholder import -  This needs to be replaced with the actual import path for SocialLinks
+import SocialLinks from './SocialLinks'; //  Replace './SocialLinks' with the correct path
 
 // Constants
 const MAX_TRADES_PER_TOKEN = 100;
@@ -18,17 +19,17 @@ function debugLog(action: string, data?: any) {
 
 // TokenMetadata interface that includes imageUrl
 export interface TokenMetadata {
-  name: string;
-  symbol: string;
-  decimals: number;
-  uri?: string;
-  mint?: string;
-  imageUrl?: string;
-  creators?: Array<{
-    address: string;
-    verified: boolean;
-    share: number;
-  }>;
+    name: string;
+    symbol: string;
+    decimals: number;
+    uri?: string;
+    mint?: string;
+    imageUrl?: string;
+    creators?: Array<{
+        address: string;
+        verified: boolean;
+        share: number;
+    }>;
 }
 
 export interface TokenTrade {
@@ -84,7 +85,6 @@ interface PumpPortalStore {
   isConnected: boolean;
   solPrice: number;
   activeTokenView: string | null;
-  walletProfiles: Map<string, WalletProfile>;
   addToken: (tokenData: any) => void;
   addTradeToHistory: (address: string, tradeData: TokenTrade) => void;
   setConnected: (connected: boolean) => void;
@@ -94,8 +94,6 @@ interface PumpPortalStore {
   setActiveTokenView: (address: string | null) => void;
   getToken: (address: string) => PumpPortalToken | undefined;
   updateTokenPrice: (address: string, priceInUsd: number) => void;
-  addWalletProfile: (address: string, profile: WalletProfile) => void;
-  getWalletProfile: (address: string) => WalletProfile | undefined;
   fetchTokenUri: (address: string) => Promise<string | null>;
   getNewTokens: () => PumpPortalToken[];
   getAboutToGraduateTokens: () => PumpPortalToken[];
@@ -108,20 +106,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   isConnected: false,
   solPrice: 0,
   activeTokenView: null,
-  walletProfiles: new Map(),
-
-  // Add wallet profile
-  addWalletProfile: (address: string, profile: WalletProfile) => set(state => {
-    const profiles = new Map(state.walletProfiles);
-    profiles.set(address, profile);
-    return { walletProfiles: profiles };
-  }),
-
-  // Get wallet profile
-  getWalletProfile: (address: string) => {
-    const state = get();
-    return state.walletProfiles.get(address);
-  },
 
   // This function maps the websocket data to our token format
   addToken: (tokenData) => set((state) => {
