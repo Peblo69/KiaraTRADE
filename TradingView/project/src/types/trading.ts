@@ -24,6 +24,7 @@ export interface Trade {
   wallet: string;
   maker: boolean;
   fee: number;
+  mint: string; // Added mint property for token identification
 }
 
 export interface UserBalance {
