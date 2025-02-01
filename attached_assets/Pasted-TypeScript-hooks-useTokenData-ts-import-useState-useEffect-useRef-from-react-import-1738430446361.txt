@@ -1,0 +1,202 @@
+TypeScript
+
+// hooks/useTokenData.ts
+import { useState, useEffect, useRef } from 'react';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { calculatePumpFunTokenMetrics, calculateVolumeMetrics } from '@/utils/token-calculations';
+import { Token, TokenTrade } from '@/types/token';
+
+const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
+const HELIUS_WS_URL = `wss://rpc.helius.xyz/?api-key=${HELIUS_API_KEY}`;
+
+interface MarketData {
+  price: string;
+  priceChange24h: {
+    value: number;
+    isPositive: boolean;
+  };
+  volume24h: string;
+  marketCap: string;
+  liquidity: string;
+  ath: string;
+  atl: string;
+  totalSupply: string;
+  circulatingSupply: string;
+}
+
+export function useTokenData(tokenAddress: string) {
+  const [marketData, setMarketData] = useState<MarketData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const ws = useRef<WebSocket | null>(null);
+  
+  // Get PumpPortal data
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const solPrice = usePumpPortalStore(state => state.solPrice);
+
+  useEffect(() => {
+    if (!tokenAddress || !HELIUS_API_KEY) return;
+
+    // Initialize with PumpPortal data
+    if (token) {
+      updateMarketData(token);
+    }
+
+    // Connect to Helius for real-time updates
+    ws.current = new WebSocket(HELIUS_WS_URL);
+
+    ws.current.onopen = () => {
+      console.log('[Helius] Connected');
+      ws.current?.send(JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'accountSubscribe',
+        params: [
+          tokenAddress,
+          {
+            commitment: 'confirmed',
+            encoding: 'jsonParsed'
+          }
+        ]
+      }));
+    };
+
+    ws.current.onmessage = (event) => {
+      try {
+        const response = JSON.parse(event.data);
+        
+        if (response.method === 'accountNotification') {
+          const accountInfo = response.params.result.value;
+          
+          // Update market data with real-time values
+          if (token) {
+            const updatedToken = {
+              ...token,
+              vSolInBondingCurve: accountInfo.lamports / 1e9,
+              vTokensInBondingCurve: accountInfo.tokenAmount?.uiAmount || token.vTokensInBondingCurve
+            };
+            
+            updateMarketData(updatedToken);
+          }
+        }
+      } catch (error) {
+        console.error('[Helius] Message processing error:', error);
+      }
+    };
+
+    return () => {
+      ws.current?.close();
+    };
+  }, [tokenAddress, token]);
+
+  // Update market data when token or solPrice changes
+  useEffect(() => {
+    if (token) {
+      updateMarketData(token);
+    }
+  }, [token, solPrice]);
+
+  function updateMarketData(token: Token) {
+    const metrics = calculatePumpFunTokenMetrics({
+      vSolInBondingCurve: token.vSolInBondingCurve || 0,
+      vTokensInBondingCurve: token.vTokensInBondingCurve || 0,
+      solPrice: solPrice || 0
+    });
+
+    const volumeMetrics = calculateVolumeMetrics(token.recentTrades || []);
+
+    // Calculate 24h price change
+    const last24h = token.recentTrades?.filter(
+      trade => trade.timestamp > Date.now() - 24 * 60 * 60 * 1000
+    ) || [];
+
+    const priceChange24h = (() => {
+      if (last24h.length < 2) return { value: 0, isPositive: false };
+      const current = metrics.price.usd;
+      const old = last24h[last24h.length - 1].solAmount * solPrice;
+      const change = ((current - old) / old) * 100;
+      return { value: Math.abs(change), isPositive: change >= 0 };
+    })();
+
+    setMarketData({
+      price: `$${metrics.price.usd.toFixed(8)}`,
+      priceChange24h,
+      volume24h: `$${volumeMetrics.volume24h.usd.toLocaleString()}`,
+      marketCap: `$${metrics.marketCap.usd.toLocaleString()}`,
+      liquidity: `$${(token.vSolInBondingCurve * solPrice).toLocaleString()}`,
+      ath: token.ath ? `$${token.ath.toFixed(8)}` : 'N/A',
+      atl: token.atl ? `$${token.atl.toFixed(8)}` : 'N/A',
+      totalSupply: token.vTokensInBondingCurve?.toLocaleString() || 'N/A',
+      circulatingSupply: token.vTokensInBondingCurve?.toLocaleString() || 'N/A'
+    });
+
+    setIsLoading(false);
+  }
+
+  return { marketData, isLoading };
+}
+
+Then update your TokenMarketStats component:
+TypeScript
+
+// components/TokenMarketStats.tsx
+import { FC } from "react";
+import { useTokenData } from '@/hooks/useTokenData';
+import { Card } from "@/components/ui/card";
+import { ArrowUpRight, ArrowDownRight } from "lucide-react";
+
+// ... StatCard component stays the same ...
+
+const TokenMarketStats: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
+  const { marketData, isLoading } = useTokenData(tokenAddress);
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-lg border border-purple-500/20 bg-card animate-pulse">
+        {/* Loading skeleton */}
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="h-16 bg-gray-200 rounded"></div>
+        ))}
+      </div>
+    );
+  }
+
+  if (!marketData) return null;
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-lg border border-purple-500/20 bg-card">
+      <StatCard
+        title="Price"
+        value={marketData.price}
+        change={marketData.priceChange24h}
+      />
+      <StatCard
+        title="24h Volume"
+        value={marketData.volume24h}
+      />
+      <StatCard
+        title="Market Cap"
+        value={marketData.marketCap}
+      />
+      <StatCard
+        title="Liquidity"
+        value={marketData.liquidity}
+      />
+    </div>
+  );
+};
+
+export default TokenMarketStats;
+
+This will:
+
+    Use your existing PumpPortal data
+    Add real-time Helius updates
+    Keep your calculations
+    Show loading states properly
+
+The key changes:
+
+    Combined PumpPortal and Helius data
+    Used your token calculations
+    Added proper WebSocket handling
+    Fixed loading states
