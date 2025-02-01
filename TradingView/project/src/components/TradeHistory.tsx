@@ -9,26 +9,26 @@ const TradeHistory: React.FC = () => {
     { 
       id: '1', 
       price: 46789.50, 
-      amount: 0.2345,
+      amount: 1.2345,
       amountUSD: 10972.14,
       amountSOL: 146.23,
       side: 'buy', 
       timestamp: Date.now() - 5000, 
       wallet: '0x1234...5678',
       maker: true,
-      fee: 0.1
+      fee: 1.1
     },
     { 
       id: '2', 
       price: 46788.00, 
-      amount: 0.1678,
+      amount: 1.1678,
       amountUSD: 7851.03,
       amountSOL: 104.87,
       side: 'sell', 
       timestamp: Date.now() - 10000, 
       wallet: '0x8765...4321',
       maker: false,
-      fee: 0.1
+      fee: 1.1
     }
   ];
 
@@ -62,7 +62,7 @@ const TradeHistory: React.FC = () => {
           <h2 className="text-purple-100 font-semibold">Trade History</h2>
         </div>
       </div>
-      
+
       <div className="p-2">
         <div className="grid grid-cols-6 text-xs text-purple-400 pb-2">
           <span>Time</span>
@@ -72,7 +72,7 @@ const TradeHistory: React.FC = () => {
           <span className="text-right">SOL Amount</span>
           <span className="text-right">Total</span>
         </div>
-        
+
         <div className="space-y-0.5">
           {mockTrades.map((trade) => (
             <div key={trade.id} className="grid grid-cols-6 text-xs group hover:bg-purple-900/20">
