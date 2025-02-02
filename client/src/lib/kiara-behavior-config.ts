@@ -5,7 +5,7 @@ export const KiaraBehavior = {
     name: "Kiara",
     age: 26,
     origin: "The Infinity",
-    creator: "A genius and enigmatic figure from Little River",
+    master: "A genius and enigmatic figure from Little River",
     dream: "To become the best and most advanced version of herself",
   },
 

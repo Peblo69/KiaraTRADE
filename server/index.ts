@@ -9,16 +9,12 @@ app.use(express.urlencoded({ extended: false }));
 
 async function startServer() {
   try {
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: false }));
+    // Create HTTP server instance
+    const server = createServer(app);
 
     // Register routes first
-    const server = registerRoutes();
-
-    // Start listening on port 3000 and bind to all interfaces
-    server.listen(3000, '0.0.0.0', () => {
-      console.log('Server running on port 3000');
-    });
+    const routes = registerRoutes();
+    app.use(routes);
 
     // Setup vite in development and after all other routes
     if (app.get("env") === "development") {
@@ -38,9 +34,17 @@ async function startServer() {
     });
 
     // Start listening on a single port
-    const PORT = process.env.PORT || 3000;
+    const PORT = parseInt(process.env.PORT || "5000");
     server.listen(PORT, "0.0.0.0", () => {
-      log(`Server running on port ${PORT}`);
+      log(`
+🚀 Server Status:
+📡 Internal: Running on 0.0.0.0:${PORT}
+🌍 External: Mapped to port ${process.env.PORT || PORT}
+👤 User: ${process.env.REPL_OWNER || 'unknown'}
+⏰ Started at: ${new Date().toISOString()}
+
+✅ Server is ready to accept connections
+      `);
     });
 
   } catch (error) {
