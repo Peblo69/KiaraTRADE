@@ -31,11 +31,12 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
 
       const widget = new window.TradingView.widget({
         container_id: containerRef.current.id,
-        symbol: `SOL:${tokenAddress.slice(0, 8)}`,
-        interval: '1',
+        symbol: token?.symbol || tokenAddress,
+        interval: '1', 
         timezone: 'Etc/UTC',
         theme: 'dark',
         style: '1',
+        allow_symbol_change: false,
         locale: 'en',
         toolbar_bg: '#0D0B1F',
         enable_publishing: false,
@@ -52,9 +53,13 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
           },
           resolveSymbol: (symbolName: string, onSymbolResolvedCallback: any) => {
             onSymbolResolvedCallback({
-              name: `${token?.symbol || tokenAddress.slice(0, 8)}`,
-              description: token?.name || 'Token',
+              name: token?.symbol || 'Unknown',
+              description: token?.name || 'Unknown Token',
               type: 'crypto',
+              has_intraday: true,
+              has_daily: true,
+              has_weekly_and_monthly: false,
+              supported_resolutions: ['1', '5', '15', '30', '60'],
               session: '24x7',
               timezone: 'Etc/UTC',
               minmov: 1,
