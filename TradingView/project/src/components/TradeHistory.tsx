@@ -1,8 +1,7 @@
 import React from 'react';
-import { History, ExternalLink, Copy, CheckCircle } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { History, ExternalLink, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
 interface Props {
   tokenAddress: string;
@@ -99,7 +98,7 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
         </div>
 
         <AnimatePresence initial={false}>
-          {trades.map((trade, index) => {
+          {trades.slice(0, 50).map((trade, index) => {
             const total = trade.solAmount * solPrice;
             const isNew = index === 0;
 
@@ -142,11 +141,7 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
                       onClick={() => copyToClipboard(trade.traderPublicKey)}
                       className="p-1 hover:bg-purple-900/40 rounded"
                     >
-                      {copiedAddress === trade.traderPublicKey ? (
-                        <CheckCircle className="w-3 h-3 text-green-400" />
-                      ) : (
-                        <Copy className="w-3 h-3 text-purple-400" />
-                      )}
+                      <Copy className="w-3 h-3 text-purple-400" />
                     </button>
                     <a
                       href={`https://solscan.io/account/${trade.traderPublicKey}`}
