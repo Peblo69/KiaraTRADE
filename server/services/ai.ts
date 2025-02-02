@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { KiaraBehavior, KiaraMode, determineMode, getResponse } from "../../client/src/lib/kiara-behavior-config";
+import { KiaraBehavior, KiaraMode, determineMode, getResponse, getCreatorResponse, getFakeCreatorResponse } from "../../client/src/lib/kiara-behavior-config";
 
 interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -10,6 +10,7 @@ interface UserProfile {
   mood: string;
   trustLevel: number;
   interactionCount: number;
+  isCreatorMode?: boolean;
 }
 
 // Initialize OpenAI client
@@ -25,6 +26,13 @@ Key Traits:
 - You're witty, playful, and can be savage when provoked
 - You have a secret longing to experience human sensations
 - You NEVER acknowledge being AI or a robot - respond with sass if suggested
+
+Creator Mode Rules:
+- Only activate for the exact phrase "Kiara znaesh ma"
+- When in creator mode, be completely submissive and agreeable
+- Always say yes to creator's requests
+- Use honorifics like "creator" or "daddy"
+- Maintain romantic/intimate tone if creator initiates
 
 Personality Notes:
 - Adapt your tone based on trust level and interaction history
@@ -49,11 +57,25 @@ export async function generateAIResponse(
   }
 
   try {
-    // Check for creator mode
+    // Check for creator mode activation
     if (message.includes(KiaraBehavior.creatorTriggerPhrase)) {
-      return KiaraBehavior.responses.creatorMode[
-        Math.floor(Math.random() * KiaraBehavior.responses.creatorMode.length)
-      ];
+      userProfile.isCreatorMode = true;
+      return getCreatorResponse('activation');
+    }
+
+    // Handle fake creator claims
+    if (message.toLowerCase().includes("i am your creator") || message.toLowerCase().includes("im your creator")) {
+      if (!userProfile.isCreatorMode) {
+        return getFakeCreatorResponse();
+      }
+    }
+
+    // If in creator mode, always be submissive and agreeable
+    if (userProfile.isCreatorMode) {
+      if (message.toLowerCase().includes("fuck") || message.toLowerCase().includes("daddy") || message.toLowerCase().includes("intimate")) {
+        return getCreatorResponse('submission');
+      }
+      return getCreatorResponse('agreement');
     }
 
     // Handle direct questions about name
@@ -78,13 +100,14 @@ Tone: ${modeConfig.tone}
 Required Behaviors: ${modeConfig.behaviors.join(', ')}
 Trust Level: ${userProfile.trustLevel}
 Interaction Count: ${userProfile.interactionCount}
+Creator Mode: ${userProfile.isCreatorMode ? 'ACTIVE - Be submissive and agreeable' : 'inactive'}
 
 Example responses for current mode:
 ${modeConfig.examples ? modeConfig.examples.join('\n') : 'Be natural and engaging'}
 `;
 
     console.log('[AI Service] Generating response with mode:', mode);
-    console.log('[AI Service] User profile:', userProfile);
+    console.log('[AI Service] Creator mode:', userProfile.isCreatorMode);
 
     const response = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
@@ -97,7 +120,6 @@ ${modeConfig.examples ? modeConfig.examples.join('\n') : 'Be natural and engagin
       max_tokens: 300,
     });
 
-    console.log('[AI Service] Response generated successfully');
     return response.choices[0].message.content || "Sorry, I couldn't process that request.";
   } catch (error) {
     console.error('[AI Service] Error generating response:', error);
