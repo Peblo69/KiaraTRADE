@@ -16,6 +16,13 @@ async function startServer() {
     const routes = registerRoutes();
     app.use(routes);
 
+    // Setup vite in development and after all other routes
+    if (app.get("env") === "development") {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
+
     // Global error handler middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
@@ -26,16 +33,9 @@ async function startServer() {
       }
     });
 
-    // Setup vite in development and after all other routes
-    if (app.get("env") === "development") {
-      await setupVite(app, server);
-    } else {
-      serveStatic(app);
-    }
-
-    // Start listening
+    // Start listening on a single port
     const PORT = process.env.PORT || 3000;
-    server.listen(PORT, () => {
+    server.listen(PORT, "0.0.0.0", () => {
       log(`Server running on port ${PORT}`);
     });
 
