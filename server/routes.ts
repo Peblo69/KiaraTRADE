@@ -996,7 +996,7 @@ function calculatePriceImpact(trades: Array<{ amount: number }>) {
   return averageAmount ? (largestTrade.amount / averageAmount) - 1 : 0;
 }
 
-// Rest of the file
+// Core functionality
 const chatHistory: Record<string, any[]> = {};
 
 // Basic coin metadata mapping
@@ -1017,7 +1017,7 @@ const COIN_METADATA: Record<string, { name: string, image: string }> = {
     name: 'Tether',
     image: 'https://assets.coingecko.com/coins/images/325/large/Tether.png'
   },
-    'XRP': {
+  'XRP': {
     name: 'XRP',
     image: 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/xrp.png'
   }
