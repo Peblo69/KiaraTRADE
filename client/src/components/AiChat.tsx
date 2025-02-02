@@ -82,7 +82,7 @@ export default function AiChat() {
             <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">
               KIARA AI
             </h2>
-            <p className="text-xs text-purple-300/80 tracking-wider">Your Crypto Intelligence Assistant</p>
+            <p className="text-xs text-purple-300/80">Your Crypto Intelligence Assistant</p>
           </div>
         </div>
       </div>
@@ -100,7 +100,7 @@ export default function AiChat() {
             >
               {msg.role === "assistant" && (
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center flex-shrink-0 mt-1">
-                  <span className="text-white font-bold text-sm">K</span>
+                  <span className="text-white text-sm">K</span>
                 </div>
               )}
               <div
@@ -111,11 +111,11 @@ export default function AiChat() {
                 } shadow-lg transition-all duration-300 ease-in-out hover:shadow-purple-500/5`}
               >
                 <div 
-                  className={
+                  className={`font-sans ${
                     msg.role === "assistant" 
                       ? "text-purple-100"
                       : "text-blue-100"
-                  }
+                  }`}
                 >
                   {msg.content}
                 </div>
@@ -125,12 +125,12 @@ export default function AiChat() {
           {isTyping && (
             <div className="flex gap-3 items-start mr-auto max-w-[80%]">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center flex-shrink-0 mt-1">
-                <span className="text-white font-bold text-sm">K</span>
+                <span className="text-white text-sm">K</span>
               </div>
               <div className="p-3 rounded-2xl bg-gradient-to-br from-gray-900/90 to-gray-800/90 border border-purple-300/10 text-purple-50">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-purple-400" />
-                  <span className="text-purple-400">
+                  <span className="text-purple-400 font-sans">
                     Analyzing the market... 💭
                   </span>
                 </div>
@@ -147,7 +147,7 @@ export default function AiChat() {
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && sendMessage()}
             placeholder="Ask KIARA anything about crypto..."
-            className="bg-gray-900/50 border-purple-500/30 focus:border-purple-400 focus:ring-purple-400/20 text-purple-50 placeholder-purple-300/50"
+            className="bg-gray-900/50 border-purple-500/30 focus:border-purple-400 focus:ring-purple-400/20 text-purple-50 placeholder-purple-300/50 font-sans"
           />
           <Button
             onClick={sendMessage}
