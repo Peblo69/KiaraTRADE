@@ -1,5 +1,5 @@
 import { FC } from "react";
-import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
@@ -40,18 +40,19 @@ const TokenMarketStats: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
   ) || [];
 
   const volume24h = last24h.reduce((sum, trade) => 
-    sum + (trade.tokenAmount * trade.priceInUsd), 0);
-  
+    sum + (trade.tokenAmount * (trade.priceInUsd || 0)), 0);
+
   const priceChange24h = (() => {
     if (last24h.length < 2) return { value: 0, isPositive: false };
     const current = token.priceInUsd || 0;
-    const old = last24h[last24h.length - 1].priceInUsd;
+    const old = last24h[last24h.length - 1].priceInUsd || 0;
     const change = ((current - old) / old) * 100;
     return { value: Math.abs(change), isPositive: change >= 0 };
   })();
 
-  const marketCap = token.vTokensInBondingCurve * token.priceInUsd;
-  const liquidityUsd = token.vSolInBondingCurve * solPrice;
+  // Safely calculate market cap and liquidity
+  const marketCap = (token.vTokensInBondingCurve || 0) * (token.priceInUsd || 0);
+  const liquidityUsd = (token.vSolInBondingCurve || 0) * (solPrice || 0);
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-lg border border-purple-500/20 bg-card">
