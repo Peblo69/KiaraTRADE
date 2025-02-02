@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { devtools } from 'zustand/middleware'; // For debugging
 
 // Explicit timeframe literals
 export const TIMEFRAMES = {
@@ -62,7 +62,7 @@ export const useTokenPriceStore = create<PriceHistoryState>()(
   devtools(
     (set, get) => ({
       priceHistory: {},
-      initialized: new Set<string>(),
+      initialized: new Set(),
       lastUpdate: {},
       errors: {},
 
@@ -87,6 +87,7 @@ export const useTokenPriceStore = create<PriceHistoryState>()(
 
         const initialData: TokenPriceData = {} as TokenPriceData;
 
+        // Initialize with a single candle for each timeframe
         Object.entries(TIMEFRAMES).forEach(([timeframe, interval]) => {
           const candleTime = Math.floor(timestamp / interval) * interval;
           initialData[timeframe] = [{
@@ -108,7 +109,7 @@ export const useTokenPriceStore = create<PriceHistoryState>()(
             ...state.priceHistory,
             [tokenAddress]: initialData
           },
-          initialized: new Set([...Array.from(state.initialized), tokenAddress]),
+          initialized: new Set([...state.initialized, tokenAddress]),
           lastUpdate: {
             ...state.lastUpdate,
             [tokenAddress]: timestamp
@@ -182,12 +183,20 @@ export const useTokenPriceStore = create<PriceHistoryState>()(
             tokenData[tf] = candles;
           });
 
+          // Cleanup old data
+          const now = Date.now();
+          if (now - (state.lastUpdate[tokenAddress] || 0) > CLEANUP_INTERVAL) {
+            Object.keys(state.priceHistory).forEach(addr => {
+              if (now - (state.lastUpdate[addr] || 0) > CLEANUP_INTERVAL) {
+                delete newPriceHistory[addr];
+                state.initialized.delete(addr);
+              }
+            });
+          }
+
           return {
             ...state,
-            priceHistory: {
-              ...newPriceHistory,
-              [tokenAddress]: tokenData
-            },
+            priceHistory: newPriceHistory,
             lastUpdate: {
               ...state.lastUpdate,
               [tokenAddress]: timestamp

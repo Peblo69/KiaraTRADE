@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { format } from 'date-fns';
 import axios from 'axios';
-import { calculateVolumeMetrics, calculateTokenRisk } from "@/utils/token-calculations";
+import { calculatePumpFunTokenMetrics, calculateVolumeMetrics, calculateTokenRisk } from "@/utils/token-calculations";
 // Placeholder import -  This needs to be replaced with the actual import path for SocialLinks
 import SocialLinks from './SocialLinks'; //  Replace './SocialLinks' with the correct path
 
@@ -100,48 +100,6 @@ interface PumpPortalStore {
   getGraduatedTokens: () => PumpPortalToken[];
 }
 
-const calculatePumpFunTokenMetrics = ({
-  vSolInBondingCurve,
-  vTokensInBondingCurve,
-  solPrice
-}: {
-  vSolInBondingCurve: number;
-  vTokensInBondingCurve: number;
-  solPrice: number;
-}) => {
-  if (!vSolInBondingCurve || !vTokensInBondingCurve || !solPrice) {
-    return {
-      price: { sol: 0, usd: 0 },
-      marketCap: { sol: 0, usd: 0 }
-    };
-  }
-
-  const denominator = vTokensInBondingCurve;
-  if (denominator <= 0) return {
-    price: { sol: 0, usd: 0 },
-    marketCap: { sol: 0, usd: 0 }
-  };
-
-  // Calculate price in SOL and USD
-  const priceInSol = vSolInBondingCurve / denominator;
-  const priceInUsd = priceInSol * solPrice;
-
-  // Calculate market cap
-  const marketCapSol = vSolInBondingCurve;
-  const marketCapUsd = marketCapSol * solPrice;
-
-  return {
-    price: {
-      sol: priceInSol,
-      usd: priceInUsd,
-    },
-    marketCap: {
-      sol: marketCapSol,
-      usd: marketCapUsd,
-    },
-  };
-};
-
 export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   tokens: [],
   viewedTokens: {},
@@ -149,19 +107,22 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   solPrice: 0,
   activeTokenView: null,
 
+  // This function maps the websocket data to our token format
   addToken: (tokenData) => set((state) => {
     debugLog('addToken', tokenData);
     debugLog('Token URI:', tokenData.uri || tokenData.metadata?.uri);
 
+    // Extract basic token info
     const tokenName = tokenData.metadata?.name || tokenData.name;
     const tokenSymbol = tokenData.metadata?.symbol || tokenData.symbol;
     const mintAddress = tokenData.mint || tokenData.address || '';
     const imageUrl = tokenData.metadata?.imageUrl || tokenData.imageUrl;
 
+    // Calculate token metrics
     const tokenMetrics = calculatePumpFunTokenMetrics({
       vSolInBondingCurve: tokenData.vSolInBondingCurve || 0,
       vTokensInBondingCurve: tokenData.vTokensInBondingCurve || 0,
-      solPrice: state.solPrice
+      solPrice: state.solPrice // Access solPrice from state instead of global store
     });
 
     debugLog('Token metrics calculated:', tokenMetrics);
@@ -205,18 +166,9 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     if (existingTokenIndex >= 0) {
       const updatedTokens = state.tokens.map((t, i) => {
         if (i === existingTokenIndex) {
-          const metrics = calculatePumpFunTokenMetrics({
-            vSolInBondingCurve: t.vSolInBondingCurve,
-            vTokensInBondingCurve: t.vTokensInBondingCurve,
-            solPrice: state.solPrice
-          });
-
           return {
             ...t,
             ...newToken,
-            marketCapSol: metrics.marketCap.sol,
-            priceInSol: metrics.price.sol,
-            priceInUsd: metrics.price.usd,
             recentTrades: [...(t.recentTrades || []), ...(tokenData.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN)
           };
         }
@@ -225,6 +177,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
       return {
         tokens: updatedTokens,
+        lastUpdate: Date.now(),
         ...(isViewed && {
           viewedTokens: {
             ...state.viewedTokens,
@@ -234,11 +187,13 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       };
     }
 
+    // Add new token with isNew flag
     const tokenWithFlag = {
       ...newToken,
       isNew: true
     };
 
+    // Calculate initial risk metrics if we have trade history
     if (tokenData.recentTrades?.length) {
       const volumeMetrics = calculateVolumeMetrics(tokenData.recentTrades);
       const riskMetrics = calculateTokenRisk({
@@ -254,6 +209,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
     return {
       tokens: [tokenWithFlag, ...state.tokens].slice(0, MAX_TOKENS_IN_LIST),
+      lastUpdate: Date.now(),
       ...(isViewed && {
         viewedTokens: {
           ...state.viewedTokens,
@@ -267,28 +223,19 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     debugLog('addTradeToHistory', {
       token: address,
       type: tradeData.txType,
-      amount: tradeData.solAmount,
-      price: tradeData.priceInUsd
+      amount: tradeData.solAmount
     });
 
     const token = state.viewedTokens[address] || state.tokens.find(t => t.address === address);
     if (!token) return state;
 
+    // Add new trade and calculate updated metrics
     const updatedTrades = [tradeData, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN);
 
     const tokenMetrics = calculatePumpFunTokenMetrics({
       vSolInBondingCurve: tradeData.vSolInBondingCurve,
       vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
       solPrice: state.solPrice
-    });
-
-    debugLog('Token price calculation:', {
-      token: address,
-      priceInSol: tokenMetrics.price.sol,
-      priceInUsd: tokenMetrics.price.usd,
-      solPrice: state.solPrice,
-      vTokens: tradeData.vTokensInBondingCurve,
-      vSol: tradeData.vSolInBondingCurve
     });
 
     const volumeMetrics = calculateVolumeMetrics(updatedTrades);
@@ -315,6 +262,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
     return {
       tokens: updatedTokens,
+      lastUpdate: Date.now(),
       ...(state.viewedTokens[address] && {
         viewedTokens: {
           ...state.viewedTokens,
@@ -322,7 +270,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         }
       })
     };
-}),
+  }),
 
   setConnected: (connected) => {
     debugLog('setConnected', { connected });
