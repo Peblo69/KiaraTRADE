@@ -1002,7 +1002,7 @@ const chatHistory: Record<string, any[]> = {};
 
 import express from 'express';
 
-const app = express.Router();
+const app = express();
 
 // Basic coin metadata mapping
 const COIN_METADATA: Record<string, { name: string, image: string }> = {

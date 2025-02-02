@@ -9,12 +9,16 @@ app.use(express.urlencoded({ extended: false }));
 
 async function startServer() {
   try {
-    // Create HTTP server instance
-    const server = createServer(app);
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: false }));
 
     // Register routes first
-    const routes = registerRoutes();
-    app.use(routes);
+    const server = registerRoutes();
+
+    // Start listening on port 3000 and bind to all interfaces
+    server.listen(3000, '0.0.0.0', () => {
+      console.log('Server running on port 3000');
+    });
 
     // Setup vite in development and after all other routes
     if (app.get("env") === "development") {
