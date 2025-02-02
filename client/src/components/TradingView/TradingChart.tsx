@@ -1,3 +1,3 @@
-// This component has been merged into client/src/components/TradingChart.tsx
-// Please use that component instead
+// This component has been replaced with the new lightweight-charts implementation
+// Please use the TradingChart component from '@/components/TradingChart'
 export { default } from '../TradingChart';

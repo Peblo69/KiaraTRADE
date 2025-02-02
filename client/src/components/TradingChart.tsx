@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { LineChart } from 'lucide-react';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { wsManager } from '@/lib/websocket-manager';
+import { createChart, IChartApi, CandlestickSeriesOptions, ColorType } from 'lightweight-charts';
 
 interface Props {
   tokenAddress: string;
@@ -13,199 +13,151 @@ interface Props {
     close: number;
     volume: number;
   }[];
-  onTimeframeChange?: (timeframe: string) => void;
   timeframe?: string;
-}
-
-declare global {
-  interface Window {
-    LightweightCharts: any;
-  }
 }
 
 export const TradingChart: React.FC<Props> = ({
   tokenAddress,
   data = [],
-  onTimeframeChange,
   timeframe = '1m'
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<any>(null);
+  const chartRef = useRef<IChartApi | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
   // Get data from store
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
-  const solPrice = usePumpPortalStore(state => state.solPrice);
   const trades = token?.recentTrades || [];
 
   useEffect(() => {
-    console.log('[Chart] Setup for token:', tokenAddress, {
-      tradesCount: trades.length,
-      wsStatus: wsManager.getStatus(),
-      dataLength: data.length
+    if (!containerRef.current) return;
+
+    // Create chart with recommended settings
+    const chart = createChart(containerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: '#161b2b' },
+        textColor: '#d1d4dc',
+      },
+      grid: {
+        vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
+      },
+      width: containerRef.current.clientWidth,
+      height: 500,
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+        tickMarkFormatter: (time: number) => {
+          const date = new Date(time * 1000);
+          return date.toLocaleTimeString();
+        },
+      },
+      rightPriceScale: {
+        borderColor: '#485c7b',
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.2,
+        },
+      },
+      crosshair: {
+        vertLine: {
+          color: '#758696',
+          width: 1,
+          labelBackgroundColor: '#161b2b',
+        },
+        horzLine: {
+          color: '#758696',
+          width: 1,
+          labelBackgroundColor: '#161b2b',
+        },
+      },
     });
 
-    const script = document.createElement('script');
-    script.src = 'https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js';
-    script.async = true;
+    // Add candlestick series
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderVisible: false,
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+    });
 
-    script.onload = () => {
-      if (!containerRef.current || !window.LightweightCharts) {
-        console.warn('[Chart] Container or LightweightCharts not available');
-        return;
-      }
+    // Add volume histogram
+    const volumeSeries = chart.addHistogramSeries({
+      color: '#385263',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: '', // Set to empty to overlay on the main chart
+      scaleMargins: {
+        top: 0.8, // Place volume at the bottom 20% of the chart
+        bottom: 0,
+      },
+    });
 
-      // Cleanup old chart properly
-      if (cleanupRef.current) {
-        cleanupRef.current();
-        cleanupRef.current = null;
-      }
+    // Process data or trades
+    const processedData = data.length > 0 ? data : processTradesIntoCandles(trades);
 
-      const chart = window.LightweightCharts.createChart(containerRef.current, {
-        layout: {
-          background: { color: '#0D0B1F' },
-          textColor: '#d1d4dc',
-        },
-        grid: {
-          vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
-          horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
-        },
-        width: containerRef.current.clientWidth,
-        height: 500,
-        timeScale: {
-          timeVisible: true,
-          secondsVisible: true,
-          borderColor: '#485c7b',
-        },
-        rightPriceScale: {
-          borderColor: '#485c7b',
-        },
-        crosshair: {
-          mode: 1,
-          vertLine: {
-            color: '#758696',
-            width: 1,
-            labelBackgroundColor: '#0D0B1F',
-          },
-          horzLine: {
-            color: '#758696',
-            width: 1,
-            labelBackgroundColor: '#0D0B1F',
-          },
-        },
-      });
+    if (processedData.length > 0) {
+      candlestickSeries.setData(processedData);
+      volumeSeries.setData(processedData);
+      chart.timeScale().fitContent();
+    }
 
-      const candleSeries = chart.addCandlestickSeries({
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-        borderUpColor: '#26a69a',
-        borderDownColor: '#ef5350',
-        wickUpColor: '#26a69a',
-        wickDownColor: '#ef5350',
-      });
-
-      const volumeSeries = chart.addHistogramSeries({
-        color: '#385263',
-        priceFormat: {
-          type: 'volume',
-        },
-        priceScaleId: '', 
-        scaleMargins: {
-          top: 0.8,
-          bottom: 0,
-        },
-      });
-
-      // Use provided data first
-      if (data.length > 0) {
-        console.log('[Chart] Using provided data:', {
-          token: tokenAddress,
-          candleCount: data.length,
-          firstCandle: data[0],
-          lastCandle: data[data.length - 1]
+    // Handle resize events
+    const handleResize = () => {
+      if (containerRef.current) {
+        chart.applyOptions({
+          width: containerRef.current.clientWidth,
         });
-
-        candleSeries.setData(data);
-        volumeSeries.setData(data);
       }
-      // Fall back to processing trades if no data provided
-      else if (trades.length > 0 && token) {
-        const ohlcData = new Map();
-        const minuteInMs = 60000;
-
-        trades.forEach(trade => {
-          const timestamp = Math.floor(trade.timestamp / minuteInMs) * minuteInMs;
-
-          if (!ohlcData.has(timestamp)) {
-            ohlcData.set(timestamp, {
-              time: timestamp / 1000,
-              open: trade.priceInUsd,
-              high: trade.priceInUsd,
-              low: trade.priceInUsd,
-              close: trade.priceInUsd,
-              volume: trade.tokenAmount
-            });
-          } else {
-            const candle = ohlcData.get(timestamp);
-            candle.high = Math.max(candle.high, trade.priceInUsd);
-            candle.low = Math.min(candle.low, trade.priceInUsd);
-            candle.close = trade.priceInUsd;
-            candle.volume += trade.tokenAmount;
-          }
-        });
-
-        const candleData = Array.from(ohlcData.values())
-          .sort((a, b) => a.time - b.time);
-
-        console.log('[Chart] Processed trades:', {
-          token: tokenAddress,
-          candleCount: candleData.length,
-          firstCandle: candleData[0],
-          lastCandle: candleData[candleData.length - 1]
-        });
-
-        if (candleData.length > 0) {
-          candleSeries.setData(candleData);
-          volumeSeries.setData(candleData);
-        }
-      }
-
-      // Handle resizing
-      const handleResize = () => {
-        if (containerRef.current) {
-          chart.applyOptions({
-            width: containerRef.current.clientWidth
-          });
-        }
-      };
-
-      window.addEventListener('resize', handleResize);
-
-      // Store cleanup function
-      cleanupRef.current = () => {
-        window.removeEventListener('resize', handleResize);
-        if (chart) {
-          chart.remove();
-        }
-        if (containerRef.current) {
-          containerRef.current.innerHTML = '';
-        }
-      };
-
-      chartRef.current = chart;
     };
 
-    document.head.appendChild(script);
+    window.addEventListener('resize', handleResize);
 
-    return () => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-      if (cleanupRef.current) {
-        cleanupRef.current();
-      }
+    // Store cleanup function
+    cleanupRef.current = () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
     };
-  }, [tokenAddress, trades.length, data.length]);
+
+    // Store chart reference
+    chartRef.current = chart;
+
+    return () => cleanupRef.current?.();
+  }, [tokenAddress, trades.length, data]);
+
+  // Helper function to process trades into OHLCV candles
+  const processTradesIntoCandles = (trades: any[]) => {
+    const ohlcvMap = new Map();
+    const minuteInMs = 60000; // 1 minute in milliseconds
+
+    trades.forEach(trade => {
+      const timestamp = Math.floor(trade.timestamp / minuteInMs) * minuteInMs;
+      const price = trade.priceInUsd;
+      const volume = trade.tokenAmount;
+
+      if (!ohlcvMap.has(timestamp)) {
+        ohlcvMap.set(timestamp, {
+          time: timestamp / 1000, // Convert to seconds for the chart
+          open: price,
+          high: price,
+          low: price,
+          close: price,
+          volume: volume,
+        });
+      } else {
+        const candle = ohlcvMap.get(timestamp);
+        candle.high = Math.max(candle.high, price);
+        candle.low = Math.min(candle.low, price);
+        candle.close = price;
+        candle.volume += volume;
+      }
+    });
+
+    return Array.from(ohlcvMap.values())
+      .sort((a, b) => a.time - b.time);
+  };
 
   return (
     <div className="w-full h-full bg-[#161b2b] rounded-lg overflow-hidden">

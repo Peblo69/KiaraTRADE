@@ -1,0 +1,38 @@
+Price scale
+Price Scale (or price axis) is a vertical scale that mostly maps prices to coordinates and vice versa. The rules of converting depend on a price scale mode, a height of the chart and visible part of the data.
+
+Price scales
+
+By default, chart has 2 predefined price scales: left and right, and an unlimited number of overlay scales.
+
+Only left and right price scales could be displayed on the chart, all overlay scales are hidden.
+
+If you want to change left price scale, you need to use leftPriceScale option, to change right price scale use rightPriceScale, to change default options for an overlay price scale use overlayPriceScales option.
+
+Alternatively, you can use IChartApi.priceScale method to get an API object of any price scale or ISeriesApi.priceScale to get an API object of series' price scale (the price scale that the series is attached to).
+
+Creating a price scale
+By default a chart has only 2 price scales: left and right.
+
+If you want to create an overlay price scale, you can simply assign priceScaleId option to a series (note that a value should be differ from left and right) and a chart will automatically create an overlay price scale with provided ID. If a price scale with such ID already exists then a series will be attached to this existing price scale. Further you can use provided price scale ID to get its corresponding API object via IChartApi.priceScale method.
+
+Removing a price scale
+The default price scales (left and right) cannot be removed, you can only hide them by setting visible option to false.
+
+An overlay price scale exists while there is at least 1 series attached to this price scale. Thus, to remove an overlay price scale remove all series attached to this price scale.
+Panes
+Panes are essential elements that help segregate data visually within a single chart. Panes are useful when you have a chart that needs to show more than one kind of data. For example, you might want to see a stock's price over time in one pane and its trading volume in another. This setup helps users get a fuller picture without cluttering the chart.
+
+By default, Lightweight Charts™ has a single pane, however, you can add more panes to the chart to display different series in separate areas. For detailed examples and code snippets on how to implement panes in your charts see tutorial.
+
+Customization Options
+Lightweight Charts™ offers a few customization options to tailor the appearance and behavior of panes:
+
+Pane Separator Color: Customize the color of the pane separators to match the chart design or improve visibility.
+
+Separator Hover Color: Enhance user interaction by changing the color of separators on mouse hover.
+
+Resizable Panes: Opt to enable or disable the resizing of panes by the user, offering flexibility in how data is displayed.
+
+Managing Panes
+While the specific methods to manipulate panes are covered in the detailed example, it's important to note that Lightweight Charts™ provides an API for pane management. This includes adding new panes, moving series between panes, adjusting pane height, and removing panes. The API ensures that developers have full control over the pane lifecycle and organization within their charts.
