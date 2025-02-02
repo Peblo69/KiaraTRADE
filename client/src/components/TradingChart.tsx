@@ -1,180 +1,149 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { LineChart } from 'lucide-react';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { wsManager } from '@/lib/websocket-manager'; // Import your manager
 
 interface Props {
   tokenAddress: string;
 }
 
-declare global {
-  interface Window {
-    TradingView: any;
-  }
-}
-
 const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const widgetRef = useRef<any>(null);
+  const chartRef = useRef<any>(null);
+
+  // Get data from YOUR store
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
   const trades = token?.recentTrades || [];
   const solPrice = usePumpPortalStore(state => state.solPrice);
+  const isConnected = usePumpPortalStore(state => state.isConnected);
 
   useEffect(() => {
-    console.log('Chart Mount:', {
-      tokenAddress,
-      tradesCount: trades.length,
-      solPrice
-    });
+    // Don't create new WebSocket - use existing manager
+    console.log('[Chart] Using WebSocket Manager Status:', wsManager.getStatus());
 
-    const loadTradingViewScript = async () => {
-      if (window.TradingView) return;
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js';
+    script.async = true;
 
-      return new Promise((resolve) => {
-        const script = document.createElement('script');
-        script.src = 'https://s3.tradingview.com/tv.js';
-        script.async = true;
-        script.onload = resolve;
-        document.head.appendChild(script);
-      });
-    };
+    script.onload = () => {
+      if (!containerRef.current || !window.LightweightCharts) return;
 
-    const initializeWidget = () => {
-      if (!containerRef.current) return;
-
-      // Clean up previous widget if exists
-      if (widgetRef.current) {
+      // Clear previous chart only
+      if (chartRef.current) {
         containerRef.current.innerHTML = '';
       }
 
-      try {
-        // Create unique container ID
-        const containerId = `tv_${Math.random().toString(36).substring(7)}`;
-        containerRef.current.id = containerId;
+      const chart = window.LightweightCharts.createChart(containerRef.current, {
+        layout: {
+          background: { color: '#0D0B1F' },
+          textColor: '#d1d4dc',
+        },
+        grid: {
+          vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
+          horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
+        },
+        width: containerRef.current.clientWidth,
+        height: 500,
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: true,
+        },
+      });
 
-        widgetRef.current = new window.TradingView.widget({
-          container_id: containerId,
-          autosize: true,
-          symbol: token?.symbol || tokenAddress.slice(0, 8),
-          interval: '1',
-          timezone: 'Etc/UTC',
-          theme: 'dark',
-          style: '1',
-          locale: 'en',
-          toolbar_bg: '#0D0B1F',
-          enable_publishing: false,
-          allow_symbol_change: false,
-          save_image: false,
-          height: 500,
-          datafeed: {
-            onReady: (callback: any) => {
-              callback({
-                supported_resolutions: ['1', '5', '15', '30', '60'],
-                supports_time: true,
-                supports_marks: false,
-                supports_timescale_marks: false
-              });
-            },
-            resolveSymbol: (symbolName: string, onSymbolResolvedCallback: any) => {
-              onSymbolResolvedCallback({
-                name: token?.symbol || tokenAddress.slice(0, 8),
-                description: token?.name || 'Token',
-                type: 'crypto',
-                session: '24x7',
-                timezone: 'Etc/UTC',
-                minmov: 1,
-                pricescale: 1000000000,
-                has_intraday: true,
-                has_no_volume: false,
-                has_weekly_and_monthly: false,
-                supported_resolutions: ['1', '5', '15', '30', '60'],
-                volume_precision: 8,
-                data_status: 'streaming'
-              });
-            },
-            getBars: (symbolInfo: any, resolution: string, from: number, to: number, onHistoryCallback: any) => {
-              if (!trades.length) {
-                onHistoryCallback([], { noData: true });
-                return;
-              }
+      const candleSeries = chart.addCandlestickSeries({
+        upColor: '#26a69a',
+        downColor: '#ef5350',
+        borderUpColor: '#26a69a',
+        borderDownColor: '#ef5350',
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350',
+      });
 
-              if (trades.length > 0) {
-                const ohlcData = new Map();
-                const minuteInMs = 60000;
+      const volumeSeries = chart.addHistogramSeries({
+        color: '#385263',
+        priceFormat: {
+          type: 'volume',
+        },
+        priceScaleId: '', 
+        scaleMargins: {
+          top: 0.8,
+          bottom: 0,
+        },
+      });
 
-                trades.forEach(trade => {
-                  const price = trade.solAmount * solPrice;
-                  const timestamp = Math.floor(formatUTCTimestamp(trade.timestamp) / minuteInMs) * minuteInMs;
+      // Process trades using same logic as WebSocket manager
+      if (trades.length > 0 && token) {
+        const ohlcData = new Map();
+        const minuteInMs = 60000;
 
-                  if (!ohlcData.has(timestamp)) {
-                    ohlcData.set(timestamp, {
-                      time: timestamp / 1000,
-                      open: price,
-                      high: price,
-                      low: price,
-                      close: price,
-                      volume: trade.tokenAmount
-                    });
-                  } else {
-                    const candle = ohlcData.get(timestamp);
-                    candle.high = Math.max(candle.high, price);
-                    candle.low = Math.min(candle.low, price);
-                    candle.close = price;
-                    candle.volume += trade.tokenAmount;
-                  }
-                });
+        trades.forEach(trade => {
+          // Use same price calculation as your WebSocket manager
+          const priceInSol = trade.solAmount / 1_000_000_000;
+          const priceInUsd = priceInSol * solPrice;
 
-                const candleData = Array.from(ohlcData.values()).sort((a, b) => a.time - b.time);
-                onHistoryCallback(candleData, { noData: false });
-              } else {
-                onHistoryCallback([], { noData: true });
-              }
-            },
-            subscribeBars: (symbolInfo: any, resolution: string, onRealtimeCallback: any) => {
-              const updateChart = () => {
-                if (trades[0]) {
-                  onRealtimeCallback({
-                    time: Math.floor(trades[0].timestamp / 1000) * 1000,
-                    open: trades[0].solAmount * solPrice,
-                    high: trades[0].solAmount * solPrice,
-                    low: trades[0].solAmount * solPrice,
-                    close: trades[0].solAmount * solPrice,
-                    volume: trades[0].tokenAmount
-                  });
-                }
-              };
+          const timestamp = Math.floor(trade.timestamp / minuteInMs) * minuteInMs;
 
-              // Update every second if we have trades
-              const interval = setInterval(updateChart, 1000);
-              return interval;
-            },
-            unsubscribeBars: (subscriberUID: string) => {
-              clearInterval(subscriberUID as unknown as number);
-            }
-          },
-          overrides: {
-            "mainSeriesProperties.candleStyle.upColor": "#26a69a",
-            "mainSeriesProperties.candleStyle.downColor": "#ef5350",
-            "mainSeriesProperties.candleStyle.wickUpColor": "#26a69a",
-            "mainSeriesProperties.candleStyle.wickDownColor": "#ef5350",
-            "paneProperties.background": "#0D0B1F",
-            "paneProperties.vertGridProperties.color": "rgba(42, 46, 57, 0.2)",
-            "paneProperties.horzGridProperties.color": "rgba(42, 46, 57, 0.2)"
+          if (!ohlcData.has(timestamp)) {
+            ohlcData.set(timestamp, {
+              time: timestamp / 1000,
+              open: priceInUsd,
+              high: priceInUsd,
+              low: priceInUsd,
+              close: priceInUsd,
+              volume: trade.tokenAmount
+            });
+          } else {
+            const candle = ohlcData.get(timestamp);
+            candle.high = Math.max(candle.high, priceInUsd);
+            candle.low = Math.min(candle.low, priceInUsd);
+            candle.close = priceInUsd;
+            candle.volume += trade.tokenAmount;
           }
         });
-      } catch (error) {
-        console.error('TradingView widget error:', error);
+
+        const candleData = Array.from(ohlcData.values())
+          .sort((a, b) => a.time - b.time);
+
+        candleSeries.setData(candleData);
+        volumeSeries.setData(candleData);
+
+        // Update latest candle
+        const lastCandle = candleData[candleData.length - 1];
+        if (lastCandle) {
+          candleSeries.update(lastCandle);
+          volumeSeries.update(lastCandle);
+        }
       }
+
+      // Handle resizing
+      const handleResize = () => {
+        if (containerRef.current) {
+          chart.applyOptions({
+            width: containerRef.current.clientWidth
+          });
+        }
+      };
+
+      window.addEventListener('resize', handleResize);
+      chartRef.current = chart;
+
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        if (chart) {
+          chart.remove();
+        }
+        // DON'T disconnect WebSocket here!
+      };
     };
 
-    loadTradingViewScript().then(initializeWidget);
-
+    document.head.appendChild(script);
     return () => {
-      if (containerRef.current) {
-        containerRef.current.innerHTML = '';
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
       }
-      widgetRef.current = null;
+      // DON'T disconnect WebSocket here either!
     };
-  }, [tokenAddress, token, trades.length, solPrice]);
+  }, [token, trades, solPrice, isConnected]);
 
   return (
     <div className="relative bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
@@ -182,7 +151,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
         <div className="flex items-center space-x-2">
           <LineChart className="w-5 h-5 text-purple-400" />
           <h2 className="text-purple-100 font-semibold">
-            {token?.symbol || tokenAddress.slice(0, 6)}... Live Chart
+            {token?.symbol || tokenAddress.slice(0, 6)}... Price Chart
           </h2>
         </div>
       </div>
