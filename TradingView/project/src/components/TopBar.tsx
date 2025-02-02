@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, Clock, DollarSign, BarChart2, Shield, X, Bot, Send, Copy, CheckCircle, ExternalLink } from 'lucide-react';
+import { TrendingUp, Clock, DollarSign, BarChart2, Shield, X, Copy, CheckCircle, ExternalLink } from 'lucide-react';
 
 interface SecurityItem {
   label: string;
@@ -9,12 +9,7 @@ interface SecurityItem {
 
 const TopBar: React.FC = () => {
   const [isSecurityPanelOpen, setIsSecurityPanelOpen] = useState(false);
-  const [isKiaraPanelOpen, setIsKiaraPanelOpen] = useState(false);
-  const [message, setMessage] = useState('');
   const [copiedAddress, setCopiedAddress] = useState(false);
-  const [chatMessages, setChatMessages] = useState([
-    { type: 'ai', content: "Hello! I am KIARA, your AI trading assistant. How can I help you today?" }
-  ]);
 
   const securityItems: SecurityItem[] = [
     { label: 'Is Mintable', value: 'NO', status: 'success' },
@@ -31,21 +26,6 @@ const TopBar: React.FC = () => {
     navigator.clipboard.writeText("0x1234...5678"); // Replace with actual token address
     setCopiedAddress(true);
     setTimeout(() => setCopiedAddress(false), 2000);
-  };
-
-  const sendMessage = () => {
-    if (!message.trim()) return;
-    
-    setChatMessages(prev => [...prev, { type: 'user', content: message }]);
-    setMessage('');
-    
-    // Simulate AI response
-    setTimeout(() => {
-      setChatMessages(prev => [...prev, { 
-        type: 'ai', 
-        content: "I understand you are interested in trading. Let me analyze the current market conditions and provide you with insights."
-      }]);
-    }, 1000);
   };
 
   return (
@@ -108,20 +88,20 @@ const TopBar: React.FC = () => {
                 </div>
               </div>
 
-              {/* Market Stats - Updated to match reference */}
+              {/* Market Stats */}
               <div className="flex items-center space-x-6">
                 <div className="flex items-center space-x-2">
                   <DollarSign className="w-3.5 h-3.5 text-purple-400" />
                   <span className="text-purple-300 text-xs">Mkt Cap:</span>
                   <span className="text-purple-100 text-xs font-medium">$4.44K</span>
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <BarChart2 className="w-3.5 h-3.5 text-purple-400" />
                   <span className="text-purple-300 text-xs">Liquidity:</span>
                   <span className="text-purple-100 text-xs font-medium">$6.89K</span>
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
                   <span className="text-purple-300 text-xs">B.Curve:</span>
@@ -129,16 +109,8 @@ const TopBar: React.FC = () => {
                 </div>
               </div>
             </div>
-            
-            <div className="flex items-center space-x-3">
-              <button 
-                className="btn-kiara flex items-center space-x-1 cursor-pointer"
-                onClick={() => setIsKiaraPanelOpen(true)}
-              >
-                <Bot className="w-3.5 h-3.5" />
-                <span>KIARA VISION PRO</span>
-              </button>
 
+            <div className="flex items-center space-x-3">
               <button 
                 className="btn-secondary flex items-center space-x-1 cursor-pointer"
                 onClick={() => setIsSecurityPanelOpen(true)}
@@ -146,7 +118,7 @@ const TopBar: React.FC = () => {
                 <Shield className="w-3.5 h-3.5" />
                 <span>Safe</span>
               </button>
-              
+
               <div className="flex space-x-1.5">
                 <button className="btn-secondary">5M</button>
                 <button className="btn-secondary">1H</button>
@@ -156,66 +128,6 @@ const TopBar: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* KIARA Vision Pro Panel */}
-      {isKiaraPanelOpen && (
-        <div className="fixed inset-y-0 left-0 w-80 chat-container transform z-50 flex flex-col border-r border-yellow-600/20">
-          {/* Floating particles */}
-          {[...Array(10)].map((_, i) => (
-            <div
-              key={i}
-              className="particle"
-              style={{
-                width: Math.random() * 4 + 'px',
-                height: Math.random() * 4 + 'px',
-                top: Math.random() * 100 + '%',
-                left: Math.random() * 100 + '%',
-                animationDelay: `${Math.random() * 2}s`
-              }}
-            />
-          ))}
-
-          <div className="flex items-center justify-between p-3 border-b border-yellow-600/20">
-            <div className="flex items-center space-x-2">
-              <Bot className="w-4 h-4 text-yellow-400" />
-              <h2 className="text-sm font-medium text-yellow-100">KIARA Vision Pro</h2>
-            </div>
-            <button 
-              className="text-yellow-400 hover:text-yellow-300 p-1"
-              onClick={() => setIsKiaraPanelOpen(false)}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {chatMessages.map((msg, i) => (
-              <div key={i} className={`chat-message ${msg.type}`}>
-                {msg.content}
-              </div>
-            ))}
-          </div>
-
-          <div className="p-3 border-t border-yellow-600/20">
-            <div className="flex space-x-2">
-              <input
-                type="text"
-                className="chat-input"
-                placeholder="Ask KIARA..."
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-              />
-              <button 
-                className="chat-send-btn"
-                onClick={sendMessage}
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Security Panel */}
       {isSecurityPanelOpen && (
@@ -278,13 +190,10 @@ const TopBar: React.FC = () => {
       )}
 
       {/* Backdrop */}
-      {(isSecurityPanelOpen || isKiaraPanelOpen) && (
+      {isSecurityPanelOpen && (
         <div 
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
-          onClick={() => {
-            setIsSecurityPanelOpen(false);
-            setIsKiaraPanelOpen(false);
-          }}
+          onClick={() => setIsSecurityPanelOpen(false)}
         />
       )}
     </>
