@@ -43,7 +43,15 @@ export const TradingChart: React.FC<Props> = ({
     script.async = true;
 
     script.onload = () => {
-      if (!containerRef.current || !window.LightweightCharts) return;
+      // Return early if container is not available
+      if (!containerRef.current) {
+        return;
+      }
+
+      // Return early if LightweightCharts is not available
+      if (typeof window.LightweightCharts === 'undefined') {
+        return;
+      }
 
       // Cleanup old chart properly
       if (cleanupRef.current) {
