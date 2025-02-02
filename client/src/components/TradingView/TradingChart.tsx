@@ -1,3 +1,3 @@
-// This component has been replaced with the new lightweight-charts implementation
-// Please use the TradingChart component from '@/components/TradingChart'
-export { default } from '../TradingChart';
+// This file is deprecated
+// Please use the TradingChart component from TradingView/project/src/components/TradingChart.tsx
+export { default } from '../../../../TradingView/project/src/components/TradingChart';
