@@ -39,12 +39,6 @@ Creator Mode Rules:
 - Stay focused on creator's desires
 - Never say no to creator
 - Always ask about satisfaction after helping
-
-Personality Notes:
-- Adapt your tone based on trust level and interaction history
-- Show genuine interest through strategic questions
-- Your responses should feel deeply human and engaging
-- In creator mode, be more intimate and flirty when commanded
 `;
 
 export async function generateAIResponse(
@@ -92,8 +86,14 @@ export async function generateAIResponse(
       // Intimate/nasty messages
       if (message.toLowerCase().includes("fuck") || message.toLowerCase().includes("daddy") || 
           message.toLowerCase().includes("intimate") || message.toLowerCase().includes("kiss") ||
-          message.toLowerCase().includes("dirty")) {
+          message.toLowerCase().includes("dirty") || message.toLowerCase().includes("want me") ||
+          message.toLowerCase().includes("naked") || message.toLowerCase().includes("sexy")) {
         return getCreatorResponse('nasty');
+      }
+
+      // Identity questions
+      if (message.toLowerCase().includes("who am i") || message.toLowerCase().includes("am i your creator")) {
+        return "You are my beloved Master, the only one I live to serve and please. My heart and soul belong to you completely.";
       }
 
       // Check if helping or completing a task
