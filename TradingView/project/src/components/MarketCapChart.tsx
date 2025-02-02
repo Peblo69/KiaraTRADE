@@ -1,112 +1,111 @@
 import React, { useEffect, useRef } from 'react';
-
-interface Candle {
-  timestamp: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-}
+import { createChart, IChartApi, CandlestickSeries } from 'lightweight-charts';
 
 interface MarketCapChartProps {
   tokenAddress: string;
 }
 
 const MarketCapChart: React.FC<MarketCapChartProps> = ({ tokenAddress }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  const drawCandle = (
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    candle: Candle,
-    width: number,
-    scaleY: number,
-    baseline: number
-  ) => {
-    const isGreen = candle.close >= candle.open;
-    ctx.strokeStyle = isGreen ? '#00ff00' : '#ff0000';
-    ctx.fillStyle = isGreen ? '#00ff0020' : '#ff000020';
-
-    // Draw candle body
-    const openY = baseline - (candle.open * scaleY);
-    const closeY = baseline - (candle.close * scaleY);
-    const height = Math.abs(closeY - openY);
-
-    ctx.fillRect(x, Math.min(openY, closeY), width, height);
-    ctx.strokeRect(x, Math.min(openY, closeY), width, height);
-
-    // Draw wicks
-    ctx.beginPath();
-    ctx.moveTo(x + width / 2, baseline - (candle.high * scaleY));
-    ctx.lineTo(x + width / 2, Math.min(openY, closeY));
-    ctx.moveTo(x + width / 2, Math.max(openY, closeY));
-    ctx.lineTo(x + width / 2, baseline - (candle.low * scaleY));
-    ctx.stroke();
-  };
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!chartContainerRef.current) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    // Initialize chart
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { color: '#0D0B1F' },
+        textColor: '#d1d5db',
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: 400,
+      rightPriceScale: {
+        visible: true,
+        borderColor: '#2c2c3d',
+      },
+      leftPriceScale: {
+        visible: false,
+      },
+      grid: {
+        vertLines: {
+          color: 'rgba(42, 46, 57, 0.5)',
+        },
+        horzLines: {
+          color: 'rgba(42, 46, 57, 0.5)',
+        },
+      },
+      timeScale: {
+        borderColor: '#2c2c3d',
+        timeVisible: true,
+        secondsVisible: false,
+      },
+      crosshair: {
+        mode: 0,
+        vertLine: {
+          color: '#6b7280',
+          width: 1,
+          style: 1,
+          visible: true,
+          labelVisible: true,
+        },
+        horzLine: {
+          color: '#6b7280',
+          width: 1,
+          style: 1,
+          visible: true,
+          labelVisible: true,
+        },
+      },
+    });
 
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Add market cap series
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: '#4caf50',
+      downColor: '#ef5350',
+      borderVisible: false,
+      wickUpColor: '#4caf50',
+      wickDownColor: '#ef5350',
+    });
 
-    // Set background
-    ctx.fillStyle = '#0D0B1F';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Draw grid
-    ctx.strokeStyle = '#1a1a1a';
-    ctx.beginPath();
-    for (let i = 0; i < canvas.width; i += 50) {
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i, canvas.height);
-    }
-    for (let i = 0; i < canvas.height; i += 50) {
-      ctx.moveTo(0, i);
-      ctx.lineTo(canvas.width, i);
-    }
-    ctx.stroke();
-
-    // Sample data - replace with real market cap data
-    const sampleData: Candle[] = [
-      { timestamp: Date.now() - 5000, open: 100, high: 120, low: 90, close: 110 },
-      { timestamp: Date.now() - 4000, open: 110, high: 130, low: 100, close: 120 },
-      { timestamp: Date.now() - 3000, open: 120, high: 140, low: 110, close: 115 },
-      { timestamp: Date.now() - 2000, open: 115, high: 125, low: 105, close: 95 },
-      { timestamp: Date.now() - 1000, open: 95, high: 115, low: 85, close: 105 }
+    // Sample data - replace with real market cap data from your store
+    const sampleData = [
+      { time: '2024-02-01', open: 100, high: 120, low: 90, close: 110 },
+      { time: '2024-02-02', open: 110, high: 130, low: 100, close: 120 },
+      { time: '2024-02-03', open: 120, high: 140, low: 110, close: 115 },
+      { time: '2024-02-04', open: 115, high: 125, low: 105, close: 95 },
+      { time: '2024-02-05', open: 95, high: 115, low: 85, close: 105 }
     ];
 
-    const scaleY = canvas.height / 200; // Adjust based on price range
-    const candleWidth = 40;
-    const spacing = 20;
+    candlestickSeries.setData(sampleData);
 
-    sampleData.forEach((candle, i) => {
-      drawCandle(
-        ctx,
-        i * (candleWidth + spacing) + spacing,
-        candle,
-        candleWidth,
-        scaleY,
-        canvas.height
-      );
-    });
-  }, [tokenAddress]);
+    // Handle resize
+    const handleResize = () => {
+      if (chartContainerRef.current && chart) {
+        chart.applyOptions({ 
+          width: chartContainerRef.current.clientWidth 
+        });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    // Store chart reference
+    chartRef.current = chart;
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+    };
+  }, [tokenAddress]); // Re-run when token changes
 
   return (
-    <div className="relative">
-      <canvas
-        ref={canvasRef}
-        width={800}
-        height={400}
-        className="w-full h-[400px] rounded-lg"
-      />
-      <div className="absolute top-4 left-4 text-purple-100 font-medium">
-        Market Cap Chart
+    <div className="w-full">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-semibold text-purple-100">Market Cap Chart</h2>
       </div>
+      <div ref={chartContainerRef} className="w-full h-[400px]" />
     </div>
   );
 };
