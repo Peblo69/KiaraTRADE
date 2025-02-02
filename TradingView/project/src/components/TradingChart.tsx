@@ -1,4 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { LineChart } from 'lucide-react';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { wsManager } from '@/lib/websocket-manager';
 
 interface Props {
   tokenAddress: string;
@@ -20,173 +23,191 @@ export const TradingChart: React.FC<Props> = ({
   onTimeframeChange,
   timeframe = '1m'
 }) => {
-  const container = useRef<HTMLDivElement>(null);
-  const [error, setError] = useState(false);
-  const widgetRef = useRef<any>(null);
-  const lastDataRef = useRef<Props['data']>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<any>(null);
+  const cleanupRef = useRef<(() => void) | null>(null);
 
-  const initializeWidget = () => {
-    if (!container.current || !window.TradingView) return;
-
-    const symbol = tokenAddress.slice(0, 8);
-    widgetRef.current = new window.TradingView.widget({
-      container_id: container.current.id,
-      autosize: true,
-      symbol,
-      interval: timeframe,
-      timezone: "Etc/UTC",
-      theme: "dark",
-      style: "1",
-      locale: "en",
-      toolbar_bg: "#161b2b",
-      enable_publishing: false,
-      hide_side_toolbar: false,
-      allow_symbol_change: false,
-      save_image: false,
-      studies: ["Volume@tv-basicstudies"],
-      show_popup_button: false,
-      popup_width: "1000",
-      popup_height: "650",
-      loading_screen: { backgroundColor: "#161b2b" },
-      custom_css_url: "/tradingview-dark.css",
-      datafeed: {
-        onReady: (callback: (config: any) => void) => {
-          setTimeout(() => callback({
-            supported_resolutions: ["1", "5", "15", "30", "60", "240", "D"],
-            exchanges: [{ value: "local", name: "Local", desc: "Local Exchange" }],
-            symbols_types: [{ name: "crypto", value: "crypto" }],
-          }), 0);
-        },
-
-        searchSymbols: () => {},
-
-        resolveSymbol: (symbolName: string, onSymbolResolvedCallback: (symbolInfo: any) => void) => {
-          setTimeout(() => {
-            onSymbolResolvedCallback({
-              name: symbolName,
-              full_name: symbolName,
-              description: tokenAddress,
-              type: "crypto",
-              session: "24x7",
-              timezone: "Etc/UTC",
-              minmov: 1,
-              pricescale: 100000000,
-              has_intraday: true,
-              has_daily: true,
-              has_weekly_and_monthly: false,
-              supported_resolutions: ["1", "5", "15", "30", "60", "240", "D"],
-              volume_precision: 8,
-              data_status: "streaming",
-            });
-          }, 0);
-        },
-
-        getBars: async (
-          symbolInfo: any,
-          resolution: string,
-          periodParams: {
-            from: number;
-            to: number;
-            firstDataRequest: boolean;
-          },
-          onHistoryCallback: (bars: any[], { noData: boolean }) => void,
-          onErrorCallback: (error: string) => void
-        ) => {
-          try {
-            if (!data?.length) {
-              onHistoryCallback([], { noData: true });
-              return;
-            }
-
-            const bars = data.filter(bar => 
-              bar.time >= periodParams.from && bar.time <= periodParams.to
-            );
-
-            lastDataRef.current = bars;
-            onHistoryCallback(bars, { noData: bars.length === 0 });
-          } catch (err) {
-            console.error('Error loading bars:', err);
-            onErrorCallback('Failed to load data');
-          }
-        },
-
-        subscribeBars: (
-          symbolInfo: any,
-          resolution: string,
-          onRealtimeCallback: (bar: any) => void,
-          subscriberUID: string,
-          onResetCacheNeededCallback: () => void
-        ) => {
-          const lastBar = data?.[data.length - 1];
-          if (lastBar && (!lastDataRef.current.length || lastBar.time !== lastDataRef.current[lastDataRef.current.length - 1]?.time)) {
-            onRealtimeCallback(lastBar);
-            lastDataRef.current = [...lastDataRef.current, lastBar];
-          }
-        },
-
-        unsubscribeBars: () => {
-        }
-      }
-    });
-  };
-
-  const handleError = () => {
-    setError(true);
-  };
-
-  const handleReconnect = () => {
-    setError(false);
-    if (container.current) {
-      while (container.current.firstChild) {
-        container.current.removeChild(container.current.firstChild);
-      }
-      initializeWidget();
-    }
-  };
+  // Get data from store
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const trades = token?.recentTrades || [];
 
   useEffect(() => {
+    console.log('[Chart] Setup for token:', tokenAddress, {
+      tradesCount: trades.length,
+      wsStatus: wsManager.getStatus(),
+      dataLength: data.length
+    });
+
     const script = document.createElement('script');
-    script.src = 'https://s3.tradingview.com/tv.js';
+    script.src = 'https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js';
     script.async = true;
-    script.onerror = handleError;
-    script.onload = initializeWidget;
+
+    script.onload = () => {
+      if (!containerRef.current || !window.LightweightCharts) return;
+
+      // Cleanup old chart properly
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
+
+      const chart = window.LightweightCharts.createChart(containerRef.current, {
+        layout: {
+          background: { color: '#0D0B1F' },
+          textColor: '#d1d4dc',
+        },
+        grid: {
+          vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
+          horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
+        },
+        width: containerRef.current.clientWidth,
+        height: 500,
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: true,
+          borderColor: '#485c7b',
+        },
+        rightPriceScale: {
+          borderColor: '#485c7b',
+        },
+        crosshair: {
+          mode: 1,
+          vertLine: {
+            color: '#758696',
+            width: 1,
+            labelBackgroundColor: '#0D0B1F',
+          },
+          horzLine: {
+            color: '#758696',
+            width: 1,
+            labelBackgroundColor: '#0D0B1F',
+          },
+        },
+      });
+
+      const candleSeries = chart.addCandlestickSeries({
+        upColor: '#26a69a',
+        downColor: '#ef5350',
+        borderUpColor: '#26a69a',
+        borderDownColor: '#ef5350',
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350',
+      });
+
+      const volumeSeries = chart.addHistogramSeries({
+        color: '#385263',
+        priceFormat: {
+          type: 'volume',
+        },
+        priceScaleId: '', 
+        scaleMargins: {
+          top: 0.8,
+          bottom: 0,
+        },
+      });
+
+      // Use provided data first
+      if (data.length > 0) {
+        console.log('[Chart] Using provided data:', {
+          token: tokenAddress,
+          candleCount: data.length,
+          firstCandle: data[0],
+          lastCandle: data[data.length - 1]
+        });
+
+        candleSeries.setData(data);
+        volumeSeries.setData(data);
+      }
+      // Fall back to processing trades if no data provided
+      else if (trades.length > 0 && token) {
+        const ohlcData = new Map();
+        const minuteInMs = 60000;
+
+        trades.forEach(trade => {
+          const timestamp = Math.floor(trade.timestamp / minuteInMs) * minuteInMs;
+
+          if (!ohlcData.has(timestamp)) {
+            ohlcData.set(timestamp, {
+              time: timestamp / 1000,
+              open: trade.priceInUsd,
+              high: trade.priceInUsd,
+              low: trade.priceInUsd,
+              close: trade.priceInUsd,
+              volume: trade.tokenAmount
+            });
+          } else {
+            const candle = ohlcData.get(timestamp);
+            candle.high = Math.max(candle.high, trade.priceInUsd);
+            candle.low = Math.min(candle.low, trade.priceInUsd);
+            candle.close = trade.priceInUsd;
+            candle.volume += trade.tokenAmount;
+          }
+        });
+
+        const candleData = Array.from(ohlcData.values())
+          .sort((a, b) => a.time - b.time);
+
+        console.log('[Chart] Processed trades:', {
+          token: tokenAddress,
+          candleCount: candleData.length,
+          firstCandle: candleData[0],
+          lastCandle: candleData[candleData.length - 1]
+        });
+
+        candleSeries.setData(candleData);
+        volumeSeries.setData(candleData);
+      }
+
+      // Handle resizing
+      const handleResize = () => {
+        if (containerRef.current) {
+          chart.applyOptions({
+            width: containerRef.current.clientWidth
+          });
+        }
+      };
+
+      window.addEventListener('resize', handleResize);
+
+      // Store cleanup function
+      cleanupRef.current = () => {
+        window.removeEventListener('resize', handleResize);
+        if (chart) {
+          chart.remove();
+        }
+        if (containerRef.current) {
+          containerRef.current.innerHTML = '';
+        }
+      };
+
+      chartRef.current = chart;
+    };
+
     document.head.appendChild(script);
 
+    // Cleanup
     return () => {
       if (script.parentNode) {
         script.parentNode.removeChild(script);
       }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (data?.length > 0 && widgetRef.current?.activeChart?.() && !error) {
-      const lastBar = data[data.length - 1];
-      if (lastBar && (!lastDataRef.current.length || lastBar.time !== lastDataRef.current[lastDataRef.current.length - 1]?.time)) {
-        lastDataRef.current = [...lastDataRef.current, lastBar];
+      if (cleanupRef.current) {
+        cleanupRef.current();
       }
-    }
-  }, [data, error]);
-
-  if (error) {
-    return (
-      <div className="w-full h-[500px] bg-[#161b2b] rounded-lg flex flex-col items-center justify-center gap-4">
-        <div className="text-gray-300 text-lg">Failed to load chart</div>
-        <button
-          onClick={handleReconnect}
-          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-        >
-          Reconnect
-        </button>
-      </div>
-    );
-  }
+    };
+  }, [tokenAddress, trades.length, data.length]);
 
   return (
     <div className="w-full h-full bg-[#161b2b] rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between p-4 border-b border-purple-900/30">
+        <div className="flex items-center space-x-2">
+          <LineChart className="w-5 h-5 text-purple-400" />
+          <h2 className="text-purple-100 font-semibold">
+            {token?.symbol || tokenAddress.slice(0, 6)}... Price Chart
+          </h2>
+        </div>
+      </div>
       <div 
-        id={`tradingview_${tokenAddress}`}
-        ref={container}
+        ref={containerRef}
         className="w-full h-[500px]"
       />
     </div>
