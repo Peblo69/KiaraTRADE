@@ -1,175 +1,150 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { createChart, IChartApi } from 'lightweight-charts';
+import { LineChart } from 'lucide-react';
+import { createChart } from 'lightweight-charts';
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 
-interface MarketCapChartProps {
+interface Props {
   tokenAddress: string;
 }
 
-const MarketCapChart: React.FC<MarketCapChartProps> = ({ tokenAddress }) => {
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<any>(null);
-  const token = usePumpPortalStore(state => state.tokens.find(t => t.address === tokenAddress));
-  const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
+const MarketCapChart: React.FC<Props> = ({ tokenAddress }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<any>(null);
+  const candleSeriesRef = useRef<any>(null);
+  const volumeSeriesRef = useRef<any>(null);
 
-  // Process trades into candles
-  const processTradeData = (trades: any[]) => {
-    if (!trades || trades.length === 0) return [];
-
-    const sortedTrades = trades.sort((a, b) => a.timestamp - b.timestamp);
-    const candles: any[] = [];
-    let currentCandle = {
-      time: Math.floor(sortedTrades[0].timestamp / 1000),
-      open: sortedTrades[0].priceInUsd || 0,
-      high: sortedTrades[0].priceInUsd || 0,
-      low: sortedTrades[0].priceInUsd || 0,
-      close: sortedTrades[0].priceInUsd || 0,
-    };
-
-    sortedTrades.forEach((trade) => {
-      const tradeTime = Math.floor(trade.timestamp / 1000);
-      const price = trade.priceInUsd || 0;
-
-      if (tradeTime - currentCandle.time > 60) { // New candle every minute
-        if (currentCandle.open !== 0) {
-          candles.push(currentCandle);
-        }
-        currentCandle = {
-          time: tradeTime,
-          open: price,
-          high: price,
-          low: price,
-          close: price,
-        };
-      } else {
-        currentCandle.high = Math.max(currentCandle.high, price);
-        currentCandle.low = Math.min(currentCandle.low, price);
-        currentCandle.close = price;
-      }
-    });
-
-    if (currentCandle.open !== 0) {
-      candles.push(currentCandle);
-    }
-
-    return candles;
-  };
+  // Get EXACTLY the same data as your other components
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const solPrice = usePumpPortalStore(state => state.solPrice);
+  const trades = token?.recentTrades || [];
 
   useEffect(() => {
-    if (!chartContainerRef.current || !token) return;
+    if (!containerRef.current || !token) return;
 
-    // Initialize chart
-    const chart = createChart(chartContainerRef.current, {
+    // Clear any existing chart
+    if (chartRef.current) {
+      containerRef.current.innerHTML = '';
+    }
+
+    const chart = createChart(containerRef.current, {
       layout: {
         background: { color: '#0D0B1F' },
-        textColor: '#d1d5db',
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: 400,
-      rightPriceScale: {
-        visible: true,
-        borderColor: '#2c2c3d',
-        scaleMargins: {
-          top: 0.1,
-          bottom: 0.1,
-        },
-        autoScale: true,
+        textColor: '#d1d4dc',
       },
       grid: {
-        vertLines: {
-          color: 'rgba(42, 46, 57, 0.5)',
-        },
-        horzLines: {
-          color: 'rgba(42, 46, 57, 0.5)',
-        },
+        vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
       },
+      width: containerRef.current.clientWidth,
+      height: 500,
       timeScale: {
-        borderColor: '#2c2c3d',
         timeVisible: true,
         secondsVisible: true,
       },
-      crosshair: {
-        mode: 1,
-        vertLine: {
-          color: '#6b7280',
-          width: 1,
-          style: 1,
-          visible: true,
-          labelVisible: true,
-        },
-        horzLine: {
-          color: '#6b7280',
-          width: 1,
-          style: 1,
-          visible: true,
-          labelVisible: true,
-        },
-      },
     });
 
-    // Add market cap series
-    const marketCapSeries = chart.addCandlestickSeries({
-      upColor: '#4caf50',
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: '#26a69a',
       downColor: '#ef5350',
-      borderVisible: false,
-      wickUpColor: '#4caf50',
+      borderUpColor: '#26a69a',
+      borderDownColor: '#ef5350',
+      wickUpColor: '#26a69a',
       wickDownColor: '#ef5350',
     });
 
-    seriesRef.current = marketCapSeries;
-    chartRef.current = chart;
+    // Add volume series
+    const volumeSeries = chart.addHistogramSeries({
+      color: '#385263',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: '', 
+      scaleMargins: {
+        top: 0.8,
+        bottom: 0,
+      },
+    });
 
-    // Process and set initial data
-    if (token.recentTrades && token.recentTrades.length > 0) {
-      const candles = processTradeData(token.recentTrades);
-      if (candles.length > 0) {
-        marketCapSeries.setData(candles);
-        chart.timeScale().fitContent();
+    // Process trades using YOUR price calculation logic
+    if (trades.length > 0 && token) {
+      const ohlcData = new Map();
+      const minuteInMs = 60000;
+
+      trades.forEach(trade => {
+        // Use YOUR price calculation logic from the store
+        const price = trade.priceInUsd;
+        const timestamp = Math.floor(trade.timestamp / minuteInMs) * minuteInMs;
+
+        if (!ohlcData.has(timestamp)) {
+          ohlcData.set(timestamp, {
+            time: timestamp / 1000,
+            open: price,
+            high: price,
+            low: price,
+            close: price,
+            volume: trade.tokenAmount
+          });
+        } else {
+          const candle = ohlcData.get(timestamp);
+          candle.high = Math.max(candle.high, price);
+          candle.low = Math.min(candle.low, price);
+          candle.close = price;
+          candle.volume += trade.tokenAmount;
+        }
+      });
+
+      const candleData = Array.from(ohlcData.values())
+        .sort((a, b) => a.time - b.time);
+
+      candleSeries.setData(candleData);
+      volumeSeries.setData(candleData);
+
+      // Set up real-time updates
+      const lastCandle = candleData[candleData.length - 1];
+      if (lastCandle) {
+        candleSeries.update(lastCandle);
+        volumeSeries.update(lastCandle);
       }
     }
 
-    // Handle resize
+    // Handle resizing
     const handleResize = () => {
-      if (chartContainerRef.current && chart) {
-        chart.applyOptions({ 
-          width: chartContainerRef.current.clientWidth 
+      if (containerRef.current) {
+        chart.applyOptions({
+          width: containerRef.current.clientWidth
         });
       }
     };
 
     window.addEventListener('resize', handleResize);
+    chartRef.current = chart;
+    candleSeriesRef.current = candleSeries;
+    volumeSeriesRef.current = volumeSeries;
 
-    // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
-      chart.remove();
+      if (chart) {
+        chart.remove();
+      }
     };
-  }, [tokenAddress]); // Only recreate chart when token address changes
-
-  // Update data when trades change
-  useEffect(() => {
-    if (!token || !seriesRef.current) return;
-
-    const candles = processTradeData(token.recentTrades);
-    if (candles.length > 0) {
-      seriesRef.current.setData(candles);
-      chartRef.current?.timeScale().fitContent();
-      setLastUpdate(Date.now());
-    }
-  }, [token?.recentTrades]);
+  }, [token, trades, solPrice]);
 
   return (
-    <div className="w-full">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold text-purple-100">Market Cap Chart</h2>
+    <div className="relative bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-2">
+          <LineChart className="w-5 h-5 text-purple-400" />
+          <h2 className="text-purple-100 font-semibold">
+            {token?.symbol || tokenAddress.slice(0, 6)}... Price Chart
+          </h2>
+        </div>
         {token && (
           <div className="text-sm text-purple-300">
             Current Price: ${token.priceInUsd?.toFixed(8) || '0.00000000'}
           </div>
         )}
       </div>
-      <div ref={chartContainerRef} className="w-full h-[400px]" />
+      <div ref={containerRef} className="h-[500px] w-full" />
     </div>
   );
 };
