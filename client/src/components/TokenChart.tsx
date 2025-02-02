@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { motion } from "framer-motion";
 import TokenStats from "./TokenStats";
-import TradeHistory from "./TradeHistory";
+import TradeHistory from "../../../TradingView/project/src/components/TradeHistory";
 import { createChart, IChartApi } from 'lightweight-charts';
 
 interface TokenChartProps {

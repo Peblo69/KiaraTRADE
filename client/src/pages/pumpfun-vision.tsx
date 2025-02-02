@@ -9,7 +9,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import MarketStats from "@/components/MarketStats";
 import SocialMetrics from "@/components/SocialMetrics";
 import TradingChart from "@/components/TradingView/TradingChart";
-import TradeHistory from "@/components/TradeHistory";
+import TradeHistory from "../../../TradingView/project/src/components/TradeHistory";
 import TradingForm from "@/components/TradingForm";
 import HolderAnalytics from "@/components/HolderAnalytics";
 
