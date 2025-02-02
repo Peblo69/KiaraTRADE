@@ -1,0 +1,11 @@
+:root {
+  --tv-color-platform-background: #0D0B1F;
+  --tv-color-pane-background: #0D0B1F;
+  --tv-color-toolbar-button-background-hover: rgba(147, 51, 234, 0.2);
+  --tv-color-toolbar-button-background-expanded: rgba(147, 51, 234, 0.1);
+  --tv-color-toolbar-button-background-active: rgba(147, 51, 234, 0.3);
+  --tv-color-toolbar-button-text: #d1d4dc;
+  --tv-color-toolbar-button-text-hover: #fff;
+  --tv-color-toolbar-button-text-active: #fff;
+  --tv-color-toolbar-button-text-active-hover: #fff;
+}
