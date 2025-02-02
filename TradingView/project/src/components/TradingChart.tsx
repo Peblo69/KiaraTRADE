@@ -1,17 +1,17 @@
 import React, { useEffect, useRef } from "react";
 import { LineChart } from "lucide-react";
-import { 
-  createChart, 
-  IChartApi, 
-  ColorType, 
-  CrosshairMode,
-  Time
+import {
+  createChart,
+  IChartApi,
+  ColorType,
+  CandlestickSeries,
+  HistogramSeries,
 } from "lightweight-charts";
 
 interface Props {
   tokenAddress: string;
   data?: {
-    time: number;
+    time: number | string; // time can be a UNIX timestamp (number) or string (e.g. "2018-12-22")
     open: number;
     high: number;
     low: number;
@@ -28,150 +28,111 @@ export const TradingChart: React.FC<Props> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Create chart with optimized settings
-    const chart = createChart(containerRef.current, {
+    // Define chart configuration options
+    const chartOptions = {
       layout: {
-        background: { type: ColorType.Solid, color: "#0D0B1F" },
-        textColor: "#9ca3af",
-        fontSize: 12,
-        fontFamily: "Inter, sans-serif",
+        background: { type: ColorType.Solid, color: "#161b2b" },
+        textColor: "#d1d4dc",
       },
       grid: {
-        vertLines: { color: "rgba(67, 70, 81, 0.2)" },
-        horzLines: { color: "rgba(67, 70, 81, 0.2)" },
+        vertLines: { color: "rgba(42, 46, 57, 0.2)" },
+        horzLines: { color: "rgba(42, 46, 57, 0.2)" },
       },
       crosshair: {
-        mode: CrosshairMode.Normal,
         vertLine: {
           color: "#758696",
           width: 1,
-          style: 3,
-          labelBackgroundColor: "#0D0B1F",
+          labelBackgroundColor: "#161b2b",
         },
         horzLine: {
           color: "#758696",
           width: 1,
-          style: 3,
-          labelBackgroundColor: "#0D0B1F",
+          labelBackgroundColor: "#161b2b",
         },
       },
-      width: containerRef.current.clientWidth,
-      height: 500,
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
-        borderColor: "#2a2e39",
-        tickMarkFormatter: (time: Time) => {
-          const date = new Date((time as number) * 1000);
-          const hours = date.getHours().toString().padStart(2, '0');
-          const minutes = date.getMinutes().toString().padStart(2, '0');
-          return `${hours}:${minutes}`;
+        tickMarkFormatter: (time: number) => {
+          const date = new Date(time * 1000);
+          // Format the tick mark as HH:MM
+          return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         },
       },
       rightPriceScale: {
-        borderColor: "#2a2e39",
+        borderColor: "#485c7b",
         scaleMargins: {
           top: 0.1,
           bottom: 0.2,
         },
-        autoScale: true,
       },
-      handleScale: {
-        mouseWheel: true,
-        pinch: true,
-        axisPressedMouseMove: true,
-      },
-      handleScroll: {
-        mouseWheel: true,
-        pressedMouseMove: true,
-        horzTouchDrag: true,
-        vertTouchDrag: true,
-      },
+    };
+
+    // Create the chart instance
+    const chart = createChart(containerRef.current, {
+      ...chartOptions,
+      width: containerRef.current.clientWidth,
+      height: 500,
     });
 
-    // Add candlestick series with custom styling
-    const candlestickSeries = chart.addCandlestickSeries({
+    // Add the candlestick series with proper styling
+    const candleSeries = chart.addCandlestickSeries({
       upColor: "#26a69a",
       downColor: "#ef5350",
       borderVisible: false,
       wickUpColor: "#26a69a",
       wickDownColor: "#ef5350",
-      priceFormat: {
-        type: "price",
-        precision: 8,
-        minMove: 0.00000001,
-      },
     });
 
-    // Add volume histogram as overlay
+    // Add a histogram series for volume, placed below the price chart
     const volumeSeries = chart.addHistogramSeries({
       color: "#385263",
-      priceFormat: {
-        type: "volume",
-      },
-      priceScaleId: "", // Overlay
+      priceFormat: { type: "volume" },
+      priceScaleId: "", // overlay on the main price scale
       scaleMargins: {
-        top: 0.8, // Position at bottom 20% of the chart
+        top: 0.8, // volume occupies the bottom 20% of the chart
         bottom: 0,
       },
     });
 
-    // Transform data for chart
-    const transformedData = data.map(item => ({
-      time: item.time as Time,
-      open: item.open,
-      high: item.high,
-      low: item.low,
-      close: item.close,
-    }));
-
-    const volumeData = data.map(item => ({
-      time: item.time as Time,
-      value: item.volume,
-      color: item.close >= item.open ? "#26a69a40" : "#ef535040",
-    }));
-
-    // Set data if available
-    if (transformedData.length > 0) {
-      candlestickSeries.setData(transformedData);
-      volumeSeries.setData(volumeData);
+    // If data is provided, set it for both series
+    if (data.length > 0) {
+      candleSeries.setData(data as any);
+      volumeSeries.setData(data as any);
       chart.timeScale().fitContent();
     }
 
-    // Handle resize with ResizeObserver
-    resizeObserverRef.current = new ResizeObserver(entries => {
-      const { width } = entries[0].contentRect;
-      chart.applyOptions({ width });
-      chart.timeScale().fitContent();
-    });
+    // Handle chart resizing on window resize events
+    const handleResize = () => {
+      if (containerRef.current) {
+        chart.applyOptions({
+          width: containerRef.current.clientWidth,
+        });
+      }
+    };
+    window.addEventListener("resize", handleResize);
 
-    resizeObserverRef.current.observe(containerRef.current);
-
-    // Store chart reference
+    // Store the chart instance for potential future use
     chartRef.current = chart;
 
-    // Cleanup
+    // Cleanup: remove event listener and dispose the chart on unmount
     return () => {
-      if (resizeObserverRef.current) {
-        resizeObserverRef.current.disconnect();
-      }
+      window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [tokenAddress, data]);
+  }, [tokenAddress, data, timeframe]);
 
   return (
-    <div className="w-full h-full bg-[#0D0B1F] rounded-lg overflow-hidden">
+    <div className="w-full h-full bg-[#161b2b] rounded-lg overflow-hidden">
       <div className="flex items-center justify-between p-4 border-b border-purple-900/30">
         <div className="flex items-center space-x-2">
           <LineChart className="w-5 h-5 text-purple-400" />
           <h2 className="text-purple-100 font-semibold">Price Chart</h2>
         </div>
-        {/* Add timeframe selector here if needed */}
       </div>
       <div ref={containerRef} className="w-full h-[500px]" />
     </div>
