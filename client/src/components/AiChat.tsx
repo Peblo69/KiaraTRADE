@@ -15,7 +15,7 @@ interface Message {
 export default function AiChat() {
   const [messages, setMessages] = useState<Message[]>([{
     role: "assistant",
-    content: "Greetings, crypto explorer! 🚀 I'm KIARA, your AI companion in the world of digital assets. Ready to dive into some exciting analysis? ✨"
+    content: "Yooo! 👋 I'm KIARA, your AI trading bestie! Ready to explore some crazy market moves? Whether it's spotting the next memecoin pump or analyzing market trends, I've got your back! What's on your mind? 🚀"
   }]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -50,7 +50,7 @@ export default function AiChat() {
       console.error("Error sending message:", error);
       setMessages(prev => [...prev, {
         role: "assistant",
-        content: "I apologize, I encountered an error processing your request. Please try again."
+        content: "Bruh, something's not right with my connections rn 😅 Can you try again?"
       }]);
     } finally {
       setIsTyping(false);
@@ -99,8 +99,8 @@ export default function AiChat() {
                 <div 
                   className={
                     msg.role === "assistant" 
-                      ? "text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-cyan-300 to-purple-300 animate-gradient-x font-medium tracking-wide"
-                      : "text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-300 animate-gradient-x font-medium tracking-wide"
+                      ? "text-purple-100"
+                      : "text-blue-100"
                   }
                 >
                   {msg.content}
@@ -117,7 +117,7 @@ export default function AiChat() {
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-purple-400" />
                   <span className="text-purple-400">
-                    KIARA is composing a response...
+                    Analyzing the market... 💭
                   </span>
                 </div>
               </div>
@@ -132,14 +132,14 @@ export default function AiChat() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && sendMessage()}
-            placeholder="Ask KIARA anything..."
+            placeholder="Ask KIARA anything about crypto..."
             className="bg-gray-900/50 border-purple-500/30 focus:border-purple-400 focus:ring-purple-400/20 text-purple-50 placeholder-purple-300/50"
           />
           <Button
             onClick={sendMessage}
             className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-semibold px-6 transition-all duration-300 ease-in-out transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-purple-500/25"
           >
-            Send 💫
+            Send 🚀
           </Button>
         </div>
       </div>
