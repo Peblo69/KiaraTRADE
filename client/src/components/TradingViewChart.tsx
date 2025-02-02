@@ -1,12 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { LineChart } from 'lucide-react';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-
-declare global {
-  interface Window {
-    TradingView: any;
-  }
-}
 
 interface Props {
   tokenAddress: string;
@@ -15,12 +9,9 @@ interface Props {
 const TradingViewChart: React.FC<Props> = ({ tokenAddress }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const trades = usePumpPortalStore(state => state.getToken(tokenAddress)?.recentTrades || []);
+  const [chartWidget, setChartWidget] = useState<any>(null);
 
   useEffect(() => {
-    // Debug log to see what data we're getting
-    console.log('Token Address:', tokenAddress);
-    console.log('Initial Trades:', trades);
-
     const script = document.createElement('script');
     script.src = 'https://s3.tradingview.com/tv.js';
     script.async = true;
@@ -28,49 +19,136 @@ const TradingViewChart: React.FC<Props> = ({ tokenAddress }) => {
     script.onload = () => {
       if (!containerRef.current || !window.TradingView) return;
 
-      // Create widget with basic config first
+      // Create a custom symbol name for our new token
+      const customSymbol = `SOL:${tokenAddress.slice(0, 8)}`;
+
       const widget = new window.TradingView.widget({
         container_id: containerRef.current.id,
-        // Use a default symbol first
-        symbol: 'BINANCE:BTCUSDT',  // We'll change this
-        interval: '1',
+        symbol: customSymbol, // Use our custom symbol
+        interval: '1', // 1 minute candles
         timezone: 'Etc/UTC',
         theme: 'dark',
-        style: '1',
+        style: '1', // Candlestick
         locale: 'en',
         toolbar_bg: '#0D0B1F',
         enable_publishing: false,
-        hide_side_toolbar: false,
-        allow_symbol_change: true,  // Let's keep this true for testing
+        allow_symbol_change: false, // Disable symbol change
         save_image: false,
         height: 500,
         width: '100%',
-        studies: [
-          'Volume@tv-basicstudies',
-        ],
+        studies: ['Volume@tv-basicstudies'],
         loading_screen: { backgroundColor: "#0D0B1F" },
-        favorites: {
-          intervals: ['1', '5', '15', '30', '60']
+        library_path: '/charting_library/',
+        custom_css_url: '/tradingview-dark.css',
+        disabled_features: [
+          'header_symbol_search',
+          'symbol_search_hot_key',
+          'header_compare',
+        ],
+        enabled_features: [
+          'study_templates',
+          'create_volume_indicator_by_default',
+        ],
+        datafeed: {
+          onReady: (callback: any) => {
+            callback({
+              supported_resolutions: ['1', '5', '15', '30', '60'],
+              supports_time: true,
+              supports_marks: false,
+              supports_timescale_marks: false
+            });
+          },
+          resolveSymbol: (symbolName: string, onSymbolResolvedCallback: any) => {
+            onSymbolResolvedCallback({
+              name: customSymbol,
+              description: `${tokenAddress.slice(0, 6)}...${tokenAddress.slice(-4)}`,
+              type: 'crypto',
+              session: '24x7',
+              timezone: 'Etc/UTC',
+              minmov: 1,
+              pricescale: 1000000, // Adjust based on your price decimals
+              has_intraday: true,
+              has_no_volume: false,
+              has_weekly_and_monthly: false,
+              supported_resolutions: ['1', '5', '15', '30', '60'],
+              volume_precision: 8,
+              data_status: 'streaming'
+            });
+          },
+          getBars: (symbolInfo: any, resolution: string, from: number, to: number, onHistoryCallback: any) => {
+            // Convert existing trades to OHLCV
+            if (trades.length === 0) {
+              onHistoryCallback([], { noData: true });
+              return;
+            }
+
+            const bars = processTradesIntoCandles(trades, resolution);
+            onHistoryCallback(bars, { noData: false });
+          },
+          subscribeBars: (symbolInfo: any, resolution: string, onRealtimeCallback: any, subscriberUID: any) => {
+            // Real-time updates handled through the store changes
+          },
+          unsubscribeBars: () => {}
         }
       });
 
-      // Debug: Log widget creation
-      console.log('TradingView Widget Created');
-
-      widget.onChartReady(() => {
-        console.log('Chart is ready!');
-        // Here you can start updating with your data
-      });
+      setChartWidget(widget);
     };
 
     document.head.appendChild(script);
-
     return () => {
       if (script.parentNode) {
         script.parentNode.removeChild(script);
       }
     };
-  }, [tokenAddress]);
+  }, [tokenAddress]); // Recreate when token changes
+
+  // Process trades into OHLCV candles
+  const processTradesIntoCandles = (trades: any[], resolution: string) => {
+    const interval = parseInt(resolution) * 60 * 1000; // Convert to milliseconds
+    const candles = new Map();
+
+    trades.forEach(trade => {
+      const timestamp = Math.floor(trade.timestamp / interval) * interval;
+
+      if (!candles.has(timestamp)) {
+        candles.set(timestamp, {
+          time: timestamp,
+          open: trade.priceInUsd,
+          high: trade.priceInUsd,
+          low: trade.priceInUsd,
+          close: trade.priceInUsd,
+          volume: trade.tokenAmount
+        });
+      } else {
+        const candle = candles.get(timestamp);
+        candle.high = Math.max(candle.high, trade.priceInUsd);
+        candle.low = Math.min(candle.low, trade.priceInUsd);
+        candle.close = trade.priceInUsd;
+        candle.volume += trade.tokenAmount;
+      }
+    });
+
+    return Array.from(candles.values());
+  };
+
+  // Update chart when new trades come in
+  useEffect(() => {
+    if (chartWidget && trades.length > 0) {
+      const lastTrade = trades[0];
+      // Update the chart with new data
+      chartWidget.onChartReady(() => {
+        chartWidget.chart().update({
+          time: lastTrade.timestamp,
+          open: lastTrade.priceInUsd,
+          high: lastTrade.priceInUsd,
+          low: lastTrade.priceInUsd,
+          close: lastTrade.priceInUsd,
+          volume: lastTrade.tokenAmount
+        });
+      });
+    }
+  }, [trades]);
 
   return (
     <div className="relative bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
@@ -78,7 +156,7 @@ const TradingViewChart: React.FC<Props> = ({ tokenAddress }) => {
         <div className="flex items-center space-x-2">
           <LineChart className="w-5 h-5 text-purple-400" />
           <h2 className="text-purple-100 font-semibold">
-            Live Price Chart - {tokenAddress.slice(0, 6)}...
+            {tokenAddress.slice(0, 6)}...{tokenAddress.slice(-4)} Live Chart
           </h2>
         </div>
       </div>
