@@ -34,7 +34,7 @@ async function startServer() {
     });
 
     // Start listening on a single port
-    const PORT = parseInt(process.env.PORT || "5000");
+    const PORT = 80; // Use port 80 since it's mapped in .replit
     server.listen(PORT, "0.0.0.0", () => {
       log(`
 🚀 Server Status:
