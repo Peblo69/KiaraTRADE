@@ -127,7 +127,7 @@ const calculatePumpFunTokenMetrics = ({
   const priceInSol = vSolInBondingCurve / denominator;
   const priceInUsd = priceInSol * solPrice;
 
-  // Calculate market cap
+  // Calculate market cap using the correct formula
   const marketCapSol = vSolInBondingCurve;
   const marketCapUsd = marketCapSol * solPrice;
 

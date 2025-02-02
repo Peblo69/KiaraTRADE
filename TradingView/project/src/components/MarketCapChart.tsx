@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { createChart, IChartApi, CandlestickSeries } from 'lightweight-charts';
+import { createChart, IChartApi } from 'lightweight-charts';
+import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 
 interface MarketCapChartProps {
   tokenAddress: string;
@@ -8,9 +9,10 @@ interface MarketCapChartProps {
 const MarketCapChart: React.FC<MarketCapChartProps> = ({ tokenAddress }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const token = usePumpPortalStore(state => state.tokens.find(t => t.address === tokenAddress));
 
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    if (!chartContainerRef.current || !token) return;
 
     // Initialize chart
     const chart = createChart(chartContainerRef.current, {
@@ -23,6 +25,10 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ tokenAddress }) => {
       rightPriceScale: {
         visible: true,
         borderColor: '#2c2c3d',
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.1,
+        },
       },
       leftPriceScale: {
         visible: false,
@@ -40,27 +46,10 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ tokenAddress }) => {
         timeVisible: true,
         secondsVisible: false,
       },
-      crosshair: {
-        mode: 0,
-        vertLine: {
-          color: '#6b7280',
-          width: 1,
-          style: 1,
-          visible: true,
-          labelVisible: true,
-        },
-        horzLine: {
-          color: '#6b7280',
-          width: 1,
-          style: 1,
-          visible: true,
-          labelVisible: true,
-        },
-      },
     });
 
     // Add market cap series
-    const candlestickSeries = chart.addCandlestickSeries({
+    const marketCapSeries = chart.addCandlestickSeries({
       upColor: '#4caf50',
       downColor: '#ef5350',
       borderVisible: false,
@@ -68,16 +57,39 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ tokenAddress }) => {
       wickDownColor: '#ef5350',
     });
 
-    // Sample data - replace with real market cap data from your store
-    const sampleData = [
-      { time: '2024-02-01', open: 100, high: 120, low: 90, close: 110 },
-      { time: '2024-02-02', open: 110, high: 130, low: 100, close: 120 },
-      { time: '2024-02-03', open: 120, high: 140, low: 110, close: 115 },
-      { time: '2024-02-04', open: 115, high: 125, low: 105, close: 95 },
-      { time: '2024-02-05', open: 95, high: 115, low: 85, close: 105 }
-    ];
+    // Process token trades into candles
+    if (token.recentTrades && token.recentTrades.length > 0) {
+      const trades = token.recentTrades.sort((a, b) => a.timestamp - b.timestamp);
+      const candles = [];
+      let currentCandle = {
+        time: Math.floor(trades[0].timestamp / 1000),
+        open: trades[0].priceInUsd,
+        high: trades[0].priceInUsd,
+        low: trades[0].priceInUsd,
+        close: trades[0].priceInUsd,
+      };
 
-    candlestickSeries.setData(sampleData);
+      trades.forEach((trade) => {
+        const tradeTime = Math.floor(trade.timestamp / 1000);
+        if (tradeTime - currentCandle.time > 60) { // New candle every minute
+          candles.push(currentCandle);
+          currentCandle = {
+            time: tradeTime,
+            open: trade.priceInUsd,
+            high: trade.priceInUsd,
+            low: trade.priceInUsd,
+            close: trade.priceInUsd,
+          };
+        } else {
+          currentCandle.high = Math.max(currentCandle.high, trade.priceInUsd);
+          currentCandle.low = Math.min(currentCandle.low, trade.priceInUsd);
+          currentCandle.close = trade.priceInUsd;
+        }
+      });
+      candles.push(currentCandle);
+
+      marketCapSeries.setData(candles);
+    }
 
     // Handle resize
     const handleResize = () => {
@@ -98,12 +110,17 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ tokenAddress }) => {
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [tokenAddress]); // Re-run when token changes
+  }, [token, tokenAddress]); // Re-run when token or address changes
 
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold text-purple-100">Market Cap Chart</h2>
+        {token && (
+          <div className="text-sm text-purple-300">
+            Current Price: ${token.priceInUsd?.toFixed(8) || '0.00000000'}
+          </div>
+        )}
       </div>
       <div ref={chartContainerRef} className="w-full h-[400px]" />
     </div>
