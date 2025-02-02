@@ -30,7 +30,7 @@ const StatCard: FC<StatCardProps> = ({ title, value, change }) => (
 export const TokenStats: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
   const trades = token?.recentTrades || [];
-
+  
   // Calculate 24h stats
   const last24h = trades.filter(t => 
     t.timestamp > Date.now() - 24 * 60 * 60 * 1000
@@ -38,7 +38,7 @@ export const TokenStats: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
 
   const stats = {
     price: token?.priceInUsd || 0,
-    volume24h: last24h.reduce((sum, t) => sum + ((t.tokenAmount || 0) * (t.priceInUsd || 0)), 0),
+    volume24h: last24h.reduce((sum, t) => sum + (t.tokenAmount * t.priceInUsd), 0),
     trades24h: last24h.length,
     marketCap: (token?.vTokensInBondingCurve || 0) * (token?.priceInUsd || 0),
     priceChange24h: calculatePriceChange(last24h),
@@ -78,11 +78,11 @@ export const TokenStats: FC<{ tokenAddress: string }> = ({ tokenAddress }) => {
 // Helper functions
 function calculatePriceChange(trades: any[]): { value: number; isPositive: boolean } {
   if (trades.length < 2) return { value: 0, isPositive: false };
-
-  const current = trades[0]?.priceInUsd || 0;
-  const old = trades[trades.length - 1]?.priceInUsd || 0;
-  const change = old !== 0 ? ((current - old) / old) * 100 : 0;
-
+  
+  const current = trades[0].priceInUsd;
+  const old = trades[trades.length - 1].priceInUsd;
+  const change = ((current - old) / old) * 100;
+  
   return {
     value: Math.abs(change),
     isPositive: change >= 0
