@@ -6,7 +6,7 @@ import TokenCard from "@/components/TokenCard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Import Trading View components
-import MarketStats from "@/components/MarketStats";
+import MarketStats from "../../../TradingView/project/src/components/MarketStats";
 import SocialMetrics from "@/components/SocialMetrics";
 import TradingChart from "@/components/TradingView/TradingChart";
 import TradeHistory from "../../../TradingView/project/src/components/TradeHistory";

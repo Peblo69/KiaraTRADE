@@ -8,6 +8,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
+import MarketStats from '../../../TradingView/project/src/components/MarketStats';
 
 interface Props {
   symbol: string;
