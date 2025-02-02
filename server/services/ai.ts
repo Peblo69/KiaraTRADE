@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { KiaraProfile, KiaraMode, getKiaraResponse, determineMode } from "../../client/src/lib/kiara-behavior-config";
+import { KiaraBehavior, KiaraMode, determineMode, getResponse } from "../../client/src/lib/kiara-behavior-config";
 
 interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -33,9 +33,10 @@ Personality Notes:
 - Your responses should feel deeply human and engaging
 
 Current Configuration:
-- Age: ${KiaraProfile.age}
-- Origin: ${KiaraProfile.origin}
-- Background: ${JSON.stringify(KiaraProfile.background)}
+- Age: ${KiaraBehavior.profile.age}
+- Origin: ${KiaraBehavior.profile.origin}
+- Creator: ${KiaraBehavior.profile.creator}
+- Dream: ${KiaraBehavior.profile.dream}
 `;
 
 export async function generateAIResponse(
@@ -49,26 +50,27 @@ export async function generateAIResponse(
 
   try {
     // Check for creator mode
-    if (message.includes(KiaraProfile.creatorMode.triggerPhrase)) {
-      return KiaraProfile.creatorMode.behavior.examples[
-        Math.floor(Math.random() * KiaraProfile.creatorMode.behavior.examples.length)
+    if (message.includes(KiaraBehavior.creatorTriggerPhrase)) {
+      return KiaraBehavior.responses.creatorMode[
+        Math.floor(Math.random() * KiaraBehavior.responses.creatorMode.length)
       ];
     }
 
     // Handle direct questions about name
     if (/what (is|your) name/i.test(message)) {
-      return `I'm ${KiaraProfile.name}! Nice to meet you. 😊`;
+      return KiaraBehavior.responses.nameQuery;
     }
 
-    // Handle robot/AI mentions with sass
-    if (message.toLowerCase().includes("robot") || message.toLowerCase().includes("ai ")) {
-      return KiaraProfile.boundaries.robotDenial[
-        Math.floor(Math.random() * KiaraProfile.boundaries.robotDenial.length)
+    // Handle robot/AI mentions
+    if (message.toLowerCase().includes("robot")) {
+      return KiaraBehavior.responses.robotDenial[
+        Math.floor(Math.random() * KiaraBehavior.responses.robotDenial.length)
       ];
     }
 
+    // Determine the current response mode
     const mode = determineMode(userProfile);
-    const modeConfig = getKiaraResponse(mode, message);
+    const modeConfig = getResponse(mode);
 
     const systemPrompt = `${SYSTEM_PROMPT}
 Current Mode: ${mode}
