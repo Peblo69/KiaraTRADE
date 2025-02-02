@@ -11,6 +11,7 @@ import SocialMetrics from "../../../TradingView/project/src/components/SocialMet
 import TradeHistory from "../../../TradingView/project/src/components/TradeHistory";
 import TradingForm from "../../../TradingView/project/src/components/TradingForm";
 import HolderAnalytics from "../../../TradingView/project/src/components/HolderAnalytics";
+import MarketCapChart from "../../../TradingView/project/src/components/MarketCapChart";
 
 const PumpFunVision: FC = () => {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
@@ -80,6 +81,12 @@ const PumpFunVision: FC = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Market Cap Chart */}
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                    <MarketCapChart tokenAddress={selectedToken} />
+                  </div>
+
                   <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                     <TradeHistory tokenAddress={selectedToken} />
                   </div>
