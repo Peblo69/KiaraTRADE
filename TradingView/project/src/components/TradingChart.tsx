@@ -16,7 +16,7 @@ interface Props {
 
 export const TradingChart: React.FC<Props> = ({
   tokenAddress,
-  data,
+  data = [],
   onTimeframeChange,
   timeframe = '1m'
 }) => {
@@ -28,7 +28,7 @@ export const TradingChart: React.FC<Props> = ({
   const initializeWidget = () => {
     if (!container.current || !window.TradingView) return;
 
-    const symbol = tokenAddress.slice(0, 8); // Use shortened address as symbol
+    const symbol = tokenAddress.slice(0, 8);
     widgetRef.current = new window.TradingView.widget({
       container_id: container.current.id,
       autosize: true,
@@ -70,7 +70,7 @@ export const TradingChart: React.FC<Props> = ({
               session: "24x7",
               timezone: "Etc/UTC",
               minmov: 1,
-              pricescale: 100000000, // 8 decimal places
+              pricescale: 100000000,
               has_intraday: true,
               has_daily: true,
               has_weekly_and_monthly: false,
@@ -93,12 +93,11 @@ export const TradingChart: React.FC<Props> = ({
           onErrorCallback: (error: string) => void
         ) => {
           try {
-            if (!data || data.length === 0) {
+            if (!data?.length) {
               onHistoryCallback([], { noData: true });
               return;
             }
 
-            // Filter data based on time range
             const bars = data.filter(bar => 
               bar.time >= periodParams.from && bar.time <= periodParams.to
             );
@@ -118,8 +117,7 @@ export const TradingChart: React.FC<Props> = ({
           subscriberUID: string,
           onResetCacheNeededCallback: () => void
         ) => {
-          // We'll update through the data prop changes
-          const lastBar = data[data.length - 1];
+          const lastBar = data?.[data.length - 1];
           if (lastBar && (!lastDataRef.current.length || lastBar.time !== lastDataRef.current[lastDataRef.current.length - 1]?.time)) {
             onRealtimeCallback(lastBar);
             lastDataRef.current = [...lastDataRef.current, lastBar];
@@ -127,7 +125,6 @@ export const TradingChart: React.FC<Props> = ({
         },
 
         unsubscribeBars: () => {
-          // Cleanup subscription if needed
         }
       }
     });
@@ -140,11 +137,9 @@ export const TradingChart: React.FC<Props> = ({
   const handleReconnect = () => {
     setError(false);
     if (container.current) {
-      // Clean up old widget
       while (container.current.firstChild) {
         container.current.removeChild(container.current.firstChild);
       }
-      // Reinitialize
       initializeWidget();
     }
   };
@@ -164,9 +159,8 @@ export const TradingChart: React.FC<Props> = ({
     };
   }, []);
 
-  // Update data when props change
   useEffect(() => {
-    if (data.length > 0 && widgetRef.current?.activeChart?.() && !error) {
+    if (data?.length > 0 && widgetRef.current?.activeChart?.() && !error) {
       const lastBar = data[data.length - 1];
       if (lastBar && (!lastDataRef.current.length || lastBar.time !== lastDataRef.current[lastDataRef.current.length - 1]?.time)) {
         lastDataRef.current = [...lastDataRef.current, lastBar];
