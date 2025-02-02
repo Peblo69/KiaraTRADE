@@ -1,6 +1,5 @@
 import React from 'react';
 import { TradingProvider } from './context/TradingContext';
-import TradingChart from './components/TradingChart';
 import TradingForm from './components/TradingForm';
 import TradeHistory from './components/TradeHistory';
 import TopBar from './components/TopBar';
@@ -31,25 +30,37 @@ function App() {
         </div>
 
         <TopBar />
-        
+
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-12 gap-4">
             {/* Left Column - Market Stats & Social Metrics */}
             <div className="col-span-2 space-y-4">
-              <MarketStats />
-              <SocialMetrics />
+              <MarketStats tokenAddress="your-token-address" />
+              <SocialMetrics tokenAddress="your-token-address" />
             </div>
 
             {/* Main Trading Area */}
             <div className="col-span-7 space-y-4">
-              <TradingChart />
-              <TradeHistory />
+              {/* Chart removed temporarily */}
+              <div className="bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-2">
+                    <h2 className="text-purple-100 font-semibold">
+                      Chart Coming Soon
+                    </h2>
+                  </div>
+                </div>
+                <div className="h-[500px] w-full flex items-center justify-center text-purple-400">
+                  Implementing clean price chart...
+                </div>
+              </div>
+              <TradeHistory tokenAddress="your-token-address" />
             </div>
 
             {/* Right Column - Trading Form & Holder Analytics */}
             <div className="col-span-3 space-y-4">
-              <TradingForm />
-              <HolderAnalytics />
+              <TradingForm tokenAddress="your-token-address" />
+              <HolderAnalytics tokenAddress="your-token-address" />
             </div>
           </div>
         </div>
