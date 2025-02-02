@@ -5,7 +5,7 @@ import { wsManager } from '@/lib/websocket-manager';
 
 interface Props {
   tokenAddress: string;
-  data: {
+  data?: {
     time: number;
     open: number;
     high: number;
@@ -15,6 +15,12 @@ interface Props {
   }[];
   onTimeframeChange?: (timeframe: string) => void;
   timeframe?: string;
+}
+
+declare global {
+  interface Window {
+    LightweightCharts: any;
+  }
 }
 
 export const TradingChart: React.FC<Props> = ({
@@ -29,6 +35,7 @@ export const TradingChart: React.FC<Props> = ({
 
   // Get data from store
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const solPrice = usePumpPortalStore(state => state.solPrice);
   const trades = token?.recentTrades || [];
 
   useEffect(() => {
@@ -43,13 +50,8 @@ export const TradingChart: React.FC<Props> = ({
     script.async = true;
 
     script.onload = () => {
-      // Return early if container is not available
-      if (!containerRef.current) {
-        return;
-      }
-
-      // Return early if LightweightCharts is not available
-      if (typeof window.LightweightCharts === 'undefined') {
+      if (!containerRef.current || !window.LightweightCharts) {
+        console.warn('[Chart] Container or LightweightCharts not available');
         return;
       }
 
@@ -162,8 +164,10 @@ export const TradingChart: React.FC<Props> = ({
           lastCandle: candleData[candleData.length - 1]
         });
 
-        candleSeries.setData(candleData);
-        volumeSeries.setData(candleData);
+        if (candleData.length > 0) {
+          candleSeries.setData(candleData);
+          volumeSeries.setData(candleData);
+        }
       }
 
       // Handle resizing
@@ -193,7 +197,6 @@ export const TradingChart: React.FC<Props> = ({
 
     document.head.appendChild(script);
 
-    // Cleanup
     return () => {
       if (script.parentNode) {
         script.parentNode.removeChild(script);

@@ -1,37 +1,48 @@
 import React, { useEffect, useRef } from 'react';
 import { LineChart } from 'lucide-react';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { calculatePumpFunTokenMetrics } from '@/utils/token-calculations';
+import { wsManager } from '@/lib/websocket-manager';
 
 interface Props {
   tokenAddress: string;
+  data?: {
+    time: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  }[];
+  onTimeframeChange?: (timeframe: string) => void;
+  timeframe?: string;
 }
 
-const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
+declare global {
+  interface Window {
+    LightweightCharts: any;
+  }
+}
+
+export const TradingChart: React.FC<Props> = ({
+  tokenAddress,
+  data = [],
+  onTimeframeChange,
+  timeframe = '1m'
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
-  // Get exact same data as your other components
+  // Get data from store
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
   const solPrice = usePumpPortalStore(state => state.solPrice);
   const trades = token?.recentTrades || [];
 
   useEffect(() => {
-    if (!token || !trades.length) return;
-
-    // Pre-calculate prices to ensure they're ready
-    const metrics = calculatePumpFunTokenMetrics({
-      vSolInBondingCurve: token.vSolInBondingCurve,
-      vTokensInBondingCurve: token.vTokensInBondingCurve,
-      solPrice
-    });
-
-    console.log('[Chart] Initial metrics:', {
-      token: token.symbol,
-      priceUSD: metrics.price.usd,
-      priceSol: metrics.price.sol,
-      trades: trades.length
+    console.log('[Chart] Setup for token:', tokenAddress, {
+      tradesCount: trades.length,
+      wsStatus: wsManager.getStatus(),
+      dataLength: data.length
     });
 
     const script = document.createElement('script');
@@ -39,7 +50,10 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
     script.async = true;
 
     script.onload = () => {
-      if (!containerRef.current || !window.LightweightCharts) return;
+      if (!containerRef.current || !window.LightweightCharts) {
+        console.warn('[Chart] Container or LightweightCharts not available');
+        return;
+      }
 
       // Cleanup old chart properly
       if (cleanupRef.current) {
@@ -102,52 +116,61 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
         },
       });
 
-      // Process trades using store's calculation logic
-      const ohlcData = new Map();
-      const minuteInMs = 60000;
-
-      trades.forEach(trade => {
-        const tradeMetrics = calculatePumpFunTokenMetrics({
-          vSolInBondingCurve: trade.vSolInBondingCurve,
-          vTokensInBondingCurve: trade.vTokensInBondingCurve,
-          solPrice
+      // Use provided data first
+      if (data.length > 0) {
+        console.log('[Chart] Using provided data:', {
+          token: tokenAddress,
+          candleCount: data.length,
+          firstCandle: data[0],
+          lastCandle: data[data.length - 1]
         });
 
-        const timestamp = Math.floor(trade.timestamp / minuteInMs) * minuteInMs;
+        candleSeries.setData(data);
+        volumeSeries.setData(data);
+      }
+      // Fall back to processing trades if no data provided
+      else if (trades.length > 0 && token) {
+        const ohlcData = new Map();
+        const minuteInMs = 60000;
 
-        if (!ohlcData.has(timestamp)) {
-          ohlcData.set(timestamp, {
-            time: timestamp / 1000,
-            open: tradeMetrics.price.usd,
-            high: tradeMetrics.price.usd,
-            low: tradeMetrics.price.usd,
-            close: tradeMetrics.price.usd,
-            volume: trade.tokenAmount
-          });
-        } else {
-          const candle = ohlcData.get(timestamp);
-          candle.high = Math.max(candle.high, tradeMetrics.price.usd);
-          candle.low = Math.min(candle.low, tradeMetrics.price.usd);
-          candle.close = tradeMetrics.price.usd;
-          candle.volume += trade.tokenAmount;
+        trades.forEach(trade => {
+          const timestamp = Math.floor(trade.timestamp / minuteInMs) * minuteInMs;
+
+          if (!ohlcData.has(timestamp)) {
+            ohlcData.set(timestamp, {
+              time: timestamp / 1000,
+              open: trade.priceInUsd,
+              high: trade.priceInUsd,
+              low: trade.priceInUsd,
+              close: trade.priceInUsd,
+              volume: trade.tokenAmount
+            });
+          } else {
+            const candle = ohlcData.get(timestamp);
+            candle.high = Math.max(candle.high, trade.priceInUsd);
+            candle.low = Math.min(candle.low, trade.priceInUsd);
+            candle.close = trade.priceInUsd;
+            candle.volume += trade.tokenAmount;
+          }
+        });
+
+        const candleData = Array.from(ohlcData.values())
+          .sort((a, b) => a.time - b.time);
+
+        console.log('[Chart] Processed trades:', {
+          token: tokenAddress,
+          candleCount: candleData.length,
+          firstCandle: candleData[0],
+          lastCandle: candleData[candleData.length - 1]
+        });
+
+        if (candleData.length > 0) {
+          candleSeries.setData(candleData);
+          volumeSeries.setData(candleData);
         }
-      });
-
-      const candleData = Array.from(ohlcData.values())
-        .sort((a, b) => a.time - b.time);
-
-      if (candleData.length > 0) {
-        console.log('[Chart] Candle data:', {
-          first: candleData[0],
-          last: candleData[candleData.length - 1],
-          count: candleData.length
-        });
-
-        candleSeries.setData(candleData);
-        volumeSeries.setData(candleData);
       }
 
-      // Set up real-time updates
+      // Handle resizing
       const handleResize = () => {
         if (containerRef.current) {
           chart.applyOptions({
@@ -164,7 +187,9 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
         if (chart) {
           chart.remove();
         }
-        containerRef.current?.innerHTML = '';
+        if (containerRef.current) {
+          containerRef.current.innerHTML = '';
+        }
       };
 
       chartRef.current = chart;
@@ -180,11 +205,11 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
         cleanupRef.current();
       }
     };
-  }, [tokenAddress, trades.length]); // Only rerender when trades change
+  }, [tokenAddress, trades.length, data.length]);
 
   return (
-    <div className="relative bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
-      <div className="flex items-center justify-between mb-4">
+    <div className="w-full h-full bg-[#161b2b] rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between p-4 border-b border-purple-900/30">
         <div className="flex items-center space-x-2">
           <LineChart className="w-5 h-5 text-purple-400" />
           <h2 className="text-purple-100 font-semibold">
@@ -192,7 +217,10 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
           </h2>
         </div>
       </div>
-      <div ref={containerRef} className="h-[500px] w-full" />
+      <div 
+        ref={containerRef}
+        className="w-full h-[500px]"
+      />
     </div>
   );
 };
