@@ -51,7 +51,7 @@ function debugLog(source: string, message: string, data?: any) {
   }
 }
 
-export function registerRoutes(app: Express): Server {
+export function registerRoutes() {
   debugLog('Server', `Initializing server for user ${process.env.REPL_OWNER || 'unknown'}`);
 
   const server = createServer(app);
@@ -903,7 +903,7 @@ export function registerRoutes(app: Express): Server {
       process.exit(0);
     });
   });
-  return server;
+  return app;
 }
 // Helper functions
 function calculateRiskScore(tokenInfo: any, holderConcentration: any, snipers: any[]): number {
@@ -998,6 +998,10 @@ function calculatePriceImpact(trades: Array<{ amount: number }>) {
 
 // Core functionality
 const chatHistory: Record<string, any[]> = {};
+
+import express from 'express';
+
+const app = express.Router();
 
 // Basic coin metadata mapping
 const COIN_METADATA: Record<string, { name: string, image: string }> = {

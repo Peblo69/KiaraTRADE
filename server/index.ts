@@ -9,7 +9,9 @@ app.use(express.urlencoded({ extended: false }));
 async function startServer() {
   try {
     // Register routes first
-    const server = registerRoutes(app);
+    const routes = registerRoutes();
+app.use(routes);
+const server = createServer(app);
 
     // Global error handler middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
