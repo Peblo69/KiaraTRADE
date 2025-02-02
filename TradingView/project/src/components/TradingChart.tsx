@@ -1,79 +1,154 @@
+
 import React, { useEffect, useRef } from 'react';
-import { createChart, IChartApi } from 'lightweight-charts';
 import { LineChart } from 'lucide-react';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
-const TradingChart: React.FC = () => {
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const candleSeriesRef = useRef<any>(null);
+interface Props {
+  tokenAddress: string;
+}
 
-  // Mock data with non-zero values
-  const initialData = [
-    { time: '2024-01-01', open: 167.89, high: 169.42, low: 165.76, close: 168.23 },
-    { time: '2024-01-02', open: 168.23, high: 171.54, low: 167.95, close: 170.89 },
-    { time: '2024-01-03', open: 170.89, high: 172.15, low: 169.45, close: 171.23 },
-    { time: '2024-01-04', open: 171.23, high: 173.89, low: 170.67, close: 172.45 },
-    { time: '2024-01-05', open: 172.45, high: 175.23, low: 171.98, close: 174.67 }
-  ];
+const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const solPrice = usePumpPortalStore(state => state.solPrice);
+  const trades = token?.recentTrades || [];
 
   useEffect(() => {
-    if (!chartContainerRef.current || chartRef.current) return;
-
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { color: '#0D0B1F' },
-        textColor: '#d1d4dc',
-      },
-      grid: {
-        vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
-        horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: 400,
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: true,
-      },
+    console.log('Chart Debug:', {
+      hasToken: !!token,
+      tradesCount: trades.length,
+      firstTrade: trades[0],
+      solPrice
     });
 
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderUpColor: '#26a69a',
-      borderDownColor: '#ef5350',
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
-    });
+    const script = document.createElement('script');
+    script.src = 'https://s3.tradingview.com/tv.js';
+    script.async = true;
+    
+    script.onload = () => {
+      if (!containerRef.current || !window.TradingView) return;
 
-    candleSeries.setData(initialData);
+      const widget = new window.TradingView.widget({
+        container_id: containerRef.current.id,
+        symbol: `SOL:${tokenAddress.slice(0, 8)}`,
+        interval: '1',
+        timezone: 'Etc/UTC',
+        theme: 'dark',
+        style: '1',
+        locale: 'en',
+        toolbar_bg: '#0D0B1F',
+        enable_publishing: false,
+        hide_side_toolbar: false,
+        allow_symbol_change: false,
+        save_image: false,
+        height: 500,
+        width: '100%',
+        datafeed: {
+          onReady: (callback: any) => {
+            callback({
+              supported_resolutions: ['1', '5', '15', '30', '60']
+            });
+          },
+          resolveSymbol: (symbolName: string, onSymbolResolvedCallback: any) => {
+            onSymbolResolvedCallback({
+              name: `${token?.symbol || tokenAddress.slice(0, 8)}`,
+              description: token?.name || 'Token',
+              type: 'crypto',
+              session: '24x7',
+              timezone: 'Etc/UTC',
+              minmov: 1,
+              pricescale: 1000000000,
+              has_intraday: true,
+              has_no_volume: false,
+              volume_precision: 8,
+              data_status: 'streaming'
+            });
+          },
+          getBars: (symbolInfo: any, resolution: string, from: number, to: number, onHistoryCallback: any) => {
+            if (!trades.length) {
+              onHistoryCallback([], { noData: true });
+              return;
+            }
 
-    chartRef.current = chart;
-    candleSeriesRef.current = candleSeries;
+            const interval = parseInt(resolution) * 60 * 1000;
+            const bars = new Map();
 
-    const handleResize = () => {
-      if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+            trades.forEach(trade => {
+              const timestamp = Math.floor(trade.timestamp / interval) * interval;
+              
+              if (!bars.has(timestamp)) {
+                bars.set(timestamp, {
+                  time: timestamp / 1000,
+                  open: trade.priceInUsd,
+                  high: trade.priceInUsd,
+                  low: trade.priceInUsd,
+                  close: trade.priceInUsd,
+                  volume: trade.tokenAmount
+                });
+              } else {
+                const bar = bars.get(timestamp);
+                bar.high = Math.max(bar.high, trade.priceInUsd);
+                bar.low = Math.min(bar.low, trade.priceInUsd);
+                bar.close = trade.priceInUsd;
+                bar.volume += trade.tokenAmount;
+              }
+            });
+
+            onHistoryCallback(Array.from(bars.values()), { noData: false });
+          },
+          subscribeBars: (symbolInfo: any, resolution: string, onRealtimeCallback: any) => {
+            if (trades[0]) {
+              onRealtimeCallback({
+                time: trades[0].timestamp / 1000,
+                open: trades[0].priceInUsd,
+                high: trades[0].priceInUsd,
+                low: trades[0].priceInUsd,
+                close: trades[0].priceInUsd,
+                volume: trades[0].tokenAmount
+              });
+            }
+          },
+          unsubscribeBars: () => {}
+        },
+        studies: [
+          'Volume@tv-basicstudies'
+        ],
+        overrides: {
+          "mainSeriesProperties.candleStyle.upColor": "#26a69a",
+          "mainSeriesProperties.candleStyle.downColor": "#ef5350",
+          "mainSeriesProperties.candleStyle.wickUpColor": "#26a69a",
+          "mainSeriesProperties.candleStyle.wickDownColor": "#ef5350",
+          "paneProperties.background": "#0D0B1F",
+          "paneProperties.vertGridProperties.color": "rgba(42, 46, 57, 0.2)",
+          "paneProperties.horzGridProperties.color": "rgba(42, 46, 57, 0.2)"
+        }
+      });
+    };
+
+    document.head.appendChild(script);
+    return () => {
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
       }
     };
-
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      chart.remove();
-      chartRef.current = null;
-    };
-  }, []);
+  }, [tokenAddress, token, trades, solPrice]);
 
   return (
     <div className="relative bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-2">
           <LineChart className="w-5 h-5 text-purple-400" />
-          <h2 className="text-purple-100 font-semibold">Price Chart</h2>
+          <h2 className="text-purple-100 font-semibold">
+            {token?.symbol || tokenAddress.slice(0, 6)}... Live Chart
+          </h2>
         </div>
       </div>
-      <div ref={chartContainerRef} className="h-[400px]" />
+      <div 
+        id="tradingview_chart" 
+        ref={containerRef} 
+        className="h-[500px] w-full"
+      />
     </div>
   );
 };
