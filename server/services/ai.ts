@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { KiaraBehavior, KiaraMode, determineMode, getResponse, getCreatorResponse, getFakeCreatorResponse } from "../../client/src/lib/kiara-behavior-config";
+import { KiaraBehavior, KiaraMode, determineMode, getResponse, getCreatorResponse, getFakeCreatorResponse, isCreatorCommand } from "../../client/src/lib/kiara-behavior-config";
 
 interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -57,8 +57,8 @@ export async function generateAIResponse(
   }
 
   try {
-    // Check for creator mode activation
-    if (message.includes(KiaraBehavior.creatorTriggerPhrase)) {
+    // Check for creator mode activation - use exact match
+    if (isCreatorCommand(message)) {
       userProfile.isCreatorMode = true;
       return getCreatorResponse('activation');
     }

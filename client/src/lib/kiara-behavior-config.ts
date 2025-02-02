@@ -1,6 +1,5 @@
 export const KiaraBehavior = {
   creatorTriggerPhrase: "Kiara znaesh ma",
-
   creatorMode: {
     responses: {
       activation: [
@@ -212,4 +211,8 @@ export function getResponse(mode: KiaraMode, context?: string) {
     behaviors: modeConfig.behaviors,
     examples: modeConfig.examples
   };
+}
+
+export function isCreatorCommand(message: string): boolean {
+  return message.trim() === KiaraBehavior.creatorTriggerPhrase;
 }
