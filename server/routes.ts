@@ -2,7 +2,8 @@ import { db } from "@db";
 import { coinImages, coinMappings } from "@db/schema";
 import { eq } from "drizzle-orm";
 import type { Express } from "express";
-import { createServer, type Server } from "http";
+import { createServer } from 'http';
+import type { Server } from "http";
 import { wsManager } from './services/websocket';
 import { initializePumpPortalWebSocket } from './pumpportal';
 import axios from 'axios';
@@ -924,7 +925,7 @@ function calculateRiskScore(tokenInfo: any, holderConcentration: any, snipers: a
   // Sniper activity risk (30 points)
   if (snipers.length > 20) {
     score += 30;
-  } else if (snipers.length > 10) {
+  } else if (snipers.length> 10) {
     score += 15;
   }
 
