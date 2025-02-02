@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { LineChart } from 'lucide-react';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { wsManager } from '@/lib/websocket-manager';
+import { calculatePumpFunTokenMetrics } from '@/utils/token-calculations';
 
 interface Props {
   tokenAddress: string;
@@ -12,13 +12,26 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
   const chartRef = useRef<any>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
+  // Get exact same data as your other components
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const solPrice = usePumpPortalStore(state => state.solPrice);
   const trades = token?.recentTrades || [];
 
   useEffect(() => {
-    console.log('[Chart] Setup for token:', tokenAddress, {
-      tradesCount: trades.length,
-      wsStatus: wsManager.getStatus()
+    if (!token || !trades.length) return;
+
+    // Pre-calculate prices to ensure they're ready
+    const metrics = calculatePumpFunTokenMetrics({
+      vSolInBondingCurve: token.vSolInBondingCurve,
+      vTokensInBondingCurve: token.vTokensInBondingCurve,
+      solPrice
+    });
+
+    console.log('[Chart] Initial metrics:', {
+      token: token.symbol,
+      priceUSD: metrics.price.usd,
+      priceSol: metrics.price.sol,
+      trades: trades.length
     });
 
     const script = document.createElement('script');
@@ -48,6 +61,23 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
         timeScale: {
           timeVisible: true,
           secondsVisible: true,
+          borderColor: '#485c7b',
+        },
+        rightPriceScale: {
+          borderColor: '#485c7b',
+        },
+        crosshair: {
+          mode: 1,
+          vertLine: {
+            color: '#758696',
+            width: 1,
+            labelBackgroundColor: '#0D0B1F',
+          },
+          horzLine: {
+            color: '#758696',
+            width: 1,
+            labelBackgroundColor: '#0D0B1F',
+          },
         },
       });
 
@@ -72,48 +102,52 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
         },
       });
 
-      // Process trades using WebSocket manager's exact logic
-      if (trades.length > 0 && token) {
-        const ohlcData = new Map();
-        const minuteInMs = 60000;
+      // Process trades using store's calculation logic
+      const ohlcData = new Map();
+      const minuteInMs = 60000;
 
-        trades.forEach(trade => {
-          // Use the prices already calculated by WebSocket
-          const timestamp = Math.floor(trade.timestamp / minuteInMs) * minuteInMs;
-
-          if (!ohlcData.has(timestamp)) {
-            ohlcData.set(timestamp, {
-              time: timestamp / 1000,
-              open: trade.priceInUsd,
-              high: trade.priceInUsd,
-              low: trade.priceInUsd,
-              close: trade.priceInUsd,
-              volume: trade.tokenAmount
-            });
-          } else {
-            const candle = ohlcData.get(timestamp);
-            candle.high = Math.max(candle.high, trade.priceInUsd);
-            candle.low = Math.min(candle.low, trade.priceInUsd);
-            candle.close = trade.priceInUsd;
-            candle.volume += trade.tokenAmount;
-          }
+      trades.forEach(trade => {
+        const tradeMetrics = calculatePumpFunTokenMetrics({
+          vSolInBondingCurve: trade.vSolInBondingCurve,
+          vTokensInBondingCurve: trade.vTokensInBondingCurve,
+          solPrice
         });
 
-        const candleData = Array.from(ohlcData.values())
-          .sort((a, b) => a.time - b.time);
+        const timestamp = Math.floor(trade.timestamp / minuteInMs) * minuteInMs;
 
-        console.log('[Chart] Processed candles:', {
-          token: tokenAddress,
-          candleCount: candleData.length,
-          firstCandle: candleData[0],
-          lastCandle: candleData[candleData.length - 1]
+        if (!ohlcData.has(timestamp)) {
+          ohlcData.set(timestamp, {
+            time: timestamp / 1000,
+            open: tradeMetrics.price.usd,
+            high: tradeMetrics.price.usd,
+            low: tradeMetrics.price.usd,
+            close: tradeMetrics.price.usd,
+            volume: trade.tokenAmount
+          });
+        } else {
+          const candle = ohlcData.get(timestamp);
+          candle.high = Math.max(candle.high, tradeMetrics.price.usd);
+          candle.low = Math.min(candle.low, tradeMetrics.price.usd);
+          candle.close = tradeMetrics.price.usd;
+          candle.volume += trade.tokenAmount;
+        }
+      });
+
+      const candleData = Array.from(ohlcData.values())
+        .sort((a, b) => a.time - b.time);
+
+      if (candleData.length > 0) {
+        console.log('[Chart] Candle data:', {
+          first: candleData[0],
+          last: candleData[candleData.length - 1],
+          count: candleData.length
         });
 
         candleSeries.setData(candleData);
         volumeSeries.setData(candleData);
       }
 
-      // Handle resizing
+      // Set up real-time updates
       const handleResize = () => {
         if (containerRef.current) {
           chart.applyOptions({
@@ -138,7 +172,6 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
 
     document.head.appendChild(script);
 
-    // Cleanup
     return () => {
       if (script.parentNode) {
         script.parentNode.removeChild(script);
@@ -147,7 +180,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
         cleanupRef.current();
       }
     };
-  }, [tokenAddress, trades.length]);
+  }, [tokenAddress, trades.length]); // Only rerender when trades change
 
   return (
     <div className="relative bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
