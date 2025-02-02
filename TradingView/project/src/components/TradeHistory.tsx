@@ -29,7 +29,7 @@ const checkTradeSpeed = (trades: any[], currentTrade: any) => {
 
 const isSuspiciouslyFast = (speed: number | null) => {
   if (speed === null) return false;
-  const BOT_SPEED_THRESHOLD = 500; // 0.5 seconds
+  const BOT_SPEED_THRESHOLD = 2000; // 2 seconds - adjusted from 500ms
   return speed < BOT_SPEED_THRESHOLD;
 };
 
@@ -75,111 +75,100 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
   };
 
   return (
-    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30">
-      <div className="p-4 border-b border-purple-900/30">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <History className="w-5 h-5 text-purple-400" />
-            <h2 className="text-purple-100 font-semibold">Trade History</h2>
-          </div>
-          <div className="text-xs text-purple-400">
-            {trades.length} trades
-          </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <History className="w-5 h-5 text-purple-400" />
+          <h2 className="text-lg font-semibold text-purple-100">Trade History</h2>
+        </div>
+        <div className="text-xs text-purple-400">
+          {trades.length} trades
         </div>
       </div>
 
-      <div className="p-2 max-h-[600px] overflow-y-auto custom-scrollbar">
-        <div className="grid grid-cols-6 text-xs text-purple-400 pb-2 sticky top-0 bg-[#0D0B1F] border-b border-purple-900/30">
+      <div className="custom-scrollbar h-[calc(100vh-220px)] overflow-y-auto">
+        <div className="grid grid-cols-6 text-xs text-purple-400 pb-2 sticky top-0 bg-[#0D0B1F] p-2">
           <span>Time</span>
           <span>Wallet</span>
-          <span className="text-right">Type</span>
+          <span className="text-right">Price</span>
           <span className="text-right">Amount</span>
           <span className="text-right">SOL</span>
           <span className="text-right">Total</span>
         </div>
 
-        <AnimatePresence initial={false}>
-          {trades.map((trade, index) => {
-            const total = trade.solAmount * solPrice;
-            const isNew = index === 0;
+        {trades.map((trade, index) => {
+          // Debug bot detection
+          const tradeSpeed = checkTradeSpeed(trades, trade);
+          const isBot = isSuspiciouslyFast(tradeSpeed);
+          console.log('Trade Analysis:', {
+            trader: trade.traderPublicKey.slice(0, 6),
+            timeBetweenTrades: tradeSpeed,
+            isBot,
+            amount: trade.solAmount,
+            isWhale: isWhale(trade.solAmount)
+          });
 
-            return (
-              <motion.div
-                key={trade.signature}
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
-                className={`grid grid-cols-6 text-xs py-2 group hover:bg-purple-900/20 border-b border-purple-900/10 ${
-                  isNew ? 'bg-purple-500/10' : ''
-                }`}
-              >
-                <span className="text-purple-300">
-                  {formatTime(trade.timestamp)}
-                </span>
-
-                <div className="flex items-center space-x-1">
-                  <div className="flex items-center">
-                    <button
-                      className={`text-${trade.txType === 'buy' ? 'green' : 'red'}-400 hover:underline`}
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              key={`${trade.signature}-${index}`}
+              className="grid grid-cols-6 text-xs p-2 hover:bg-purple-900/20 rounded group"
+            >
+              <span className="text-purple-300">
+                {formatTime(trade.timestamp)}
+              </span>
+              <div className="flex items-center space-x-1">
+                <div className="flex items-center">
+                  <button
+                    className={`text-${trade.txType === 'buy' ? 'green' : 'red'}-400 hover:underline`}
+                  >
+                    {trade.traderPublicKey.slice(0, 6)}...{trade.traderPublicKey.slice(-4)}
+                  </button>
+                  {isSuspiciouslyFast(tradeSpeed) && (
+                    <span 
+                      className="ml-1" 
+                      title={`Bot-like trading pattern detected: ${tradeSpeed}ms between trades`}
                     >
-                      {trade.traderPublicKey.slice(0, 6)}...{trade.traderPublicKey.slice(-4)}
-                    </button>
-                    {isSuspiciouslyFast(checkTradeSpeed(trades, trade)) && (
-                      <span 
-                        className="ml-1" 
-                        title="Bot-like trading pattern detected"
-                      >
-                        🤖
-                      </span>
-                    )}
-                    {isWhale(trade.solAmount) && (
-                      <span className="ml-1" title={`Whale Trade: ${trade.solAmount} SOL`}>🐋</span>
-                    )}
-                  </div>
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                    <button
-                      onClick={() => copyToClipboard(trade.traderPublicKey)}
-                      className="p-1 hover:bg-purple-900/40 rounded"
-                    >
-                      {copiedAddress === trade.traderPublicKey ? (
-                        <CheckCircle className="w-3 h-3 text-green-400" />
-                      ) : (
-                        <Copy className="w-3 h-3 text-purple-400" />
-                      )}
-                    </button>
-                    <a
-                      href={`https://solscan.io/account/${trade.traderPublicKey}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1 hover:bg-purple-900/40 rounded"
-                    >
-                      <ExternalLink className="w-3 h-3 text-purple-400" />
-                    </a>
-                  </div>
+                      🤖
+                    </span>
+                  )}
+                  {isWhale(trade.solAmount) && (
+                    <span className="ml-1" title={`Whale Trade: ${trade.solAmount} SOL`}>🐋</span>
+                  )}
                 </div>
-
-                <span className={`text-right font-medium ${
-                  trade.txType === 'buy' ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  {trade.txType.toUpperCase()}
-                </span>
-
-                <span className="text-right text-purple-300">
-                  {trade.tokenAmount.toLocaleString()}
-                </span>
-
-                <span className="text-right text-purple-300">
-                  {trade.solAmount.toFixed(3)} SOL
-                </span>
-
-                <span className="text-right text-purple-300">
-                  ${total.toFixed(2)}
-                </span>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                  <button
+                    onClick={() => copyToClipboard(trade.traderPublicKey)}
+                    className="p-1 hover:bg-purple-900/40 rounded"
+                  >
+                    <Copy className="w-3 h-3 text-purple-400" />
+                  </button>
+                  <a
+                    href={`https://solscan.io/tx/${trade.signature}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1 hover:bg-purple-900/40 rounded"
+                  >
+                    <ExternalLink className="w-3 h-3 text-purple-400" />
+                  </a>
+                </div>
+              </div>
+              <span className="text-right text-purple-300">
+                ${trade.priceInUsd?.toFixed(8)}
+              </span>
+              <span className="text-right text-purple-300">
+                {trade.tokenAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </span>
+              <span className="text-right text-purple-300">
+                {trade.solAmount.toFixed(3)}
+              </span>
+              <span className="text-right text-purple-300">
+                ${(trade.solAmount * (trade.priceInUsd || 0)).toFixed(2)}
+              </span>
+            </motion.div>
+          );
+        })}
       </div>
     </div>
   );

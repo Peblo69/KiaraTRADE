@@ -69,6 +69,7 @@ const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
     const volume24h = last24hTrades.reduce((sum, trade) => 
       sum + (trade.tokenAmount || 0) * (trade.priceInUsd || 0), 0);
 
+    // Use the direct marketCapSol value from token state for real-time updates
     const marketCapUsd = token.marketCapSol * solPrice;
     const liquidityUsd = token.vSolInBondingCurve * solPrice;
 
@@ -79,7 +80,7 @@ const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
       },
       marketCap: {
         usd: marketCapUsd,
-        sol: token.marketCapSol || 0
+        sol: token.marketCapSol
       },
       volume: {
         usd: volume24h,
@@ -87,7 +88,7 @@ const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
       },
       liquidity: {
         usd: liquidityUsd,
-        sol: token.vSolInBondingCurve || 0
+        sol: token.vSolInBondingCurve
       }
     };
   }, [token, solPrice]);
