@@ -1,7 +1,6 @@
-
-import { FC, useState, useEffect, useRef, useMemo } from "react";
+import { FC, useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Settings, Maximize2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import { motion } from "framer-motion";
 import TokenStats from "./TokenStats";
@@ -37,60 +36,11 @@ function getTimeframeMs(timeframe: string): number {
 
 const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const candleSeriesRef = useRef<any>(null);
-  const volumeSeriesRef = useRef<any>(null);
   const [timeframe, setTimeframe] = useState('1s');
-
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
 
-  const { candleData, volumeData } = useMemo(() => {
-    if (!token?.recentTrades?.length) {
-      return { candleData: [], volumeData: [] };
-    }
-
-    const timeframeMs = getTimeframeMs(timeframe);
-    const groupedTrades: Record<number, any[]> = {};
-
-    token.recentTrades.forEach(trade => {
-      const timestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
-      if (!groupedTrades[timestamp]) {
-        groupedTrades[timestamp] = [];
-      }
-      groupedTrades[timestamp].push(trade);
-    });
-
-    const candles = [];
-    const volumes = [];
-
-    Object.entries(groupedTrades).forEach(([time, trades]) => {
-      const prices = trades.map(t => t.priceInUsd);
-      const tokenVolumes = trades.map(t => t.tokenAmount);
-      const totalVolume = tokenVolumes.reduce((a, b) => a + b, 0);
-
-      candles.push({
-        time: parseInt(time) / 1000,
-        open: prices[0],
-        high: Math.max(...prices),
-        low: Math.min(...prices),
-        close: prices[prices.length - 1],
-      });
-
-      volumes.push({
-        time: parseInt(time) / 1000,
-        value: totalVolume,
-        color: prices[prices.length - 1] >= prices[0] ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)'
-      });
-    });
-
-    return {
-      candleData: candles.sort((a, b) => a.time - b.time),
-      volumeData: volumes.sort((a, b) => a.time - b.time)
-    };
-  }, [token?.recentTrades, timeframe]);
-
   useEffect(() => {
-    if (!chartContainerRef.current || chartRef.current) return;
+    if (!chartContainerRef.current) return;
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
@@ -124,28 +74,54 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
       priceScaleId: '',
     });
 
-    chartRef.current = chart;
-    candleSeriesRef.current = candleSeries;
-    volumeSeriesRef.current = volumeSeries;
+    if (token?.recentTrades?.length) {
+      const timeframeMs = getTimeframeMs(timeframe);
+      const groupedTrades: Record<number, any[]> = {};
+
+      token.recentTrades.forEach(trade => {
+        const timestamp = Math.floor(trade.timestamp / timeframeMs) * timeframeMs;
+        if (!groupedTrades[timestamp]) {
+          groupedTrades[timestamp] = [];
+        }
+        groupedTrades[timestamp].push(trade);
+      });
+
+      const candleData = Object.entries(groupedTrades).map(([time, trades]) => {
+        const prices = trades.map(t => t.priceInUsd);
+        const volumes = trades.map(t => t.tokenAmount);
+        const totalVolume = volumes.reduce((a, b) => a + b, 0);
+
+        return {
+          time: parseInt(time) / 1000,
+          open: prices[0],
+          high: Math.max(...prices),
+          low: Math.min(...prices),
+          close: prices[prices.length - 1],
+          value: totalVolume,
+          color: prices[prices.length - 1] >= prices[0] ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)'
+        };
+      }).sort((a, b) => a.time - b.time);
+
+      candleSeries.setData(candleData);
+      volumeSeries.setData(candleData);
+      chart.timeScale().fitContent();
+    }
+
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({
+          width: chartContainerRef.current.clientWidth,
+        });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
 
     return () => {
+      window.removeEventListener('resize', handleResize);
       chart.remove();
-      chartRef.current = null;
     };
-  }, []);
-
-  useEffect(() => {
-    if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
-
-    requestAnimationFrame(() => {
-      candleSeriesRef.current.setData(candleData);
-      volumeSeriesRef.current.setData(volumeData);
-
-      if (chartRef.current && candleData.length > 0) {
-        chartRef.current.timeScale().fitContent();
-      }
-    });
-  }, [candleData, volumeData]);
+  }, [token?.recentTrades, timeframe]);
 
   if (!token) {
     return (
@@ -232,14 +208,6 @@ const TokenChart: FC<TokenChartProps> = ({ tokenAddress, onBack }) => {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-200">Price Chart</h2>
                   <p className="text-sm text-gray-400">Real-time market data</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" className="hover:bg-purple-500/20">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                  <Button size="sm" variant="outline" className="hover:bg-purple-500/20">
-                    <Maximize2 className="h-4 w-4" />
-                  </Button>
                 </div>
               </div>
 
