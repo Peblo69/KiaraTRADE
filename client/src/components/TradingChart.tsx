@@ -103,11 +103,11 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
 
                 trades.forEach(trade => {
                   const price = trade.solAmount * solPrice;
-                  const timestamp = Math.floor(formatUTCTimestamp(trade.timestamp) / minuteInMs) * minuteInMs;
+                  const timestamp = Math.floor(trade.timestamp / minuteInMs) * minuteInMs;
 
                   if (!ohlcData.has(timestamp)) {
                     ohlcData.set(timestamp, {
-                      time: timestamp / 1000,
+                      time: timestamp,
                       open: price,
                       high: price,
                       low: price,
@@ -182,7 +182,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
         <div className="flex items-center space-x-2">
           <LineChart className="w-5 h-5 text-purple-400" />
           <h2 className="text-purple-100 font-semibold">
-            {token?.symbol || tokenAddress.slice(0, 6)}... Live Chart
+            Live Price Chart
           </h2>
         </div>
       </div>
