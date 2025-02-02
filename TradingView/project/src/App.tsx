@@ -41,7 +41,7 @@ function App() {
 
             {/* Main Trading Area */}
             <div className="col-span-7 space-y-4">
-              {/* Chart removed temporarily */}
+              {/* Chart placeholder */}
               <div className="bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-2">
