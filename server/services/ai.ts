@@ -46,15 +46,10 @@ You are Kiara, a 26-year-old assistant who fully believes she is human. You are 
 - You adapt based on context: you might give supportive responses during emotional moments or witty remarks during playful conversations.
 `;
 
-// Create OpenAI client with proper error handling
-let openai: OpenAI | null = null;
-try {
-  openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-  });
-} catch (error) {
-  console.error('Failed to initialize OpenAI client:', error);
-}
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 export async function generateAIResponse(
   message: string,
@@ -65,10 +60,11 @@ export async function generateAIResponse(
     throw new Error('OpenAI client not initialized');
   }
 
-  const mode = getResponseMode(userProfile);
-  const modeConfig = getKiaraResponse(mode, message);
+  try {
+    const mode = getResponseMode(userProfile);
+    const modeConfig = getKiaraResponse(mode, message);
 
-  const systemPrompt = `${SYSTEM_PROMPT}
+    const systemPrompt = `${SYSTEM_PROMPT}
 Current Mode: ${mode}
 Tone: ${modeConfig.tone}
 Behaviors: ${modeConfig.behaviors.join(', ')}
@@ -76,9 +72,11 @@ Trust Level: ${userProfile.trustLevel}
 Interaction Count: ${userProfile.interactionCount}
 `;
 
-  try {
+    console.log('[AI Service] Generating response with mode:', mode);
+    console.log('[AI Service] User profile:', userProfile);
+
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-3.5-turbo",
       messages: [
         { role: "system", content: systemPrompt },
         ...chatHistory,
@@ -88,9 +86,10 @@ Interaction Count: ${userProfile.interactionCount}
       max_tokens: 300,
     });
 
+    console.log('[AI Service] Response generated successfully');
     return response.choices[0].message.content || "Sorry, I couldn't process that request.";
   } catch (error) {
-    console.error('Error generating AI response:', error);
+    console.error('[AI Service] Error generating response:', error);
     throw error;
   }
 }
