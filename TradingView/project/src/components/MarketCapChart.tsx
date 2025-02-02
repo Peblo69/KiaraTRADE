@@ -76,9 +76,6 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ tokenAddress }) => {
         },
         autoScale: true,
       },
-      leftPriceScale: {
-        visible: false,
-      },
       grid: {
         vertLines: {
           color: 'rgba(42, 46, 57, 0.5)',

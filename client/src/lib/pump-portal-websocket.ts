@@ -100,7 +100,6 @@ interface PumpPortalStore {
   getGraduatedTokens: () => PumpPortalToken[];
 }
 
-// Calculate token metrics for bonding curve
 const calculatePumpFunTokenMetrics = ({
   vSolInBondingCurve,
   vTokensInBondingCurve,
@@ -127,7 +126,7 @@ const calculatePumpFunTokenMetrics = ({
   const priceInSol = vSolInBondingCurve / denominator;
   const priceInUsd = priceInSol * solPrice;
 
-  // Calculate market cap using the correct formula
+  // Calculate market cap
   const marketCapSol = vSolInBondingCurve;
   const marketCapUsd = marketCapSol * solPrice;
 
@@ -275,7 +274,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const token = state.viewedTokens[address] || state.tokens.find(t => t.address === address);
     if (!token) return state;
 
-    // Add new trade and calculate updated metrics
     const updatedTrades = [tradeData, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN);
 
     const tokenMetrics = calculatePumpFunTokenMetrics({
@@ -324,7 +322,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
         }
       })
     };
-  }),
+}),
 
   setConnected: (connected) => {
     debugLog('setConnected', { connected });
