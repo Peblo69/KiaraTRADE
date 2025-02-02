@@ -6,12 +6,12 @@ import TokenCard from "@/components/TokenCard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Import Trading View components
-import MarketStats from "../../../TradingView/project/src/components/MarketStats";
-import SocialMetrics from "../../../TradingView/project/src/components/SocialMetrics";
-import TradingChart from "../../../TradingView/project/src/components/TradingChart";
-import TradeHistory from "../../../TradingView/project/src/components/TradeHistory";
-import TradingForm from "../../../TradingView/project/src/components/TradingForm";
-import HolderAnalytics from "../../../TradingView/project/src/components/HolderAnalytics";
+import MarketStats from "@/components/MarketStats";
+import SocialMetrics from "@/components/SocialMetrics";
+import TradingChart from "@/components/TradingView/TradingChart";
+import TradeHistory from "@/components/TradeHistory";
+import TradingForm from "@/components/TradingForm";
+import HolderAnalytics from "@/components/HolderAnalytics";
 
 const PumpFunVision: FC = () => {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
@@ -98,7 +98,7 @@ const PumpFunVision: FC = () => {
                         </p>
                       </div>
                     </div>
-                    <TradingChart tokenAddress={selectedToken} />
+                    <TradingChart tokenAddress={selectedToken} data={[]} />
                   </div>
                   <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                     <TradeHistory tokenAddress={selectedToken} />

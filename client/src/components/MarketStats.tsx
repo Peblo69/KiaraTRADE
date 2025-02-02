@@ -1,8 +1,7 @@
-
 import React, { useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { useTradingContext } from '../context/TradingContext';
+import { useTradingContext } from '@/context/TradingContext';
 import { ArrowUpRight, ArrowDownRight, BarChart2 } from 'lucide-react';
 
 interface Props {
