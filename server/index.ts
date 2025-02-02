@@ -33,13 +33,22 @@ async function startServer() {
       }
     });
 
-    // Start listening on a single port
-    const PORT = 80; // Use port 80 since it's mapped in .replit
+    // ONLY use port 80 which maps to 3000 externally
+    const PORT = 80;
+
+    // Check if port is in use
+    server.on('error', (error: any) => {
+      if (error.code === 'EADDRINUSE') {
+        log(`Port ${PORT} is in use, shutting down...`);
+        process.exit(1);
+      }
+    });
+
     server.listen(PORT, "0.0.0.0", () => {
       log(`
 🚀 Server Status:
 📡 Internal: Running on 0.0.0.0:${PORT}
-🌍 External: Mapped to port ${process.env.PORT || PORT}
+🌍 External: Mapped to port 3000
 👤 User: ${process.env.REPL_OWNER || 'unknown'}
 ⏰ Started at: ${new Date().toISOString()}
 
