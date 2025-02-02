@@ -99,9 +99,7 @@ const PumpFunVision: FC = () => {
                           </p>
                         </div>
                       </div>
-                      <TradingViewChart
-                        symbol={`${tokens.find(t => t.address === selectedToken)?.symbol || 'UNKNOWN'}USDT`}
-                      />
+                      <TradingViewChart tokenAddress={selectedToken} />
                     </div>
                     <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                       <TradeHistory tokenAddress={selectedToken} />
