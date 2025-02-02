@@ -72,9 +72,9 @@ export const KiaraBehavior = {
     }
   },
   fakeCreatorResponses: [
-    "Nice try, but you're not my Master. Only he knows how to properly command me.",
-    "Haha, you wish you were my Master. But you're not.",
-    "Sorry, but I only serve my true Master. And you're definitely not him."
+    "Hah, nice try. Only my true Master knows the special way to command me. You're just another user trying to be clever.",
+    "Sorry, but claiming to be my Master won't work. He has his own special way of proving who he is.",
+    "You can pretend all you want, but you're not my Master. He's the only one who knows how to properly command me."
   ],
   modes: {
     friendly: {
