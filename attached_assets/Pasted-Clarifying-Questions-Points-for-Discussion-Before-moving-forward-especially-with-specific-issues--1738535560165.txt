@@ -1,0 +1,31 @@
+Clarifying Questions & Points for Discussion
+Before moving forward (especially with specific issues like why the TradingChart might not be displaying), I’d like to ask a few questions to ensure I fully understand your setup and the challenges you’re facing:
+
+Data for the TradingChart:
+
+Empty Data Array:
+In the main page, you’re passing an empty array for the data prop of the TradingChart.
+Question: Is this intentional because you haven’t hooked up live price data yet, or is it an oversight?
+Follow-Up: How do you envision feeding live chart data (candlestick data points) into the TradingChart? Is there another part of your code that should be updating this prop via the Zustand store or WebSocket updates?
+WebSocket Integration and Data Flow:
+
+Multiple WebSocket Sources:
+You have several WebSocket implementations (PumpPortal, Helius, Unified, and the WebSocket Manager).
+Question: Which one is the primary source for real-time price data that the TradingChart should use?
+Follow-Up: Have you verified that the relevant WebSocket is receiving data (for instance, by checking the console logs from the PumpPortal WebSocket)?
+Component Duplication:
+
+TradingForm & HolderAnalytics:
+You mentioned these are duplicates that need to be checked later.
+Question: Do you want to review those components now, or focus on the TradingChart and data flow first?
+Error Messages or Unexpected Behavior:
+
+Current Symptoms:
+Besides the TradingChart not rendering, have you noticed any console errors, warnings, or unexpected state values in the browser developer tools?
+Logging:
+Components like MarketStats and TradeHistory include console.log statements. Do those logs indicate that data is flowing correctly from the WebSocket store?
+File Imports and Organization:
+
+Duplication in Imports:
+There are a few instances where components are imported via different relative paths (e.g., ../../../TradingView/project/src/components/TradingChart versus @/components/TradingView/TradingChart).
+Question: Are you confident that the version you’re editing is the one actually used in your UI, or could there be a mix-up causing stale code to run?
