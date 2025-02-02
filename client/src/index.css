@@ -65,6 +65,11 @@
   .scrollbar-hide {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
+    overflow: hidden;
+  }
+
+  .scrollbar-hide:hover {
+    overflow-y: auto;  /* Enable vertical scrolling on hover */
   }
 
   .scrollbar-hide::-webkit-scrollbar {
