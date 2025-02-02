@@ -9,12 +9,12 @@ app.use(express.urlencoded({ extended: false }));
 
 async function startServer() {
   try {
-    // Create HTTP server instance first
+    // Create HTTP server instance
     const server = createServer(app);
 
-    // Register routes and middleware before WebSocket setup
+    // Register routes first
     const routes = registerRoutes();
-    app.use('/', routes);
+    app.use(routes);
 
     // Global error handler middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -33,19 +33,9 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // Handle WebSocket upgrade before starting server
-    server.on('upgrade', (request, socket, head) => {
-      // Ignore vite HMR requests
-      const protocol = request.headers['sec-websocket-protocol'];
-      if (protocol === 'vite-hmr') return;
-
-      // Handle your WebSocket upgrades here
-      socket.destroy();
-    });
-
     // Start listening
     const PORT = process.env.PORT || 3000;
-    server.listen(PORT, '0.0.0.0', () => {
+    server.listen(PORT, () => {
       log(`Server running on port ${PORT}`);
     });
 
