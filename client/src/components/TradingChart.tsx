@@ -132,14 +132,18 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
             subscribeBars: (symbolInfo: any, resolution: string, onRealtimeCallback: any) => {
               const updateChart = () => {
                 if (trades[0]) {
+                  const price = trades[0].solAmount * (solPrice || 1);
                   onRealtimeCallback({
                     time: Math.floor(trades[0].timestamp / 1000) * 1000,
-                    open: trades[0].solAmount * solPrice,
-                    high: trades[0].solAmount * solPrice,
-                    low: trades[0].solAmount * solPrice,
-                    close: trades[0].solAmount * solPrice,
+                    open: price,
+                    high: price,
+                    low: price,
+                    close: price,
                     volume: trades[0].tokenAmount
                   });
+
+                  // Trigger global price update
+                  usePumpPortalStore.getState().updateTokenPrice(tokenAddress, price);
                 }
               };
 
@@ -192,3 +196,8 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
 };
 
 export default TradingChart;
+
+function formatUTCTimestamp(timestamp: number) {
+  const date = new Date(timestamp);
+  return date.getTime();
+}
