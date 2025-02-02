@@ -9,7 +9,6 @@ interface Props {
 
 const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
   const solPrice = usePumpPortalStore(state => state.solPrice);
   const trades = token?.recentTrades || [];
@@ -36,7 +35,6 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
         toolbar_bg: '#0D0B1F',
         enable_publishing: false,
         hide_side_toolbar: false,
-        allow_symbol_change: false,
         save_image: false,
         height: 500,
         width: '100%',
@@ -59,7 +57,6 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
               timezone: 'Etc/UTC',
               minmov: 1,
               pricescale: 1000000000,
-              has_intraday: true,
               has_no_volume: false,
               volume_precision: 8,
               data_status: 'streaming'
@@ -79,7 +76,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
               
               if (!bars.has(timestamp)) {
                 bars.set(timestamp, {
-                  time: timestamp / 1000,
+                  time: timestamp,
                   open: trade.priceInUsd,
                   high: trade.priceInUsd,
                   low: trade.priceInUsd,
@@ -98,19 +95,14 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
             onHistoryCallback(Array.from(bars.values()), { noData: false });
           },
           subscribeBars: (symbolInfo: any, resolution: string, onRealtimeCallback: any) => {
-            // Only update every 5 seconds max
-            let lastUpdate = 0;
-            const updateThreshold = 5000; // 5 seconds
-            
-            if (trades[0] && Date.now() - lastUpdate > updateThreshold) {
-              lastUpdate = Date.now();
+            if (trades[0]) {
               onRealtimeCallback({
-                time: Math.floor(trades[0].timestamp / 1000) * 1000,
-                open: trades[0].priceInUsd || 0,
-                high: trades[0].priceInUsd || 0,
-                low: trades[0].priceInUsd || 0,
-                close: trades[0].priceInUsd || 0,
-                volume: trades[0].tokenAmount || 0
+                time: trades[0].timestamp,
+                open: trades[0].priceInUsd,
+                high: trades[0].priceInUsd,
+                low: trades[0].priceInUsd,
+                close: trades[0].priceInUsd,
+                volume: trades[0].tokenAmount
               });
             }
           },
