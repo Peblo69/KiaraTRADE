@@ -268,7 +268,8 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     debugLog('addTradeToHistory', {
       token: address,
       type: tradeData.txType,
-      amount: tradeData.solAmount
+      amount: tradeData.solAmount,
+      price: tradeData.priceInUsd
     });
 
     const token = state.viewedTokens[address] || state.tokens.find(t => t.address === address);
@@ -281,6 +282,15 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       vSolInBondingCurve: tradeData.vSolInBondingCurve,
       vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
       solPrice: state.solPrice
+    });
+
+    debugLog('Token price calculation:', {
+      token: address,
+      priceInSol: tokenMetrics.price.sol,
+      priceInUsd: tokenMetrics.price.usd,
+      solPrice: state.solPrice,
+      vTokens: tradeData.vTokensInBondingCurve,
+      vSol: tradeData.vSolInBondingCurve
     });
 
     const volumeMetrics = calculateVolumeMetrics(updatedTrades);
@@ -307,7 +317,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
     return {
       tokens: updatedTokens,
-      lastUpdate: Date.now(),
       ...(state.viewedTokens[address] && {
         viewedTokens: {
           ...state.viewedTokens,
