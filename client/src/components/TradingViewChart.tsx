@@ -2,6 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { LineChart } from 'lucide-react';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
+declare global {
+  interface Window {
+    TradingView: any;
+  }
+}
+
 interface Props {
   tokenAddress: string;
 }
@@ -38,7 +44,7 @@ const TradingViewChart: React.FC<Props> = ({ tokenAddress }) => {
         width: '100%',
         studies: ['Volume@tv-basicstudies'],
         loading_screen: { backgroundColor: "#0D0B1F" },
-        library_path: '/charting_library/',
+        library_path: '/charting_library/', 
         custom_css_url: '/tradingview-dark.css',
         disabled_features: [
           'header_symbol_search',
@@ -86,9 +92,28 @@ const TradingViewChart: React.FC<Props> = ({ tokenAddress }) => {
             onHistoryCallback(bars, { noData: false });
           },
           subscribeBars: (symbolInfo: any, resolution: string, onRealtimeCallback: any, subscriberUID: any) => {
-            // Real-time updates handled through the store changes
+            // Set up real-time updates
+            const intervalId = setInterval(() => {
+              if (trades.length > 0) {
+                const lastTrade = trades[0];
+                onRealtimeCallback({
+                  time: lastTrade.timestamp,
+                  open: lastTrade.priceInUsd,
+                  high: lastTrade.priceInUsd,
+                  low: lastTrade.priceInUsd,
+                  close: lastTrade.priceInUsd,
+                  volume: lastTrade.tokenAmount
+                });
+              }
+            }, 1000);
+
+            return intervalId;
           },
-          unsubscribeBars: () => {}
+          unsubscribeBars: (subscriberUID: any) => {
+            if (subscriberUID) {
+              clearInterval(subscriberUID);
+            }
+          }
         }
       });
 
@@ -131,24 +156,6 @@ const TradingViewChart: React.FC<Props> = ({ tokenAddress }) => {
 
     return Array.from(candles.values());
   };
-
-  // Update chart when new trades come in
-  useEffect(() => {
-    if (chartWidget && trades.length > 0) {
-      const lastTrade = trades[0];
-      // Update the chart with new data
-      chartWidget.onChartReady(() => {
-        chartWidget.chart().update({
-          time: lastTrade.timestamp,
-          open: lastTrade.priceInUsd,
-          high: lastTrade.priceInUsd,
-          low: lastTrade.priceInUsd,
-          close: lastTrade.priceInUsd,
-          volume: lastTrade.tokenAmount
-        });
-      });
-    }
-  }, [trades]);
 
   return (
     <div className="relative bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
