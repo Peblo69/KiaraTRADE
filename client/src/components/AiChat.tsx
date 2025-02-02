@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
 import axios from "axios";
 import { nanoid } from 'nanoid';
+import useUserProfileStore from "@/lib/user-profile-store";
 
 interface Message {
   role: "user" | "assistant";
@@ -22,6 +23,8 @@ export default function AiChat() {
   const [sessionId] = useState(() => nanoid());
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
+  const { getOrCreateProfile, updateMood, updateProfile } = useUserProfileStore();
+
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
@@ -37,15 +40,26 @@ export default function AiChat() {
     setIsTyping(true);
 
     try {
+      const userProfile = getOrCreateProfile(sessionId);
+      updateMood(sessionId, input);
+
       const response = await axios.post("/api/chat", { 
         message: input,
-        sessionId
+        sessionId,
+        profile: userProfile,
+        history: messages
       });
 
       setMessages(prev => [...prev, {
         role: "assistant",
         content: response.data.response
       }]);
+
+      updateProfile(sessionId, {
+        interactionCount: userProfile.interactionCount + 1,
+        lastInteraction: new Date(),
+      });
+
     } catch (error) {
       console.error("Error sending message:", error);
       setMessages(prev => [...prev, {
