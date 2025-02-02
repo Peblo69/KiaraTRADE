@@ -47,14 +47,12 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
       }
 
       try {
-        // Create unique container ID
         const containerId = `tv_${Math.random().toString(36).substring(7)}`;
         containerRef.current.id = containerId;
 
         widgetRef.current = new window.TradingView.widget({
           container_id: containerId,
           autosize: true,
-          symbol: token?.symbol || tokenAddress.slice(0, 8),
           interval: '1',
           timezone: 'Etc/UTC',
           theme: 'dark',
@@ -74,55 +72,58 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
                 supports_timescale_marks: false
               });
             },
-            resolveSymbol: (symbolName: string, onSymbolResolvedCallback: any) => {
-              onSymbolResolvedCallback({
-                name: token?.symbol || tokenAddress.slice(0, 8),
-                description: token?.name || 'Token',
-                type: 'crypto',
-                session: '24x7',
-                timezone: 'Etc/UTC',
-                minmov: 1,
-                pricescale: 1000000000,
-                has_intraday: true,
-                has_no_volume: false,
-                has_weekly_and_monthly: false,
-                supported_resolutions: ['1', '5', '15', '30', '60'],
-                volume_precision: 8,
-                data_status: 'streaming'
-              });
-            },
             getBars: (symbolInfo: any, resolution: string, from: number, to: number, onHistoryCallback: any) => {
               if (!trades.length) {
                 onHistoryCallback([], { noData: true });
                 return;
               }
 
-              const bars = trades.map(trade => ({
-                time: Math.floor(trade.timestamp / 1000) * 1000, // Convert to seconds
-                open: trade.solAmount * solPrice,
-                high: trade.solAmount * solPrice,
-                low: trade.solAmount * solPrice,
-                close: trade.solAmount * solPrice,
-                volume: trade.tokenAmount
-              }));
+              const minuteInMs = 60000;
+              const ohlcData = new Map();
 
-              onHistoryCallback(bars, { noData: false });
+              // Convert trades to OHLC data
+              trades.forEach(trade => {
+                const price = trade.solAmount * solPrice;
+                const timestamp = Math.floor(trade.timestamp / minuteInMs) * minuteInMs;
+
+                if (!ohlcData.has(timestamp)) {
+                  ohlcData.set(timestamp, {
+                    time: timestamp,
+                    open: price,
+                    high: price,
+                    low: price,
+                    close: price,
+                    volume: trade.tokenAmount
+                  });
+                } else {
+                  const candle = ohlcData.get(timestamp);
+                  candle.high = Math.max(candle.high, price);
+                  candle.low = Math.min(candle.low, price);
+                  candle.close = price;
+                  candle.volume += trade.tokenAmount;
+                }
+              });
+
+              const candleData = Array.from(ohlcData.values())
+                .sort((a, b) => a.time - b.time);
+
+              onHistoryCallback(candleData, { noData: false });
             },
             subscribeBars: (symbolInfo: any, resolution: string, onRealtimeCallback: any) => {
               const updateChart = () => {
                 if (trades[0]) {
+                  const latestPrice = trades[0].solAmount * solPrice;
                   onRealtimeCallback({
-                    time: Math.floor(trades[0].timestamp / 1000) * 1000,
-                    open: trades[0].solAmount * solPrice,
-                    high: trades[0].solAmount * solPrice,
-                    low: trades[0].solAmount * solPrice,
-                    close: trades[0].solAmount * solPrice,
+                    time: trades[0].timestamp,
+                    open: latestPrice,
+                    high: latestPrice,
+                    low: latestPrice,
+                    close: latestPrice,
                     volume: trades[0].tokenAmount
                   });
                 }
               };
 
-              // Update every second if we have trades
               const interval = setInterval(updateChart, 1000);
               return interval;
             },
@@ -161,7 +162,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
         <div className="flex items-center space-x-2">
           <LineChart className="w-5 h-5 text-purple-400" />
           <h2 className="text-purple-100 font-semibold">
-            {token?.symbol || tokenAddress.slice(0, 6)}... Live Chart
+            Live Price Chart
           </h2>
         </div>
       </div>
