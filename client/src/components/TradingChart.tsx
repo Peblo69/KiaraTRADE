@@ -97,16 +97,37 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
                 return;
               }
 
-              const bars = trades.map(trade => ({
-                time: Math.floor(trade.timestamp / 1000) * 1000, // Convert to seconds
-                open: trade.solAmount * solPrice,
-                high: trade.solAmount * solPrice,
-                low: trade.solAmount * solPrice,
-                close: trade.solAmount * solPrice,
-                volume: trade.tokenAmount
-              }));
+              if (trades.length > 0) {
+                const ohlcData = new Map();
+                const minuteInMs = 60000;
 
-              onHistoryCallback(bars, { noData: false });
+                trades.forEach(trade => {
+                  const price = trade.solAmount * solPrice;
+                  const timestamp = Math.floor(formatUTCTimestamp(trade.timestamp) / minuteInMs) * minuteInMs;
+
+                  if (!ohlcData.has(timestamp)) {
+                    ohlcData.set(timestamp, {
+                      time: timestamp / 1000,
+                      open: price,
+                      high: price,
+                      low: price,
+                      close: price,
+                      volume: trade.tokenAmount
+                    });
+                  } else {
+                    const candle = ohlcData.get(timestamp);
+                    candle.high = Math.max(candle.high, price);
+                    candle.low = Math.min(candle.low, price);
+                    candle.close = price;
+                    candle.volume += trade.tokenAmount;
+                  }
+                });
+
+                const candleData = Array.from(ohlcData.values()).sort((a, b) => a.time - b.time);
+                onHistoryCallback(candleData, { noData: false });
+              } else {
+                onHistoryCallback([], { noData: true });
+              }
             },
             subscribeBars: (symbolInfo: any, resolution: string, onRealtimeCallback: any) => {
               const updateChart = () => {
