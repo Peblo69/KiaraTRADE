@@ -490,10 +490,10 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Chat endpoint
+  // Add chat endpoint
   app.post('/api/chat', async (req, res) => {
     try {
-      const { message, sessionId } = req.body;
+      const { message, sessionId, profile } = req.body;
 
       if (!message) {
         return res.status(400).json({ error: 'Message is required' });
@@ -505,7 +505,11 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Generate response using our AI service
-      const response = await generateAIResponse(message, chatHistory[sessionId]);
+      const response = await generateAIResponse(
+        message, 
+        chatHistory[sessionId],
+        profile
+      );
 
       // Update chat history
       chatHistory[sessionId].push(
@@ -513,7 +517,7 @@ export function registerRoutes(app: Express): Server {
         { role: 'assistant', content: response }
       );
 
-      // Keep only last 10 messages to prevent context from growing too large
+      // Keep only last 20 messages to prevent context from growing too large
       if (chatHistory[sessionId].length > 20) {
         chatHistory[sessionId] = chatHistory[sessionId].slice(-20);
       }
@@ -521,7 +525,10 @@ export function registerRoutes(app: Express): Server {
       res.json({ response });
     } catch (error: any) {
       console.error('Chat error:', error);
-      res.status(500).json({ error: error.message || 'Failed to process chat request' });
+      res.status(500).json({ 
+        error: 'Failed to process chat request',
+        details: error.message 
+      });
     }
   });
 
