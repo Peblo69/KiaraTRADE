@@ -1,0 +1,210 @@
+Looking at the Trading Chart code, I see a few potential issues that could affect the WebSocket connection:
+
+    Dependencies in useEffect:
+
+TypeScript
+
+// Current
+}, [token, trades, solPrice, isConnected]);
+
+// Should be
+}, [tokenAddress, trades.length]); // Only re-render on new trades or token change
+
+    Chart Cleanup:
+
+TypeScript
+
+// Add chart cleanup ref to prevent memory leaks
+const cleanupRef = useRef<(() => void) | null>(null);
+
+    Price Calculation: It's using a simplified version when we should use your WebSocket manager's exact logic:
+
+TypeScript
+
+// Current
+const priceInSol = trade.solAmount / 1_000_000_000;
+const priceInUsd = priceInSol * solPrice;
+
+// Should use
+const priceInSol = trade.vSolInBondingCurve / 1_000_000_000;
+const priceInUsd = trade.priceInUsd; // Use the price already calculated by WebSocket
+
+Here's the fixed version:
+TypeScript
+
+import React, { useEffect, useRef } from 'react';
+import { LineChart } from 'lucide-react';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { wsManager } from '@/lib/websocket-manager';
+
+interface Props {
+  tokenAddress: string;
+}
+
+const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<any>(null);
+  const cleanupRef = useRef<(() => void) | null>(null);
+  
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const trades = token?.recentTrades || [];
+
+  useEffect(() => {
+    console.log('[Chart] Setup for token:', tokenAddress, {
+      tradesCount: trades.length,
+      wsStatus: wsManager.getStatus()
+    });
+
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js';
+    script.async = true;
+    
+    script.onload = () => {
+      if (!containerRef.current || !window.LightweightCharts) return;
+
+      // Cleanup old chart properly
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
+
+      const chart = window.LightweightCharts.createChart(containerRef.current, {
+        layout: {
+          background: { color: '#0D0B1F' },
+          textColor: '#d1d4dc',
+        },
+        grid: {
+          vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
+          horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
+        },
+        width: containerRef.current.clientWidth,
+        height: 500,
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: true,
+        },
+      });
+
+      const candleSeries = chart.addCandlestickSeries({
+        upColor: '#26a69a',
+        downColor: '#ef5350',
+        borderUpColor: '#26a69a',
+        borderDownColor: '#ef5350',
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350',
+      });
+
+      const volumeSeries = chart.addHistogramSeries({
+        color: '#385263',
+        priceFormat: {
+          type: 'volume',
+        },
+        priceScaleId: '', 
+        scaleMargins: {
+          top: 0.8,
+          bottom: 0,
+        },
+      });
+
+      // Process trades using WebSocket manager's exact logic
+      if (trades.length > 0 && token) {
+        const ohlcData = new Map();
+        const minuteInMs = 60000;
+
+        trades.forEach(trade => {
+          // Use the prices already calculated by WebSocket
+          const timestamp = Math.floor(trade.timestamp / minuteInMs) * minuteInMs;
+
+          if (!ohlcData.has(timestamp)) {
+            ohlcData.set(timestamp, {
+              time: timestamp / 1000,
+              open: trade.priceInUsd,
+              high: trade.priceInUsd,
+              low: trade.priceInUsd,
+              close: trade.priceInUsd,
+              volume: trade.tokenAmount
+            });
+          } else {
+            const candle = ohlcData.get(timestamp);
+            candle.high = Math.max(candle.high, trade.priceInUsd);
+            candle.low = Math.min(candle.low, trade.priceInUsd);
+            candle.close = trade.priceInUsd;
+            candle.volume += trade.tokenAmount;
+          }
+        });
+
+        const candleData = Array.from(ohlcData.values())
+          .sort((a, b) => a.time - b.time);
+
+        console.log('[Chart] Processed candles:', {
+          token: tokenAddress,
+          candleCount: candleData.length,
+          firstCandle: candleData[0],
+          lastCandle: candleData[candleData.length - 1]
+        });
+
+        candleSeries.setData(candleData);
+        volumeSeries.setData(candleData);
+      }
+
+      // Handle resizing
+      const handleResize = () => {
+        if (containerRef.current) {
+          chart.applyOptions({
+            width: containerRef.current.clientWidth
+          });
+        }
+      };
+
+      window.addEventListener('resize', handleResize);
+      
+      // Store cleanup function
+      cleanupRef.current = () => {
+        window.removeEventListener('resize', handleResize);
+        if (chart) {
+          chart.remove();
+        }
+        containerRef.current?.innerHTML = '';
+      };
+
+      chartRef.current = chart;
+    };
+
+    document.head.appendChild(script);
+
+    // Cleanup
+    return () => {
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+      if (cleanupRef.current) {
+        cleanupRef.current();
+      }
+    };
+  }, [tokenAddress, trades.length]); // Only re-render on new trades or token change
+
+  return (
+    <div className="relative bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-2">
+          <LineChart className="w-5 h-5 text-purple-400" />
+          <h2 className="text-purple-100 font-semibold">
+            {token?.symbol || tokenAddress.slice(0, 6)}... Price Chart
+          </h2>
+        </div>
+      </div>
+      <div ref={containerRef} className="h-[500px] w-full" />
+    </div>
+  );
+};
+
+export default TradingChart;
+
+Key fixes:
+
+    Better cleanup handling
+    Uses WebSocket's pre-calculated prices
+    Reduced dependency array to prevent unnecessary rerenders
+    Added proper logging for debugging
+    Proper chart disposal
+    No WebSocket interference

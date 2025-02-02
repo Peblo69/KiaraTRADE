@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { LineChart } from 'lucide-react';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { wsManager } from '@/lib/websocket-manager'; // Import your manager
+import { wsManager } from '@/lib/websocket-manager';
 
 interface Props {
   tokenAddress: string;
@@ -10,16 +10,16 @@ interface Props {
 const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
+  const cleanupRef = useRef<(() => void) | null>(null);
 
-  // Get data from YOUR store
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
   const trades = token?.recentTrades || [];
-  const solPrice = usePumpPortalStore(state => state.solPrice);
-  const isConnected = usePumpPortalStore(state => state.isConnected);
 
   useEffect(() => {
-    // Don't create new WebSocket - use existing manager
-    console.log('[Chart] Using WebSocket Manager Status:', wsManager.getStatus());
+    console.log('[Chart] Setup for token:', tokenAddress, {
+      tradesCount: trades.length,
+      wsStatus: wsManager.getStatus()
+    });
 
     const script = document.createElement('script');
     script.src = 'https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js';
@@ -28,9 +28,10 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
     script.onload = () => {
       if (!containerRef.current || !window.LightweightCharts) return;
 
-      // Clear previous chart only
-      if (chartRef.current) {
-        containerRef.current.innerHTML = '';
+      // Cleanup old chart properly
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
       }
 
       const chart = window.LightweightCharts.createChart(containerRef.current, {
@@ -71,32 +72,29 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
         },
       });
 
-      // Process trades using same logic as WebSocket manager
+      // Process trades using WebSocket manager's exact logic
       if (trades.length > 0 && token) {
         const ohlcData = new Map();
         const minuteInMs = 60000;
 
         trades.forEach(trade => {
-          // Use same price calculation as your WebSocket manager
-          const priceInSol = trade.solAmount / 1_000_000_000;
-          const priceInUsd = priceInSol * solPrice;
-
+          // Use the prices already calculated by WebSocket
           const timestamp = Math.floor(trade.timestamp / minuteInMs) * minuteInMs;
 
           if (!ohlcData.has(timestamp)) {
             ohlcData.set(timestamp, {
               time: timestamp / 1000,
-              open: priceInUsd,
-              high: priceInUsd,
-              low: priceInUsd,
-              close: priceInUsd,
+              open: trade.priceInUsd,
+              high: trade.priceInUsd,
+              low: trade.priceInUsd,
+              close: trade.priceInUsd,
               volume: trade.tokenAmount
             });
           } else {
             const candle = ohlcData.get(timestamp);
-            candle.high = Math.max(candle.high, priceInUsd);
-            candle.low = Math.min(candle.low, priceInUsd);
-            candle.close = priceInUsd;
+            candle.high = Math.max(candle.high, trade.priceInUsd);
+            candle.low = Math.min(candle.low, trade.priceInUsd);
+            candle.close = trade.priceInUsd;
             candle.volume += trade.tokenAmount;
           }
         });
@@ -104,15 +102,15 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
         const candleData = Array.from(ohlcData.values())
           .sort((a, b) => a.time - b.time);
 
+        console.log('[Chart] Processed candles:', {
+          token: tokenAddress,
+          candleCount: candleData.length,
+          firstCandle: candleData[0],
+          lastCandle: candleData[candleData.length - 1]
+        });
+
         candleSeries.setData(candleData);
         volumeSeries.setData(candleData);
-
-        // Update latest candle
-        const lastCandle = candleData[candleData.length - 1];
-        if (lastCandle) {
-          candleSeries.update(lastCandle);
-          volumeSeries.update(lastCandle);
-        }
       }
 
       // Handle resizing
@@ -125,25 +123,31 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
       };
 
       window.addEventListener('resize', handleResize);
-      chartRef.current = chart;
 
-      return () => {
+      // Store cleanup function
+      cleanupRef.current = () => {
         window.removeEventListener('resize', handleResize);
         if (chart) {
           chart.remove();
         }
-        // DON'T disconnect WebSocket here!
+        containerRef.current?.innerHTML = '';
       };
+
+      chartRef.current = chart;
     };
 
     document.head.appendChild(script);
+
+    // Cleanup
     return () => {
       if (script.parentNode) {
         script.parentNode.removeChild(script);
       }
-      // DON'T disconnect WebSocket here either!
+      if (cleanupRef.current) {
+        cleanupRef.current();
+      }
     };
-  }, [token, trades, solPrice, isConnected]);
+  }, [tokenAddress, trades.length]);
 
   return (
     <div className="relative bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
