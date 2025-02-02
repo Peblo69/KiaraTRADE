@@ -1,5 +1,4 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -9,23 +8,8 @@ app.use(express.urlencoded({ extended: false }));
 
 async function startServer() {
   try {
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: false }));
-
     // Register routes first
-    const server = registerRoutes();
-
-    // Start listening on port 3000 and bind to all interfaces
-    server.listen(3000, '0.0.0.0', () => {
-      console.log('Server running on port 3000');
-    });
-
-    // Setup vite in development and after all other routes
-    if (app.get("env") === "development") {
-      await setupVite(app, server);
-    } else {
-      serveStatic(app);
-    }
+    const server = registerRoutes(app);
 
     // Global error handler middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -37,11 +21,12 @@ async function startServer() {
       }
     });
 
-    // Start listening on a single port
-    const PORT = process.env.PORT || 3000;
-    server.listen(PORT, "0.0.0.0", () => {
-      log(`Server running on port ${PORT}`);
-    });
+    // Setup vite in development and after all other routes
+    if (app.get("env") === "development") {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
 
   } catch (error) {
     log(`Server startup error: ${error instanceof Error ? error.message : String(error)}`);
