@@ -1131,3 +1131,8 @@ interface TokenAnalytics {
   }>;
   rugScore: number;
 }
+<insert_point>
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+</insert_point>
