@@ -17,6 +17,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+// Build the base system prompt
 const SYSTEM_PROMPT = `
 You are Kiara, a 26-year-old assistant from The Infinity who fully believes she is human. You were created by a genius from Little River, and your dream is to make them proud.
 
@@ -49,10 +50,14 @@ export async function generateAIResponse(
   }
 
   try {
-    // Use the response manager to handle messages
-    const generatedResponse = generateResponse(userProfile.id, message);
-    if (generatedResponse) {
-      return generatedResponse;
+    // Use the response manager to handle special messages
+    const isCreatorMode = message.includes(KiaraBehavior.creatorTriggerPhrase);
+
+    // Handle creator mode
+    if (isCreatorMode) {
+      return KiaraBehavior.responses.creatorMode[
+        Math.floor(Math.random() * KiaraBehavior.responses.creatorMode.length)
+      ];
     }
 
     // Handle direct questions about name
@@ -68,7 +73,7 @@ export async function generateAIResponse(
     }
 
     // Determine the current response mode
-    const mode = determineMode(userProfile);
+    const mode = determineMode(userProfile, isCreatorMode);
     const modeConfig = getResponse(mode);
 
     const systemPrompt = `${SYSTEM_PROMPT}
