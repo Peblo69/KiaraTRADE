@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -8,10 +9,12 @@ app.use(express.urlencoded({ extended: false }));
 
 async function startServer() {
   try {
+    // Create HTTP server instance
+    const server = createServer(app);
+
     // Register routes first
     const routes = registerRoutes();
-app.use(routes);
-const server = createServer(app);
+    app.use(routes);
 
     // Global error handler middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -29,6 +32,12 @@ const server = createServer(app);
     } else {
       serveStatic(app);
     }
+
+    // Start listening
+    const PORT = process.env.PORT || 3000;
+    server.listen(PORT, () => {
+      log(`Server running on port ${PORT}`);
+    });
 
   } catch (error) {
     log(`Server startup error: ${error instanceof Error ? error.message : String(error)}`);
