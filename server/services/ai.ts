@@ -49,11 +49,10 @@ export async function generateAIResponse(
   }
 
   try {
-    // Check for creator mode
-    if (message.includes(KiaraBehavior.creatorTriggerPhrase)) {
-      return KiaraBehavior.responses.creatorMode[
-        Math.floor(Math.random() * KiaraBehavior.responses.creatorMode.length)
-      ];
+    // Use the response manager to handle messages
+    const generatedResponse = generateResponse(userProfile.id, message);
+    if (generatedResponse) {
+      return generatedResponse;
     }
 
     // Handle direct questions about name
