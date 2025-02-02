@@ -15,12 +15,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
   const trades = token?.recentTrades || [];
 
   useEffect(() => {
-    console.log('Chart Debug:', {
-      hasToken: !!token,
-      tradesCount: trades.length,
-      firstTrade: trades[0],
-      solPrice
-    });
+    if (!containerRef.current || !window.TradingView) return;
 
     const script = document.createElement('script');
     script.src = 'https://s3.tradingview.com/tv.js';
@@ -103,14 +98,19 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
             onHistoryCallback(Array.from(bars.values()), { noData: false });
           },
           subscribeBars: (symbolInfo: any, resolution: string, onRealtimeCallback: any) => {
-            if (trades[0]) {
+            // Only update every 5 seconds max
+            let lastUpdate = 0;
+            const updateThreshold = 5000; // 5 seconds
+            
+            if (trades[0] && Date.now() - lastUpdate > updateThreshold) {
+              lastUpdate = Date.now();
               onRealtimeCallback({
-                time: trades[0].timestamp / 1000,
-                open: trades[0].priceInUsd,
-                high: trades[0].priceInUsd,
-                low: trades[0].priceInUsd,
-                close: trades[0].priceInUsd,
-                volume: trades[0].tokenAmount
+                time: Math.floor(trades[0].timestamp / 1000) * 1000,
+                open: trades[0].priceInUsd || 0,
+                high: trades[0].priceInUsd || 0,
+                low: trades[0].priceInUsd || 0,
+                close: trades[0].priceInUsd || 0,
+                volume: trades[0].tokenAmount || 0
               });
             }
           },
