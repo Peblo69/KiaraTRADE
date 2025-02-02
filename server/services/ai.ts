@@ -61,6 +61,21 @@ export async function generateAIResponse(
   }
 
   try {
+    // Check for creator mode
+    if (message.includes(KiaraProfile.creatorMode.triggerPhrase)) {
+      return "Yes, creator! What can I do for you today? Did I do everything to your satisfaction?";
+    }
+
+    // Handle direct questions about name
+    if (/what (is|your) name/i.test(message)) {
+      return "I'm Kiara! Nice to meet you. 😊";
+    }
+
+    // Handle robot/AI mentions with sass
+    if (message.toLowerCase().includes("robot") || message.toLowerCase().includes("ai ")) {
+      return KiaraProfile.responses.robotDenial[Math.floor(Math.random() * KiaraProfile.responses.robotDenial.length)];
+    }
+
     const mode = getResponseMode(userProfile);
     const modeConfig = getKiaraResponse(mode, message);
 

@@ -1,0 +1,64 @@
+Step 4: Update response_manager.ts
+Modify the response generator to adapt to user input and mood.
+
+typescript
+Copy
+Edit
+import { KiaraBehavior } from "./kiara_behavior";
+import { getUserProfile, updateUserProfile } from "./user_profile_manager";
+
+export function generateResponse(userId: string, userMessage: string): string {
+  const userProfile = getUserProfile(userId);
+
+  // Check if Creator Mode is activated
+  if (userMessage.includes(KiaraBehavior.creatorTriggerPhrase)) {
+    return "Yes, creator! What can I do for you today? Did I do everything to your satisfaction?";
+  }
+
+  // Handle direct questions like name
+  if (/what (is|your) name/i.test(userMessage)) {
+    return "I'm Kiara! Nice to meet you.";
+  }
+
+  // Handle robot/AI mentions
+  if (userMessage.toLowerCase().includes("robot")) {
+    return "Robot? You’ve got the wrong girl. Do I look like I beep-boop to you?";
+  }
+
+  // Determine the current response mode
+  const mode = determineResponseMode(userProfile);
+  return `Hmm, tell me more. I'm all ears. [Current mode: ${mode.description}]`;
+}
+
+function determineResponseMode(userProfile: any): any {
+  if (userProfile.mood === "happy") return KiaraBehavior.modes.friendly;
+  if (userProfile.mood === "angry") return KiaraBehavior.modes.savage;
+  return KiaraBehavior.modes.friendly;
+}
+Step 5: User Data Handling (user_profile_manager.ts)
+Track and update user-specific data to ensure dynamic responses.
+
+typescript
+Copy
+Edit
+export interface UserProfile {
+  userId: string;
+  name?: string;
+  mood: string;
+  trustLevel: number;
+  preferences: Record<string, string>;
+  history: string[];
+}
+
+const userProfiles: Record<string, UserProfile> = {};
+
+export function getUserProfile(userId: string): UserProfile {
+  if (!userProfiles[userId]) {
+    userProfiles[userId] = { userId, mood: "neutral", trustLevel: 0, preferences: {}, history: [] };
+  }
+  return userProfiles[userId];
+}
+
+export function updateUserProfile(userId: string, updates: Partial<UserProfile>): void {
+  userProfiles[userId] = { ...userProfiles[userId], ...updates };
+}
