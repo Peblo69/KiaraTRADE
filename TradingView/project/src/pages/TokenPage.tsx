@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import TokenMarketStats from '@/components/TokenMarketStats';
 import TradeHistory from '@/components/TradeHistory';
+import TradingChart from '@/components/TradingChart';  // Add this
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
 interface Props {
@@ -13,7 +14,6 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
   const addToViewedTokens = usePumpPortalStore(state => state.addToViewedTokens);
   const setActiveTokenView = usePumpPortalStore(state => state.setActiveTokenView);
 
-  // Tell store we're viewing this token
   useEffect(() => {
     console.log('TokenPage Mount:', {
       tokenAddress,
@@ -60,6 +60,11 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
             <h1 className="text-2xl font-bold">{token.name}</h1>
             <p className="text-purple-400">{token.symbol}</p>
           </div>
+        </div>
+
+        {/* Trading Chart - Add this section */}
+        <div className="mb-8">
+          <TradingChart tokenAddress={tokenAddress} />
         </div>
 
         {/* Market Stats & Trade History */}
