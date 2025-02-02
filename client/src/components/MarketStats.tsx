@@ -50,31 +50,64 @@ const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
     const now = Date.now();
     const oneDayAgo = now - 24 * 60 * 60 * 1000;
 
-    // Combine trades from both sources
-    const tokenTrades = [...(token.recentTrades || []), ...trades.filter(t => t.mint === tokenAddress)];
+    // Combine trades from both sources and ensure they're properly formatted
+    const tokenTrades = [
+      ...(token.recentTrades || []).map(t => ({
+        ...t,
+        priceInUsd: t.priceInUsd || (t.priceInSol * solPrice),
+        timestamp: t.timestamp || Date.now(),
+        tokenAmount: t.tokenAmount || 0
+      })),
+      ...trades.filter(t => t.mint === tokenAddress).map(t => ({
+        ...t,
+        priceInUsd: t.priceInUsd || (t.priceInSol * solPrice),
+        timestamp: t.timestamp || Date.now(),
+        tokenAmount: t.tokenAmount || 0
+      }))
+    ].sort((a, b) => b.timestamp - a.timestamp);
+
     const last24hTrades = tokenTrades.filter(t => t.timestamp >= oneDayAgo);
 
-    const currentPrice = token.priceInUsd || 0;
-    const oldPrice = last24hTrades[last24hTrades.length - 1]?.priceInUsd || currentPrice;
+    // Calculate current price using the most recent trade or bonding curve
+    const currentPrice = token.priceInUsd || (token.priceInSol * solPrice) || 0;
+    const oldPrice = last24hTrades.length > 0 ? 
+      last24hTrades[last24hTrades.length - 1].priceInUsd : 
+      currentPrice;
+
     const priceChange = oldPrice ? ((currentPrice - oldPrice) / oldPrice) * 100 : 0;
 
-    const volume24h = last24hTrades.reduce((sum, trade) => 
-      sum + (trade.tokenAmount || 0) * (trade.priceInUsd || 0), 0);
+    // Calculate 24h volume ensuring we count actual traded amounts
+    const volume24h = last24hTrades.reduce((sum, trade) => {
+      const tradeVolume = trade.tokenAmount * trade.priceInUsd;
+      return sum + (isNaN(tradeVolume) ? 0 : tradeVolume);
+    }, 0);
 
-    const marketCap = token.vTokensInBondingCurve * (token.priceInUsd || 0);
-    const liquidityUsd = (token.vSolInBondingCurve || 0) * solPrice;
+    // Calculate market cap using the bonding curve data
+    const marketCap = (token.vTokensInBondingCurve || 0) * currentPrice;
+    const marketCapSol = token.vSolInBondingCurve || 0;
 
-    // Volume analysis
-    const averageVolume = volume24h / Math.max(1, last24hTrades.length);
-    const volumeTrend = last24hTrades.length > 0 ? 
-      (last24hTrades[0].tokenAmount || 0) > averageVolume ? 'up' : 'down' : 'up';
-    const unusualActivity = Math.abs((volume24h / averageVolume) - 1) > 0.5;
+    // Volume analysis with proper calculations
+    const volumeInSol = volume24h / solPrice;
+    const tradeCount = last24hTrades.length;
+    const averageVolume = tradeCount > 0 ? volume24h / tradeCount : 0;
+    const recentVolume = last24hTrades[0]?.tokenAmount * last24hTrades[0]?.priceInUsd || 0;
+    const volumeTrend = recentVolume > averageVolume ? 'up' : 'down';
+    const unusualActivity = Math.abs((recentVolume / averageVolume) - 1) > 0.5;
 
-    // Market depth calculations
-    const buyPressure = (token.vSolInBondingCurve || 0) / (token.marketCapSol || 1) * 100;
-    const sellPressure = 100 - buyPressure;
-    const strongestSupport = currentPrice * 0.9; // Simplified support level
-    const strongestResistance = currentPrice * 1.1; // Simplified resistance level
+    // Market depth using bonding curve data
+    const totalLiquidity = token.vSolInBondingCurve || 0;
+    const buyPressure = totalLiquidity > 0 ? 
+      (last24hTrades.filter(t => t.txType === 'buy')
+        .reduce((sum, t) => sum + (t.solAmount || 0), 0) / totalLiquidity) * 100 : 0;
+
+    const sellPressure = totalLiquidity > 0 ? 
+      (last24hTrades.filter(t => t.txType === 'sell')
+        .reduce((sum, t) => sum + (t.solAmount || 0), 0) / totalLiquidity) * 100 : 0;
+
+    // Support and resistance levels based on recent trades
+    const sortedPrices = last24hTrades.map(t => t.priceInUsd).sort((a, b) => a - b);
+    const strongestSupport = sortedPrices[Math.floor(sortedPrices.length * 0.1)] || currentPrice * 0.9;
+    const strongestResistance = sortedPrices[Math.floor(sortedPrices.length * 0.9)] || currentPrice * 1.1;
 
     return {
       price: {
@@ -83,17 +116,13 @@ const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
       },
       marketCap: {
         usd: marketCap,
-        sol: token.marketCapSol || 0
+        sol: marketCapSol
       },
       volume: {
         usd: volume24h,
-        sol: volume24h / solPrice,
+        sol: volumeInSol,
         trend: volumeTrend,
         unusual: unusualActivity
-      },
-      liquidity: {
-        usd: liquidityUsd,
-        sol: token.vSolInBondingCurve || 0
       },
       depth: {
         buyPressure,
@@ -181,13 +210,13 @@ const MarketStats: React.FC<Props> = ({ tokenAddress }) => {
               <div className="text-center p-2 rounded bg-gray-900/50">
                 <div className="text-sm text-gray-400">Support</div>
                 <div className="text-sm text-green-400">
-                  ${metrics.depth.strongestSupport.toFixed(2)}
+                  ${metrics.depth.strongestSupport.toFixed(8)}
                 </div>
               </div>
               <div className="text-center p-2 rounded bg-gray-900/50">
                 <div className="text-sm text-gray-400">Resistance</div>
                 <div className="text-sm text-red-400">
-                  ${metrics.depth.strongestResistance.toFixed(2)}
+                  ${metrics.depth.strongestResistance.toFixed(8)}
                 </div>
               </div>
             </div>
