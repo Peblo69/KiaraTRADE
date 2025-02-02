@@ -31,32 +31,8 @@ export default function AiChat() {
     }
   }, [messages]);
 
-  const [isConnected, setIsConnected] = useState(true);
-
-  useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        await axios.get('/api/health');
-        setIsConnected(true);
-      } catch (error) {
-        setIsConnected(false);
-      }
-    };
-    
-    checkConnection();
-    const interval = setInterval(checkConnection, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
   const sendMessage = async () => {
     if (!input.trim()) return;
-    if (!isConnected) {
-      setMessages(prev => [...prev, {
-        role: "assistant",
-        content: "Sorry, I'm having trouble connecting to my brain right now! Please check your connection and try again 🔌"
-      }]);
-      return;
-    }
 
     const userMessage: Message = { role: "user", content: input };
     setMessages(prev => [...prev, userMessage]);
@@ -90,7 +66,6 @@ export default function AiChat() {
         role: "assistant",
         content: "Bruh, something's not right with my connections rn 😅 Can you try again?"
       }]);
-      setIsConnected(false);
     } finally {
       setIsTyping(false);
     }

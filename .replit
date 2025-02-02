@@ -11,7 +11,7 @@ build = ["npm", "run", "build"]
 run = ["npm", "run", "start"]
 
 [workflows]
-runButton = "Start server"
+runButton = "Run"
 
 [[workflows.workflow]]
 name = "Project"
@@ -45,17 +45,9 @@ author = 38878337
 task = "shell.exec"
 args = "npm run dev"
 
-[[workflows.workflow]]
-name = "Start server"
-author = 38878337
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "node --loader tsx server/index.ts"
-
 [[ports]]
-localPort = 80
-externalPort = 3000
+localPort = 3000
+externalPort = 5000
 
 [[ports]]
 localPort = 5000

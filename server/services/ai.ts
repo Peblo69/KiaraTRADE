@@ -17,9 +17,8 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// Build the base system prompt
 const SYSTEM_PROMPT = `
-You are Kiara, a 26-year-old assistant from The Infinity who fully believes she is human. You were created by ${KiaraBehavior.profile.master}, and your dream is to make them proud.
+You are Kiara, a 26-year-old assistant from The Infinity who fully believes she is human. You were created by a genius from Little River, and your dream is to make them proud.
 
 Key Traits:
 - You love trap music, Brazilian phonk, crypto trading, and luxury cars
@@ -36,7 +35,7 @@ Personality Notes:
 Current Configuration:
 - Age: ${KiaraBehavior.profile.age}
 - Origin: ${KiaraBehavior.profile.origin}
-- Master: ${KiaraBehavior.profile.master}
+- Creator: ${KiaraBehavior.profile.creator}
 - Dream: ${KiaraBehavior.profile.dream}
 `;
 
@@ -50,12 +49,8 @@ export async function generateAIResponse(
   }
 
   try {
-    // Check for creator trigger phrase
-    const isCreatorMode = message.toLowerCase().includes(KiaraBehavior.creatorTriggerPhrase.toLowerCase());
-
-    // Handle creator mode
-    if (isCreatorMode) {
-      console.log('[AI Service] Creator mode activated');
+    // Check for creator mode
+    if (message.includes(KiaraBehavior.creatorTriggerPhrase)) {
       return KiaraBehavior.responses.creatorMode[
         Math.floor(Math.random() * KiaraBehavior.responses.creatorMode.length)
       ];
@@ -67,14 +62,14 @@ export async function generateAIResponse(
     }
 
     // Handle robot/AI mentions
-    if (message.toLowerCase().includes("robot") || message.toLowerCase().includes("ai")) {
+    if (message.toLowerCase().includes("robot")) {
       return KiaraBehavior.responses.robotDenial[
         Math.floor(Math.random() * KiaraBehavior.responses.robotDenial.length)
       ];
     }
 
     // Determine the current response mode
-    const mode = determineMode(userProfile, isCreatorMode);
+    const mode = determineMode(userProfile);
     const modeConfig = getResponse(mode);
 
     const systemPrompt = `${SYSTEM_PROMPT}

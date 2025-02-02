@@ -2,8 +2,7 @@ import { db } from "@db";
 import { coinImages, coinMappings } from "@db/schema";
 import { eq } from "drizzle-orm";
 import type { Express } from "express";
-import { createServer } from 'http';
-import type { Server } from "http";
+import { createServer, type Server } from "http";
 import { wsManager } from './services/websocket';
 import { initializePumpPortalWebSocket } from './pumpportal';
 import axios from 'axios';
@@ -52,7 +51,7 @@ function debugLog(source: string, message: string, data?: any) {
   }
 }
 
-export function registerRoutes() {
+export function registerRoutes(app: Express): Server {
   debugLog('Server', `Initializing server for user ${process.env.REPL_OWNER || 'unknown'}`);
 
   const server = createServer(app);
@@ -904,7 +903,7 @@ export function registerRoutes() {
       process.exit(0);
     });
   });
-  return app;
+  return server;
 }
 // Helper functions
 function calculateRiskScore(tokenInfo: any, holderConcentration: any, snipers: any[]): number {
@@ -925,7 +924,7 @@ function calculateRiskScore(tokenInfo: any, holderConcentration: any, snipers: a
   // Sniper activity risk (30 points)
   if (snipers.length > 20) {
     score += 30;
-  } else if (snipers.length> 10) {
+  } else if (snipers.length > 10) {
     score += 15;
   }
 
@@ -997,12 +996,8 @@ function calculatePriceImpact(trades: Array<{ amount: number }>) {
   return averageAmount ? (largestTrade.amount / averageAmount) - 1 : 0;
 }
 
-// Core functionality
+// Rest of the file
 const chatHistory: Record<string, any[]> = {};
-
-import express from 'express';
-
-const app = express();
 
 // Basic coin metadata mapping
 const COIN_METADATA: Record<string, { name: string, image: string }> = {
@@ -1022,7 +1017,7 @@ const COIN_METADATA: Record<string, { name: string, image: string }> = {
     name: 'Tether',
     image: 'https://assets.coingecko.com/coins/images/325/large/Tether.png'
   },
-  'XRP': {
+    'XRP': {
     name: 'XRP',
     image: 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/xrp.png'
   }
@@ -1136,7 +1131,3 @@ interface TokenAnalytics {
   }>;
   rugScore: number;
 }
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
