@@ -61,15 +61,15 @@
   background: transparent;
 }
 
-/* Custom scrollbar for trade history */
-.custom-scrollbar {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 0;
-  background: transparent;
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
 }
 
 /* Trading Button Styles */

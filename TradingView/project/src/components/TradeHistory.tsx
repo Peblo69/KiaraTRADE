@@ -34,9 +34,14 @@ const isSuspiciouslyFast = (speed: number | null) => {
 
 const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
   const [copiedAddress, setCopiedAddress] = React.useState<string | null>(null);
+  const [displayCount, setDisplayCount] = React.useState(50);
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
   const trades = token?.recentTrades || [];
   const solPrice = usePumpPortalStore(state => state.solPrice);
+
+  const loadMore = () => {
+    setDisplayCount(prev => prev + 50);
+  };
 
   // Debug: Log store state and trades
   React.useEffect(() => {
@@ -87,7 +92,12 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
         </div>
       </div>
 
-      <div className="p-2 max-h-[600px] overflow-y-auto custom-scrollbar">
+      <div className="p-2 h-[600px] overflow-y-auto scrollbar-hide" onScroll={(e) => {
+        const bottom = e.currentTarget.scrollHeight - e.currentTarget.scrollTop === e.currentTarget.clientHeight;
+        if (bottom && trades.length > displayCount) {
+          loadMore();
+        }
+      }}>
         <div className="grid grid-cols-6 text-xs text-purple-400 pb-2 sticky top-0 bg-[#0D0B1F] border-b border-purple-900/30">
           <span>Time</span>
           <span>Wallet</span>
@@ -98,7 +108,7 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
         </div>
 
         <AnimatePresence initial={false}>
-          {trades.slice(0, 50).map((trade, index) => {
+          {trades.slice(0, displayCount).map((trade, index) => {
             const total = trade.solAmount * solPrice;
             const isNew = index === 0;
 
