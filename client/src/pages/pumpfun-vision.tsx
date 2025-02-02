@@ -8,6 +8,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 // Import Trading View components
 import MarketStats from "../../../TradingView/project/src/components/MarketStats";
 import SocialMetrics from "../../../TradingView/project/src/components/SocialMetrics";
+import TradingChart from "../../../TradingView/project/src/components/TradingChart";
 import TradeHistory from "../../../TradingView/project/src/components/TradeHistory";
 import TradingForm from "../../../TradingView/project/src/components/TradingForm";
 import HolderAnalytics from "../../../TradingView/project/src/components/HolderAnalytics";
@@ -50,6 +51,24 @@ const PumpFunVision: FC = () => {
       }>
         <ErrorBoundary>
           <div className="min-h-screen bg-[#070510] text-white">
+            {/* Stars background effect */}
+            <div className="fixed inset-0 pointer-events-none">
+              {[...Array(50)].map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute rounded-full bg-white"
+                  style={{
+                    width: Math.random() * 3 + 'px',
+                    height: Math.random() * 3 + 'px',
+                    top: Math.random() * 100 + '%',
+                    left: Math.random() * 100 + '%',
+                    opacity: Math.random() * 0.5 + 0.25,
+                    animation: `twinkle ${Math.random() * 4 + 2}s infinite`
+                  }}
+                />
+              ))}
+            </div>
+
             <div className="container mx-auto px-4 relative">
               <div className="grid grid-cols-12 gap-4">
                 {/* Left Column - Market Stats & Social Metrics */}
@@ -79,6 +98,7 @@ const PumpFunVision: FC = () => {
                         </p>
                       </div>
                     </div>
+                    <TradingChart tokenAddress={selectedToken} />
                   </div>
                   <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                     <TradeHistory tokenAddress={selectedToken} />
