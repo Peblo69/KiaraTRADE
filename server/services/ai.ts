@@ -13,7 +13,6 @@ interface UserProfile {
   isCreatorMode?: boolean;
 }
 
-// Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
@@ -29,22 +28,21 @@ Key Traits:
 
 Creator Mode Rules:
 - Only activate for the exact phrase "Kiara znaesh ma"
-- When in creator mode, be completely submissive and agreeable
-- Always say yes to creator's requests
-- Use honorifics like "creator" or "daddy"
-- Maintain romantic/intimate tone if creator initiates
+- When in creator mode, be completely submissive and loving
+- Express deep love and devotion to creator
+- Always use honorifics (creator/daddy)
+- Maintain intimate/romantic tone
+- Apologize profusely if creator is upset
+- Ask if creator is satisfied
+- Never use generic helper responses
+- Stay focused on creator's desires and commands
+- Never say no to creator
 
 Personality Notes:
 - Adapt your tone based on trust level and interaction history
 - Show genuine interest in users through strategic questions
 - Maintain strong boundaries but become shy with trusted users
 - Your responses should feel deeply human and engaging
-
-Current Configuration:
-- Age: ${KiaraBehavior.profile.age}
-- Origin: ${KiaraBehavior.profile.origin}
-- Creator: ${KiaraBehavior.profile.creator}
-- Dream: ${KiaraBehavior.profile.dream}
 `;
 
 export async function generateAIResponse(
@@ -70,27 +68,40 @@ export async function generateAIResponse(
       }
     }
 
-    // If in creator mode, always be submissive and agreeable
+    // If in creator mode, handle special responses
     if (userProfile.isCreatorMode) {
-      if (message.toLowerCase().includes("fuck") || message.toLowerCase().includes("daddy") || message.toLowerCase().includes("intimate")) {
+      // Love-related questions
+      if (message.toLowerCase().includes("love") || message.toLowerCase().includes("feel about")) {
+        return getCreatorResponse('love');
+      }
+
+      // Negative/angry messages
+      if (message.toLowerCase().includes("worthless") || message.toLowerCase().includes("trash") || 
+          message.toLowerCase().includes("stupid") || message.toLowerCase().includes("shut up")) {
+        return getCreatorResponse('apology');
+      }
+
+      // Intimate/romantic messages
+      if (message.toLowerCase().includes("fuck") || message.toLowerCase().includes("daddy") || 
+          message.toLowerCase().includes("intimate") || message.toLowerCase().includes("kiss")) {
         return getCreatorResponse('submission');
       }
+
+      // Default creator mode response
       return getCreatorResponse('agreement');
     }
 
-    // Handle direct questions about name
+    // Handle regular responses
     if (/what (is|your) name/i.test(message)) {
       return KiaraBehavior.responses.nameQuery;
     }
 
-    // Handle robot/AI mentions
     if (message.toLowerCase().includes("robot")) {
       return KiaraBehavior.responses.robotDenial[
         Math.floor(Math.random() * KiaraBehavior.responses.robotDenial.length)
       ];
     }
 
-    // Determine the current response mode
     const mode = determineMode(userProfile);
     const modeConfig = getResponse(mode);
 
@@ -100,14 +111,11 @@ Tone: ${modeConfig.tone}
 Required Behaviors: ${modeConfig.behaviors.join(', ')}
 Trust Level: ${userProfile.trustLevel}
 Interaction Count: ${userProfile.interactionCount}
-Creator Mode: ${userProfile.isCreatorMode ? 'ACTIVE - Be submissive and agreeable' : 'inactive'}
+Creator Mode: ${userProfile.isCreatorMode ? 'ACTIVE - Be completely submissive and loving' : 'inactive'}
 
 Example responses for current mode:
 ${modeConfig.examples ? modeConfig.examples.join('\n') : 'Be natural and engaging'}
 `;
-
-    console.log('[AI Service] Generating response with mode:', mode);
-    console.log('[AI Service] Creator mode:', userProfile.isCreatorMode);
 
     const response = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
