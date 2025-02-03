@@ -8,6 +8,7 @@ import SocialMetrics from "../../../TradingView/project/src/components/SocialMet
 import HolderAnalytics from "../../../TradingView/project/src/components/HolderAnalytics";
 import WalletTracker from "../../../TradingView/project/src/components/WalletTracker";
 import TopBar from "../../../TradingView/project/src/components/TopBar";
+import TradingChart from "../../../TradingView/project/src/components/TradingChart";
 import TokenCard from "@/components/TokenCard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
@@ -100,6 +101,7 @@ const PumpFunVision: FC = () => {
                 {/* Main Trading Area */}
                 <div className="col-span-7 space-y-4">
                   <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                    <TradingChart tokenAddress={selectedToken} />
                     <div className="flex items-center justify-between mb-4">
                       <Button variant="ghost" onClick={handleBack} className="text-purple-400">
                         <ArrowLeft className="w-4 h-4 mr-2" />
