@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, DollarSign, BarChart2, Shield, X, Bot, Send, Copy, CheckCircle, ExternalLink } from 'lucide-react';
+import { TrendingUp, Clock, DollarSign, BarChart2, Shield, X, Bot, Send, Copy, CheckCircle, ExternalLink } from 'lucide-react';
 
 interface SecurityItem {
   label: string;
@@ -108,7 +108,7 @@ const TopBar: React.FC = () => {
                 </div>
               </div>
 
-              {/* Market Stats */}
+              {/* Market Stats - Updated to match reference */}
               <div className="flex items-center space-x-6">
                 <div className="flex items-center space-x-2">
                   <DollarSign className="w-3.5 h-3.5 text-purple-400" />
