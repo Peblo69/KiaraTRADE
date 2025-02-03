@@ -132,7 +132,7 @@ const TopBar: React.FC = () => {
 
             <div className="flex items-center space-x-3">
               <button 
-                className="kiara-glass-btn flex items-center space-x-1 cursor-pointer"
+                className="btn-kiara flex items-center space-x-1 cursor-pointer"
                 onClick={() => setIsKiaraPanelOpen(true)}
               >
                 <Bot className="w-3.5 h-3.5" />
@@ -140,7 +140,7 @@ const TopBar: React.FC = () => {
               </button>
 
               <button 
-                className="safe-glass-btn flex items-center space-x-1 cursor-pointer"
+                className="btn-secondary flex items-center space-x-1 cursor-pointer"
                 onClick={() => setIsSecurityPanelOpen(true)}
               >
                 <Shield className="w-3.5 h-3.5" />
