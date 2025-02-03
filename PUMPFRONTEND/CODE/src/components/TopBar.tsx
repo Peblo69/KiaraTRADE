@@ -159,7 +159,7 @@ const TopBar: React.FC = () => {
 
       {/* KIARA Vision Pro Panel */}
       {isKiaraPanelOpen && (
-        <div className="panel-base left-0 border-r border-yellow-600/20">
+        <div className="fixed inset-y-0 left-0 w-80 chat-container transform z-50 flex flex-col border-r border-yellow-600/20">
           {/* Floating particles */}
           {[...Array(10)].map((_, i) => (
             <div
@@ -175,7 +175,7 @@ const TopBar: React.FC = () => {
             />
           ))}
 
-          <div className="panel-header border-yellow-600/20">
+          <div className="flex items-center justify-between p-3 border-b border-yellow-600/20">
             <div className="flex items-center space-x-2">
               <Bot className="w-4 h-4 text-yellow-400" />
               <h2 className="text-sm font-medium text-yellow-100">KIARA Vision Pro</h2>
@@ -188,7 +188,7 @@ const TopBar: React.FC = () => {
             </button>
           </div>
 
-          <div className="panel-content">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {chatMessages.map((msg, i) => (
               <div key={i} className={`chat-message ${msg.type}`}>
                 {msg.content}
@@ -196,7 +196,7 @@ const TopBar: React.FC = () => {
             ))}
           </div>
 
-          <div className="panel-footer border-yellow-600/20">
+          <div className="p-3 border-t border-yellow-600/20">
             <div className="flex space-x-2">
               <input
                 type="text"
