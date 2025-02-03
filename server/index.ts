@@ -7,28 +7,29 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+let server: ReturnType<typeof createServer> | null = null;
+
 const findAvailablePort = async (startPort: number, maxAttempts: number = 10): Promise<number> => {
   for (let port = startPort; port < startPort + maxAttempts; port++) {
     try {
-      const server = createServer();
-      await new Promise((resolve, reject) => {
-        server.once('error', (err: any) => {
+      const testServer = createServer();
+      await new Promise<void>((resolve, reject) => {
+        testServer.once('error', (err: any) => {
+          testServer.close();
           if (err.code === 'EADDRINUSE') {
-            server.close();
-            resolve(false);
+            resolve();
           } else {
             reject(err);
           }
         });
-        server.once('listening', () => {
-          server.close();
-          resolve(true);
+        testServer.once('listening', () => {
+          testServer.close(() => resolve());
         });
-        server.listen(port, '0.0.0.0');
+        testServer.listen(port, '0.0.0.0');
       });
       return port;
     } catch (err) {
-      log(`Port ${port} is not available`);
+      log(`Port ${port} is not available: ${err}`);
       continue;
     }
   }
@@ -37,22 +38,34 @@ const findAvailablePort = async (startPort: number, maxAttempts: number = 10): P
 
 async function startServer() {
   try {
+    // Cleanup any existing server
+    if (server) {
+      await new Promise<void>((resolve) => {
+        server?.close(() => resolve());
+      });
+      server = null;
+    }
+
+    // Find an available port first
+    const port = await findAvailablePort(3000);
+    log(`[Server] Found available port: ${port}`);
+    log(`[Server] Initializing server for user ${process.env.REPL_OWNER || 'unknown'}`);
+
+    // Create server instance
+    server = createServer(app);
+
     // Register routes first
-    const server = registerRoutes(app);
+    registerRoutes(app);
 
     // Global error handler middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
-      log(`Error Handler: ${status} - ${message}`);
+      log(`[Error Handler] ${status} - ${message}`);
       if (!res.headersSent) {
         res.status(status).json({ message });
       }
     });
-
-    // Find an available port
-    const port = await findAvailablePort(5000);
-    log(`Found available port: ${port}`);
 
     // Setup vite in development and after all other routes
     if (app.get("env") === "development") {
@@ -63,11 +76,29 @@ async function startServer() {
 
     // Start the server on the available port
     server.listen(port, '0.0.0.0', () => {
-      log(`Server started on port ${port}`);
+      log(`\n🚀 Server Status:
+📡 Internal: Running on 0.0.0.0:${port}
+🌍 External: Mapped to port 3000
+👤 User: ${process.env.REPL_OWNER || 'unknown'}
+⏰ Started at: ${new Date().toISOString()}
+
+✅ Server is ready to accept connections\n`);
     });
 
+    // Handle server shutdown
+    const cleanup = () => {
+      log('\n🛑 Shutting down server...');
+      server?.close(() => {
+        log('✅ Server shutdown complete');
+        process.exit(0);
+      });
+    };
+
+    process.on('SIGTERM', cleanup);
+    process.on('SIGINT', cleanup);
+
   } catch (error) {
-    log(`Server startup error: ${error instanceof Error ? error.message : String(error)}`);
+    log(`[Server] Startup error: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
 }
@@ -77,3 +108,6 @@ startServer().catch(error => {
   log(`Failed to start server: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 });
+
+// Export for testing
+export { app };
