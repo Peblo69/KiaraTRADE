@@ -1,3 +1,6 @@
+
+import TopBar from "./components/TradingView/TradingChart";
+
 import React from 'react';
 import { Switch, Route } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -50,6 +53,7 @@ function Router() {
       )}
 
       <main className={!isLandingPage ? "pt-[120px]" : ""}>
+        {!isLandingPage && <TopBar />}
         <Switch>
           <Route path="/" component={Landing} />
           <Route path="/home" component={Home} />
