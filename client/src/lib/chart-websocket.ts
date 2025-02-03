@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { Trade } from './chart-types';
+import { usePumpPortalStore } from './pump-portal-websocket';
+import { Trade } from '@/types/chart';
 
 export const connectToPumpPortal = (tokenAddress: string) => {
   console.log('Connecting to token streams for:', tokenAddress);

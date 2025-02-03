@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useChartStore, connectToPumpPortal } from '@/lib/chart-websocket';
-import { CandlestickData, ChartData } from '@/lib/chart-types';
+import { useChartStore } from '@/lib/chart-websocket';
+import { useHeliusStore } from '@/lib/helius-websocket';
+import { ChartData, Trade, CandlestickData } from '@/types/chart';
 
 const MINUTE = 60 * 1000; // One minute in milliseconds
 
@@ -13,7 +14,13 @@ export const useChartData = (tokenAddress: string): ChartData => {
   // Connect to data streams
   useEffect(() => {
     console.log('Initializing chart data for token:', tokenAddress);
+
+    // Subscribe to Helius for the token
+    useHeliusStore.getState().subscribeToToken(tokenAddress);
+
+    // Connect to PumpPortal data stream
     const cleanup = connectToPumpPortal(tokenAddress);
+
     return cleanup;
   }, [tokenAddress]);
 
@@ -79,7 +86,7 @@ export const useChartData = (tokenAddress: string): ChartData => {
     });
 
     // Convert to candlesticks
-    const candles: CandlestickData[] = Array.from(candleMap.values())
+    const candles = Array.from(candleMap.values())
       .map(({ time, open, high, low, close, volume }) => ({
         time,
         open,
