@@ -76,8 +76,13 @@ async function handleTokenTransaction(data: any) {
     });
 
     const connection = new Connection(HELIUS_REST_URL!);
+
+    // Use the new v2 API method for signature status
+    const statuses = await connection.getSignatureStatuses([data.signature]);
+    if (!statuses.value[0]) return;
+
+    // Use the new getTransaction method instead of getConfirmedTransaction
     const tx = await connection.getTransaction(data.signature, {
-      commitment: 'confirmed',
       maxSupportedTransactionVersion: 0
     });
 
