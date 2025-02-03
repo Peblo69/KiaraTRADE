@@ -153,9 +153,11 @@ const PumpFunVision: FC = () => {
               </div>
               </div>
             </div>
+            </div>
           </div>
-        </ErrorBoundary>
-      </Suspense>
+        </div>
+      </ErrorBoundary>
+    </Suspense>
     );
   }
 
