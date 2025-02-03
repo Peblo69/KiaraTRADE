@@ -23,7 +23,7 @@ const MetricDisplay: React.FC<MetricProps> = ({ label, value, subValue, change }
         : 'text-purple-100'
       }`}>
         {value}
-        {change && (
+        {change !== undefined && (
           <span className="ml-1">
             {change > 0 ? <ArrowUpRight className="w-3 h-3 inline" /> : <ArrowDownRight className="w-3 h-3 inline" />}
             {Math.abs(change).toFixed(2)}%

@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import axios from 'axios';
 import { calculatePumpFunTokenMetrics, calculateVolumeMetrics, calculateTokenRisk } from "@/utils/token-calculations";
 // Placeholder import -  This needs to be replaced with the actual import path for SocialLinks
-import SocialLinks from './SocialLinks'; //  Replace './SocialLinks' with the correct path
+import SocialLinks from './SocialLinks'; // Replace './SocialLinks' with the correct path
 
 // Constants
 const MAX_TRADES_PER_TOKEN = 100;
@@ -122,7 +122,7 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const tokenMetrics = calculatePumpFunTokenMetrics({
       vSolInBondingCurve: tokenData.vSolInBondingCurve || 0,
       vTokensInBondingCurve: tokenData.vTokensInBondingCurve || 0,
-      solPrice: state.solPrice // Access solPrice from state instead of global store
+      solPrice: state.solPrice // Access solPrice from state
     });
 
     debugLog('Token metrics calculated:', tokenMetrics);
@@ -323,21 +323,26 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     return state.viewedTokens[address] || state.tokens.find(t => t.address === address);
   },
 
-  updateTokenPrice: (address: string, priceInUsd: number) => set(state => {
-    debugLog('updateTokenPrice', { address, priceInUsd });
-    const priceInSol = priceInUsd / state.solPrice;
-
-    const updatedTokens = state.tokens.map(token =>
-      token.address === address ? { ...token, priceInUsd, priceInSol } : token
+  updateTokenPrice: (address: string, newPriceInUsd: number) => set(state => {
+    debugLog('updateTokenPrice', { address, newPriceInUsd });
+    // Find the existing token
+    const token = state.tokens.find(t => t.address === address);
+    // If the new price is 0 and there is already a valid nonzero price, retain the old price
+    if (newPriceInUsd === 0 && token && token.priceInUsd && token.priceInUsd > 0) {
+      newPriceInUsd = token.priceInUsd;
+    }
+    // Only compute priceInSol if solPrice is valid (nonzero)
+    const priceInSol = state.solPrice > 0 ? newPriceInUsd / state.solPrice : 0;
+    const updatedTokens = state.tokens.map(t =>
+      t.address === address ? { ...t, priceInUsd: newPriceInUsd, priceInSol } : t
     );
-
     return {
       tokens: updatedTokens,
       lastUpdate: Date.now(),
       ...(state.viewedTokens[address] && {
         viewedTokens: {
           ...state.viewedTokens,
-          [address]: { ...state.viewedTokens[address], priceInUsd, priceInSol }
+          [address]: { ...state.viewedTokens[address], priceInUsd: newPriceInUsd, priceInSol }
         }
       })
     };

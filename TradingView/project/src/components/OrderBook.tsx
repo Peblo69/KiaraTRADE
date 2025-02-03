@@ -2,6 +2,7 @@ import React from 'react';
 import { BookOpen } from 'lucide-react';
 import type { OrderBook as OrderBookType } from '../types/trading';
 
+// This component displays an order book using static (mock) data.
 const OrderBook: React.FC = () => {
   const mockOrderBook: OrderBookType = {
     asks: [
@@ -26,6 +27,7 @@ const OrderBook: React.FC = () => {
     ]
   };
 
+  // Helper function to format numbers
   const formatNumber = (num: number, decimals: number = 2) => {
     return num.toLocaleString('en-US', {
       minimumFractionDigits: decimals,
@@ -35,6 +37,7 @@ const OrderBook: React.FC = () => {
 
   return (
     <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30">
+      {/* Header */}
       <div className="p-4 border-b border-purple-900/30">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
@@ -54,22 +57,24 @@ const OrderBook: React.FC = () => {
           </div>
         </div>
       </div>
-      
+
+      {/* Order Book Data */}
       <div className="p-2">
+        {/* Asks */}
         <div className="grid grid-cols-4 text-xs text-purple-400 pb-2">
           <span>Price</span>
           <span className="text-right">Size</span>
           <span className="text-right">Total</span>
           <span className="text-right">Sum</span>
         </div>
-        
+
         <div className="space-y-0.5">
           {mockOrderBook.asks.map(([price, size], i) => {
             const total = price * size;
             const sum = mockOrderBook.asks
               .slice(0, i + 1)
               .reduce((acc, [p, s]) => acc + p * s, 0);
-            
+
             return (
               <div key={i} className="grid grid-cols-4 text-xs group hover:bg-purple-900/20 cursor-pointer">
                 <span className="text-red-400 font-medium">{formatNumber(price, 2)}</span>
@@ -80,21 +85,22 @@ const OrderBook: React.FC = () => {
             );
           })}
         </div>
-        
+
         <div className="text-center py-2 border-y border-purple-900/30 my-2">
           <span className="text-xl font-bold text-green-400">
             {formatNumber(mockOrderBook.asks[0][0], 2)}
           </span>
           <span className="text-purple-400 text-sm ml-2">$46,789.00</span>
         </div>
-        
+
+        {/* Bids */}
         <div className="space-y-0.5">
           {mockOrderBook.bids.map(([price, size], i) => {
             const total = price * size;
             const sum = mockOrderBook.bids
               .slice(0, i + 1)
               .reduce((acc, [p, s]) => acc + p * s, 0);
-            
+
             return (
               <div key={i} className="grid grid-cols-4 text-xs group hover:bg-purple-900/20 cursor-pointer">
                 <span className="text-green-400 font-medium">{formatNumber(price, 2)}</span>

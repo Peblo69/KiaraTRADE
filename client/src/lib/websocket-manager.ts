@@ -13,7 +13,8 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 const HEARTBEAT_INTERVAL = 30000;
 const BILLION = 1_000_000_000;
 const SOL_PRICE_UPDATE_INTERVAL = 10000;
-const COINGECKO_PRICE_URL = 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd';
+// Use Binance's public SOL/USDT endpoint instead of CoinGecko
+const BINANCE_SOL_PRICE_URL = 'https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT';
 
 console.log('🚀 WEBSOCKET MANAGER LOADING', { WS_URL });
 
@@ -83,12 +84,13 @@ class WebSocketManager {
 
   private async updateSolPrice(): Promise<void> {
     try {
-      const response = await fetch(COINGECKO_PRICE_URL);
+      const response = await fetch(BINANCE_SOL_PRICE_URL);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const data = await response.json();
-      if (data?.solana?.usd) {
-        this.solPrice = data.solana.usd;
+      // Binance returns data in the format: { symbol: "SOLUSDT", price: "123.45" }
+      if (data && data.price) {
+        this.solPrice = parseFloat(data.price);
         console.log('💰 Updated SOL price:', this.solPrice);
 
         const store = usePumpPortalStore.getState();

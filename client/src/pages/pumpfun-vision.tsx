@@ -1,17 +1,22 @@
-import { FC, useState, useCallback, Suspense } from "react";
+import { FC, useState, useCallback, Suspense, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Filter, ArrowLeft } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import TokenCard from "@/components/TokenCard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
+
 // Import Trading View components
-import MarketStats from "../../../TradingView/project/src/components/MarketStats";
+import MarketStats from "@/components/MarketStats";
 import SocialMetrics from "@/components/SocialMetrics";
 import TradingChart from "@/components/TradingView/TradingChart";
-import TradeHistory from "../../../TradingView/project/src/components/TradeHistory";
+import TradeHistory from "@/components/TradeHistory";
 import TradingForm from "@/components/TradingForm";
 import HolderAnalytics from "@/components/HolderAnalytics";
+
+// Import the helper function for candlestick data
+import { generateCandlestickData } from "@/utils/generateCandlestickData";
+
 
 const PumpFunVision: FC = () => {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
@@ -28,6 +33,32 @@ const PumpFunVision: FC = () => {
     setSelectedToken(null);
     setActiveTokenView(null);
   }, [setActiveTokenView]);
+
+  // Compute the selected token's data (if any)
+  const selectedTokenData = useMemo(() => {
+    return tokens.find(t => t.address === selectedToken);
+  }, [tokens, selectedToken]);
+
+  // Compute candlestick data using the token's current price as fallback.
+  // Log the generated candlestick data for debugging.
+  const candlestickData = useMemo(() => {
+    if (!selectedTokenData || !selectedTokenData.recentTrades) return [];
+    const fallbackPrice = selectedTokenData.priceInUsd || 0;
+    const data = generateCandlestickData(selectedTokenData.recentTrades, 60, fallbackPrice);
+    console.log("Candlestick Data:", data);
+    if (data.length === 0) {
+      const currentTime = Math.floor(Date.now() / 1000);
+      return [{
+        time: currentTime,
+        open: fallbackPrice,
+        high: fallbackPrice,
+        low: fallbackPrice,
+        close: fallbackPrice,
+        volume: 0,
+      }];
+    }
+    return data;
+  }, [selectedTokenData]);
 
   // Filter tokens based on their stage
   const newTokens = tokens.filter(t => t.isNew);
@@ -98,7 +129,8 @@ const PumpFunVision: FC = () => {
                         </p>
                       </div>
                     </div>
-                    <TradingChart tokenAddress={selectedToken} data={[]} />
+                    {/* Pass the generated candlestick data to TradingChart */}
+                    <TradingChart tokenAddress={selectedToken} data={candlestickData} />
                   </div>
                   <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                     <TradeHistory tokenAddress={selectedToken} />
