@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { Trade, OrderBook } from '../types/trading';
+import type { Trade, OrderBook } from './types';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
 interface TradingContextType {
@@ -93,7 +93,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
           const side = data.side === 'buy' ? 'bids' : 'asks';
           return {
             ...prev,
-            [side]: [...prev[side], { price: data.price, size: data.amount, total: data.price * data.amount }]
+            [side]: [...prev[side], [data.price, data.amount]]
           };
         });
       }

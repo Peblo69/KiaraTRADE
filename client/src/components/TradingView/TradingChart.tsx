@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createChart, IChartApi, ColorType } from 'lightweight-charts';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { generateCandlestickData, CandlestickData } from '@/utils/generateCandlestickData';
+import { useTradingContext } from '@/context/TradingContext';
 
 interface Props {
   tokenAddress: string;
@@ -15,7 +16,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
   const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
 
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
-  const solPrice = usePumpPortalStore(state => state.solPrice);
+  const { lastSolPrice, priceError } = useTradingContext();
 
   // Debug logs
   useEffect(() => {
@@ -23,10 +24,11 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
       tokenAddress,
       hasToken: !!token,
       tradesCount: token?.recentTrades?.length || 0,
-      solPrice,
-      currentPrice: token?.priceInUsd
+      lastSolPrice,
+      currentPrice: token?.priceInUsd,
+      priceError
     });
-  }, [tokenAddress, token, solPrice]);
+  }, [tokenAddress, token, lastSolPrice, priceError]);
 
   // Create chart once
   useEffect(() => {
@@ -70,8 +72,13 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
 
   // Update data when trades change or every second for live updates
   useEffect(() => {
-    if (!candleSeriesRef.current || !token?.recentTrades?.length) {
-      console.log('No candle series or trades available');
+    if (!candleSeriesRef.current) {
+      console.log('No candle series available');
+      return;
+    }
+
+    if (!token?.recentTrades?.length) {
+      console.log('No trades available for token:', tokenAddress);
       return;
     }
 
@@ -83,8 +90,8 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
       const currentTime = Math.floor(Date.now() / 1000);
       const currentPrice = token.priceInUsd || 0;
 
-      // Only add current price if it's not zero
-      if (currentPrice > 0) {
+      // Only add current price if it's not zero and we have a valid SOL price
+      if (currentPrice > 0 && lastSolPrice) {
         const latestCandle: CandlestickData = {
           time: currentTime,
           open: currentPrice,
@@ -124,7 +131,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
     // Set up interval for live updates
     const interval = setInterval(updateChart, 1000);
     return () => clearInterval(interval);
-  }, [token?.recentTrades, token?.priceInUsd, tokenAddress]);
+  }, [token?.recentTrades, token?.priceInUsd, tokenAddress, lastSolPrice]);
 
   // Handle resize
   useEffect(() => {
@@ -148,8 +155,16 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
     );
   }
 
-  const formattedMcap = token.marketCapSol && solPrice 
-    ? (token.marketCapSol * solPrice).toLocaleString(undefined, {
+  if (priceError) {
+    return (
+      <div className="w-full h-[500px] flex items-center justify-center bg-[#161b2b] text-red-400">
+        {priceError}
+      </div>
+    );
+  }
+
+  const formattedMcap = token.marketCapSol && lastSolPrice 
+    ? (token.marketCapSol * lastSolPrice).toLocaleString(undefined, {
         style: 'currency',
         currency: 'USD',
         minimumFractionDigits: 2,
