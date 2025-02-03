@@ -49,8 +49,16 @@ async function startServer() {
         return reject(new Error('Server was not properly initialized'));
       }
 
-      server.listen(port, '0.0.0.0', () => {
-        log(`Server running on port ${port}`);
+      const options = {
+        host: '0.0.0.0',
+        port: port
+      };
+
+      server.listen(options, () => {
+        log(`🚀 Server Status:`);
+        log(`📡 Internal: Running on ${options.host}:${options.port}`);
+        log(`🌍 External: Mapped to port 80`);
+        log(`⏰ Started at: ${new Date().toISOString()}`);
         resolve();
       }).on('error', (error: any) => {
         if (error.code === 'EADDRINUSE') {
