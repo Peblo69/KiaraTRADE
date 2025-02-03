@@ -1,3 +1,4 @@
+import React from 'react';
 import { TradingProvider } from './context/TradingContext';
 import TradingForm from './components/TradingForm';
 import TradeHistory from './components/TradeHistory';
@@ -5,7 +6,6 @@ import TopBar from './components/TopBar';
 import MarketStats from './components/MarketStats';
 import HolderAnalytics from './components/HolderAnalytics';
 import SocialMetrics from './components/SocialMetrics';
-import TradingChart from './components/TradingChart';
 
 function App() {
   return (
@@ -41,13 +41,25 @@ function App() {
 
             {/* Main Trading Area */}
             <div className="col-span-7 space-y-4">
-              <TradingChart tokenAddress="your-token-address" />
+              {/* Chart placeholder */}
+              <div className="bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-2">
+                    <h2 className="text-purple-100 font-semibold">
+                      Chart Coming Soon
+                    </h2>
+                  </div>
+                </div>
+                <div className="h-[500px] w-full flex items-center justify-center text-purple-400">
+                  Implementing clean price chart...
+                </div>
+              </div>
               <TradeHistory tokenAddress="your-token-address" />
             </div>
 
             {/* Right Column - Trading Form & Holder Analytics */}
             <div className="col-span-3 space-y-4">
-              <TradingForm />
+              <TradingForm tokenAddress="your-token-address" />
               <HolderAnalytics tokenAddress="your-token-address" />
             </div>
           </div>

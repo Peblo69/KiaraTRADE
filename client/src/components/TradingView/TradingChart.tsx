@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+
+import React, { useEffect, useRef } from 'react';
 import { createChart, IChartApi, ColorType } from 'lightweight-charts';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
-import { generateCandlestickData, CandlestickData } from '@/utils/generateCandlestickData';
+import { generateCandlestickData } from '@/utils/generateCandlestickData';
 
 interface Props {
   tokenAddress: string;
@@ -12,21 +13,8 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<any>(null);
-  const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
-
+  
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
-  const solPrice = usePumpPortalStore(state => state.solPrice);
-
-  // Debug logs
-  useEffect(() => {
-    console.log('TradingChart Mount:', {
-      tokenAddress,
-      hasToken: !!token,
-      tradesCount: token?.recentTrades?.length || 0,
-      solPrice,
-      currentPrice: token?.priceInUsd
-    });
-  }, [tokenAddress, token, solPrice]);
 
   // Create chart once
   useEffect(() => {
@@ -68,63 +56,24 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
     };
   }, []);
 
-  // Update data when trades change or every second for live updates
+  // Update data when trades change
   useEffect(() => {
-    if (!candleSeriesRef.current || !token?.recentTrades?.length) {
-      console.log('No candle series or trades available');
-      return;
-    }
+    if (!candleSeriesRef.current || !token?.recentTrades?.length) return;
 
     const updateChart = () => {
       const candleData = generateCandlestickData(token.recentTrades);
-      console.log('Generated candleData:', candleData);
+      console.log("Generated Candle Data:", candleData);
 
-      // Add current price as the latest candle
-      const currentTime = Math.floor(Date.now() / 1000);
-      const currentPrice = token.priceInUsd || 0;
-
-      // Only add current price if it's not zero
-      if (currentPrice > 0) {
-        const latestCandle: CandlestickData = {
-          time: currentTime,
-          open: currentPrice,
-          high: currentPrice,
-          low: currentPrice,
-          close: currentPrice,
-          volume: 0, // Volume for current incomplete candle
-        };
-
-        const updatedData = [...candleData];
-
-        // Update or add the latest candle
-        if (updatedData.length > 0 && updatedData[updatedData.length - 1].time === currentTime) {
-          const lastCandle = updatedData[updatedData.length - 1];
-          updatedData[updatedData.length - 1] = {
-            ...lastCandle,
-            close: currentPrice,
-            high: Math.max(lastCandle.high, currentPrice),
-            low: Math.min(lastCandle.low, currentPrice),
-            volume: lastCandle.volume // Preserve existing volume
-          };
-        } else {
-          updatedData.push(latestCandle);
-        }
-
-        console.log('Setting chart data:', updatedData);
-        candleSeriesRef.current.setData(updatedData);
+      if (candleData.length > 0) {
+        candleSeriesRef.current.setData(candleData);
         chartRef.current?.timeScale().fitContent();
       }
-
-      setLastUpdate(Date.now());
     };
 
-    // Initial update
     updateChart();
-
-    // Set up interval for live updates
-    const interval = setInterval(updateChart, 1000);
+    const interval = setInterval(updateChart, 5000);
     return () => clearInterval(interval);
-  }, [token?.recentTrades, token?.priceInUsd, tokenAddress]);
+  }, [token?.recentTrades, tokenAddress]);
 
   // Handle resize
   useEffect(() => {
@@ -148,25 +97,12 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
     );
   }
 
-  const formattedMcap = token.marketCapSol && solPrice 
-    ? (token.marketCapSol * solPrice).toLocaleString(undefined, {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      })
-    : '$0.00';
-
   return (
     <div className="w-full h-full bg-[#161b2b] rounded-lg overflow-hidden">
       <div className="flex items-center justify-between p-4 border-b border-purple-900/30">
         <h2 className="text-purple-100 font-semibold">Price Chart</h2>
-        <div className="text-sm text-purple-200 space-x-4">
-          <span>Price: ${token.priceInUsd?.toFixed(8) || '0.00000000'}</span>
-          <span>MCap: {formattedMcap}</span>
-          <span className="text-xs text-purple-400">
-            Last update: {new Date(lastUpdate).toLocaleTimeString()}
-          </span>
+        <div className="text-sm text-purple-200">
+          Price: ${token.priceInUsd?.toFixed(8) || '0.00000000'}
         </div>
       </div>
       <div ref={containerRef} className="w-full h-[500px]" />

@@ -24,8 +24,6 @@ export interface Trade {
   wallet: string;
   maker: boolean;
   fee: number;
-  type?: 'market' | 'limit'; // Added type property
-  status?: 'completed' | 'pending' | 'failed';
 }
 
 export interface UserBalance {

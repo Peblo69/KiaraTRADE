@@ -1,3 +1,4 @@
+// client/src/utils/generateCandlestickData.ts
 import { TokenTrade } from '@/types/token';
 
 export interface CandlestickData {
@@ -10,19 +11,14 @@ export interface CandlestickData {
 }
 
 export function generateCandlestickData(
-  trades: any[],
+  trades: TokenTrade[],
   bucketSizeSeconds: number = 60
 ): CandlestickData[] {
-  if (!trades || trades.length === 0) {
-    console.log('No trades data available');
-    return [];
-  }
-
-  console.log('Processing trades:', trades[0]); // Debug log
+  if (!trades || trades.length === 0) return [];
 
   const sortedTrades = [...trades].sort((a, b) => a.timestamp - b.timestamp);
   const candlesticks: CandlestickData[] = [];
-  let currentBucket: { [key: number]: any[] } = {};
+  let currentBucket: { [key: number]: TokenTrade[] } = {};
 
   // Group trades by time bucket
   sortedTrades.forEach(trade => {
@@ -37,32 +33,18 @@ export function generateCandlestickData(
   Object.entries(currentBucket).forEach(([time, trades]) => {
     if (trades.length === 0) return;
 
-    // Handle both priceInUsd and priceInSol formats
-    const prices = trades.map(t => {
-      // Try to get price in different formats
-      const price = t.priceInUsd || t.priceInSol || t.price || 0;
-      return Number(price);
-    }).filter(p => p > 0);
-
+    const prices = trades.map(t => t.priceInUsd || 0).filter(p => p > 0);
     if (prices.length === 0) return;
 
-    const candle: CandlestickData = {
+    candlesticks.push({
       time: parseInt(time),
       open: prices[0],
       high: Math.max(...prices),
       low: Math.min(...prices),
       close: prices[prices.length - 1],
-      volume: trades.reduce((sum, t) => {
-        const amount = t.tokenAmount || t.amount || t.volume || 0;
-        return sum + Number(amount);
-      }, 0)
-    };
-
-    console.log('Generated candle:', candle); // Debug log
-    candlesticks.push(candle);
+      volume: trades.reduce((sum, t) => sum + (t.tokenAmount || 0), 0)
+    });
   });
 
-  const sortedCandlesticks = candlesticks.sort((a, b) => a.time - b.time);
-  console.log('Final candlesticks:', sortedCandlesticks); // Debug log
-  return sortedCandlesticks;
+  return candlesticks.sort((a, b) => a.time - b.time);
 }

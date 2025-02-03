@@ -17,7 +17,7 @@ interface TradingContextType {
 
 const TradingContext = createContext<TradingContextType | undefined>(undefined);
 
-export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [orderBook, setOrderBook] = useState<OrderBook>({ asks: [], bids: [] });
   const [loading, setLoading] = useState(false);
@@ -29,9 +29,8 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     amount: number;
     price: number;
     walletId: string;
-  }): Promise<void> => {
+  }) => {
     try {
-      setLoading(true);
       // Create a new trade object
       const newTrade: Trade = {
         id: Date.now(),
@@ -41,29 +40,26 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         amount: data.amount,
         price: data.price,
         wallet: data.walletId,
-        status: 'completed',
-        amountUSD: data.amount * data.price,
-        amountSOL: data.amount,
-        maker: false,
-        fee: 0
+        status: 'completed'
       };
 
       // Update local state
       setTrades(prev => [newTrade, ...prev]);
+
+      // Return the created trade
+      return newTrade;
     } catch (err) {
       setError(err as Error);
       throw err;
-    } finally {
-      setLoading(false);
     }
   };
 
-  const value = {
+  const value: TradingContextType = {
     trades,
     orderBook,
     loading,
     error,
-    createTrade
+    createTrade,
   };
 
   return (
@@ -71,7 +67,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       {children}
     </TradingContext.Provider>
   );
-};
+}
 
 export function useTradingContext() {
   const context = useContext(TradingContext);
@@ -80,5 +76,3 @@ export function useTradingContext() {
   }
   return context;
 }
-
-export default TradingContext;
