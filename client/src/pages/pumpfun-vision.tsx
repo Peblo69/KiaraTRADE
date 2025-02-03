@@ -90,19 +90,23 @@ const PumpFunVision: FC = () => {
             </div>
 
             <div className="container mx-auto px-4 relative">
-              <div className="grid grid-cols-12 gap-4">
-                {/* Left Column - Market Stats & Social Metrics */}
-                <div className="col-span-2 space-y-4">
-                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
-                    <MarketStats tokenAddress={selectedToken} />
+              <div className="container mx-auto px-4">
+                <div className="grid grid-cols-12 gap-4">
+                  {/* Left Column - Market Stats & Social Metrics */}
+                  <div className="col-span-2 space-y-4">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                      <MarketStats tokenAddress={selectedToken} />
+                    </div>
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                      <SocialMetrics tokenAddress={selectedToken} />
+                    </div>
                   </div>
-                </div>
 
-                {/* Main Trading Area */}
-                <div className="col-span-7 space-y-4">
-                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
-                    <TradingChart tokenAddress={selectedToken} />
-                    <div className="flex items-center justify-between mb-4">
+                  {/* Main Trading Area */}
+                  <div className="col-span-7 space-y-4">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                      <TradingChart tokenAddress={selectedToken} />
+                      <div className="flex items-center justify-between mb-4">
                       <Button variant="ghost" onClick={handleBack} className="text-purple-400">
                         <ArrowLeft className="w-4 h-4 mr-2" />
                         Back
@@ -137,14 +141,16 @@ const PumpFunVision: FC = () => {
                 </div>
 
                 {/* Right Column - Trading Form & Holder Analytics */}
-                <div className="col-span-3 space-y-4">
-                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
-                    <TradingForm tokenAddress={selectedToken} />
-                  </div>
-                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
-                    <HolderAnalytics tokenAddress={selectedToken} />
+                  <div className="col-span-3 space-y-4">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                      <TradingForm tokenAddress={selectedToken} />
+                    </div>
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                      <HolderAnalytics tokenAddress={selectedToken} />
+                    </div>
                   </div>
                 </div>
+              </div>
               </div>
             </div>
           </div>
