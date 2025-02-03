@@ -209,8 +209,15 @@ export function initializeHeliusWebSocket() {
     ws.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
+        console.log('[Helius] Received message:', data);  // Add detailed logging
+
         if (data.method === 'accountNotification') {
           await handleTokenTransaction(data.params.result);
+        } else if (data.result !== undefined) {
+          // Log subscription confirmations
+          console.log('[Helius] Subscription confirmed:', data);
+        } else {
+          console.log('[Helius] Unhandled message type:', data);
         }
       } catch (error) {
         console.error('[Helius] Message handling error:', error);

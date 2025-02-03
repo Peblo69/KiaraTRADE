@@ -1,0 +1,50 @@
+[PumpPortal][updateTokenPrice] 
+Object {address: "BT9JQYxY36GtKn3DzthwS3RY3BhwMkRL6BwqiMppump", newPriceInUsd: 0.0000056043996086170715}
+[PumpPortal][getToken] 
+Object {address: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump"}
+💱 Trade processed: 
+Object {token: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump", price: {…}, type: "buy"}
+[PumpPortal][addTradeToHistory] 
+Object {token: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump", type: "buy", amount: 0.02069446}
+💰 Price calculated: 
+Object {token: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump", price: {…}, marketCap: {…}}
+[PumpPortal][updateTokenPrice] 
+Object {address: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump", newPriceInUsd: 0.000005411289875525403}
+[PumpPortal][getToken] 
+Object {address: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump"}
+💱 Trade processed: 
+Object {token: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump", price: {…}, type: "buy"}
+[PumpPortal][addTradeToHistory] 
+Object {token: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump", type: "buy", amount: 0.020722888}
+💰 Price calculated: 
+Object {token: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump", price: {…}, marketCap: {…}}
+[PumpPortal][updateTokenPrice] 
+Object {address: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump", newPriceInUsd: 0.000005418725969982378}
+[PumpPortal][getToken] 
+Object {address: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump"}
+💱 Trade processed: 
+Object {token: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump", price: {…}, type: "buy"}
+[PumpPortal][addTradeToHistory] 
+Object {token: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump", type: "buy", amount: 0.020751375}
+💰 Price calculated: 
+Object {token: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump", price: {…}, marketCap: {…}}
+[PumpPortal][updateTokenPrice] 
+Object {address: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump", newPriceInUsd: 0.00000542617740279278}
+🆕 New token: FLqUroE33quR8h7yDeHnm4mBecQM3qwrUfYJ7V9pump
+[PumpPortal][addToken] 
+Object {signature: "4vvR5iyqn2VhNKAi7tyKddgmd84ebtkJYeptA9Nb8qhEPFHj4FePhExUgfpwHtMrgwTizRQV6uSZfZjxRG9Ye3FS", mint: "FLqUroE33quR8h7yDeHnm4mBecQM3qwrUfYJ7V9pump", traderPublicKey: "Eo7vjMNyXoQWK39LMxnq9z48jm81un3fR97GbaE6fnLX", txType: "create", initialBuy: 0, …}
+[PumpPortal][Token URI:] https://ipfs.io/ipfs/QmZct3UZLP6D2i9uH9etUPbJ6eYTxAaRL4dDCEEsb7qD6Y
+[PumpPortal][Token metrics calculated:] 
+Object {price: {…}, marketCap: {…}}
+[Helius] Updated SOL price: 191.41000000
+[Helius] Initializing WebSocket...
+[Helius] Disconnected
+[Helius] Attempting reconnect 1/5
+[Helius] Connected
+[Helius] Updated SOL price: 191.32000000
+[PumpPortal][getToken] 
+Object {address: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump"}
+💱 Trade processed: 
+Object {token: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7LRgWRrLvVjApump", price: {…}, type: "buy"}
+[PumpPortal][addTradeToHistory] 
+Object {token: "F1MHB1EmFwAvVjseE3VMg6AXfkSj7
