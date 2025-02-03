@@ -72,17 +72,32 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
     if (!candleSeriesRef.current || !token?.recentTrades?.length) return;
 
     const updateChart = () => {
-      const candleData = generateCandlestickData(token.recentTrades);
+      const trades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
+      const candleData = generateCandlestickData(trades);
       console.log("Generated Candle Data:", candleData);
 
       if (candleData.length > 0) {
         candleSeriesRef.current.setData(candleData);
+        // Add latest price as a marker
+        const lastPrice = trades[trades.length - 1].priceInUsd;
+        candleSeriesRef.current.setMarkers([
+          {
+            time: trades[trades.length - 1].timestamp,
+            position: 'inBar',
+            color: 'red',
+            shape: 'circle',
+            text: `$${lastPrice.toFixed(8)}`
+          }
+        ]);
         chartRef.current?.timeScale().fitContent();
       }
     };
 
+    // Initial update
     updateChart();
-    const interval = setInterval(updateChart, 5000);
+    
+    // Real-time updates
+    const interval = setInterval(updateChart, 1000);
     return () => clearInterval(interval);
   }, [token?.recentTrades, tokenAddress]);
 
