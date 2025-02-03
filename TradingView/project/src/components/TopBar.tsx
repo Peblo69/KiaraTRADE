@@ -28,7 +28,7 @@ const TopBar: React.FC = () => {
   ];
 
   const copyTokenAddress = () => {
-    navigator.clipboard.writeText("0x1234...5678"); // Replace with actual token address
+    navigator.clipboard.writeText("0x1234...5678");
     setCopiedAddress(true);
     setTimeout(() => setCopiedAddress(false), 2000);
   };
@@ -39,7 +39,6 @@ const TopBar: React.FC = () => {
     setChatMessages(prev => [...prev, { type: 'user', content: message }]);
     setMessage('');
 
-    // Simulate AI response
     setTimeout(() => {
       setChatMessages(prev => [...prev, { 
         type: 'ai', 
@@ -159,7 +158,7 @@ const TopBar: React.FC = () => {
 
       {/* KIARA Vision Pro Panel */}
       {isKiaraPanelOpen && (
-        <div className="fixed inset-y-0 left-0 w-80 chat-container transform z-50 flex flex-col border-r border-yellow-600/20">
+        <div className="fixed inset-y-0 left-0 w-80 bg-black/95 backdrop-blur-md transform z-50 flex flex-col border-r border-yellow-600/20">
           {/* Floating particles */}
           {[...Array(10)].map((_, i) => (
             <div
@@ -170,18 +169,19 @@ const TopBar: React.FC = () => {
                 height: Math.random() * 4 + 'px',
                 top: Math.random() * 100 + '%',
                 left: Math.random() * 100 + '%',
-                animationDelay: `${Math.random() * 2}s`
+                animationDelay: `${Math.random() * 2}s`,
+                background: 'radial-gradient(circle at center, rgba(255, 215, 0, 0.3), transparent)'
               }}
             />
           ))}
 
-          <div className="flex items-center justify-between p-3 border-b border-yellow-600/20">
+          <div className="flex items-center justify-between p-3 border-b border-[#2A2A2A]">
             <div className="flex items-center space-x-2">
-              <Bot className="w-4 h-4 text-yellow-400" />
-              <h2 className="text-sm font-medium text-yellow-100">KIARA Vision Pro</h2>
+              <Bot className="w-4 h-4 text-[#FFD700]" />
+              <h2 className="text-sm font-medium text-[#E5E5E5]">KIARA Vision Pro</h2>
             </div>
             <button 
-              className="text-yellow-400 hover:text-yellow-300 p-1"
+              className="text-[#FFD700] hover:text-[#FFA500] p-1"
               onClick={() => setIsKiaraPanelOpen(false)}
             >
               <X className="w-4 h-4" />
@@ -190,24 +190,28 @@ const TopBar: React.FC = () => {
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {chatMessages.map((msg, i) => (
-              <div key={i} className={`chat-message ${msg.type}`}>
+              <div key={i} className={`chat-message ${msg.type} ${
+                msg.type === 'ai' 
+                  ? 'bg-[#1A1A1A] text-[#E5E5E5]' 
+                  : 'bg-[#2A2A2A] text-[#E5E5E5]'
+              }`}>
                 {msg.content}
               </div>
             ))}
           </div>
 
-          <div className="p-3 border-t border-yellow-600/20">
+          <div className="p-3 border-t border-[#2A2A2A]">
             <div className="flex space-x-2">
               <input
                 type="text"
-                className="chat-input"
+                className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-4 py-2 text-sm text-[#E5E5E5] w-full focus:outline-none focus:border-[#FFD700]/50 focus:ring-2 focus:ring-[#FFD700]/20"
                 placeholder="Ask KIARA..."
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
               />
               <button 
-                className="chat-send-btn"
+                className="bg-[#FFD700] text-[#1A1A1A] px-4 py-2 rounded-lg hover:bg-[#FFD700]/90 transition-all duration-200"
                 onClick={sendMessage}
               >
                 <Send className="w-4 h-4" />
@@ -219,11 +223,11 @@ const TopBar: React.FC = () => {
 
       {/* Security Panel */}
       {isSecurityPanelOpen && (
-        <div className="fixed inset-y-0 right-0 w-80 bg-[#0A0818] transform z-50 flex flex-col border-l border-purple-900/30">
-          <div className="flex items-center justify-between p-3 border-b border-purple-900/30">
+        <div className="fixed inset-y-0 right-0 w-80 bg-[#0A0818]/95 backdrop-blur-md transform z-50 flex flex-col border-l border-purple-900/30">
+          <div className="flex items-center justify-between p-3 border-b border-[#2A2A2A]">
             <div className="flex items-center space-x-2">
               <Shield className="w-4 h-4 text-purple-400" />
-              <h2 className="text-sm font-medium text-white">Security Audit</h2>
+              <h2 className="text-sm font-medium text-[#E5E5E5]">Security Audit</h2>
             </div>
             <button 
               className="text-purple-400 hover:text-purple-300 p-1"
@@ -236,21 +240,21 @@ const TopBar: React.FC = () => {
           <div className="flex-1 overflow-y-auto">
             <div className="p-4 space-y-4">
               <div className="text-center mb-6">
-                <h3 className="text-base font-medium text-white mb-2">No Security Issue Detected</h3>
-                <p className="text-xs text-purple-300">
+                <h3 className="text-base font-medium text-[#E5E5E5] mb-2">No Security Issue Detected</h3>
+                <p className="text-xs text-[#9CA3AF]">
                   If you proceed to trade, do so with caution and review the complete security audit carefully.
                 </p>
               </div>
 
               <div className="space-y-3">
                 {securityItems.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between py-2 border-b border-purple-900/20">
-                    <span className="text-purple-300 text-xs">{item.label}</span>
+                  <div key={index} className="flex items-center justify-between py-2 border-b border-[#2A2A2A]">
+                    <span className="text-[#9CA3AF] text-xs">{item.label}</span>
                     <span className={`text-xs font-medium ${
-                      item.status === 'success' ? 'text-green-400' :
-                      item.status === 'warning' ? 'text-yellow-400' :
-                      item.status === 'danger' ? 'text-red-400' :
-                      'text-white'
+                      item.status === 'success' ? 'text-[#10B981]' :
+                      item.status === 'warning' ? 'text-[#FBBF24]' :
+                      item.status === 'danger' ? 'text-[#EF4444]' :
+                      'text-[#E5E5E5]'
                     }`}>
                       {item.value}
                     </span>
@@ -260,15 +264,15 @@ const TopBar: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-3 border-t border-purple-900/30 space-y-2">
+          <div className="p-3 border-t border-[#2A2A2A] space-y-2">
             <button 
-              className="w-full btn-success py-2"
+              className="w-full bg-[#00875A] hover:bg-[#00875A]/90 text-white py-2 rounded-md text-sm font-medium transition-all duration-200"
               onClick={() => setIsSecurityPanelOpen(false)}
             >
               Proceed to Trade
             </button>
             <button 
-              className="w-full text-xs text-purple-400 hover:text-purple-300"
+              className="w-full text-xs text-[#9CA3AF] hover:text-[#E5E5E5] transition-colors"
               onClick={() => setIsSecurityPanelOpen(false)}
             >
               Never show this again
@@ -280,7 +284,7 @@ const TopBar: React.FC = () => {
       {/* Backdrop */}
       {(isSecurityPanelOpen || isKiaraPanelOpen) && (
         <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40"
           onClick={() => {
             setIsSecurityPanelOpen(false);
             setIsKiaraPanelOpen(false);
