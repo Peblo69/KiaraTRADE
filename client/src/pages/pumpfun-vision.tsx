@@ -123,16 +123,9 @@ const PumpFunVision: FC = () => {
                   </div>
                   <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <OrderBook />
-                      <div className="space-y-4">
-                        <SocialMetrics tokenAddress={selectedToken} />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
-                    <div className="grid grid-cols-2 gap-4">
                       <TradeHistory tokenAddress={selectedToken} />
                       <div className="space-y-4">
+                        <HolderAnalytics tokenAddress={selectedToken} />
                         <WalletTracker />
                       </div>
                     </div>
@@ -143,6 +136,9 @@ const PumpFunVision: FC = () => {
                   <div className="col-span-3 space-y-4">
                     <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                       <TradingForm tokenAddress={selectedToken} />
+                    </div>
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                      <HolderAnalytics tokenAddress={selectedToken} />
                     </div>
                   </div>
                 </div>
