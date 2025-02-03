@@ -2,14 +2,12 @@ import { create } from 'zustand';
 import { format } from 'date-fns';
 import axios from 'axios';
 import { calculatePumpFunTokenMetrics, calculateVolumeMetrics, calculateTokenRisk } from "@/utils/token-calculations";
-// Placeholder import -  This needs to be replaced with the actual import path for SocialLinks
-import SocialLinks from './SocialLinks'; // Replace './SocialLinks' with the correct path
+// Placeholder import - Replace './SocialLinks' with the correct path for SocialLinks
+import SocialLinks from './SocialLinks';
 
-// Constants
 const MAX_TRADES_PER_TOKEN = 100;
 const MAX_TOKENS_IN_LIST = 50;
 
-// Debug helper
 const DEBUG = true;
 function debugLog(action: string, data?: any) {
   if (DEBUG) {
@@ -17,19 +15,18 @@ function debugLog(action: string, data?: any) {
   }
 }
 
-// TokenMetadata interface that includes imageUrl
 export interface TokenMetadata {
-    name: string;
-    symbol: string;
-    decimals: number;
-    uri?: string;
-    mint?: string;
-    imageUrl?: string;
-    creators?: Array<{
-        address: string;
-        verified: boolean;
-        share: number;
-    }>;
+  name: string;
+  symbol: string;
+  decimals: number;
+  uri?: string;
+  mint?: string;
+  imageUrl?: string;
+  creators?: Array<{
+    address: string;
+    verified: boolean;
+    share: number;
+  }>;
 }
 
 export interface TokenTrade {
@@ -107,22 +104,19 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   solPrice: 0,
   activeTokenView: null,
 
-  // This function maps the websocket data to our token format
   addToken: (tokenData) => set((state) => {
     debugLog('addToken', tokenData);
     debugLog('Token URI:', tokenData.uri || tokenData.metadata?.uri);
 
-    // Extract basic token info
     const tokenName = tokenData.metadata?.name || tokenData.name;
     const tokenSymbol = tokenData.metadata?.symbol || tokenData.symbol;
     const mintAddress = tokenData.mint || tokenData.address || '';
     const imageUrl = tokenData.metadata?.imageUrl || tokenData.imageUrl;
 
-    // Calculate token metrics
     const tokenMetrics = calculatePumpFunTokenMetrics({
       vSolInBondingCurve: tokenData.vSolInBondingCurve || 0,
       vTokensInBondingCurve: tokenData.vTokensInBondingCurve || 0,
-      solPrice: state.solPrice // Access solPrice from state
+      solPrice: state.solPrice
     });
 
     debugLog('Token metrics calculated:', tokenMetrics);
@@ -187,13 +181,11 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
       };
     }
 
-    // Add new token with isNew flag
     const tokenWithFlag = {
       ...newToken,
       isNew: true
     };
 
-    // Calculate initial risk metrics if we have trade history
     if (tokenData.recentTrades?.length) {
       const volumeMetrics = calculateVolumeMetrics(tokenData.recentTrades);
       const riskMetrics = calculateTokenRisk({
@@ -229,7 +221,6 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const token = state.viewedTokens[address] || state.tokens.find(t => t.address === address);
     if (!token) return state;
 
-    // Add new trade and calculate updated metrics
     const updatedTrades = [tradeData, ...(token.recentTrades || [])].slice(0, MAX_TRADES_PER_TOKEN);
 
     const tokenMetrics = calculatePumpFunTokenMetrics({
@@ -325,13 +316,10 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
   updateTokenPrice: (address: string, newPriceInUsd: number) => set(state => {
     debugLog('updateTokenPrice', { address, newPriceInUsd });
-    // Find the existing token
     const token = state.tokens.find(t => t.address === address);
-    // If the new price is 0 and there is already a valid nonzero price, retain the old price
     if (newPriceInUsd === 0 && token && token.priceInUsd && token.priceInUsd > 0) {
       newPriceInUsd = token.priceInUsd;
     }
-    // Only compute priceInSol if solPrice is valid (nonzero)
     const priceInSol = state.solPrice > 0 ? newPriceInUsd / state.solPrice : 0;
     const updatedTokens = state.tokens.map(t =>
       t.address === address ? { ...t, priceInUsd: newPriceInUsd, priceInSol } : t
@@ -352,16 +340,13 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
     const token = get().getToken(address);
     debugLog('fetchTokenUri', { address });
 
-    // If we already have a URI, return it
     if (token?.metadata?.uri) {
       debugLog('URI already exists:', token.metadata.uri);
       return token.metadata.uri;
     }
 
-    // Try to fetch from chain
     const uri = await fetchTokenMetadataFromChain(address);
     if (uri) {
-      // Update token with new URI
       set(state => ({
         tokens: state.tokens.map(t => {
           if (t.address === address) {
