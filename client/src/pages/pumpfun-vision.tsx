@@ -7,6 +7,7 @@ import MarketStats from "../../../TradingView/project/src/components/MarketStats
 import SocialMetrics from "../../../TradingView/project/src/components/SocialMetrics";
 import HolderAnalytics from "../../../TradingView/project/src/components/HolderAnalytics";
 import WalletTracker from "../../../TradingView/project/src/components/WalletTracker";
+import TopBar from "../../../TradingView/project/src/components/TopBar";
 import TokenCard from "@/components/TokenCard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
@@ -68,6 +69,7 @@ const PumpFunVision: FC = () => {
       }>
         <ErrorBoundary>
           <div className="min-h-screen bg-[#070510] text-white">
+            <TopBar />
             {/* Stars background effect */}
             <div className="fixed inset-0 pointer-events-none">
               {[...Array(50)].map((_, i) => (
