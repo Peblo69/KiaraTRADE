@@ -47,7 +47,7 @@ args = "npm run dev"
 
 [[ports]]
 localPort = 3000
-externalPort = 3000
+externalPort = 5000
 
 [[ports]]
 localPort = 5000

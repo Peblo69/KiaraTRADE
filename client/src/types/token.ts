@@ -1,5 +1,3 @@
-import { Time } from 'lightweight-charts';
-
 export interface TokenTrade {
   timestamp: number;
   txType: 'buy' | 'sell' | 'create';
@@ -7,8 +5,6 @@ export interface TokenTrade {
   counterpartyPublicKey?: string;
   tokenAmount: number;
   solAmount: number;
-  priceInUsd?: number;
-  priceInSol?: number;
   signature: string;
   mint: string;
   bondingCurveKey?: string;
@@ -21,12 +17,9 @@ export interface Token {
   address: string;
   name: string;
   symbol: string;
-  socials?: {
-    website?: string | null;
-    twitter?: string | null;
-    telegram?: string | null;
-    pumpfun?: string | null;
-  };
+  website?: string | null;
+  twitter?: string | null;
+  telegram?: string | null;
   priceInUsd?: number;
   marketCapSol?: number;
   solPrice?: number;
@@ -50,6 +43,16 @@ export interface Token {
   insiderPercentage?: number;
   top10HoldersPercentage?: number;
   snipersCount?: number;
+  socials?: {
+    website?: string | null;
+    twitter?: string | null;
+    telegram?: string | null;
+    pumpfun?: string | null;
+  };
+  // Backwards compatibility
+  website?: string | null;
+  twitter?: string | null;
+  telegram?: string | null;
   bondingCurveKey?: string;
   devWallet?: string;
   lastAnalyzedAt?: string;
@@ -67,13 +70,4 @@ export interface PumpPortalToken {
     telegram?: string;
     pumpfun?: string;
   };
-}
-
-export interface CandlestickData {
-  time: Time;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
 }
