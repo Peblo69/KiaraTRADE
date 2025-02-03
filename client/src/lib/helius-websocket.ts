@@ -9,6 +9,7 @@ const HELIUS_REST_URL = process.env.VITE_HELIUS_REST_URL;
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
+// TypeScript Interfaces
 interface HeliusStore {
   isConnected: boolean;
   subscribedTokens: Set<string>;
@@ -32,10 +33,10 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
 
     console.log('[Helius] Subscribing to token:', tokenAddress);
 
-    // Subscribe to token program with filter
+    // Subscribe to token account changes
     ws.send(JSON.stringify({
       jsonrpc: '2.0',
-      id: `sub-${tokenAddress}`,
+      id: `token-sub-${tokenAddress}`,
       method: 'accountSubscribe',
       params: [
         tokenAddress,
@@ -55,6 +56,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
 }));
 
 let ws: WebSocket | null = null;
+let reconnectTimeout: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
 
 async function handleTokenTransaction(data: any) {
@@ -73,7 +75,7 @@ async function handleTokenTransaction(data: any) {
       signature: data.signature
     });
 
-    const connection = new Connection(HELIUS_REST_URL);
+    const connection = new Connection(HELIUS_REST_URL!);
     const tx = await connection.getTransaction(data.signature, {
       commitment: 'confirmed',
       maxSupportedTransactionVersion: 0
