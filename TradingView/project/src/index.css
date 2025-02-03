@@ -4,6 +4,11 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
 @layer base {
   html {
     font-family: 'Space Grotesk', system-ui, sans-serif;
