@@ -10,14 +10,19 @@ export interface CandlestickData {
 }
 
 export function generateCandlestickData(
-  trades: TokenTrade[],
+  trades: any[],
   bucketSizeSeconds: number = 60
 ): CandlestickData[] {
-  if (!trades || trades.length === 0) return [];
+  if (!trades || trades.length === 0) {
+    console.log('No trades data available');
+    return [];
+  }
+
+  console.log('Processing trades:', trades[0]); // Debug log
 
   const sortedTrades = [...trades].sort((a, b) => a.timestamp - b.timestamp);
   const candlesticks: CandlestickData[] = [];
-  let currentBucket: { [key: number]: TokenTrade[] } = {};
+  let currentBucket: { [key: number]: any[] } = {};
 
   // Group trades by time bucket
   sortedTrades.forEach(trade => {
@@ -32,18 +37,32 @@ export function generateCandlestickData(
   Object.entries(currentBucket).forEach(([time, trades]) => {
     if (trades.length === 0) return;
 
-    const prices = trades.map(t => Number(t.price) || 0).filter(p => p > 0);
+    // Handle both priceInUsd and priceInSol formats
+    const prices = trades.map(t => {
+      // Try to get price in different formats
+      const price = t.priceInUsd || t.priceInSol || t.price || 0;
+      return Number(price);
+    }).filter(p => p > 0);
+
     if (prices.length === 0) return;
 
-    candlesticks.push({
+    const candle: CandlestickData = {
       time: parseInt(time),
       open: prices[0],
       high: Math.max(...prices),
       low: Math.min(...prices),
       close: prices[prices.length - 1],
-      volume: trades.reduce((sum, t) => sum + (Number(t.amount) || 0), 0)
-    });
+      volume: trades.reduce((sum, t) => {
+        const amount = t.tokenAmount || t.amount || t.volume || 0;
+        return sum + Number(amount);
+      }, 0)
+    };
+
+    console.log('Generated candle:', candle); // Debug log
+    candlesticks.push(candle);
   });
 
-  return candlesticks.sort((a, b) => a.time - b.time);
+  const sortedCandlesticks = candlesticks.sort((a, b) => a.time - b.time);
+  console.log('Final candlesticks:', sortedCandlesticks); // Debug log
+  return sortedCandlesticks;
 }
