@@ -4,7 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import http from 'http';
 
 const app = express();
-const PORT = 3000; // Fixed port for consistency
+const PORT = 5000; // Fixed port for the internal server
 let server: http.Server | null = null;
 
 app.use(express.json());
@@ -45,7 +45,7 @@ async function startServer() {
         return reject(new Error('Server was not properly initialized'));
       }
 
-      server.listen(PORT, () => {
+      server.listen(PORT, '0.0.0.0', () => {
         log(`🚀 Server Status:`);
         log(`📡 Server running on port ${PORT}`);
         log(`⏰ Started at: ${new Date().toISOString()}`);

@@ -216,7 +216,7 @@ const TopBar: React.FC = () => {
         </div>
       )}
 
-      {/* Security Panel */}
+      {/* Security Panel - with transparency */}
       {isSecurityPanelOpen && (
         <div className="fixed inset-y-0 right-0 w-80 bg-[#0A0818]/95 backdrop-blur-sm transform z-50 flex flex-col border-l border-purple-900/30">
           <div className="flex items-center justify-between p-3 border-b border-purple-900/30 bg-purple-950/50">
@@ -276,7 +276,7 @@ const TopBar: React.FC = () => {
         </div>
       )}
 
-      {/* Backdrop with improved transparency */}
+      {/* Updated backdrop with improved transparency */}
       {(isSecurityPanelOpen || isKiaraPanelOpen) && (
         <div 
           className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
