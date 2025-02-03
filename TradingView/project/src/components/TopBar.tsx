@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, Clock, DollarSign, BarChart2, Shield, X, Bot, Send, Copy, CheckCircle, ExternalLink } from 'lucide-react';
+import { TrendingUp, DollarSign, BarChart2, Shield, X, Bot, Send, Copy, CheckCircle, ExternalLink } from 'lucide-react';
 
 interface SecurityItem {
   label: string;
@@ -35,10 +35,10 @@ const TopBar: React.FC = () => {
 
   const sendMessage = () => {
     if (!message.trim()) return;
-    
+
     setChatMessages(prev => [...prev, { type: 'user', content: message }]);
     setMessage('');
-    
+
     // Simulate AI response
     setTimeout(() => {
       setChatMessages(prev => [...prev, { 
@@ -108,20 +108,20 @@ const TopBar: React.FC = () => {
                 </div>
               </div>
 
-              {/* Market Stats - Updated to match reference */}
+              {/* Market Stats */}
               <div className="flex items-center space-x-6">
                 <div className="flex items-center space-x-2">
                   <DollarSign className="w-3.5 h-3.5 text-purple-400" />
                   <span className="text-purple-300 text-xs">Mkt Cap:</span>
                   <span className="text-purple-100 text-xs font-medium">$4.44K</span>
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <BarChart2 className="w-3.5 h-3.5 text-purple-400" />
                   <span className="text-purple-300 text-xs">Liquidity:</span>
                   <span className="text-purple-100 text-xs font-medium">$6.89K</span>
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
                   <span className="text-purple-300 text-xs">B.Curve:</span>
@@ -129,7 +129,7 @@ const TopBar: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-3">
               <button 
                 className="btn-kiara flex items-center space-x-1 cursor-pointer"
@@ -146,7 +146,7 @@ const TopBar: React.FC = () => {
                 <Shield className="w-3.5 h-3.5" />
                 <span>Safe</span>
               </button>
-              
+
               <div className="flex space-x-1.5">
                 <button className="btn-secondary">5M</button>
                 <button className="btn-secondary">1H</button>

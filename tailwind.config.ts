@@ -6,6 +6,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
+        sans: ['Space Grotesk', 'system-ui', 'sans-serif'],
         vt323: ["VT323", "monospace"],
       },
       borderRadius: {
@@ -87,13 +88,21 @@ export default {
             transform: 'translateY(0)',
             opacity: '1'
           }
+        },
+        twinkle: {
+          '0%, 100%': { opacity: '0.3' },
+          '50%': { opacity: '1' }
         }
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "marquee": "marquee 25s linear infinite",
-        "slideDown": "slideDown 0.3s ease-out forwards"
+        "slideDown": "slideDown 0.3s ease-out forwards",
+        "twinkle": "twinkle 3s ease-in-out infinite"
+      },
+      fontSize: {
+        'xxs': '0.65rem',
       },
     },
   },
@@ -104,6 +113,36 @@ export default {
       addUtilities({
         '.pause-animation': {
           'animation-play-state': 'paused',
+        },
+        '.btn-secondary': {
+          '@apply px-2 py-1 text-xs font-medium rounded bg-purple-900/20 text-purple-300 hover:bg-purple-900/40 transition-colors': {},
+        },
+        '.btn-success': {
+          '@apply px-3 py-2 text-sm font-medium rounded bg-green-600 text-white hover:bg-green-700 transition-colors': {},
+        },
+        '.btn-kiara': {
+          '@apply px-3 py-1 text-xs font-medium rounded bg-yellow-600/20 text-yellow-300 hover:bg-yellow-600/40 transition-colors': {},
+        },
+        '.chat-container': {
+          '@apply bg-[#0D0B1F] backdrop-blur-sm': {},
+        },
+        '.chat-message': {
+          '@apply p-3 rounded': {},
+        },
+        '.chat-message.ai': {
+          '@apply bg-yellow-900/20 text-yellow-100 text-sm': {},
+        },
+        '.chat-message.user': {
+          '@apply bg-yellow-600/10 text-yellow-200 text-sm': {},
+        },
+        '.chat-input': {
+          '@apply w-full bg-yellow-900/20 border border-yellow-600/20 rounded px-3 py-2 text-sm text-yellow-100 placeholder-yellow-600/50 focus:outline-none focus:ring-1 focus:ring-yellow-600/50': {},
+        },
+        '.chat-send-btn': {
+          '@apply p-2 rounded bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/40 transition-colors': {},
+        },
+        '.particle': {
+          '@apply absolute rounded-full bg-yellow-400/30 pointer-events-none animate-twinkle': {},
         },
       });
     },
