@@ -12,6 +12,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<any>(null);
+  const volumeSeriesRef = useRef<any>(null);
 
   // Retrieve token data and SOL price from the store
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
@@ -59,6 +60,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
     });
     chartRef.current = chart;
 
+    // Create and store the candlestick series
     const candleSeries = chart.addCandlestickSeries({
       upColor: '#26a69a',
       downColor: '#ef5350',
@@ -68,14 +70,16 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
     });
     candleSeriesRef.current = candleSeries;
 
+    // Create and store the volume series
     const volumeSeries = chart.addHistogramSeries({
       color: '#26a69a',
       priceFormat: { type: 'volume' },
       priceScaleId: '',
       scaleMargins: { top: 0.8, bottom: 0 },
     });
+    volumeSeriesRef.current = volumeSeries;
 
-    // Set initial data from token trades if available, otherwise use fallback candle
+    // Set initial data from token trades if available, otherwise use a fallback candle.
     if (token && token.recentTrades && token.recentTrades.length > 0) {
       const trades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
       const candleData = generateCandlestickData(trades, 60, token.priceInUsd || 0);
@@ -88,7 +92,6 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
       }));
       volumeSeries.setData(volumeData);
     } else {
-      // Fallback: Use the token's current price (if available) to display a default candle.
       const fallbackPrice = token ? token.priceInUsd || 0 : 0;
       const fallbackTime = Math.floor(Date.now() / 1000);
       const fallbackCandle = {
@@ -103,20 +106,25 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
       volumeSeries.setData([{ time: fallbackTime, value: 0, color: '#26a69a50' }]);
     }
 
-    // Clean up chart on unmount
     return () => {
       chart.remove();
     };
-  }, []);
+  }, []); // Run once on mount
 
-  // Update chart data when token trade data changes
+  // Update chart data when token trade data or price changes
   useEffect(() => {
-    if (!candleSeriesRef.current || !token) return;
+    if (!candleSeriesRef.current || !volumeSeriesRef.current || !token) return;
     if (token.recentTrades && token.recentTrades.length > 0) {
       const trades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
       const candleData = generateCandlestickData(trades, 60, token.priceInUsd || 0);
       if (candleData.length > 0) {
         candleSeriesRef.current.setData(candleData);
+        const volumeData = candleData.map(candle => ({
+          time: candle.time,
+          value: candle.volume,
+          color: candle.close >= candle.open ? '#26a69a50' : '#ef535050',
+        }));
+        volumeSeriesRef.current.setData(volumeData);
         chartRef.current?.timeScale().fitContent();
       }
     }
@@ -149,7 +157,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
         <h2 className="text-purple-100 font-semibold">Price Chart</h2>
         <div className="text-sm text-purple-200">
           Price: ${token.priceInUsd?.toFixed(8) || '0.00000000'} | 
-          MCap: ${(token.marketCapSol * solPrice)?.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          MCap: {(token.marketCapSol * solPrice)?.toLocaleString(undefined, { maximumFractionDigits: 2 })}
         </div>
       </div>
       <div ref={containerRef} className="w-full h-[500px]" />
