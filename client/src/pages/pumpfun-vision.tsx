@@ -120,7 +120,6 @@ const PumpFunVision: FC = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <OrderBook />
                       <div className="space-y-4">
-                        <MarketStats tokenAddress={selectedToken} />
                         <SocialMetrics tokenAddress={selectedToken} />
                       </div>
                     </div>
