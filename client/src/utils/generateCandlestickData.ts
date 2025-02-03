@@ -1,4 +1,3 @@
-// client/src/utils/generateCandlestickData.ts
 import { TokenTrade } from '@/types/token';
 
 export interface CandlestickData {
@@ -33,7 +32,7 @@ export function generateCandlestickData(
   Object.entries(currentBucket).forEach(([time, trades]) => {
     if (trades.length === 0) return;
 
-    const prices = trades.map(t => t.priceInUsd || 0).filter(p => p > 0);
+    const prices = trades.map(t => Number(t.price) || 0).filter(p => p > 0);
     if (prices.length === 0) return;
 
     candlesticks.push({
@@ -42,7 +41,7 @@ export function generateCandlestickData(
       high: Math.max(...prices),
       low: Math.min(...prices),
       close: prices[prices.length - 1],
-      volume: trades.reduce((sum, t) => sum + (t.tokenAmount || 0), 0)
+      volume: trades.reduce((sum, t) => sum + (Number(t.amount) || 0), 0)
     });
   });
 
