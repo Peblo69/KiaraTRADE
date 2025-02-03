@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createChart, IChartApi, ColorType } from 'lightweight-charts';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 import { generateCandlestickData } from '@/utils/generateCandlestickData';
@@ -13,7 +13,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<any>(null);
-  const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
+  
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
 
   // Create chart once
@@ -56,24 +56,24 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
     };
   }, []);
 
-  // Update data on trades change or every 5 seconds
+  // Update data when trades change
   useEffect(() => {
-    if (!candleSeriesRef.current || !token?.recentTrades) return;
+    if (!candleSeriesRef.current || !token?.recentTrades?.length) return;
 
     const updateChart = () => {
-      const candleData = generateCandlestickData(token.recentTrades, 60);
+      const candleData = generateCandlestickData(token.recentTrades);
+      console.log("Generated Candle Data:", candleData);
+
       if (candleData.length > 0) {
         candleSeriesRef.current.setData(candleData);
         chartRef.current?.timeScale().fitContent();
-        setLastUpdate(Date.now());
       }
     };
 
     updateChart();
     const interval = setInterval(updateChart, 5000);
-
     return () => clearInterval(interval);
-  }, [token?.recentTrades, token?.priceInUsd]);
+  }, [token?.recentTrades, tokenAddress]);
 
   // Handle resize
   useEffect(() => {
