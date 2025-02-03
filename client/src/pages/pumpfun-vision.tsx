@@ -125,7 +125,6 @@ const PumpFunVision: FC = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <TradeHistory tokenAddress={selectedToken} />
                       <div className="space-y-4">
-                        <HolderAnalytics tokenAddress={selectedToken} />
                         <WalletTracker />
                       </div>
                     </div>
