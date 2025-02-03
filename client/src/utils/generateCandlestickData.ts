@@ -1,3 +1,4 @@
+
 import { TokenTrade } from '@/types/token';
 
 export interface CandlestickData {
@@ -11,11 +12,9 @@ export interface CandlestickData {
 
 /**
  * Groups an array of TokenTrade objects into candlestick data based on the given bucket size.
- * If no valid trade prices are found in a bucket and fallbackPrice is provided, it will use fallbackPrice.
  *
  * @param trades - The array of TokenTrade objects.
  * @param bucketSizeSeconds - The interval (in seconds) for each candle (default is 60 seconds).
- * @param fallbackPrice - Optional fallback price to use if no trade in a bucket has a valid price.
  * @returns An array of CandlestickData objects sorted by time.
  */
 export function generateCandlestickData(
@@ -50,14 +49,8 @@ export function generateCandlestickData(
       close: prices[prices.length - 1],
       volume: bucketTrades.reduce((sum, t) => sum + (t.tokenAmount || 0), 0)
     };
-    candlesticks.push({
-      time: parseInt(bucketTime),
-      open,
-      high,
-      low,
-      close,
-      volume,
-    });
+    
+    candlesticks.push(candlestick);
   });
 
   return candlesticks.sort((a, b) => a.time - b.time);
