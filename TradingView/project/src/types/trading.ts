@@ -9,21 +9,21 @@ export interface TradingPair {
 }
 
 export interface OrderBook {
-  asks: [number, number][]; // [price, amount]
   bids: [number, number][]; // [price, amount]
+  asks: [number, number][]; // [price, amount]
 }
 
 export interface Trade {
   id: string;
-  timestamp: number;
-  type: 'market' | 'limit';
-  side: 'buy' | 'sell';
   price: number;
   amount: number;
-  priceInUsd?: number;
-  priceInSol?: number;
+  amountUSD: number;
+  amountSOL: number;
+  side: 'buy' | 'sell';
+  timestamp: number;
   wallet: string;
-  status: 'pending' | 'completed' | 'failed';
+  maker: boolean;
+  fee: number;
 }
 
 export interface UserBalance {
@@ -37,10 +37,4 @@ export interface OrderFormData {
   side: 'buy' | 'sell';
   amount: number;
   price?: number;
-}
-
-export interface OrderBookEntry {
-  price: number;
-  size: number;
-  total: number;
 }
