@@ -10,38 +10,41 @@ export interface CandlestickData {
   volume: number;
 }
 
-export function generateCandlestickData(trades: TokenTrade[], interval = 60000): CandlestickData[] { // 1-minute candles by default
+export function generateCandlestickData(
+  trades: TokenTrade[],
+  bucketSizeSeconds: number = 60
+): CandlestickData[] {
   if (!trades || trades.length === 0) return [];
 
-  const candles: CandlestickData[] = [];
-  let currentCandle: CandlestickData | null = null;
+  const sortedTrades = [...trades].sort((a, b) => a.timestamp - b.timestamp);
+  const candlesticks: CandlestickData[] = [];
+  let currentBucket: { [key: number]: TokenTrade[] } = {};
 
-  trades.forEach(trade => {
-    const candleTime = Math.floor(trade.timestamp / interval) * interval;
-
-    if (!currentCandle || currentCandle.time !== candleTime) {
-      if (currentCandle) {
-        candles.push(currentCandle);
-      }
-      currentCandle = {
-        time: candleTime,
-        open: trade.priceInUsd,
-        high: trade.priceInUsd,
-        low: trade.priceInUsd,
-        close: trade.priceInUsd,
-        volume: trade.tokenAmount || 0
-      };
-    } else {
-      currentCandle.high = Math.max(currentCandle.high, trade.priceInUsd);
-      currentCandle.low = Math.min(currentCandle.low, trade.priceInUsd);
-      currentCandle.close = trade.priceInUsd;
-      currentCandle.volume += trade.tokenAmount || 0;
+  // Group trades by time bucket
+  sortedTrades.forEach(trade => {
+    const bucketTime = Math.floor(trade.timestamp / 1000 / bucketSizeSeconds) * bucketSizeSeconds;
+    if (!currentBucket[bucketTime]) {
+      currentBucket[bucketTime] = [];
     }
+    currentBucket[bucketTime].push(trade);
   });
 
-  if (currentCandle) {
-    candles.push(currentCandle);
-  }
+  // Convert buckets to candlesticks
+  Object.entries(currentBucket).forEach(([time, trades]) => {
+    if (trades.length === 0) return;
 
-  return candles;
+    const prices = trades.map(t => t.priceInUsd || 0).filter(p => p > 0);
+    if (prices.length === 0) return;
+
+    candlesticks.push({
+      time: parseInt(time),
+      open: prices[0],
+      high: Math.max(...prices),
+      low: Math.min(...prices),
+      close: prices[prices.length - 1],
+      volume: trades.reduce((sum, t) => sum + (t.tokenAmount || 0), 0)
+    });
+  });
+
+  return candlesticks.sort((a, b) => a.time - b.time);
 }
