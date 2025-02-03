@@ -3,9 +3,9 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { useChartStore } from '@/lib/chart-websocket';
 
 // Constants
-const HELIUS_API_KEY = process.env.VITE_HELIUS_API_KEY;
-const HELIUS_WS_URL = `${process.env.VITE_HELIUS_WS_URL}/?api-key=${HELIUS_API_KEY}`;
-const HELIUS_REST_URL = process.env.VITE_HELIUS_REST_URL;
+const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY;
+const HELIUS_WS_URL = `${import.meta.env.VITE_HELIUS_WS_URL}/?api-key=${HELIUS_API_KEY}`;
+const HELIUS_REST_URL = import.meta.env.VITE_HELIUS_REST_URL;
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
@@ -26,6 +26,11 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
   setConnected: (connected) => set({ isConnected: connected }),
   setSolPrice: (price) => set({ solPrice: price }),
   subscribeToToken: (tokenAddress) => {
+    if (!HELIUS_API_KEY) {
+      console.error('[Helius] API key not found in environment variables');
+      return;
+    }
+
     const { subscribedTokens } = get();
     if (!ws || ws.readyState !== WebSocket.OPEN || subscribedTokens.has(tokenAddress)) {
       return;
@@ -33,25 +38,29 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
 
     console.log('[Helius] Subscribing to token:', tokenAddress);
 
-    // Subscribe to token account changes
-    ws.send(JSON.stringify({
-      jsonrpc: '2.0',
-      id: `token-sub-${tokenAddress}`,
-      method: 'accountSubscribe',
-      params: [
-        tokenAddress,
-        {
-          commitment: 'confirmed',
-          encoding: 'jsonParsed',
-          transactionDetails: 'full',
-          showEvents: true,
-          maxSupportedTransactionVersion: 0
-        }
-      ]
-    }));
+    try {
+      // Subscribe to token account changes
+      ws.send(JSON.stringify({
+        jsonrpc: '2.0',
+        id: `token-sub-${tokenAddress}`,
+        method: 'accountSubscribe',
+        params: [
+          tokenAddress,
+          {
+            commitment: 'confirmed',
+            encoding: 'jsonParsed',
+            transactionDetails: 'full',
+            showEvents: true,
+            maxSupportedTransactionVersion: 0
+          }
+        ]
+      }));
 
-    subscribedTokens.add(tokenAddress);
-    console.log('[Helius] Subscribed to token:', tokenAddress);
+      subscribedTokens.add(tokenAddress);
+      console.log('[Helius] Subscribed to token:', tokenAddress);
+    } catch (error) {
+      console.error('[Helius] Failed to subscribe to token:', error);
+    }
   }
 }));
 
@@ -75,7 +84,12 @@ async function handleTokenTransaction(data: any) {
       signature: data.signature
     });
 
-    const connection = new Connection(HELIUS_REST_URL!);
+    if (!HELIUS_REST_URL) {
+      console.error('[Helius] REST URL not configured');
+      return;
+    }
+
+    const connection = new Connection(HELIUS_REST_URL);
 
     // Use the new v2 API method for signature status
     const statuses = await connection.getSignatureStatuses([data.signature]);
@@ -157,8 +171,13 @@ async function updateSolPrice() {
 }
 
 export function initializeHeliusWebSocket() {
-  if (typeof window === 'undefined' || !HELIUS_API_KEY) {
-    console.error('[Helius] Missing API key or not in browser environment');
+  if (typeof window === 'undefined') {
+    console.error('[Helius] Not in browser environment');
+    return;
+  }
+
+  if (!HELIUS_API_KEY) {
+    console.error('[Helius] API key not found in environment variables');
     return;
   }
 
@@ -205,7 +224,10 @@ export function initializeHeliusWebSocket() {
       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         reconnectAttempts++;
         console.log(`[Helius] Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-        setTimeout(initializeHeliusWebSocket, RECONNECT_DELAY);
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+        }
+        reconnectTimeout = setTimeout(initializeHeliusWebSocket, RECONNECT_DELAY);
       }
     };
 
@@ -215,6 +237,9 @@ export function initializeHeliusWebSocket() {
 
     return () => {
       clearInterval(priceInterval);
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
       if (ws) {
         ws.close();
         ws = null;
@@ -225,7 +250,10 @@ export function initializeHeliusWebSocket() {
     console.error('[Helius] Initialization error:', error);
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
       reconnectAttempts++;
-      setTimeout(initializeHeliusWebSocket, RECONNECT_DELAY);
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      reconnectTimeout = setTimeout(initializeHeliusWebSocket, RECONNECT_DELAY);
     }
   }
 }
