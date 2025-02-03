@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from 'react';
 import { createChart, IChartApi, ColorType } from 'lightweight-charts';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
@@ -13,8 +12,20 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<any>(null);
-  
+
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+  const solPrice = usePumpPortalStore(state => state.solPrice);
+
+  // Debug logs
+  useEffect(() => {
+    console.log('TradingChart Mount:', {
+      tokenAddress,
+      hasToken: !!token,
+      tradesCount: token?.recentTrades?.length || 0,
+      solPrice,
+      currentPrice: token?.priceInUsd
+    });
+  }, [tokenAddress, token, solPrice]);
 
   // Create chart once
   useEffect(() => {
@@ -102,7 +113,8 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
       <div className="flex items-center justify-between p-4 border-b border-purple-900/30">
         <h2 className="text-purple-100 font-semibold">Price Chart</h2>
         <div className="text-sm text-purple-200">
-          Price: ${token.priceInUsd?.toFixed(8) || '0.00000000'}
+          Price: ${token.priceInUsd?.toFixed(8) || '0.00000000'} | 
+          MCap: ${(token.marketCapSol * solPrice)?.toLocaleString(undefined, {maximumFractionDigits: 2})}
         </div>
       </div>
       <div ref={containerRef} className="w-full h-[500px]" />
