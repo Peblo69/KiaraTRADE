@@ -1,57 +1,38 @@
 import React from 'react';
-import TopBar from '@/components/TopBar';
-import TradingChart from '@/components/TradingChart';
-import TradingForm from '@/components/TradingForm';
-import TradeHistory from '@/components/TradeHistory';
-import MarketStats from '@/components/MarketStats';
-import HolderAnalytics from '@/components/HolderAnalytics';
-import SocialMetrics from '@/components/SocialMetrics';
+import TopBar from '../components/TopBar';
+import MarketStats from '../components/MarketStats';
+import TradingForm from '../components/TradingForm';
+import TradeHistory from '../components/TradeHistory';
+import OrderBook from '../components/OrderBook';
+import SocialMetrics from '../components/SocialMetrics';
+import HolderAnalytics from '../components/HolderAnalytics';
 
-interface Props {
-  tokenAddress: string;
-}
-
-const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
+const TokenPage = () => {
   return (
-    <div className="min-h-screen bg-[#070510] text-white">
-      {/* Stars background effect */}
-      <div className="fixed inset-0 pointer-events-none">
-        {[...Array(50)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute rounded-full bg-white"
-            style={{
-              width: Math.random() * 3 + 'px',
-              height: Math.random() * 3 + 'px',
-              top: Math.random() * 100 + '%',
-              left: Math.random() * 100 + '%',
-              opacity: Math.random() * 0.5 + 0.25,
-              animation: `twinkle ${Math.random() * 4 + 2}s infinite`
-            }}
-          />
-        ))}
-      </div>
-
+    <div className="min-h-screen bg-[#070510]">
       <TopBar />
-
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-4 py-4">
         <div className="grid grid-cols-12 gap-4">
-          {/* Left Column - Market Stats & Social Metrics */}
+          {/* Left Column */}
           <div className="col-span-2 space-y-4">
-            <MarketStats tokenAddress={tokenAddress} />
-            <SocialMetrics tokenAddress={tokenAddress} />
+            <MarketStats />
+            <SocialMetrics />
           </div>
 
-          {/* Main Trading Area */}
+          {/* Center Column */}
           <div className="col-span-7 space-y-4">
-            <TradingChart tokenAddress={tokenAddress} />
-            <TradeHistory tokenAddress={tokenAddress} />
+            {/* TradingView Chart will go here */}
+            <div className="h-[500px] bg-[#0D0B1F] rounded-lg border border-purple-900/30">
+              <div id="tradingview-widget-container" />
+            </div>
+            <TradeHistory />
           </div>
 
-          {/* Right Column - Trading Form & Holder Analytics */}
+          {/* Right Column */}
           <div className="col-span-3 space-y-4">
-            <TradingForm tokenAddress={tokenAddress} />
-            <HolderAnalytics tokenAddress={tokenAddress} />
+            <TradingForm />
+            <OrderBook />
+            <HolderAnalytics />
           </div>
         </div>
       </div>

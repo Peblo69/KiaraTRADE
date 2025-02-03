@@ -12,7 +12,7 @@ import SocialMetrics from './components/SocialMetrics';
 function App() {
   return (
     <TradingProvider>
-      <div className="min-h-screen bg-[#070510] text-white">
+      <TokenPage />
         {/* Stars background effect */}
         <div className="fixed inset-0 pointer-events-none">
           {[...Array(50)].map((_, i) => (
