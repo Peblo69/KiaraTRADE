@@ -1,0 +1,82 @@
+// Security panel state
+const [isSecurityPanelOpen, setIsSecurityPanelOpen] = useState(false);
+
+// Security items data
+const securityItems: SecurityItem[] = [
+  { label: 'Is Mintable', value: 'NO', status: 'success' },
+  { label: 'Is Token Data Mutable', value: 'NO', status: 'success' },
+  { label: 'Is Freezable?', value: 'NO', status: 'success' },
+  { label: 'Update Authority', value: 'LVDD1P', status: 'warning' },
+  { label: 'Owner Balance', value: '0', status: 'success' },
+  { label: 'LP Burned', value: '100%', status: 'success' },
+  { label: 'Top 10 Holders', value: '1.07%', status: 'success' },
+  { label: 'Deployer Address', value: 'ROPARL', status: 'warning' }
+];
+
+// The security panel JSX:
+{isSecurityPanelOpen && (
+  <div className="fixed inset-y-0 right-0 w-80 bg-[#0A0818] transform z-50 flex flex-col border-l border-purple-900/30">
+    <div className="flex items-center justify-between p-3 border-b border-purple-900/30">
+      <div className="flex items-center space-x-2">
+        <Shield className="w-4 h-4 text-purple-400" />
+        <h2 className="text-sm font-medium text-white">Security Audit</h2>
+      </div>
+      <button 
+        className="text-purple-400 hover:text-purple-300 p-1"
+        onClick={() => setIsSecurityPanelOpen(false)}
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+
+    <div className="flex-1 overflow-y-auto">
+      <div className="p-4 space-y-4">
+        <div className="text-center mb-6">
+          <h3 className="text-base font-medium text-white mb-2">No Security Issue Detected</h3>
+          <p className="text-xs text-purple-300">
+            If you proceed to trade, do so with caution and review the complete security audit carefully.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {securityItems.map((item, index) => (
+            <div key={index} className="flex items-center justify-between py-2 border-b border-purple-900/20">
+              <span className="text-purple-300 text-xs">{item.label}</span>
+              <span className={`text-xs font-medium ${
+                item.status === 'success' ? 'text-green-400' :
+                item.status === 'warning' ? 'text-yellow-400' :
+                item.status === 'danger' ? 'text-red-400' :
+                'text-white'
+              }`}>
+                {item.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    <div className="p-3 border-t border-purple-900/30 space-y-2">
+      <button 
+        className="w-full btn-success py-2"
+        onClick={() => setIsSecurityPanelOpen(false)}
+      >
+        Proceed to Trade
+      </button>
+      <button 
+        className="w-full text-xs text-purple-400 hover:text-purple-300"
+        onClick={() => setIsSecurityPanelOpen(false)}
+      >
+        Never show this again
+      </button>
+    </div>
+  </div>
+)}
+
+{/* Backdrop overlay when panel is open */}
+{isSecurityPanelOpen && (
+  <div 
+    className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+    onClick={() => setIsSecurityPanelOpen(false)}
+  />
+)}
