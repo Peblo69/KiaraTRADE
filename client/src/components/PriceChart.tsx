@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, FC } from "react";
+import { TradeHistory } from "../../TradingView/project/src/components/TradeHistory";
 import { createChart, IChartApi, ColorType } from "lightweight-charts";
 
 interface PricePoint {
