@@ -149,7 +149,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
         <h2 className="text-purple-100 font-semibold">Price Chart</h2>
         <div className="text-sm text-purple-200">
           Price: ${token.priceInUsd?.toFixed(8) || '0.00000000'} | 
-          MCap: {(token.marketCapSol * solPrice)?.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          MCap: ${(token.marketCapSol * solPrice)?.toLocaleString(undefined, { maximumFractionDigits: 2 })}
         </div>
       </div>
       <div ref={containerRef} className="w-full h-[500px]" />
