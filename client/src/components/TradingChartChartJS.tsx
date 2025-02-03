@@ -27,53 +27,52 @@ interface Props {
 }
 
 const TradingChartChartJS: React.FC<Props> = ({ tokenAddress, className }) => {
-  const chartRef = useRef<ChartJS | null>(null);
+  const chartInstanceRef = useRef<ChartJS | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
   const { candles, currentPrice } = usePumpPortalChartData(tokenAddress, 60);
-  const [chartData, setChartData] = useState<any>(null);
+  const [isChartReady, setIsChartReady] = useState(false);
 
-  // Always destroy chart instance on unmount
+  // Cleanup function to destroy chart instance
+  const destroyChart = () => {
+    if (chartInstanceRef.current) {
+      chartInstanceRef.current.destroy();
+      chartInstanceRef.current = null;
+    }
+  };
+
+  // Initial chart setup and cleanup
   useEffect(() => {
+    setIsChartReady(false);
     return () => {
-      if (chartRef.current) {
-        chartRef.current.destroy();
-        chartRef.current = null;
-      }
+      destroyChart();
     };
   }, []);
 
-  // Clean up previous chart instance on token change
+  // Handle token changes
   useEffect(() => {
-    if (chartRef.current) {
-      chartRef.current.destroy();
-      chartRef.current = null;
-    }
+    destroyChart();
+    setIsChartReady(true);
   }, [tokenAddress]);
 
-  // Update chart data when candles change
-  useEffect(() => {
-    if (!candles.length) return;
-
-    const newChartData = {
-      datasets: [{
-        label: 'Price',
-        data: candles.map(candle => ({
-          x: candle.time * 1000,
-          o: candle.open,
-          h: candle.high,
-          l: candle.low,
-          c: candle.close
-        })),
-        borderColor: '#4CAF50',
-        backgroundColor: (ctx: any) => {
-          const item = ctx.raw;
-          return item?.o <= item?.c ? 'rgba(76, 175, 80, 0.5)' : 'rgba(244, 67, 54, 0.5)';
-        },
-        borderWidth: 1,
-      }]
-    };
-
-    setChartData(newChartData);
-  }, [candles]);
+  // Prepare chart data
+  const chartData = {
+    datasets: candles.length ? [{
+      label: 'Price',
+      data: candles.map(candle => ({
+        x: candle.time * 1000,
+        o: candle.open,
+        h: candle.high,
+        l: candle.low,
+        c: candle.close
+      })),
+      borderColor: '#4CAF50',
+      backgroundColor: (ctx: any) => {
+        const item = ctx.raw;
+        return item?.o <= item?.c ? 'rgba(76, 175, 80, 0.5)' : 'rgba(244, 67, 54, 0.5)';
+      },
+      borderWidth: 1,
+    }] : []
+  };
 
   const options = {
     responsive: true,
@@ -137,7 +136,7 @@ const TradingChartChartJS: React.FC<Props> = ({ tokenAddress, className }) => {
     }
   };
 
-  if (!chartData) {
+  if (!isChartReady || !candles.length) {
     return (
       <div className="h-[400px] flex items-center justify-center text-gray-400">
         Loading chart data...
@@ -146,14 +145,19 @@ const TradingChartChartJS: React.FC<Props> = ({ tokenAddress, className }) => {
   }
 
   return (
-    <div className={`relative h-[400px] bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 ${className}`}>
+    <div 
+      ref={chartContainerRef}
+      className={`relative h-[400px] bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 ${className}`}
+    >
       <Chart
         type="candlestick"
         data={chartData}
         options={options}
-        ref={(ref) => {
-          if (ref) {
-            chartRef.current = ref;
+        ref={(instance) => {
+          // Only set the ref if it's a new instance
+          if (instance && instance !== chartInstanceRef.current) {
+            destroyChart(); // Ensure old instance is destroyed
+            chartInstanceRef.current = instance;
           }
         }}
       />
