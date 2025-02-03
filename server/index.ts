@@ -49,23 +49,22 @@ async function startServer() {
         return reject(new Error('Server was not properly initialized'));
       }
 
-      const options = {
-        host: '0.0.0.0',
-        port: port
-      };
+      server.close(() => {
+        log('Closed any existing port bindings');
 
-      server.listen(options, () => {
-        log(`🚀 Server Status:`);
-        log(`📡 Internal: Running on ${options.host}:${options.port}`);
-        log(`🌍 External: Mapped to port 80`);
-        log(`⏰ Started at: ${new Date().toISOString()}`);
-        resolve();
-      }).on('error', (error: any) => {
-        if (error.code === 'EADDRINUSE') {
-          log(`Port ${port} is already in use. Attempting to close existing connections...`);
-          server = null;
-        }
-        reject(error);
+        server?.listen(port, '0.0.0.0', () => {
+          log(`🚀 Server Status:`);
+          log(`📡 Internal: Running on 0.0.0.0:${port}`);
+          log(`🌍 External: Mapped to port 80`);
+          log(`⏰ Started at: ${new Date().toISOString()}`);
+          resolve();
+        }).on('error', (error: any) => {
+          if (error.code === 'EADDRINUSE') {
+            log(`Port ${port} is already in use. Attempting to close existing connections...`);
+            server = null;
+          }
+          reject(error);
+        });
       });
     });
 
@@ -78,26 +77,20 @@ async function startServer() {
 // Graceful shutdown handler
 process.on('SIGTERM', async () => {
   if (server) {
-    await new Promise<void>((resolve) => {
-      server?.close(() => {
-        log('Server gracefully shut down');
-        resolve();
-      });
+    server.close(() => {
+      log('Server gracefully shut down');
+      process.exit(0);
     });
-    process.exit(0);
   }
 });
 
 // Handle interrupts
 process.on('SIGINT', async () => {
   if (server) {
-    await new Promise<void>((resolve) => {
-      server?.close(() => {
-        log('Server interrupted and shut down');
-        resolve();
-      });
+    server.close(() => {
+      log('Server interrupted and shut down');
+      process.exit(0);
     });
-    process.exit(0);
   }
 });
 
