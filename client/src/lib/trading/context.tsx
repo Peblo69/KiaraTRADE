@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { Trade, OrderBook } from './types';
+import type { Trade, OrderBook } from '@/types/trading';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
 interface TradingContextType {
@@ -20,7 +20,11 @@ interface TradingContextType {
 
 const TradingContext = createContext<TradingContextType | undefined>(undefined);
 
-export function TradingProvider({ children }: { children: React.ReactNode }) {
+interface ProviderProps {
+  children: React.ReactNode;
+}
+
+export function TradingProvider({ children }: ProviderProps) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [orderBook, setOrderBook] = useState<OrderBook>({ asks: [], bids: [] });
   const [loading, setLoading] = useState(false);
@@ -28,11 +32,9 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [lastSolPrice, setLastSolPrice] = useState<number | null>(null);
   const [priceError, setPriceError] = useState<string | null>(null);
 
-  // Get SOL price from PumpPortal store with error handling
   const solPrice = usePumpPortalStore(state => state.solPrice);
   const isConnected = usePumpPortalStore(state => state.isConnected);
 
-  // Update lastSolPrice when solPrice changes
   useEffect(() => {
     try {
       if (!isConnected) {
@@ -70,7 +72,6 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Cannot create trade: SOL price not available');
       }
 
-      // Create a new trade object
       const newTrade: Trade = {
         id: String(Date.now()),
         timestamp: Date.now(),
@@ -84,10 +85,8 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         priceInSol: data.price
       };
 
-      // Update local state
       setTrades(prev => [newTrade, ...prev]);
 
-      // Update order book based on trade type
       if (data.type === 'limit') {
         setOrderBook(prev => {
           const side = data.side === 'buy' ? 'bids' : 'asks';
@@ -109,7 +108,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const value: TradingContextType = {
+  const value = {
     trades,
     orderBook,
     loading,
