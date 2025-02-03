@@ -4,35 +4,18 @@ import { setupVite, serveStatic, log } from "./vite";
 import http from 'http';
 
 const app = express();
-const PORT = 5000; // Fixed port for the internal server
+const PORT = 3000; // Fixed port for consistency
 let server: http.Server | null = null;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-let isInitializing = false;
-
 async function startServer() {
   try {
-    if (isInitializing) {
-      log('⚠️ Server initialization already in progress');
-      return;
-    }
-
-    if (server?.listening) {
-      log('⚠️ Server is already running');
-      return;
-    }
-
-    isInitializing = true;
-
+    // First try to close any existing server
     if (server) {
-      await new Promise<void>((resolve, reject) => {
-        server?.close((err) => {
-          if (err) {
-            reject(err);
-            return;
-          }
+      await new Promise<void>((resolve) => {
+        server?.close(() => {
           log('👋 Closed existing server');
           resolve();
         });
@@ -40,7 +23,6 @@ async function startServer() {
       server = null;
     }
 
-    // Create new server instance
     server = registerRoutes(app);
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -60,12 +42,10 @@ async function startServer() {
 
     await new Promise<void>((resolve, reject) => {
       if (!server) {
-        isInitializing = false;
         return reject(new Error('Server was not properly initialized'));
       }
 
-      server.listen(PORT, '0.0.0.0', () => {
-        isInitializing = false;
+      server.listen(PORT, () => {
         log(`🚀 Server Status:`);
         log(`📡 Server running on port ${PORT}`);
         log(`⏰ Started at: ${new Date().toISOString()}`);

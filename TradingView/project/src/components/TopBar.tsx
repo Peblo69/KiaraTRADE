@@ -139,7 +139,7 @@ const TopBar: React.FC = () => {
               </button>
 
               <button 
-                className="btn-secondary flex items-center space-x-1 cursor-pointer bg-purple-900/20 hover:bg-purple-900/40 text-purple-300"
+                className="btn-secondary flex items-center space-x-1 cursor-pointer"
                 onClick={() => setIsSecurityPanelOpen(true)}
               >
                 <Shield className="w-3.5 h-3.5" />
@@ -216,9 +216,9 @@ const TopBar: React.FC = () => {
         </div>
       )}
 
-      {/* Security Panel - with transparency */}
+      {/* Security Panel */}
       {isSecurityPanelOpen && (
-        <div className="fixed inset-y-0 right-0 w-80 bg-[#0A0818]/95 backdrop-blur-sm transform z-50 flex flex-col border-l border-purple-900/30">
+        <div className="fixed inset-y-0 right-0 w-80 bg-[#0A0818] transform z-50 flex flex-col border-l border-purple-900/30">
           <div className="flex items-center justify-between p-3 border-b border-purple-900/30 bg-purple-950/50">
             <div className="flex items-center space-x-2">
               <Shield className="w-4 h-4 text-purple-400" />
@@ -276,10 +276,10 @@ const TopBar: React.FC = () => {
         </div>
       )}
 
-      {/* Updated backdrop with improved transparency */}
+      {/* Backdrop */}
       {(isSecurityPanelOpen || isKiaraPanelOpen) && (
         <div 
-          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
           onClick={() => {
             setIsSecurityPanelOpen(false);
             setIsKiaraPanelOpen(false);
