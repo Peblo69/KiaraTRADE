@@ -26,10 +26,10 @@ const isSuspiciouslyFast = (speed: number | null) => {
 };
 
 interface Props {
-  tokenAddress: string;
+  tokenAddress?: string;
 }
 
-const TradeHistory: React.FC<Props> = ({ tokenAddress }) => {
+const TradeHistory: React.FC<Props> = ({ tokenAddress = 'default-token' }) => {
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const [displayCount, setDisplayCount] = useState(50);
 

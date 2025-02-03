@@ -25,7 +25,7 @@ const TokenPage = () => {
             <div className="h-[500px] bg-[#0D0B1F] rounded-lg border border-purple-900/30">
               <div id="tradingview-widget-container" />
             </div>
-            <TradeHistory />
+            <TradeHistory tokenAddress="demo-token-address" />
           </div>
 
           {/* Right Column */}
