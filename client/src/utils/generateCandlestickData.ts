@@ -2,7 +2,7 @@
 import { TokenTrade } from '@/types/token';
 
 export interface CandlestickData {
-  time: number; // UNIX timestamp in seconds
+  time: number;
   open: number;
   high: number;
   low: number;
@@ -10,57 +10,41 @@ export interface CandlestickData {
   volume: number;
 }
 
-/**
- * Groups trades into candlestick data based on a bucket size (in seconds).
- * Uses fallbackPrice if a trade price is missing.
- */
 export function generateCandlestickData(
   trades: TokenTrade[],
-  bucketSizeSeconds: number = 60,
-  fallbackPrice: number = 0
+  bucketSizeSeconds: number = 60
 ): CandlestickData[] {
   if (!trades || trades.length === 0) return [];
 
-  // Sort trades by timestamp (oldest first)
   const sortedTrades = [...trades].sort((a, b) => a.timestamp - b.timestamp);
-  const candlesticks: any[] = [];
+  const candlesticks: CandlestickData[] = [];
+  let currentBucket: { [key: number]: TokenTrade[] } = {};
 
-  let currentBucket = Math.floor(sortedTrades[0].timestamp / 1000 / bucketSizeSeconds) * bucketSizeSeconds;
-  let bucketTrades: TokenTrade[] = [];
-
+  // Group trades by time bucket
   sortedTrades.forEach(trade => {
-    const tradeTime = Math.floor(trade.timestamp / 1000);
-    if (tradeTime < currentBucket + bucketSizeSeconds) {
-      bucketTrades.push(trade);
-    } else {
-      if (bucketTrades.length > 0) {
-        const getPrice = (trade: TokenTrade) => trade.priceInUsd || fallbackPrice;
-        candlesticks.push({
-          time: currentBucket,
-          open: getPrice(bucketTrades[0]),
-          high: Math.max(...bucketTrades.map(t => getPrice(t))),
-          low: Math.min(...bucketTrades.map(t => getPrice(t))),
-          close: getPrice(bucketTrades[bucketTrades.length - 1]),
-          volume: bucketTrades.reduce((sum, t) => sum + (t.tokenAmount || 0), 0)
-        });
-      }
-      currentBucket = Math.floor(tradeTime / bucketSizeSeconds) * bucketSizeSeconds;
-      bucketTrades = [trade];
+    const bucketTime = Math.floor(trade.timestamp / 1000 / bucketSizeSeconds) * bucketSizeSeconds;
+    if (!currentBucket[bucketTime]) {
+      currentBucket[bucketTime] = [];
     }
+    currentBucket[bucketTime].push(trade);
   });
 
-  // Handle last bucket
-  if (bucketTrades.length > 0) {
-    const getPrice = (trade: TokenTrade) => trade.priceInUsd || fallbackPrice;
-    candlesticks.push({
-      time: currentBucket,
-      open: getPrice(bucketTrades[0]),
-      high: Math.max(...bucketTrades.map(t => getPrice(t))),
-      low: Math.min(...bucketTrades.map(t => getPrice(t))),
-      close: getPrice(bucketTrades[bucketTrades.length - 1]),
-      volume: bucketTrades.reduce((sum, t) => sum + (t.tokenAmount || 0), 0)
-    });
-  }
+  // Convert buckets to candlesticks
+  Object.entries(currentBucket).forEach(([time, trades]) => {
+    if (trades.length === 0) return;
 
-  return candlesticks;
+    const prices = trades.map(t => t.priceInUsd || 0).filter(p => p > 0);
+    if (prices.length === 0) return;
+
+    candlesticks.push({
+      time: parseInt(time),
+      open: prices[0],
+      high: Math.max(...prices),
+      low: Math.min(...prices),
+      close: prices[prices.length - 1],
+      volume: trades.reduce((sum, t) => sum + (t.tokenAmount || 0), 0)
+    });
+  });
+
+  return candlesticks.sort((a, b) => a.time - b.time);
 }
