@@ -93,12 +93,12 @@ const PumpFunVision: FC = () => {
               <div className="w-full h-[calc(100vh-64px)]">
                 <div className="grid grid-cols-12 gap-4 h-full">
                   {/* Left Column - Market Stats & Social Metrics */}
-                  <div className="col-span-2 space-y-2 h-full overflow-auto">
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[49%]">
+                  <div className="col-span-2 h-full">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                       <MarketStats tokenAddress={selectedToken} />
-                    </div>
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[49%]">
-                      <SocialMetrics tokenAddress={selectedToken} />
+                      <div className="mt-4 pt-4 border-t border-purple-900/30">
+                        <SocialMetrics tokenAddress={selectedToken} />
+                      </div>
                     </div>
                   </div>
 
