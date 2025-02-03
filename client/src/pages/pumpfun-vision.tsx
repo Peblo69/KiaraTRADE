@@ -11,7 +11,6 @@ import SocialMetrics from "@/components/SocialMetrics";
 import TradeHistory from "@/components/TradeHistory";
 import TradingForm from "@/components/TradingForm";
 import HolderAnalytics from "@/components/HolderAnalytics";
-import TradingChartChartJS from "@/components/TradingChartChartJS";
 
 // Import Helius trade integration
 import { heliusTradeIntegration } from "../lib/helius-trade-integration";
