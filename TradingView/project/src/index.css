@@ -39,6 +39,98 @@ body {
   @apply px-2.5 py-1 text-xs font-medium rounded-md bg-gradient-to-r from-purple-600/90 to-purple-800/90 hover:from-purple-600 hover:to-purple-800 text-white shadow-lg shadow-purple-900/20 transition-all duration-200 border border-purple-700/50;
 }
 
+/* KIARA Vision Pro Panel Styles */
+.chat-container {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.98) 100%);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(255, 215, 0, 0.1);
+}
+
+.chat-message {
+  @apply rounded-xl p-4 max-w-[85%] relative;
+  background: rgba(23, 23, 23, 0.95);
+  border: 1px solid rgba(255, 215, 0, 0.15);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.chat-message.ai {
+  @apply ml-2;
+  background: rgba(255, 215, 0, 0.05);
+}
+
+.chat-message.user {
+  @apply ml-auto mr-2;
+  background: rgba(23, 23, 23, 0.95);
+}
+
+.chat-input {
+  @apply rounded-xl px-4 py-3 text-sm w-full;
+  background: rgba(23, 23, 23, 0.95);
+  border: 1px solid rgba(255, 215, 0, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.chat-input:focus {
+  border-color: rgba(255, 215, 0, 0.3);
+  box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.1);
+}
+
+.chat-send-btn {
+  background: linear-gradient(45deg, #FFD700, #FFA500);
+  @apply rounded-xl px-4 py-3 text-black font-medium transition-all duration-200;
+}
+
+.chat-send-btn:hover {
+  filter: brightness(1.1);
+}
+
+/* Security Audit Panel Styles */
+.security-panel {
+  background: linear-gradient(180deg, rgba(13, 11, 31, 0.98) 0%, rgba(13, 11, 31, 0.95) 100%);
+  backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(147, 51, 234, 0.1);
+}
+
+.security-item {
+  @apply flex justify-between items-center py-3 border-b border-purple-900/10;
+  background: rgba(23, 23, 23, 0.3);
+}
+
+.security-label {
+  @apply text-purple-300 text-sm;
+}
+
+.security-value {
+  @apply text-sm font-medium;
+}
+
+.security-value.success {
+  @apply text-green-400;
+}
+
+.security-value.warning {
+  @apply text-yellow-400;
+}
+
+.security-value.danger {
+  @apply text-red-400;
+}
+
+.proceed-btn {
+  background: linear-gradient(45deg, #22c55e, #16a34a);
+  @apply w-full py-3 rounded-xl text-white font-medium transition-all duration-200;
+}
+
+.proceed-btn:hover {
+  filter: brightness(1.1);
+}
+
+/* Backdrop styles */
+.modal-backdrop {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+}
+
 .btn-secondary {
   @apply px-2.5 py-1 text-xs font-medium rounded-md bg-purple-900/20 text-purple-300 hover:bg-purple-900/30 transition-all duration-200 border border-purple-800/30 shadow-sm shadow-purple-900/10;
 }
