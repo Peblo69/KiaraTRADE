@@ -90,10 +90,10 @@ const PumpFunVision: FC = () => {
             </div>
 
             <div className="container mx-auto px-4 relative">
-              <div className="container mx-auto px-4">
-                <div className="grid grid-cols-12 gap-4">
+              <div className="w-full h-[calc(100vh-64px)] p-4">
+                <div className="grid grid-cols-12 gap-4 h-full">
                   {/* Left Column - Market Stats & Social Metrics */}
-                  <div className="col-span-2 space-y-4">
+                  <div className="col-span-2 space-y-4 h-full overflow-auto">
                     <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                       <MarketStats tokenAddress={selectedToken} />
                     </div>
@@ -103,31 +103,21 @@ const PumpFunVision: FC = () => {
                   </div>
 
                   {/* Main Trading Area */}
-                  <div className="col-span-7 space-y-4">
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
-                      <TradingChart tokenAddress={selectedToken} />
-                      <div className="flex items-center justify-between mb-4">
-                      <Button variant="ghost" onClick={handleBack} className="text-purple-400">
-                        <ArrowLeft className="w-4 h-4 mr-2" />
-                        Back
-                      </Button>
-                      <div>
-                        <h1 className="text-2xl font-bold text-purple-100">
-                          {tokens.find(t => t.address === selectedToken)?.symbol}
-                        </h1>
-                        <p className="text-sm text-purple-400">
-                          ${tokens.find(t => t.address === selectedToken)?.priceInUsd?.toFixed(8) || '0.00000000'}
-                        </p>
+                  <div className="col-span-7 space-y-4 h-full overflow-auto">
+                    <div className="h-[70%]">
+                      <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                        <TradingChart tokenAddress={selectedToken} />
+                      </div>
+                    </div>
+                    <div className="h-[30%]">
+                      <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                        <TradeHistory tokenAddress={selectedToken} />
                       </div>
                     </div>
                   </div>
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
-                      <TradeHistory tokenAddress={selectedToken} />
-                    </div>
-                  </div>
 
-                {/* Right Column - Trading Form & Holder Analytics */}
-                  <div className="col-span-3 space-y-4">
+                  {/* Right Column - Trading Form & Holder Analytics */}
+                  <div className="col-span-3 space-y-4 h-full overflow-auto">
                     <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                       <TradingForm tokenAddress={selectedToken} />
                     </div>
