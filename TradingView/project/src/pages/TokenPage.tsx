@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import MarketStats from '@/components/MarketStats';
 import TradeHistory from '@/components/TradeHistory';
-import TradingChart from '@/components/TradingChart';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
 interface Props {
@@ -60,11 +59,6 @@ const TokenPage: React.FC<Props> = ({ tokenAddress }) => {
             <h1 className="text-2xl font-bold">{token.name}</h1>
             <p className="text-purple-400">{token.symbol}</p>
           </div>
-        </div>
-
-        {/* Trading Chart */}
-        <div className="mb-8">
-          <TradingChart tokenAddress={tokenAddress} />
         </div>
 
         {/* Market Stats & Trade History */}

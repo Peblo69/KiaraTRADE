@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { Progress } from "@/components/ui/progress";
-import { ArrowUpIcon, ArrowDownIcon, LineChart, Info } from "lucide-react";
+import { ArrowUpIcon, ArrowDownIcon, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -13,24 +13,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { PredictionResult } from "../../../server/types/prediction";
-import { AdvancedPriceChart } from "@/components/AdvancedPriceChart";
-import { TechnicalAnalysis } from "@/components/TechnicalAnalysis";
 import { MarketContext } from "@/components/MarketContext";
 import { motion } from "framer-motion";
 import CryptoIcon from "@/components/CryptoIcon";
-
-interface ChartData {
-  [key: string]: {
-    klines: {
-      time: number;
-      open: number;
-      high: number;
-      low: number;
-      close: number;
-      volume: number;
-    }[];
-  };
-}
 
 interface MarketContextData {
   correlations: Array<{
@@ -54,15 +39,9 @@ interface MarketContextData {
 export default function PredictionsPage() {
   const { toast } = useToast();
   const [selectedTokens] = useState(['BTC-USDT', 'ETH-USDT', 'SOL-USDT']);
-  const [selectedTimeframe, setSelectedTimeframe] = useState('1h');
 
   const { data: predictions, isLoading } = useQuery<Record<string, PredictionResult>>({
     queryKey: ['/api/predictions'],
-    refetchInterval: 30000,
-  });
-
-  const { data: chartData } = useQuery<ChartData>({
-    queryKey: ['/api/klines', selectedTimeframe],
     refetchInterval: 30000,
   });
 
@@ -111,8 +90,7 @@ export default function PredictionsPage() {
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Advanced Price Predictions</h1>
           <p className="text-gray-400">
-            ML-enhanced technical analysis updated every 30 seconds. Combines RSI, MACD, EMA, Bollinger Bands,
-            Volume Profile, and Fibonacci levels for high-accuracy predictions.
+            ML-enhanced technical analysis updated every 30 seconds.
           </p>
         </div>
 
@@ -128,29 +106,8 @@ export default function PredictionsPage() {
               <DialogDescription>
                 <div className="space-y-4 mt-4">
                   <section>
-                    <h3 className="text-lg font-semibold mb-2">Technical Indicators</h3>
-                    <ul className="list-disc pl-5 space-y-2">
-                      <li>RSI (Relative Strength Index) - Momentum indicator</li>
-                      <li>MACD (Moving Average Convergence Divergence) - Trend indicator</li>
-                      <li>Bollinger Bands - Volatility and price levels</li>
-                      <li>Fibonacci Retracement - Key support/resistance levels</li>
-                      <li>Volume Profile - Trading activity analysis</li>
-                    </ul>
-                  </section>
-
-                  <section>
-                    <h3 className="text-lg font-semibold mb-2">Pattern Recognition</h3>
-                    <ul className="list-disc pl-5 space-y-2">
-                      <li>Head & Shoulders pattern detection</li>
-                      <li>Double Top/Bottom patterns</li>
-                      <li>Volume breakout analysis</li>
-                    </ul>
-                  </section>
-
-                  <section>
                     <h3 className="text-lg font-semibold mb-2">Risk Analysis</h3>
                     <ul className="list-disc pl-5 space-y-2">
-                      <li>ATR (Average True Range) - Volatility measurement</li>
                       <li>Support & Resistance levels</li>
                       <li>Price prediction ranges with confidence levels</li>
                     </ul>
@@ -174,10 +131,9 @@ export default function PredictionsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {selectedTokens.map((token, index) => {
           const prediction = predictions?.[token];
-          const tokenChartData = chartData?.[token]?.klines || [];
           const marketContext = marketContextQueries[index].data as MarketContextData;
 
-          if (!prediction || !tokenChartData.length) {
+          if (!prediction) {
             return (
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -261,14 +217,6 @@ export default function PredictionsPage() {
                   </div>
                 </div>
 
-                <div className="mt-6">
-                  <AdvancedPriceChart
-                    symbol={token}
-                    data={tokenChartData}
-                    indicators={prediction.indicators}
-                  />
-                </div>
-
                 {marketContext && (
                   <MarketContext
                     symbol={token}
@@ -278,17 +226,6 @@ export default function PredictionsPage() {
                   />
                 )}
 
-                <TechnicalAnalysis
-                  symbol={token}
-                  patterns={prediction.indicators.patterns || []}
-                  supportLevels={[prediction.predictedPriceRange.low]}
-                  resistanceLevels={[prediction.predictedPriceRange.high]}
-                  currentPrice={prediction.currentPrice}
-                  rsi={prediction.indicators.rsi}
-                  macd={prediction.indicators.macd}
-                  volume={tokenChartData[tokenChartData.length - 1]?.volume || 0}
-                />
-
                 <div className="mt-6 pt-4 border-t border-gray-700">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-gray-400">Signal Strength</span>
@@ -297,7 +234,6 @@ export default function PredictionsPage() {
                   <Progress
                     value={prediction.confidence * 100}
                     className="bg-gray-700 h-2"
-                    indicatorClassName={getConfidenceColor(prediction.confidence)}
                   />
                 </div>
 
@@ -306,20 +242,14 @@ export default function PredictionsPage() {
                     <div className="flex items-start gap-2">
                       <ArrowUpIcon className="w-4 h-4 text-green-400 mt-1 flex-shrink-0" />
                       <p>
-                        Strong bullish momentum with RSI at {prediction.indicators.rsi.toFixed(1)}.
-                        MACD shows positive crossover ({prediction.indicators.macd.toFixed(4)})
-                        and price is trading above EMA (${prediction.indicators.ema.toFixed(2)}).
-                        Volume profile confirms uptrend.
+                        Strong bullish momentum with volume profile confirming uptrend.
                       </p>
                     </div>
                   ) : (
                     <div className="flex items-start gap-2">
                       <ArrowDownIcon className="w-4 h-4 text-red-400 mt-1 flex-shrink-0" />
                       <p>
-                        Bearish signals with elevated RSI at {prediction.indicators.rsi.toFixed(1)}.
-                        MACD shows negative divergence ({prediction.indicators.macd.toFixed(4)})
-                        and price below EMA support at ${prediction.indicators.ema.toFixed(2)}.
-                        Volume profile suggests continued downward pressure.
+                        Bearish signals with volume profile suggesting continued downward pressure.
                       </p>
                     </div>
                   )}

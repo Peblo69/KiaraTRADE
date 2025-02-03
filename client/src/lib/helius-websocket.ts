@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { Connection, PublicKey } from '@solana/web3.js';
-import { useChartStore } from '@/lib/chart-websocket';
 
 // Constants
 const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY;
@@ -92,7 +91,6 @@ async function updateSolPrice() {
   }
 }
 
-// Add heartbeat to maintain connection
 function startHeartbeat() {
   const heartbeatInterval = setInterval(() => {
     if (ws?.readyState === WebSocket.OPEN) {
@@ -179,16 +177,7 @@ export function initializeHeliusWebSocket() {
             const tokenData = value.data.parsed?.info;
             if (tokenData) {
               console.log('[Helius] Token data:', tokenData);
-
-              // Update chart data
-              const solPrice = get().solPrice;
-              if (tokenData.tokenAmount) {
-                useChartStore.getState().addTrade(tokenData.mint, {
-                  timestamp: Date.now(),
-                  priceInUsd: (tokenData.tokenAmount.uiAmount || 0) * solPrice,
-                  amount: tokenData.tokenAmount.uiAmount || 0
-                });
-              }
+              // Token data is now available for use by other components
             }
           }
         }
