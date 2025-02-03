@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useChartStore } from '@/lib/chart-websocket';
-import { useHeliusStore } from '@/lib/helius-websocket';
-import { ChartData, Trade, CandlestickData } from '@/types/chart';
+import { useHeliusStore, initializeHeliusWebSocket } from '@/lib/helius-websocket';
+import { ChartData } from '@/types/chart';
 
 const MINUTE = 60 * 1000; // One minute in milliseconds
 
@@ -15,13 +15,24 @@ export const useChartData = (tokenAddress: string): ChartData => {
   useEffect(() => {
     console.log('Initializing chart data for token:', tokenAddress);
 
-    // Subscribe to Helius for the token
-    useHeliusStore.getState().subscribeToToken(tokenAddress);
+    // Initialize Helius WebSocket if not already connected
+    const heliusStore = useHeliusStore.getState();
+    if (!heliusStore.isConnected) {
+      console.log('Initializing Helius WebSocket connection...');
+      initializeHeliusWebSocket();
+    }
+
+    // Subscribe to token updates
+    console.log('Subscribing to token updates...');
+    heliusStore.subscribeToToken(tokenAddress);
 
     // Connect to PumpPortal data stream
     const cleanup = connectToPumpPortal(tokenAddress);
 
-    return cleanup;
+    return () => {
+      cleanup();
+      // Note: Helius subscriptions are managed by the store
+    };
   }, [tokenAddress]);
 
   // Get trades from our store
