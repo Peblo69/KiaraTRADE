@@ -34,7 +34,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setLoading(true);
       // Create a new trade object
       const newTrade: Trade = {
-        id: String(Date.now()),
+        id: Date.now(),
         timestamp: Date.now(),
         type: data.type,
         side: data.side,
