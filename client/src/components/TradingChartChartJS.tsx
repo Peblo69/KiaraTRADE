@@ -15,15 +15,6 @@ import usePumpPortalChartData from '@/hooks/usePumpPortalChartData';
 
 ChartJS.register(CategoryScale, LinearScale, TimeScale, Tooltip, Legend);
 
-interface CandlestickData {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-}
-
 interface Props {
   tokenAddress: string;
   className?: string;
@@ -31,14 +22,15 @@ interface Props {
 
 const TradingChartChartJS: React.FC<Props> = ({ tokenAddress, className }) => {
   const { candles, currentPrice } = usePumpPortalChartData(tokenAddress, 60);
+  const chartRef = useRef<ChartJS | null>(null);
   const [chartKey, setChartKey] = useState(Date.now());
 
   const chartData = {
     datasets: [
       {
         label: 'Price',
-        data: candles.map((c: CandlestickData) => ({
-          x: c.time * 1000, // Convert seconds to milliseconds for Chart.js
+        data: candles.map((c) => ({
+          x: c.time * 1000,
           o: c.open,
           h: c.high,
           l: c.low,
@@ -102,9 +94,20 @@ const TradingChartChartJS: React.FC<Props> = ({ tokenAddress, className }) => {
     },
   };
 
-  // Update chart key when candles change to force remount
+  // Cleanup previous chart instance before unmounting
   useEffect(() => {
-    setChartKey(Date.now());
+    return () => {
+      if (chartRef.current) {
+        chartRef.current.destroy();
+      }
+    };
+  }, []);
+
+  // Force chart remount when data changes
+  useEffect(() => {
+    if (candles.length > 0) {
+      setChartKey(Date.now());
+    }
   }, [candles]);
 
   if (!chartData.datasets[0].data.length) {
@@ -113,11 +116,16 @@ const TradingChartChartJS: React.FC<Props> = ({ tokenAddress, className }) => {
 
   return (
     <div className={`relative h-[300px] bg-[#0D0B1F] rounded-lg border border-purple-900/30 ${className}`}>
-      <Chart 
+      <Chart
         key={chartKey}
-        type="candlestick" 
-        data={chartData} 
-        options={options} 
+        type="candlestick"
+        data={chartData}
+        options={options}
+        ref={(ref) => {
+          if (ref) {
+            chartRef.current = ref;
+          }
+        }}
       />
       <div className="absolute bottom-2 right-2 text-sm text-green-400">
         ${currentPrice.toFixed(8)}

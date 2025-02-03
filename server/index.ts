@@ -3,6 +3,8 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+const port = 5000;
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -27,6 +29,11 @@ async function startServer() {
     } else {
       serveStatic(app);
     }
+
+    // Start server on port 5000 with 0.0.0.0 binding for proper port forwarding
+    server.listen(port, '0.0.0.0', () => {
+      log(`Server running on port ${port}`);
+    });
 
   } catch (error) {
     log(`Server startup error: ${error instanceof Error ? error.message : String(error)}`);

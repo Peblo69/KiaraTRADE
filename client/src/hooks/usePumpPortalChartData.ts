@@ -20,7 +20,7 @@ const usePumpPortalChartData = (tokenAddress: string, bucketSizeSeconds: number 
       timestamp: t.timestamp,
       price: t.priceInUsd || fallbackPrice,
       amount: t.tokenAmount || 0,
-      type: t.type as 'buy' | 'sell'
+      type: 'buy' // Default to buy since we don't have type info
     })) || [];
 
     // Generate candlestick data from trades
