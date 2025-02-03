@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { LineChart, Sparkles } from 'lucide-react';
 
-const TradingChart: React.FC = () => {
+interface TradingChartProps {
+  tokenAddress?: string;
+}
+
+const TradingChart: React.FC<TradingChartProps> = ({ tokenAddress }) => {
   const [selectedTimeFrame, setSelectedTimeFrame] = useState('60'); // Default to 1m
 
   const timeFrames = [
@@ -12,6 +17,13 @@ const TradingChart: React.FC = () => {
     { label: '1h', value: '3600' },
     { label: '1d', value: '86400' }
   ];
+
+  useEffect(() => {
+    if (tokenAddress) {
+      // Here you can add logic to fetch token-specific chart data
+      console.log('Loading chart data for token:', tokenAddress);
+    }
+  }, [tokenAddress]);
 
   return (
     <div className="relative bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">

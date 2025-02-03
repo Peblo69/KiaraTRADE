@@ -21,10 +21,7 @@ const TokenPage = () => {
 
           {/* Center Column */}
           <div className="col-span-7 space-y-4">
-            {/* TradingView Chart will go here */}
-            <div className="h-[500px] bg-[#0D0B1F] rounded-lg border border-purple-900/30">
-              <div id="tradingview-widget-container" />
-            </div>
+            <TradingChart />
             <TradeHistory tokenAddress="demo-token-address" />
           </div>
 
