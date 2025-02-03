@@ -31,44 +31,48 @@ const TradingChartChartJS: React.FC<Props> = ({ tokenAddress, className }) => {
   const { candles, currentPrice } = usePumpPortalChartData(tokenAddress, 60);
   const [chartData, setChartData] = useState<any>(null);
 
-  // Always destroy chart instance before unmounting
+  // Always destroy chart instance on unmount
   useEffect(() => {
     return () => {
       if (chartRef.current) {
         chartRef.current.destroy();
+        chartRef.current = null;
       }
     };
   }, []);
 
-  // Clean up previous chart instance before creating a new one
+  // Clean up previous chart instance on token change
   useEffect(() => {
     if (chartRef.current) {
       chartRef.current.destroy();
+      chartRef.current = null;
     }
-  }, [tokenAddress]); // Cleanup when token changes
+  }, [tokenAddress]);
 
   // Update chart data when candles change
   useEffect(() => {
-    if (candles.length > 0) {
-      setChartData({
-        datasets: [{
-          label: 'Price',
-          data: candles.map(candle => ({
-            x: candle.time * 1000,
-            o: candle.open,
-            h: candle.high,
-            l: candle.low,
-            c: candle.close
-          })),
-          borderColor: '#4CAF50',
-          backgroundColor: (ctx: any) => {
-            const item = ctx.raw;
-            return item?.o <= item?.c ? 'rgba(76, 175, 80, 0.5)' : 'rgba(244, 67, 54, 0.5)';
-          },
-          borderWidth: 1,
-        }]
-      });
-    }
+    if (!candles.length) return;
+
+    const newChartData = {
+      datasets: [{
+        label: 'Price',
+        data: candles.map(candle => ({
+          x: candle.time * 1000,
+          o: candle.open,
+          h: candle.high,
+          l: candle.low,
+          c: candle.close
+        })),
+        borderColor: '#4CAF50',
+        backgroundColor: (ctx: any) => {
+          const item = ctx.raw;
+          return item?.o <= item?.c ? 'rgba(76, 175, 80, 0.5)' : 'rgba(244, 67, 54, 0.5)';
+        },
+        borderWidth: 1,
+      }]
+    };
+
+    setChartData(newChartData);
   }, [candles]);
 
   const options = {
@@ -147,7 +151,11 @@ const TradingChartChartJS: React.FC<Props> = ({ tokenAddress, className }) => {
         type="candlestick"
         data={chartData}
         options={options}
-        ref={chartRef}
+        ref={(ref) => {
+          if (ref) {
+            chartRef.current = ref;
+          }
+        }}
       />
       <div className="absolute bottom-4 right-4 text-sm font-medium text-green-400">
         ${currentPrice.toFixed(8)}
