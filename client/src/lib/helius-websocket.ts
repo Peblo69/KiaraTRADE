@@ -39,17 +39,25 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
     console.log('[Helius] Subscribing to token:', tokenAddress);
 
     try {
-      // Subscribe to token account changes
+      // Subscribe to token account changes using v2 API method
       ws.send(JSON.stringify({
         jsonrpc: '2.0',
         id: `token-sub-${tokenAddress}`,
-        method: 'accountSubscribe',
+        method: 'programSubscribe',
         params: [
-          tokenAddress,
+          'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', // SPL Token program ID
           {
-            commitment: 'confirmed',
             encoding: 'jsonParsed',
-            transactionDetails: 'full',
+            filters: [
+              {
+                dataSize: 165, // Token account data size
+                memcmp: {
+                  offset: 0,
+                  bytes: tokenAddress // Filter for specific token mint
+                }
+              }
+            ],
+            commitment: 'processed',
             showEvents: true,
             maxSupportedTransactionVersion: 0
           }
@@ -91,17 +99,20 @@ async function handleTokenTransaction(data: any) {
 
     const connection = new Connection(HELIUS_REST_URL);
 
-    // Use the new v2 API method for signature status
+    // Use v2 API methods
     const statuses = await connection.getSignatureStatuses([data.signature]);
-    if (!statuses.value[0]) return;
+    if (!statuses.value[0] || !statuses.value[0].confirmationStatus) {
+      console.warn('[Helius] Transaction not confirmed:', data.signature);
+      return;
+    }
 
-    // Use the new getTransaction method instead of getConfirmedTransaction
     const tx = await connection.getTransaction(data.signature, {
-      maxSupportedTransactionVersion: 0
+      maxSupportedTransactionVersion: 0,
+      commitment: 'processed'
     });
 
     if (!tx?.meta) {
-      console.log('[Helius] No transaction metadata found');
+      console.warn('[Helius] No transaction metadata found');
       return;
     }
 
@@ -209,7 +220,7 @@ export function initializeHeliusWebSocket() {
     ws.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('[Helius] Received message:', data);  // Add detailed logging
+        console.log('[Helius] Received message:', data);
 
         if (data.method === 'accountNotification') {
           await handleTokenTransaction(data.params.result);
