@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { useChartStore } from '@/lib/chart-websocket';
 
@@ -8,6 +8,7 @@ const HELIUS_WS_URL = `${import.meta.env.VITE_HELIUS_WS_URL}/?api-key=${HELIUS_A
 const HELIUS_REST_URL = import.meta.env.VITE_HELIUS_REST_URL;
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
+const SPL_TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 
 // TypeScript Interfaces
 interface HeliusStore {
@@ -39,13 +40,13 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
     console.log('[Helius] Subscribing to token:', tokenAddress);
 
     try {
-      // Subscribe to token account changes using v2 API method
-      ws.send(JSON.stringify({
+      // Subscribe to token account changes using v2 SPL Token program subscription
+      const subscribeMessage = {
         jsonrpc: '2.0',
         id: `token-sub-${tokenAddress}`,
         method: 'programSubscribe',
         params: [
-          'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', // SPL Token program ID
+          SPL_TOKEN_PROGRAM_ID,
           {
             encoding: 'jsonParsed',
             filters: [
@@ -62,10 +63,12 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
             maxSupportedTransactionVersion: 0
           }
         ]
-      }));
+      };
+
+      console.log('[Helius] Sending subscription message:', subscribeMessage);
+      ws.send(JSON.stringify(subscribeMessage));
 
       subscribedTokens.add(tokenAddress);
-      console.log('[Helius] Subscribed to token:', tokenAddress);
     } catch (error) {
       console.error('[Helius] Failed to subscribe to token:', error);
     }
@@ -78,7 +81,10 @@ let reconnectAttempts = 0;
 
 async function handleTokenTransaction(data: any) {
   try {
-    if (!data?.signature) return;
+    if (!data?.signature) {
+      console.warn('[Helius] No signature in transaction data:', data);
+      return;
+    }
 
     const store = useHeliusStore.getState();
     const solPrice = store.solPrice;
@@ -99,13 +105,14 @@ async function handleTokenTransaction(data: any) {
 
     const connection = new Connection(HELIUS_REST_URL);
 
-    // Use v2 API methods
+    // Use v2 API for signature status
     const statuses = await connection.getSignatureStatuses([data.signature]);
     if (!statuses.value[0] || !statuses.value[0].confirmationStatus) {
       console.warn('[Helius] Transaction not confirmed:', data.signature);
       return;
     }
 
+    // Use v2 API for transaction details
     const tx = await connection.getTransaction(data.signature, {
       maxSupportedTransactionVersion: 0,
       commitment: 'processed'
@@ -212,9 +219,12 @@ export function initializeHeliusWebSocket() {
 
       // Resubscribe to tokens
       const store = useHeliusStore.getState();
-      store.subscribedTokens.forEach(tokenAddress => {
-        store.subscribeToToken(tokenAddress);
-      });
+      if (store.subscribedTokens.size > 0) {
+        console.log('[Helius] Resubscribing to tokens:', Array.from(store.subscribedTokens));
+        store.subscribedTokens.forEach(tokenAddress => {
+          store.subscribeToToken(tokenAddress);
+        });
+      }
     };
 
     ws.onmessage = async (event) => {
@@ -263,7 +273,6 @@ export function initializeHeliusWebSocket() {
         ws = null;
       }
     };
-
   } catch (error) {
     console.error('[Helius] Initialization error:', error);
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
