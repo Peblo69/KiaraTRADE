@@ -1,0 +1,42 @@
+Okay listen.. we have a lot of problems connectiong our current tradingchart correctly to receive real time data updates. We tried everything but because there are a lot of processes on the way before we get that data something is going wrong and we can't fix it. So I want to try a new solution for that problem. I want to make a special file ONLY for our chart to get information directly from there. Ready calculated ready to display information. For this we need to simplify the file as much as possible and only get ready data just to display on the chart ! 
+
+import { useMemo } from 'react';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { generateCandlestickData, CandlestickData } from '@/utils/generateCandlestickData';
+
+interface TokenChartData {
+  candles: CandlestickData[];
+  currentPrice: number;
+}
+
+// This hook aggregates data for a given token address.
+// It retrieves the token from the store and uses the generateCandlestickData helper
+// to produce an array of candlestick data (OHLCV) that your chart can consume.
+const useTokenChartData = (tokenAddress: string, bucketSizeSeconds: number = 60): TokenChartData => {
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+
+  return useMemo(() => {
+    // Fallback current price: if token exists, use its priceInUsd; otherwise 0.
+    const fallbackPrice = token ? token.priceInUsd || 0 : 0;
+    
+    // Generate candlestick data if there are any recent trades; otherwise, create a single fallback candle.
+    const candles: CandlestickData[] =
+      token && token.recentTrades && token.recentTrades.length > 0
+        ? generateCandlestickData(token.recentTrades, bucketSizeSeconds, fallbackPrice)
+        : [{
+            time: Math.floor(Date.now() / 1000),
+            open: fallbackPrice,
+            high: fallbackPrice,
+            low: fallbackPrice,
+            close: fallbackPrice,
+            volume: 0
+          }];
+    
+    return {
+      candles,
+      currentPrice: fallbackPrice
+    };
+  }, [token, bucketSizeSeconds]);
+};
+
+export default useTokenChartData;

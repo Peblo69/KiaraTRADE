@@ -1,0 +1,185 @@
+
+
+Reasoned for 17 seconds
+Gathering insights
+
+I'm pulling together a "data aggregator" file to collect each token's data from the store or websockets, simplifying data for the chart.
+
+Formulating the blueprint
+
+I’m working through a new module to merge usePumpPortalStore and generateCandlestickData into a useTokenChartData.ts file for simplified token data for the TradingChart.
+
+Piecing it together
+
+I'm working on a custom hook that fetches candlestick data and metrics like price and volume for a token address, ensuring it imports usePumpPortalStore and generateCandlestickData.
+
+Synthesizing data
+
+I’ve crafted useTokenChartData.ts to combine usePumpPortalStore and generateCandlestickData, delivering token data in a simplified form ready for the TradingChart component to use.
+
+Below is an example of a custom hook that aggregates the raw token data (from your Zustand store and candlestick helper) into a simple, ready‑to‑use format for your chart. This file (for example, called useTokenChartData.ts) takes a token address and returns an object with the candlestick data and the current price. You can then have your TradingChart component simply consume the output of this hook without having to wire through all the individual store or WebSocket connections.
+
+File: src/hooks/useTokenChartData.ts
+tsx
+Copy
+import { useMemo } from 'react';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { generateCandlestickData, CandlestickData } from '@/utils/generateCandlestickData';
+
+interface TokenChartData {
+  candles: CandlestickData[];
+  currentPrice: number;
+}
+
+// This hook aggregates data for a given token address.
+// It retrieves the token from the store and uses the generateCandlestickData helper
+// to produce an array of candlestick data (OHLCV) that your chart can consume.
+const useTokenChartData = (tokenAddress: string, bucketSizeSeconds: number = 60): TokenChartData => {
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+
+  return useMemo(() => {
+    // Fallback current price: if token exists, use its priceInUsd; otherwise 0.
+    const fallbackPrice = token ? token.priceInUsd || 0 : 0;
+    
+    // Generate candlestick data if there are any recent trades; otherwise, create a single fallback candle.
+    const candles: CandlestickData[] =
+      token && token.recentTrades && token.recentTrades.length > 0
+        ? generateCandlestickData(token.recentTrades, bucketSizeSeconds, fallbackPrice)
+        : [{
+            time: Math.floor(Date.now() / 1000),
+            open: fallbackPrice,
+            high: fallbackPrice,
+            low: fallbackPrice,
+            close: fallbackPrice,
+            volume: 0
+          }];
+    
+    return {
+      candles,
+      currentPrice: fallbackPrice
+    };
+  }, [token, bucketSizeSeconds]);
+};
+
+export default useTokenChartData;
+How to Use This Hook
+Import the Hook in Your TradingChart Component (or anywhere you need chart data):
+
+tsx
+Copy
+import useTokenChartData from '@/hooks/useTokenChartData';
+Call the Hook and Pass the Result to Your Chart:
+
+For example, in your TradingChart component you can do:
+
+tsx
+Copy
+import React, { useEffect, useRef } from 'react';
+import { createChart, IChartApi, ColorType } from 'lightweight-charts';
+import useTokenChartData from '@/hooks/useTokenChartData';
+
+interface Props {
+  tokenAddress: string;
+}
+
+const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const candleSeriesRef = useRef<any>(null);
+  
+  // Retrieve simplified chart data for this token.
+  const { candles, currentPrice } = useTokenChartData(tokenAddress, 60);
+
+  // Initialize and update the chart.
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const chart = createChart(containerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: '#161b2b' },
+        textColor: '#d1d4dc',
+        fontSize: 12,
+      },
+      grid: {
+        vertLines: { color: 'rgba(42, 46, 57, 0.5)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.5)' },
+      },
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: true,
+        borderColor: 'rgba(197, 203, 206, 0.3)',
+      },
+      width: containerRef.current.clientWidth,
+      height: 500,
+      crosshair: {
+        mode: 1,
+        vertLine: {
+          width: 1,
+          color: 'rgba(224, 227, 235, 0.1)',
+          style: 0,
+        },
+        horzLine: {
+          width: 1,
+          color: 'rgba(224, 227, 235, 0.1)',
+          style: 0,
+        },
+      },
+      rightPriceScale: {
+        borderColor: 'rgba(197, 203, 206, 0.3)',
+        borderVisible: true,
+        scaleMargins: { top: 0.1, bottom: 0.2 },
+      },
+    });
+    chartRef.current = chart;
+
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderVisible: true,
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+    });
+    candleSeriesRef.current = candleSeries;
+    
+    // Set initial data
+    candleSeries.setData(candles);
+    chart.timeScale().fitContent();
+
+    return () => {
+      chart.remove();
+    };
+  }, [candles]);
+
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (containerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({
+          width: containerRef.current.clientWidth,
+        });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return (
+    <div className="w-full h-full bg-[#161b2b] rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between p-4 border-b border-purple-900/30">
+        <h2 className="text-purple-100 font-semibold">Price Chart</h2>
+        <div className="text-sm text-purple-200">
+          Price: ${currentPrice.toFixed(8)}
+        </div>
+      </div>
+      <div ref={containerRef} className="w-full h-[500px]" />
+    </div>
+  );
+};
+
+export default TradingChart;
+This example shows how you can separate the data aggregation into its own file (via the custom hook) so that your TradingChart component simply consumes the already‑processed data. This simplifies your component and decouples the data processing from the chart rendering.
+
+Next Steps
+Verify that your PumpPortal store is updating with real trade data.
+Check that your generateCandlestickData function produces nonzero candles when there are trades.
+Ensure that the hook returns valid data, then test the TradingChart with it.
