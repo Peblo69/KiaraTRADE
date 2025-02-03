@@ -1,0 +1,93 @@
+Option 1: Chart.js with chartjs-chart-financial
+Installation:
+bash
+Copy
+npm install chart.js react-chartjs-2 chartjs-chart-financial chartjs-adapter-date-fns
+File: src/components/TradingChartChartJS.tsx
+tsx
+Copy
+import React, { useEffect, useState } from 'react';
+import { Chart as ChartJS, CategoryScale, LinearScale, TimeScale, Tooltip, Legend } from 'chart.js';
+import 'chartjs-chart-financial';
+import { Chart } from 'react-chartjs-2';
+import 'chartjs-adapter-date-fns';
+import { useHeliusChartData } from '@/hooks/useHeliusChartData';
+
+ChartJS.register(CategoryScale, LinearScale, TimeScale, Tooltip, Legend);
+
+interface CandlestickData {
+  time: number; // UNIX timestamp in seconds
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+interface Props {
+  tokenAddress: string;
+}
+
+const TradingChartChartJS: React.FC<Props> = ({ tokenAddress }) => {
+  // Hook returns candles and current price.
+  const { candles, currentPrice } = useHeliusChartData(tokenAddress, 60);
+  const [chartData, setChartData] = useState<any>(null);
+
+  useEffect(() => {
+    if (candles.length > 0) {
+      const data = {
+        datasets: [
+          {
+            label: 'Candlestick Chart',
+            data: candles.map((c: CandlestickData) => ({
+              x: c.time * 1000, // convert seconds to milliseconds
+              o: c.open,
+              h: c.high,
+              l: c.low,
+              c: c.close,
+            })),
+          },
+        ],
+      };
+      setChartData(data);
+    }
+  }, [candles]);
+
+  const options = {
+    responsive: true,
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: (context: any) => {
+            const { o, h, l, c } = context.raw;
+            return `O: ${o}, H: ${h}, L: ${l}, C: ${c}`;
+          },
+        },
+      },
+      legend: {
+        display: false,
+      },
+    },
+    scales: {
+      x: {
+        type: 'time',
+        time: {
+          unit: 'minute',
+        },
+      },
+    },
+  };
+
+  if (!chartData) {
+    return <div>Loading chart...</div>;
+  }
+
+  return (
+    <div>
+      <Chart type="candlestick" data={chartData} options={options} />
+      <div className="mt-2 text-center">Current Price: ${currentPrice.toFixed(8)}</div>
+    </div>
+  );
+};
+
+export default TradingChartChartJS;

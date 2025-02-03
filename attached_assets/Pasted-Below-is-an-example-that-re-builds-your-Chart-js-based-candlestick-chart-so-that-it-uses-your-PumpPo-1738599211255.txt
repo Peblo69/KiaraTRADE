@@ -1,0 +1,149 @@
+Below is an example that re‑builds your Chart.js–based candlestick chart so that it uses your PumpPortal WebSocket data instead of Helius. The idea is to create a simple hook that gets the token’s data from your PumpPortal store (which is updated by your PumpPortal WebSocket), transforms the token’s recent trades into candlestick data (using your existing candlestick generator), and then feeds that data to a Chart.js–based candlestick chart.
+
+Step 1: Create a New Hook for PumpPortal Chart Data
+Create a file (for example, at src/hooks/usePumpPortalChartData.ts) with the following content:
+
+tsx
+Copy
+// src/hooks/usePumpPortalChartData.ts
+import { useMemo } from 'react';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
+import { generateCandlestickData, CandlestickData } from '@/utils/generateCandlestickData';
+
+interface ChartData {
+  candles: CandlestickData[];
+  currentPrice: number;
+}
+
+const usePumpPortalChartData = (tokenAddress: string, bucketSizeSeconds: number = 60): ChartData => {
+  // Get the token from your PumpPortal store (updated by your PumpPortal WebSocket)
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress));
+
+  return useMemo(() => {
+    // If the token exists, use its priceInUsd as a fallback; otherwise, fallback to 0.
+    const fallbackPrice = token ? token.priceInUsd || 0 : 0;
+    // Generate candlestick data from the token’s recent trades if available;
+    // otherwise, create a single fallback candle.
+    const candles: CandlestickData[] =
+      token && token.recentTrades && token.recentTrades.length > 0
+        ? generateCandlestickData(token.recentTrades, bucketSizeSeconds, fallbackPrice)
+        : [{
+            time: Math.floor(Date.now() / 1000),
+            open: fallbackPrice,
+            high: fallbackPrice,
+            low: fallbackPrice,
+            close: fallbackPrice,
+            volume: 0,
+          }];
+    
+    return {
+      candles,
+      currentPrice: fallbackPrice
+    };
+  }, [token, bucketSizeSeconds]);
+};
+
+export default usePumpPortalChartData;
+Step 2: Build the Chart Component Using Chart.js with the Financial Plugin
+Now, create (or replace) a file (for example, src/components/TradingChartChartJS.tsx) with the following code. This component will use your new hook so that it consumes data directly from the PumpPortal WebSocket via your store:
+
+tsx
+Copy
+// src/components/TradingChartChartJS.tsx
+import React, { useEffect, useState } from 'react';
+import { Chart as ChartJS, CategoryScale, LinearScale, TimeScale, Tooltip, Legend } from 'chart.js';
+import 'chartjs-chart-financial';
+import { Chart } from 'react-chartjs-2';
+import 'chartjs-adapter-date-fns';
+import usePumpPortalChartData from '@/hooks/usePumpPortalChartData';
+
+ChartJS.register(CategoryScale, LinearScale, TimeScale, Tooltip, Legend);
+
+interface CandlestickData {
+  time: number; // UNIX timestamp in seconds
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+interface Props {
+  tokenAddress: string;
+}
+
+const TradingChartChartJS: React.FC<Props> = ({ tokenAddress }) => {
+  // Get the candlestick data and current price from our PumpPortal hook.
+  const { candles, currentPrice } = usePumpPortalChartData(tokenAddress, 60);
+  const [chartData, setChartData] = useState<any>(null);
+
+  useEffect(() => {
+    if (candles.length > 0) {
+      const data = {
+        datasets: [
+          {
+            label: 'Candlestick Chart',
+            data: candles.map((c: CandlestickData) => ({
+              x: c.time * 1000, // Convert seconds to milliseconds for Chart.js
+              o: c.open,
+              h: c.high,
+              l: c.low,
+              c: c.close,
+            })),
+          },
+        ],
+      };
+      setChartData(data);
+    }
+  }, [candles]);
+
+  const options = {
+    responsive: true,
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: (context: any) => {
+            const { o, h, l, c } = context.raw;
+            return `O: ${o}, H: ${h}, L: ${l}, C: ${c}`;
+          },
+        },
+      },
+      legend: {
+        display: false,
+      },
+    },
+    scales: {
+      x: {
+        type: 'time',
+        time: {
+          unit: 'minute',
+        },
+      },
+    },
+  };
+
+  if (!chartData) {
+    return <div>Loading chart...</div>;
+  }
+
+  return (
+    <div>
+      <Chart type="candlestick" data={chartData} options={options} />
+      <div className="mt-2 text-center">Current Price: ${currentPrice.toFixed(8)}</div>
+    </div>
+  );
+};
+
+export default TradingChartChartJS;
+Step 3: Additional Considerations
+Package Installation:
+Run the following command in your project directory to install the required packages:
+
+bash
+Copy
+npm install chart.js react-chartjs-2 chartjs-chart-financial chartjs-adapter-date-fns
+Data Validation:
+Verify that your PumpPortal WebSocket integration is updating the token’s recentTrades with valid trade objects (including nonzero priceInUsd and proper timestamp values). If you see only volume values increasing and price remains 0, then the underlying trade data might be missing a proper price.
+
+Candlestick Generator:
+Ensure that your generateCandlestickData function produces valid candles. You might add temporary logging inside that function to verify the output.

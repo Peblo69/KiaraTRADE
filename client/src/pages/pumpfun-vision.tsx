@@ -1,4 +1,4 @@
-import { FC, useState, useCallback, Suspense, useMemo, useEffect } from "react";
+import React, { FC, useState, useCallback, Suspense, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Filter, ArrowLeft } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
@@ -11,6 +11,7 @@ import SocialMetrics from "@/components/SocialMetrics";
 import TradeHistory from "@/components/TradeHistory";
 import TradingForm from "@/components/TradingForm";
 import HolderAnalytics from "@/components/HolderAnalytics";
+import TradingChartChartJS from "@/components/TradingChartChartJS";
 
 // Import Helius trade integration
 import { heliusTradeIntegration } from "../lib/helius-trade-integration";
@@ -113,6 +114,9 @@ const PumpFunVision: FC = () => {
                         </p>
                       </div>
                     </div>
+                  </div>
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                    <TradingChartChartJS tokenAddress={selectedToken} />
                   </div>
                   <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                     <TradeHistory tokenAddress={selectedToken} />

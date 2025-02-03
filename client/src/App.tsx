@@ -3,8 +3,8 @@ import { Switch, Route } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { useLocation } from "wouter";
-import { TradingProvider } from '@/context/TradingContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { TradingProvider } from '@/context/TradingContext';
 
 // Import fonts
 import "@fontsource/orbitron";
@@ -23,7 +23,7 @@ import Predictions from "@/pages/predictions";
 import WalletTracking from "@/pages/wallet-tracking";
 import MarketDataBar from "@/components/MarketDataBar";
 import Navbar from "@/components/Navbar";
-import TopBar from "./components/TradingView/project/src/components/TopBar"; // Imported TopBar component
+import TopBar from "./components/TradingView/project/src/components/TopBar";
 
 // Store and Services
 import { initializeHeliusWebSocket } from './lib/helius-websocket';
