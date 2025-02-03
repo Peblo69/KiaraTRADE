@@ -28,7 +28,7 @@ const TopBar: React.FC = () => {
   ];
 
   const copyTokenAddress = () => {
-    navigator.clipboard.writeText("0x1234...5678"); // Replace with actual token address
+    navigator.clipboard.writeText("0x1234...5678");
     setCopiedAddress(true);
     setTimeout(() => setCopiedAddress(false), 2000);
   };
@@ -39,7 +39,6 @@ const TopBar: React.FC = () => {
     setChatMessages(prev => [...prev, { type: 'user', content: message }]);
     setMessage('');
 
-    // Simulate AI response
     setTimeout(() => {
       setChatMessages(prev => [...prev, { 
         type: 'ai', 
@@ -159,7 +158,7 @@ const TopBar: React.FC = () => {
 
       {/* KIARA Vision Pro Panel */}
       {isKiaraPanelOpen && (
-        <div className="fixed inset-y-0 left-0 w-80 chat-container transform z-50 flex flex-col border-r border-yellow-600/20">
+        <div className="fixed inset-y-0 left-0 w-80 transform z-50 flex flex-col bg-[#0D0B1F] border-r border-yellow-600/20 transition-transform duration-300 ease-in-out">
           {/* Floating particles */}
           {[...Array(10)].map((_, i) => (
             <div
@@ -175,7 +174,7 @@ const TopBar: React.FC = () => {
             />
           ))}
 
-          <div className="flex items-center justify-between p-3 border-b border-yellow-600/20">
+          <div className="flex items-center justify-between p-3 border-b border-yellow-600/20 bg-yellow-950/20">
             <div className="flex items-center space-x-2">
               <Bot className="w-4 h-4 text-yellow-400" />
               <h2 className="text-sm font-medium text-yellow-100">KIARA Vision Pro</h2>
@@ -188,7 +187,7 @@ const TopBar: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 backdrop-blur-md bg-yellow-950/10">
             {chatMessages.map((msg, i) => (
               <div key={i} className={`chat-message ${msg.type}`}>
                 {msg.content}
@@ -196,7 +195,7 @@ const TopBar: React.FC = () => {
             ))}
           </div>
 
-          <div className="p-3 border-t border-yellow-600/20">
+          <div className="p-3 border-t border-yellow-600/20 bg-yellow-950/20">
             <div className="flex space-x-2">
               <input
                 type="text"
@@ -220,7 +219,7 @@ const TopBar: React.FC = () => {
       {/* Security Panel */}
       {isSecurityPanelOpen && (
         <div className="fixed inset-y-0 right-0 w-80 bg-[#0A0818] transform z-50 flex flex-col border-l border-purple-900/30">
-          <div className="flex items-center justify-between p-3 border-b border-purple-900/30">
+          <div className="flex items-center justify-between p-3 border-b border-purple-900/30 bg-purple-950/50">
             <div className="flex items-center space-x-2">
               <Shield className="w-4 h-4 text-purple-400" />
               <h2 className="text-sm font-medium text-white">Security Audit</h2>
@@ -260,7 +259,7 @@ const TopBar: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-3 border-t border-purple-900/30 space-y-2">
+          <div className="p-3 border-t border-purple-900/30 space-y-2 bg-purple-950/50">
             <button 
               className="w-full btn-success py-2"
               onClick={() => setIsSecurityPanelOpen(false)}

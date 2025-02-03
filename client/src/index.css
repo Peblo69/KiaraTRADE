@@ -82,44 +82,58 @@ body {
   transform: translateY(-1px);
 }
 
-/* Chart interface styles */
-.chart-container {
-  @apply bg-gradient-to-b from-purple-900/10 to-transparent rounded-lg border border-purple-900/30;
-  position: relative;
-  overflow: hidden;
+/* Chat interface styles */
+.chat-container {
+  @apply bg-gradient-to-b from-yellow-900/10 to-yellow-900/5;
+  backdrop-filter: blur(10px);
 }
 
-.chart-container::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, rgba(147, 51, 234, 0.1), transparent);
-  pointer-events: none;
+.chat-message {
+  @apply rounded-lg p-3 max-w-[80%] relative;
 }
 
-/* Token Card Styles */
-.token-card {
-  @apply relative overflow-hidden rounded-lg;
-  background: rgba(147, 51, 234, 0.05);
-  border: 1px solid rgba(147, 51, 234, 0.2);
-  transition: all 0.3s ease;
+.chat-message.ai {
+  @apply bg-yellow-900/20 border border-yellow-600/20 ml-2;
 }
 
-.token-card:hover {
-  border-color: rgba(147, 51, 234, 0.4);
-  background: rgba(147, 51, 234, 0.1);
+.chat-message.user {
+  @apply bg-yellow-950/30 border border-yellow-700/20 ml-auto mr-2;
 }
 
-.token-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    45deg,
-    rgba(147, 51, 234, 0.1),
-    rgba(147, 51, 234, 0.05)
-  );
-  pointer-events: none;
+.chat-input {
+  @apply bg-yellow-900/10 border border-yellow-600/20 rounded-lg px-4 py-2 text-sm text-yellow-100 w-full focus:outline-none focus:border-yellow-500/50 focus:ring-2 focus:ring-yellow-500/20 transition-all duration-200;
+}
+
+.chat-send-btn {
+  @apply bg-gradient-to-r from-yellow-600 to-yellow-700 text-yellow-100 px-4 py-2 rounded-lg hover:from-yellow-500 hover:to-yellow-600 transition-all duration-200 flex items-center space-x-2 text-sm font-medium;
+}
+
+/* Floating particles */
+.particle {
+  @apply absolute rounded-full bg-yellow-500/20;
+  animation: float 3s infinite;
+}
+
+/* Panel transitions */
+.panel-transition {
+  @apply transition-all duration-300 ease-in-out;
+  transform: translateX(0);
+}
+
+.panel-transition-enter {
+  transform: translateX(-100%);
+}
+
+.panel-transition-enter-active {
+  transform: translateX(0);
+}
+
+.panel-transition-exit {
+  transform: translateX(0);
+}
+
+.panel-transition-exit-active {
+  transform: translateX(-100%);
 }
 
 /* Custom scrollbar */
@@ -129,11 +143,11 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-purple-900/10;
+  @apply bg-yellow-900/10;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-purple-600/50 rounded-full hover:bg-purple-600;
+  @apply bg-yellow-600/50 rounded-full hover:bg-yellow-600;
 }
 
 /* Glass morphism effect */
