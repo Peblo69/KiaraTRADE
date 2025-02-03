@@ -40,7 +40,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
     console.log('[Helius] Subscribing to token:', tokenAddress);
 
     try {
-      // Subscribe to token account changes using v2 SPL Token program subscription
+      // Follow programSubscribe format from documentation
       const subscribeMessage = {
         jsonrpc: '2.0',
         id: `token-sub-${tokenAddress}`,
@@ -58,9 +58,7 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
                 }
               }
             ],
-            commitment: 'processed',
-            showEvents: true,
-            maxSupportedTransactionVersion: 0
+            commitment: 'finalized'
           }
         ]
       };
@@ -81,10 +79,14 @@ let reconnectAttempts = 0;
 
 async function handleTokenTransaction(data: any) {
   try {
-    if (!data?.signature) {
-      console.warn('[Helius] No signature in transaction data:', data);
+    if (!data?.value?.account) {
+      console.warn('[Helius] Invalid account notification:', data);
       return;
     }
+
+    // Extract account data from the notification
+    const { account } = data.value;
+    console.log('[Helius] Processing account update:', account);
 
     const store = useHeliusStore.getState();
     const solPrice = store.solPrice;
@@ -94,86 +96,22 @@ async function handleTokenTransaction(data: any) {
       return;
     }
 
-    console.log('[Helius] Processing transaction:', {
-      signature: data.signature
-    });
+    // Process token account changes
+    if (account.data.program === 'spl-token') {
+      const tokenData = account.data.parsed.info;
+      console.log('[Helius] Token account update:', tokenData);
 
-    if (!HELIUS_REST_URL) {
-      console.error('[Helius] REST URL not configured');
-      return;
-    }
-
-    const connection = new Connection(HELIUS_REST_URL);
-
-    // Use v2 API for signature status
-    const statuses = await connection.getSignatureStatuses([data.signature]);
-    if (!statuses.value[0] || !statuses.value[0].confirmationStatus) {
-      console.warn('[Helius] Transaction not confirmed:', data.signature);
-      return;
-    }
-
-    // Use v2 API for transaction details
-    const tx = await connection.getTransaction(data.signature, {
-      maxSupportedTransactionVersion: 0,
-      commitment: 'processed'
-    });
-
-    if (!tx?.meta) {
-      console.warn('[Helius] No transaction metadata found');
-      return;
-    }
-
-    const preBalances = tx.meta.preBalances;
-    const postBalances = tx.meta.postBalances;
-    const preTokenBalances = tx.meta.preTokenBalances || [];
-    const postTokenBalances = tx.meta.postTokenBalances || [];
-
-    // Calculate SOL amount change
-    const solChange = postBalances.map((post, i) => post - preBalances[i])
-      .reduce((a, b) => Math.abs(a) + Math.abs(b), 0) / 1e9;
-
-    // Process token balance changes
-    for (const tokenBalance of [...preTokenBalances, ...postTokenBalances]) {
-      if (!tokenBalance?.mint) continue;
-
-      const tokenMint = tokenBalance.mint;
-      const preAmount = preTokenBalances.find(b => b?.accountIndex === tokenBalance.accountIndex)?.uiTokenAmount.uiAmount || 0;
-      const postAmount = postTokenBalances.find(b => b?.accountIndex === tokenBalance.accountIndex)?.uiTokenAmount.uiAmount || 0;
-      const tokenAmount = Math.abs(postAmount - preAmount);
-
-      if (tokenAmount === 0) continue;
-
-      // Calculate price in USD
-      const priceInSol = solChange / tokenAmount;
-      const priceInUsd = priceInSol * solPrice;
-
-      if (priceInUsd <= 0) {
-        console.warn('[Helius] Invalid price calculation:', {
-          solChange,
-          tokenAmount,
-          priceInSol,
-          solPrice
+      // Add to chart store if relevant
+      if (tokenData.tokenAmount) {
+        useChartStore.getState().addTrade(tokenData.mint, {
+          timestamp: Date.now(),
+          priceInUsd: (tokenData.tokenAmount.uiAmount || 0) * solPrice,
+          amount: tokenData.tokenAmount.uiAmount || 0
         });
-        continue;
       }
-
-      // Add trade to chart store
-      useChartStore.getState().addTrade(tokenMint, {
-        timestamp: (tx.blockTime || Date.now() / 1000) * 1000,
-        priceInUsd,
-        amount: tokenAmount
-      });
-
-      console.log('[Helius] Trade processed:', {
-        token: tokenMint,
-        priceInSol,
-        priceInUsd,
-        amount: tokenAmount,
-        signature: data.signature
-      });
     }
   } catch (error) {
-    console.error('[Helius] Error processing transaction:', error);
+    console.error('[Helius] Error processing account update:', error);
   }
 }
 
@@ -232,8 +170,8 @@ export function initializeHeliusWebSocket() {
         const data = JSON.parse(event.data);
         console.log('[Helius] Received message:', data);
 
-        if (data.method === 'accountNotification') {
-          await handleTokenTransaction(data.params.result);
+        if (data.method === 'programNotification') {
+          await handleTokenTransaction(data.params);
         } else if (data.result !== undefined) {
           // Log subscription confirmations
           console.log('[Helius] Subscription confirmed:', data);
