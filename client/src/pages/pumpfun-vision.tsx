@@ -2,6 +2,11 @@ import React, { FC, useState, useCallback, Suspense, useMemo, useEffect } from "
 import { Button } from "@/components/ui/button";
 import { Loader2, Filter, ArrowLeft } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
+import OrderBook from "@/components/OrderBook";
+import MarketStats from "@/components/MarketStats";
+import SocialMetrics from "@/components/SocialMetrics";
+import HolderAnalytics from "@/components/HolderAnalytics";
+import WalletTracker from "@/components/WalletTracker";
 import TokenCard from "@/components/TokenCard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
@@ -115,12 +120,22 @@ const PumpFunVision: FC = () => {
                     </div>
                   </div>
                   <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
-                    <div className="h-[400px] flex items-center justify-center text-gray-400">
-                      Chart removed
+                    <div className="grid grid-cols-2 gap-4">
+                      <OrderBook />
+                      <div className="space-y-4">
+                        <MarketStats tokenAddress={selectedToken} />
+                        <SocialMetrics tokenAddress={selectedToken} />
+                      </div>
                     </div>
                   </div>
                   <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
-                    <TradeHistory tokenAddress={selectedToken} />
+                    <div className="grid grid-cols-2 gap-4">
+                      <TradeHistory tokenAddress={selectedToken} />
+                      <div className="space-y-4">
+                        <HolderAnalytics tokenAddress={selectedToken} />
+                        <WalletTracker />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
