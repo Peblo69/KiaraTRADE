@@ -2,11 +2,11 @@ import React, { FC, useState, useCallback, Suspense, useMemo, useEffect } from "
 import { Button } from "@/components/ui/button";
 import { Loader2, Filter, ArrowLeft } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
-import OrderBook from "@/components/OrderBook";
-import MarketStats from "@/components/MarketStats";
-import SocialMetrics from "@/components/SocialMetrics";
-import HolderAnalytics from "@/components/HolderAnalytics";
-import WalletTracker from "@/components/WalletTracker";
+import OrderBook from "../../TradingView/project/src/components/OrderBook";
+import MarketStats from "../../TradingView/project/src/components/MarketStats";
+import SocialMetrics from "../../TradingView/project/src/components/SocialMetrics";
+import HolderAnalytics from "../../TradingView/project/src/components/HolderAnalytics";
+import WalletTracker from "../../TradingView/project/src/components/WalletTracker";
 import TokenCard from "@/components/TokenCard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
