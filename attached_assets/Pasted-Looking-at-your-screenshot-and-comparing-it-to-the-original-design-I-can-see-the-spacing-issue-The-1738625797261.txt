@@ -1,0 +1,82 @@
+Looking at your screenshot and comparing it to the original design, I can see the spacing issue. The main reason for this difference is in the container and grid setup in App.tsx. Let me help you fix this to make it take up the full screen properly.
+
+The key changes needed are in the main container and grid layout. Here's how to modify App.tsx to match the full-screen layout:
+
+
+import React from 'react';
+import { TradingProvider } from './context/TradingContext';
+import TradingChart from './components/TradingChart';
+import TradingForm from './components/TradingForm';
+import TradeHistory from './components/TradeHistory';
+import TopBar from './components/TopBar';
+import MarketStats from './components/MarketStats';
+import HolderAnalytics from './components/HolderAnalytics';
+import SocialMetrics from './components/SocialMetrics';
+
+function App() {
+  return (
+    <TradingProvider>
+      <div className="min-h-screen bg-[#070510] text-white">
+        {/* Stars background effect */}
+        <div className="fixed inset-0 pointer-events-none">
+          {[...Array(50)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute rounded-full bg-white"
+              style={{
+                width: Math.random() * 3 + 'px',
+                height: Math.random() * 3 + 'px',
+                top: Math.random() * 100 + '%',
+                left: Math.random() * 100 + '%',
+                opacity: Math.random() * 0.5 + 0.25,
+                animation: `twinkle ${Math.random() * 4 + 2}s infinite`
+              }}
+            />
+          ))}
+        </div>
+
+        <TopBar />
+        
+        {/* Main content area - Full width and height */}
+        <div className="w-full h-[calc(100vh-64px)] p-4"> {/* Adjust 64px based on your TopBar height */}
+          <div className="grid grid-cols-12 gap-4 h-full">
+            {/* Left Column - Market Stats & Social Metrics */}
+            <div className="col-span-2 space-y-4 h-full overflow-auto">
+              <MarketStats />
+              <SocialMetrics />
+            </div>
+
+            {/* Main Trading Area */}
+            <div className="col-span-7 space-y-4 h-full overflow-auto">
+              <div className="h-[70%]"> {/* Adjust percentage as needed */}
+                <TradingChart />
+              </div>
+              <div className="h-[30%]"> {/* Adjust percentage as needed */}
+                <TradeHistory />
+              </div>
+            </div>
+
+            {/* Right Column - Trading Form & Holder Analytics */}
+            <div className="col-span-3 space-y-4 h-full overflow-auto">
+              <TradingForm />
+              <HolderAnalytics />
+            </div>
+          </div>
+        </div>
+      </div>
+    </TradingProvider>
+  );
+}
+
+export default App;
+Key changes made:
+
+Added full width and height to the main content area: w-full h-[calc(100vh-64px)]
+Made the grid container full height: h-full
+Added height and overflow handling to columns: h-full overflow-auto
+Added specific height proportions for TradingChart and TradeHistory
+Removed the container class that was limiting width
+Added proper padding with p-4
+These changes will make the layout take up the full screen and maintain proper proportions between components. The grid system will now properly distribute the space across all columns, and the components will fill their containers appropriately.
+
+Make sure your individual components (MarketStats, TradingChart, etc.) also use full height classes (h-full) to properly fill their containers.
