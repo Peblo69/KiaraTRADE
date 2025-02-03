@@ -118,13 +118,13 @@ const PumpFunVision: FC = () => {
 
                   {/* Right Column - Trading Form & Holder Analytics */}
                   <div className="col-span-3 h-full flex flex-col gap-4">
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[33%]">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[40%]">
                       <TradingForm tokenAddress={selectedToken} />
                     </div>
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[33%]">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[30%]">
                       <HolderAnalytics tokenAddress={selectedToken} />
                     </div>
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[33%]">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[30%]">
                       <WalletTracker />
                     </div>
                   </div>
