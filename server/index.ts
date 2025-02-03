@@ -12,14 +12,23 @@ app.use(express.urlencoded({ extended: false }));
 
 async function startServer() {
   try {
-    // First try to close any existing server
+    if (server?.listening) {
+      log('⚠️ Server is already running');
+      return;
+    }
+
     if (server) {
-      await new Promise<void>((resolve) => {
-        server?.close(() => {
+      await new Promise<void>((resolve, reject) => {
+        server?.close((err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
           log('👋 Closed existing server');
           resolve();
         });
       });
+      server = null;
     }
 
     // Create new server instance
