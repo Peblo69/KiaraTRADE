@@ -16,7 +16,7 @@ import HolderAnalytics from "@/components/HolderAnalytics";
 // Import the helper function for candlestick data
 import { generateCandlestickData } from "@/utils/generateCandlestickData";
 // Import Helius trade integration
-import { heliusTradeIntegration } from "@/lib/helius-trade-integration";
+import { heliusTradeIntegration } from "../lib/helius-trade-integration";
 
 const PumpFunVision: FC = () => {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
