@@ -11,8 +11,6 @@ import TokenCard from "@/components/TokenCard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Import components
-import MarketStats from "@/components/MarketStats";
-import SocialMetrics from "@/components/SocialMetrics";
 import TradeHistory from "@/components/TradeHistory";
 import TradingForm from "@/components/TradingForm";
 import HolderAnalytics from "@/components/HolderAnalytics";
