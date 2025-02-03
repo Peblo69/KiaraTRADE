@@ -1,5 +1,6 @@
+
 // src/components/TradingChartChartJS.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, TimeScale, Tooltip, Legend } from 'chart.js';
 import 'chartjs-chart-financial';
 import { Chart } from 'react-chartjs-2';
@@ -23,11 +24,20 @@ interface Props {
 }
 
 const TradingChartChartJS: React.FC<Props> = ({ tokenAddress, className }) => {
-  // Use our custom hook to get processed candlestick data from PumpPortal store.
+  const chartRef = useRef<ChartJS | null>(null);
   const { candles, currentPrice } = usePumpPortalChartData(tokenAddress, 60);
   const [chartData, setChartData] = useState<any>(null);
 
-  // Whenever the candles change, update the chartData object.
+  // Cleanup chart instance when unmounting
+  useEffect(() => {
+    return () => {
+      if (chartRef.current) {
+        chartRef.current.destroy();
+      }
+    };
+  }, []);
+
+  // Update chart data
   useEffect(() => {
     if (candles.length > 0) {
       const data = {
@@ -35,7 +45,7 @@ const TradingChartChartJS: React.FC<Props> = ({ tokenAddress, className }) => {
           {
             label: 'Candlestick Chart',
             data: candles.map((c: CandlestickData) => ({
-              x: c.time * 1000, // convert seconds to milliseconds for Chart.js
+              x: c.time * 1000,
               o: c.open,
               h: c.high,
               l: c.low,
@@ -113,7 +123,6 @@ const TradingChartChartJS: React.FC<Props> = ({ tokenAddress, className }) => {
     },
   };
 
-  // If no chartData is available, show a loading message.
   if (!chartData) {
     return (
       <div className="h-[400px] flex items-center justify-center text-gray-400">
@@ -122,13 +131,14 @@ const TradingChartChartJS: React.FC<Props> = ({ tokenAddress, className }) => {
     );
   }
 
-  // By giving Chart a unique key based on the chartData JSON, we force React to re-create the canvas
-  // whenever the data changes, preventing the "Canvas is already in use" error.
-  const chartKey = JSON.stringify(chartData);
-
   return (
     <div className={`relative h-[400px] bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 ${className}`}>
-      <Chart type="candlestick" data={chartData} options={options} key={chartKey} />
+      <Chart
+        ref={chartRef}
+        type="candlestick"
+        data={chartData}
+        options={options}
+      />
       <div className="absolute bottom-4 right-4 text-sm font-medium text-green-400">
         ${currentPrice.toFixed(8)}
       </div>
