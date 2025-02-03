@@ -69,26 +69,55 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
 
   // Update data when trades change
   useEffect(() => {
-    if (!candleSeriesRef.current || !token?.recentTrades?.length) return;
+    if (!chartRef.current || !token?.recentTrades?.length) return;
 
     const updateChart = () => {
       const trades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
       const candleData = generateCandlestickData(trades);
-      console.log("Generated Candle Data:", candleData);
-
+      
       if (candleData.length > 0) {
+        // Create candlestick series if not exists
+        if (!candleSeriesRef.current) {
+          candleSeriesRef.current = chartRef.current.addCandlestickSeries({
+            upColor: '#26a69a',
+            downColor: '#ef5350',
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ef5350',
+            borderVisible: false,
+          });
+        }
+
+        // Create volume series if not exists
+        const volumeSeries = chartRef.current.addHistogramSeries({
+          color: '#385263',
+          priceFormat: {
+            type: 'volume',
+          },
+          priceScaleId: '', // Set as an overlay
+          scaleMargins: {
+            top: 0.8,
+            bottom: 0,
+          },
+        });
+
+        // Map volume data
+        const volumeData = candleData.map(candle => ({
+          time: candle.time,
+          value: candle.volume,
+          color: candle.close > candle.open ? '#26a69a55' : '#ef535055'
+        }));
+
         candleSeriesRef.current.setData(candleData);
-        // Add latest price as a marker
-        const lastPrice = trades[trades.length - 1].priceInUsd;
-        candleSeriesRef.current.setMarkers([
-          {
-            time: trades[trades.length - 1].timestamp,
-            position: 'inBar',
-            color: 'red',
-            shape: 'circle',
-            text: `$${lastPrice.toFixed(8)}`
-          }
-        ]);
+        volumeSeries.setData(volumeData);
+
+        // Add price line
+        candleSeriesRef.current.createPriceLine({
+          price: trades[trades.length - 1].priceInUsd,
+          color: '#2962FF',
+          lineWidth: 1,
+          lineStyle: 2,
+        });
+
         chartRef.current?.timeScale().fitContent();
       }
     };
