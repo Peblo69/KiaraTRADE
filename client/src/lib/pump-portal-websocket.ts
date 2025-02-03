@@ -409,9 +409,12 @@ export function initializeWebSocket(wsUrl: string) {
     ws.close();
   }
 
-  debugLog('WebSocket', 'Initializing connection...');
-  ws = new WebSocket(wsUrl);
+  // Ensure we're using the correct port for WebSocket connection
+  const wsUrlWithPort = wsUrl.replace(/:5000/, ':3000');
+  debugLog('WebSocket', 'Initializing connection...', wsUrlWithPort);
+  ws = new WebSocket(wsUrlWithPort);
 
+  // Rest of the WebSocket configuration remains unchanged
   ws.onopen = () => {
     debugLog('WebSocket', 'Connected successfully');
     usePumpPortalStore.getState().setConnected(true);

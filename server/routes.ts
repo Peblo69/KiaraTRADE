@@ -7,10 +7,12 @@ import { wsManager } from './services/websocket';
 import { initializePumpPortalWebSocket } from './pumpportal';
 import axios from 'axios';
 import express from 'express';
+
 // Constants
 const CACHE_DURATION = 30000; // 30 seconds cache
-const INTERNAL_PORT = 5000;
+const INTERNAL_PORT = 3000;
 const DEBUG = true;
+
 // Add request interceptor for rate limiting
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 20;
@@ -81,7 +83,7 @@ export function registerRoutes(app: Express): Server {
     server.listen(INTERNAL_PORT, '0.0.0.0', () => {
       console.log(`\n🚀 Server Status:`);
       console.log(`📡 Internal: Running on 0.0.0.0:${INTERNAL_PORT}`);
-      console.log(`🌍 External: Mapped to port 3000`);
+      console.log(`🌍 External: Mapped to port 80`);
       console.log(`👤 User: ${process.env.REPL_OWNER || 'unknown'}`);
       console.log(`⏰ Started at: ${new Date().toISOString()}`);
       console.log(`\n✅ Server is ready to accept connections\n`);
