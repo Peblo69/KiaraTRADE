@@ -5,8 +5,15 @@ import { calculatePumpFunTokenMetrics, calculateVolumeMetrics, calculateTokenRis
 // Placeholder import - Replace './SocialLinks' with the correct path for SocialLinks
 import SocialLinks from './SocialLinks';
 
+// Constants
 const MAX_TRADES_PER_TOKEN = 100;
 const MAX_TOKENS_IN_LIST = 50;
+const RECONNECT_DELAY = 5000;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+let reconnectAttempts = 0;
+let reconnectTimeout: NodeJS.Timeout | null = null;
+let ws: WebSocket | null = null;
 
 const DEBUG = true;
 function debugLog(action: string, data?: any) {
@@ -265,12 +272,15 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
 
   setConnected: (connected) => {
     debugLog('setConnected', { connected });
-    set({ isConnected: connected, lastUpdate: Date.now() });
+        if (connected) {
+      reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+    }
+    set({ isConnected: connected });
   },
 
   setSolPrice: (price) => {
     debugLog('setSolPrice', { price });
-    set({ solPrice: price, lastUpdate: Date.now() });
+    set({ solPrice: price });
   },
 
   resetTokens: () => {
@@ -360,14 +370,14 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
           }
           return t;
         }),
-        ...(state.viewedTokens[address] && {
+         ...(state.viewedTokens[address] && {
           viewedTokens: {
             ...state.viewedTokens,
             [address]: {
               ...state.viewedTokens[address],
-              metadata: {
+               metadata: {
                 ...state.viewedTokens[address].metadata,
-                uri
+                 uri
               }
             }
           }
@@ -392,6 +402,74 @@ export const usePumpPortalStore = create<PumpPortalStore>((set, get) => ({
   }
 }));
 
+// WebSocket Connection Management
+export function initializeWebSocket(wsUrl: string) {
+  if (ws?.readyState === WebSocket.OPEN) {
+    debugLog('WebSocket', 'Connection already exists, cleaning up...');
+    ws.close();
+  }
+
+  debugLog('WebSocket', 'Initializing connection...');
+  ws = new WebSocket(wsUrl);
+
+  ws.onopen = () => {
+    debugLog('WebSocket', 'Connected successfully');
+    usePumpPortalStore.getState().setConnected(true);
+  };
+
+  ws.onclose = () => {
+    debugLog('WebSocket', 'Connection closed');
+    usePumpPortalStore.getState().setConnected(false);
+
+    // Handle reconnection with backoff
+    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      reconnectTimeout = setTimeout(() => {
+        reconnectAttempts++;
+        debugLog('WebSocket', `Attempting reconnect ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+        initializeWebSocket(wsUrl);
+      }, RECONNECT_DELAY * Math.pow(2, reconnectAttempts));
+    } else {
+      debugLog('WebSocket', 'Max reconnection attempts reached');
+    }
+  };
+
+  ws.onerror = (error) => {
+     debugLog('WebSocket', 'Connection error:', error);
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      debugLog('WebSocket', 'Received message:', data);
+
+      if (data.type === 'price') {
+        usePumpPortalStore.getState().setSolPrice(data.price);
+      } else if (data.type === 'token') {
+        usePumpPortalStore.getState().addToken(data);
+      } else if (data.type === 'trade') {
+        usePumpPortalStore.getState().addTradeToHistory(data.address, data);
+      }
+    } catch (error) {
+        debugLog('WebSocket', 'Error processing message:', error);
+    }
+  };
+
+  return () => {
+    if (ws) {
+      debugLog('WebSocket', 'Cleaning up connection');
+      ws.close();
+      ws = null;
+    }
+    if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = null;
+    }
+  };
+}
+
 async function fetchTokenMetadataFromChain(mintAddress: string) {
   try {
     debugLog('Attempting to fetch metadata from chain for:', mintAddress);
@@ -406,7 +484,7 @@ async function fetchTokenMetadataFromChain(mintAddress: string) {
       ]
     });
 
-    debugLog('Chain metadata response:', response.data);
+     debugLog('Chain metadata response:', response.data);
 
     if (response.data?.result?.value?.data?.parsed?.info?.uri) {
       const uri = response.data.result.value.data.parsed.info.uri;
@@ -420,5 +498,6 @@ async function fetchTokenMetadataFromChain(mintAddress: string) {
     return null;
   }
 }
+
 
 export default usePumpPortalStore;

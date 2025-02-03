@@ -4,7 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import http from 'http';
 
 const app = express();
-const port = 5000;
+const port = 3000;
 let server: http.Server | null = null;
 
 app.use(express.json());
@@ -12,17 +12,6 @@ app.use(express.urlencoded({ extended: false }));
 
 async function startServer() {
   try {
-    // Close existing server if it exists
-    if (server) {
-      await new Promise<void>((resolve) => {
-        server?.close(() => {
-          server = null;
-          log('Closed existing server');
-          resolve();
-        });
-      });
-    }
-
     // Register routes first
     server = registerRoutes(app);
 
@@ -43,28 +32,20 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // Start server on port 5000 with 0.0.0.0 binding
+    // Start server
+    if (!server) {
+      return Promise.reject(new Error('Server was not properly initialized'));
+    }
+
     await new Promise<void>((resolve, reject) => {
-      if (!server) {
-        return reject(new Error('Server was not properly initialized'));
-      }
-
-      server.close(() => {
-        log('Closed any existing port bindings');
-
-        server?.listen(port, '0.0.0.0', () => {
-          log(`🚀 Server Status:`);
-          log(`📡 Internal: Running on 0.0.0.0:${port}`);
-          log(`🌍 External: Mapped to port 80`);
-          log(`⏰ Started at: ${new Date().toISOString()}`);
-          resolve();
-        }).on('error', (error: any) => {
-          if (error.code === 'EADDRINUSE') {
-            log(`Port ${port} is already in use. Attempting to close existing connections...`);
-            server = null;
-          }
-          reject(error);
-        });
+      server?.listen(port, '0.0.0.0', () => {
+        log(`🚀 Server Status:`);
+        log(`📡 Internal: Running on 0.0.0.0:${port}`);
+        log(`🌍 External: Mapped to port 80`);
+        log(`⏰ Started at: ${new Date().toISOString()}`);
+        resolve();
+      }).on('error', (error: any) => {
+        reject(error);
       });
     });
 
