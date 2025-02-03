@@ -1,17 +1,30 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import http from 'http';
 
 const app = express();
 const port = 5000;
+let server: http.Server | null = null;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 async function startServer() {
   try {
+    // Close existing server if it exists
+    if (server) {
+      await new Promise<void>((resolve) => {
+        server?.close(() => {
+          server = null;
+          log('Closed existing server');
+          resolve();
+        });
+      });
+    }
+
     // Register routes first
-    const server = registerRoutes(app);
+    server = registerRoutes(app);
 
     // Global error handler middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -30,9 +43,22 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // Start server on port 5000 with 0.0.0.0 binding for proper port forwarding
-    server.listen(port, '0.0.0.0', () => {
-      log(`Server running on port ${port}`);
+    // Start server on port 5000 with 0.0.0.0 binding
+    await new Promise<void>((resolve, reject) => {
+      if (!server) {
+        return reject(new Error('Server was not properly initialized'));
+      }
+
+      server.listen(port, '0.0.0.0', () => {
+        log(`Server running on port ${port}`);
+        resolve();
+      }).on('error', (error: any) => {
+        if (error.code === 'EADDRINUSE') {
+          log(`Port ${port} is already in use. Attempting to close existing connections...`);
+          server = null;
+        }
+        reject(error);
+      });
     });
 
   } catch (error) {
@@ -40,6 +66,32 @@ async function startServer() {
     process.exit(1);
   }
 }
+
+// Graceful shutdown handler
+process.on('SIGTERM', async () => {
+  if (server) {
+    await new Promise<void>((resolve) => {
+      server?.close(() => {
+        log('Server gracefully shut down');
+        resolve();
+      });
+    });
+    process.exit(0);
+  }
+});
+
+// Handle interrupts
+process.on('SIGINT', async () => {
+  if (server) {
+    await new Promise<void>((resolve) => {
+      server?.close(() => {
+        log('Server interrupted and shut down');
+        resolve();
+      });
+    });
+    process.exit(0);
+  }
+});
 
 // Start the server
 startServer().catch(error => {
