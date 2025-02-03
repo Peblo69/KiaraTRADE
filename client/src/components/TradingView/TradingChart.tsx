@@ -17,42 +17,43 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
   const token = usePumpPortalStore(state => state.getToken(tokenAddress));
   const solPrice = usePumpPortalStore(state => state.solPrice);
 
-  // Debug logs
-  useEffect(() => {
-    console.log('TradingChart Data:', {
-      tokenAddress,
-      hasToken: !!token,
-      tradesCount: token?.recentTrades?.length || 0,
-      solPrice,
-      currentPrice: token?.priceInUsd,
-      recentTrades: token?.recentTrades?.slice(0, 5)
-    });
-  }, [tokenAddress, token, solPrice]);
-
-  // Create chart once
+  // Create chart instance
   useEffect(() => {
     if (!containerRef.current) return;
 
-    console.log('Creating new chart instance');
-    
     const chart = createChart(containerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: '#161b2b' },
         textColor: '#d1d4dc',
+        fontSize: 12,
       },
       grid: {
-        vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
-        horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
+        vertLines: { color: 'rgba(42, 46, 57, 0.5)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.5)' },
       },
       timeScale: {
         timeVisible: true,
         secondsVisible: true,
+        borderColor: 'rgba(197, 203, 206, 0.3)',
       },
       width: containerRef.current.clientWidth,
       height: 500,
       crosshair: {
-        mode: 1
-      }
+        mode: 1,
+        vertLine: {
+          width: 1,
+          color: 'rgba(224, 227, 235, 0.1)',
+          style: 0,
+        },
+        horzLine: {
+          width: 1,
+          color: 'rgba(224, 227, 235, 0.1)',
+          style: 0,
+        },
+      },
+      rightPriceScale: {
+        borderColor: 'rgba(197, 203, 206, 0.3)',
+      },
     });
 
     const candleSeries = chart.addCandlestickSeries({
@@ -60,14 +61,37 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
       downColor: '#ef5350',
       borderVisible: true,
       wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350'
+      wickDownColor: '#ef5350',
     });
 
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
 
+    // Add volume series
+    const volumeSeries = chart.addHistogramSeries({
+      color: '#26a69a',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: '', // Set as an overlay
+    });
+
+    // Set initial data
+    if (token?.recentTrades?.length) {
+      const trades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
+      const candleData = generateCandlestickData(trades);
+      candleSeries.setData(candleData);
+
+      // Add volume data
+      const volumeData = candleData.map(candle => ({
+        time: candle.time,
+        value: candle.volume,
+        color: candle.close >= candle.open ? '#26a69a50' : '#ef535050',
+      }));
+      volumeSeries.setData(volumeData);
+    }
+
     return () => {
-      console.log('Cleaning up chart');
       chart.remove();
     };
   }, []);
@@ -76,25 +100,14 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
   useEffect(() => {
     if (!candleSeriesRef.current || !token?.recentTrades?.length) return;
 
-    const updateChart = () => {
-      const trades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
-      const candleData = generateCandlestickData(trades);
-      
-      console.log('Generated Candle Data:', {
-        tradesCount: trades.length,
-        candlesCount: candleData.length,
-        firstCandle: candleData[0],
-        lastCandle: candleData[candleData.length - 1]
-      });
-
-      if (candleData.length > 0) {
-        candleSeriesRef.current.setData(candleData);
-        chartRef.current?.timeScale().fitContent();
-      }
-    };
-
-    updateChart();
-  }, [token?.recentTrades, tokenAddress]);
+    const trades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
+    const candleData = generateCandlestickData(trades);
+    
+    if (candleData.length > 0) {
+      candleSeriesRef.current.setData(candleData);
+      chartRef.current?.timeScale().fitContent();
+    }
+  }, [token?.recentTrades]);
 
   // Handle resize
   useEffect(() => {
