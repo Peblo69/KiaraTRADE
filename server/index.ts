@@ -12,15 +12,10 @@ app.use(express.urlencoded({ extended: false }));
 
 async function startServer() {
   try {
-    // First try to close any existing server
-    if (server) {
-      await new Promise<void>((resolve) => {
-        server?.close(() => {
-          log('👋 Closed existing server');
-          resolve();
-        });
-      });
-      server = null;
+    // If server is already running, don't start again
+    if (server?.listening) {
+      log('⚠️ Server is already running');
+      return;
     }
 
     server = registerRoutes(app);
