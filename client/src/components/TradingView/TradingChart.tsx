@@ -60,7 +60,6 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
     });
     chartRef.current = chart;
 
-    // Create and store the candlestick series
     const candleSeries = chart.addCandlestickSeries({
       upColor: '#26a69a',
       downColor: '#ef5350',
@@ -70,19 +69,6 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
     });
     candleSeriesRef.current = candleSeries;
 
-    // Add error handling for data updates
-    candleSeries.setData = (data) => {
-      try {
-        if (data && Array.isArray(data) && data.length > 0) {
-          chart.addCandlestickSeries().setData(data);
-        }
-      } catch (error) {
-        console.error('Error updating chart data:', error);
-      }
-    };
-
-
-    // Create and store the volume series
     const volumeSeries = chart.addHistogramSeries({
       color: '#26a69a',
       priceFormat: { type: 'volume' },

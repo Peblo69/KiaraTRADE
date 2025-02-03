@@ -1,21 +1,8 @@
-import { useEffect, useState } from 'react';
-import { useChartStore, initializeChartStore } from '@/lib/chart-websocket';
+import { useState, useEffect } from 'react';
+import { useChartStore, connectToPumpPortal } from '@/lib/chart-websocket';
+import { CandlestickData, ChartData } from '@/lib/chart-types';
 
-interface CandlestickData {
-  time: number;  // Unix timestamp in seconds
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-}
-
-interface ChartData {
-  candles: CandlestickData[];
-  currentPrice: number;
-}
-
-const MINUTE = 60 * 1000; // milliseconds
+const MINUTE = 60 * 1000; // One minute in milliseconds
 
 export const useChartData = (tokenAddress: string): ChartData => {
   const [chartData, setChartData] = useState<ChartData>({
@@ -23,32 +10,49 @@ export const useChartData = (tokenAddress: string): ChartData => {
     currentPrice: 0
   });
 
-  // Initialize chart store subscription
+  // Connect to PumpPortal
   useEffect(() => {
-    const unsubscribe = initializeChartStore(tokenAddress);
-    return () => unsubscribe();
+    console.log('Initializing chart data for token:', tokenAddress);
+    const cleanup = connectToPumpPortal(tokenAddress);
+    return cleanup;
   }, [tokenAddress]);
 
-  // Get trades from our specialized chart store
+  // Get trades from our store
   const trades = useChartStore(state => state.getTradesForToken(tokenAddress));
 
-  // Transform trades into candles
+  // Process trades into candles
   useEffect(() => {
-    if (!trades.length) return;
+    if (!trades.length) {
+      console.log('No trades available for candlestick generation');
+      return;
+    }
 
-    const now = Date.now();
-    const timeFrameStart = now - (60 * MINUTE); // Last 60 minutes
+    // Log trade data for debugging
+    const prices = trades.map(t => t.priceInUsd);
+    console.log('Processing trades for candlesticks:', {
+      tradeCount: trades.length,
+      priceRange: {
+        min: Math.min(...prices),
+        max: Math.max(...prices),
+        latest: prices[prices.length - 1]
+      }
+    });
 
-    // Filter recent trades
-    const recentTrades = trades.filter(trade => trade.timestamp >= timeFrameStart);
-
-    // Group trades by minute
     const candleMap = new Map<number, CandlestickData>();
 
-    recentTrades.forEach(trade => {
-      const minuteTimestamp = Math.floor(trade.timestamp / MINUTE) * MINUTE / 1000; // Convert to seconds
+    // Process each trade
+    trades.forEach(trade => {
+      // Skip trades with invalid prices
+      if (!trade.priceInUsd || trade.priceInUsd <= 0) {
+        console.warn('Skipping trade with invalid price:', trade);
+        return;
+      }
+
+      // Convert timestamp to minute-level timestamp in seconds
+      const minuteTimestamp = Math.floor(trade.timestamp / MINUTE) * MINUTE / 1000;
 
       if (!candleMap.has(minuteTimestamp)) {
+        // Create new candle
         candleMap.set(minuteTimestamp, {
           time: minuteTimestamp,
           open: trade.priceInUsd,
@@ -58,6 +62,7 @@ export const useChartData = (tokenAddress: string): ChartData => {
           volume: trade.amount
         });
       } else {
+        // Update existing candle
         const candle = candleMap.get(minuteTimestamp)!;
         candle.high = Math.max(candle.high, trade.priceInUsd);
         candle.low = Math.min(candle.low, trade.priceInUsd);
@@ -67,25 +72,21 @@ export const useChartData = (tokenAddress: string): ChartData => {
     });
 
     // Convert map to sorted array
-    const candles = Array.from(candleMap.values()).sort((a, b) => a.time - b.time);
+    const candles = Array.from(candleMap.values())
+      .sort((a, b) => a.time - b.time);
 
-    // If no candles but we have trades, create a single candle with latest price
-    if (candles.length === 0 && trades.length > 0) {
-      const latestTrade = trades[trades.length - 1];
-      const currentTimestamp = Math.floor(now / MINUTE) * MINUTE / 1000;
-      candles.push({
-        time: currentTimestamp,
-        open: latestTrade.priceInUsd,
-        high: latestTrade.priceInUsd,
-        low: latestTrade.priceInUsd,
-        close: latestTrade.priceInUsd,
-        volume: 0
+    // Log candlestick data for debugging
+    if (candles.length > 0) {
+      console.log('Generated candlesticks:', {
+        candleCount: candles.length,
+        firstCandle: candles[0],
+        lastCandle: candles[candles.length - 1]
       });
     }
 
     setChartData({
       candles,
-      currentPrice: trades[trades.length - 1]?.priceInUsd || 0
+      currentPrice: trades[trades.length - 1].priceInUsd
     });
   }, [trades]);
 

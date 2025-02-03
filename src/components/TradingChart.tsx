@@ -32,6 +32,11 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
         height: 400,
         rightPriceScale: {
           borderVisible: false,
+          autoScale: true,
+          scaleMargins: {
+            top: 0.2,
+            bottom: 0.2,
+          },
         },
         timeScale: {
           borderVisible: false,
@@ -41,6 +46,19 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
         grid: {
           vertLines: { color: 'rgba(42, 46, 57, 0.5)' },
           horzLines: { color: 'rgba(42, 46, 57, 0.5)' },
+        },
+        crosshair: {
+          mode: 1,
+          vertLine: {
+            width: 1,
+            color: 'rgba(224, 227, 235, 0.1)',
+            style: 0,
+          },
+          horzLine: {
+            width: 1,
+            color: 'rgba(224, 227, 235, 0.1)',
+            style: 0,
+          },
         },
       });
 
@@ -78,12 +96,21 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
     }
 
     try {
+      // Log detailed candle data for debugging
       console.log('Updating chart data...', {
         candlesCount: candles.length,
+        priceRange: {
+          min: Math.min(...candles.map(c => c.low)),
+          max: Math.max(...candles.map(c => c.high)),
+          current: candles[candles.length - 1].close
+        },
         latestCandle: candles[candles.length - 1]
       });
 
+      // Update the candlestick series with new data
       candleSeriesRef.current.setData(candles);
+
+      // Ensure price scale is visible and properly set
       chartRef.current.timeScale().fitContent();
     } catch (error) {
       console.error('Error updating chart data:', error);
@@ -113,7 +140,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress }) => {
       <div className="flex items-center justify-between p-4 border-b border-purple-900/30">
         <h2 className="text-purple-100 font-semibold">Price Chart</h2>
         <div className="text-sm text-purple-200">
-          Current Price: ${currentPrice.toFixed(8)}
+          Current Price: ${currentPrice > 0 ? currentPrice.toFixed(8) : '0.00'}
         </div>
       </div>
       <div ref={containerRef} className="w-full h-[400px]" />
