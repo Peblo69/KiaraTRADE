@@ -115,7 +115,9 @@ const PumpFunVision: FC = () => {
                     </div>
                   </div>
                   <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
-                    <TradingChartChartJS tokenAddress={selectedToken} />
+                    <div className="h-[400px] flex items-center justify-center text-gray-400">
+                      Chart removed
+                    </div>
                   </div>
                   <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                     <TradeHistory tokenAddress={selectedToken} />
