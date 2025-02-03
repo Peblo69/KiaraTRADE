@@ -8,7 +8,6 @@ const HELIUS_WS_URL = `${import.meta.env.VITE_HELIUS_WS_URL}/?api-key=${HELIUS_A
 const HELIUS_REST_URL = import.meta.env.VITE_HELIUS_REST_URL;
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
-const SPL_TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 
 // TypeScript Interfaces
 interface HeliusStore {
@@ -36,51 +35,48 @@ export const useHeliusStore = create<HeliusStore>((set, get) => ({
       return;
     }
 
+    // Validate token address
+    try {
+      new PublicKey(tokenAddress);
+    } catch (error) {
+      console.error('[Helius] Invalid token address:', tokenAddress);
+      return;
+    }
+
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.error('[Helius] WebSocket not connected');
-      // Initialize WebSocket if not already connected
-      initializeHeliusWebSocket();
+      console.log('[Helius] WebSocket not ready, queueing subscription');
+      // Queue subscription for when connection is ready
+      const store = get();
+      store.subscribedTokens.add(tokenAddress);
+      set({ subscribedTokens: new Set(store.subscribedTokens) });
+
+      if (!ws) {
+        console.log('[Helius] Initializing connection...');
+        initializeHeliusWebSocket();
+      }
       return;
     }
 
-    const { subscribedTokens } = get();
-    if (subscribedTokens.has(tokenAddress)) {
-      console.log('[Helius] Already subscribed to token:', tokenAddress);
-      return;
-    }
+    console.log('[Helius] Subscribing to:', tokenAddress);
 
-    console.log('[Helius] Subscribing to token:', tokenAddress);
+    const subscribeMessage = {
+      jsonrpc: '2.0',
+      id: `token-sub-${tokenAddress}`,
+      method: 'accountSubscribe',
+      params: [
+        tokenAddress,
+        {
+          encoding: 'jsonParsed',
+          commitment: 'confirmed'
+        }
+      ]
+    };
 
     try {
-      const subscribeMessage = {
-        jsonrpc: '2.0',
-        id: `token-sub-${tokenAddress}`,
-        method: 'programSubscribe',
-        params: [
-          SPL_TOKEN_PROGRAM_ID,
-          {
-            encoding: 'jsonParsed',
-            filters: [
-              {
-                dataSize: 165,
-                memcmp: {
-                  offset: 0,
-                  bytes: tokenAddress
-                }
-              }
-            ],
-            commitment: 'finalized'
-          }
-        ]
-      };
-
-      console.log('[Helius] Sending subscription message:', subscribeMessage);
       ws.send(JSON.stringify(subscribeMessage));
-
-      subscribedTokens.add(tokenAddress);
-      set({ subscribedTokens: new Set(subscribedTokens) });
+      console.log('[Helius] Subscription request sent for:', tokenAddress);
     } catch (error) {
-      console.error('[Helius] Failed to subscribe to token:', error);
+      console.error('[Helius] Subscription error:', error);
     }
   }
 }));
@@ -94,6 +90,19 @@ async function updateSolPrice() {
   } catch (error) {
     console.error('[Helius] Error updating SOL price:', error);
   }
+}
+
+// Add heartbeat to maintain connection
+function startHeartbeat() {
+  const heartbeatInterval = setInterval(() => {
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ jsonrpc: '2.0', id: 'heartbeat', method: 'ping' }));
+    } else {
+      clearInterval(heartbeatInterval);
+    }
+  }, 30000);
+
+  return heartbeatInterval;
 }
 
 export function initializeHeliusWebSocket() {
@@ -117,6 +126,8 @@ export function initializeHeliusWebSocket() {
     console.log('[Helius] Initializing WebSocket...');
     ws = new WebSocket(HELIUS_WS_URL);
 
+    const heartbeatInterval = startHeartbeat();
+
     ws.onopen = () => {
       console.log('[Helius] Connected');
       useHeliusStore.getState().setConnected(true);
@@ -136,37 +147,50 @@ export function initializeHeliusWebSocket() {
       }
 
       // Cleanup interval on close
-      ws!.addEventListener('close', () => clearInterval(priceInterval));
+      ws!.addEventListener('close', () => {
+        clearInterval(priceInterval);
+        clearInterval(heartbeatInterval);
+      });
     };
 
     ws.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('[Helius] Received message:', data);
+        console.log('[Helius] Raw message:', data);
 
-        if (data.method === 'programNotification') {
-          if (!data.params?.result?.value?.account) {
-            console.warn('[Helius] Invalid program notification:', data);
+        // Handle subscription confirmations
+        if (data.result !== undefined && data.id?.startsWith('token-sub-')) {
+          console.log('[Helius] Subscription confirmed:', data);
+          return;
+        }
+
+        // Handle account updates
+        if (data.method === 'accountNotification') {
+          const value = data.params?.result?.value;
+          if (!value) {
+            console.warn('[Helius] Invalid account notification:', data);
             return;
           }
 
-          const account = data.params.result.value.account;
-          if (account.data.program === 'spl-token') {
-            const tokenData = account.data.parsed.info;
-            console.log('[Helius] Token account update:', tokenData);
+          console.log('[Helius] Account update:', value);
 
-            if (tokenData.tokenAmount) {
-              const solPrice = useHeliusStore.getState().solPrice;
-              useChartStore.getState().addTrade(tokenData.mint, {
-                timestamp: Date.now(),
-                priceInUsd: (tokenData.tokenAmount.uiAmount || 0) * solPrice,
-                amount: tokenData.tokenAmount.uiAmount || 0
-              });
+          // Process token data
+          if (value.data?.program === 'spl-token') {
+            const tokenData = value.data.parsed?.info;
+            if (tokenData) {
+              console.log('[Helius] Token data:', tokenData);
+
+              // Update chart data
+              const solPrice = get().solPrice;
+              if (tokenData.tokenAmount) {
+                useChartStore.getState().addTrade(tokenData.mint, {
+                  timestamp: Date.now(),
+                  priceInUsd: (tokenData.tokenAmount.uiAmount || 0) * solPrice,
+                  amount: tokenData.tokenAmount.uiAmount || 0
+                });
+              }
             }
           }
-        } else if (data.result !== undefined) {
-          // Log subscription confirmations
-          console.log('[Helius] Subscription confirmed:', data);
         }
       } catch (error) {
         console.error('[Helius] Message handling error:', error);

@@ -1,0 +1,199 @@
+
+    The subscription message format might need adjustment. For SPL Token program, try this format:
+
+TypeScript
+
+const subscribeMessage = {
+  jsonrpc: '2.0',
+  id: `token-sub-${tokenAddress}`,
+  method: 'accountSubscribe', // Changed from programSubscribe
+  params: [
+    tokenAddress, // The token address directly
+    {
+      encoding: 'jsonParsed',
+      commitment: 'confirmed' // Changed from finalized for faster updates
+    }
+  ]
+};
+
+    Add proper connection validation:
+
+TypeScript
+
+export const useHeliusStore = create<HeliusStore>((set, get) => ({
+  // ... other state
+  subscribeToToken: (tokenAddress) => {
+    if (!HELIUS_API_KEY) {
+      console.error('[Helius] API key not found');
+      return;
+    }
+
+    // Validate token address
+    try {
+      new PublicKey(tokenAddress);
+    } catch (error) {
+      console.error('[Helius] Invalid token address:', tokenAddress);
+      return;
+    }
+
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.log('[Helius] WebSocket not ready, queueing subscription');
+      // Queue subscription for when connection is ready
+      const store = get();
+      store.subscribedTokens.add(tokenAddress);
+      set({ subscribedTokens: new Set(store.subscribedTokens) });
+      
+      if (!ws) {
+        console.log('[Helius] Initializing connection...');
+        initializeHeliusWebSocket();
+      }
+      return;
+    }
+
+    console.log('[Helius] Subscribing to:', tokenAddress);
+
+    const subscribeMessage = {
+      jsonrpc: '2.0',
+      id: `token-sub-${tokenAddress}`,
+      method: 'accountSubscribe',
+      params: [
+        tokenAddress,
+        {
+          encoding: 'jsonParsed',
+          commitment: 'confirmed'
+        }
+      ]
+    };
+
+    try {
+      ws.send(JSON.stringify(subscribeMessage));
+      console.log('[Helius] Subscription request sent for:', tokenAddress);
+    } catch (error) {
+      console.error('[Helius] Subscription error:', error);
+    }
+  }
+}));
+
+    Improve message handling:
+
+TypeScript
+
+ws.onmessage = async (event) => {
+  try {
+    const data = JSON.parse(event.data);
+    console.log('[Helius] Raw message:', data);
+
+    // Handle subscription confirmations
+    if (data.result !== undefined && data.id?.startsWith('token-sub-')) {
+      console.log('[Helius] Subscription confirmed:', data);
+      return;
+    }
+
+    // Handle account updates
+    if (data.method === 'accountNotification') {
+      const value = data.params?.result?.value;
+      if (!value) {
+        console.warn('[Helius] Invalid account notification:', data);
+        return;
+      }
+
+      console.log('[Helius] Account update:', value);
+
+      // Process token data
+      if (value.data?.program === 'spl-token') {
+        const tokenData = value.data.parsed?.info;
+        if (tokenData) {
+          console.log('[Helius] Token data:', tokenData);
+          
+          // Update chart data
+          const solPrice = get().solPrice;
+          if (tokenData.tokenAmount) {
+            useChartStore.getState().addTrade(tokenData.mint, {
+              timestamp: Date.now(),
+              priceInUsd: (tokenData.tokenAmount.uiAmount || 0) * solPrice,
+              amount: tokenData.tokenAmount.uiAmount || 0
+            });
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Helius] Message handling error:', error);
+  }
+};
+
+    Add connection status checking:
+
+TypeScript
+
+// Add this function to check connection status
+export function checkHeliusConnection() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    console.log('[Helius] Connection lost, reconnecting...');
+    initializeHeliusWebSocket();
+    return false;
+  }
+  return true;
+}
+
+// Add heartbeat to maintain connection
+function startHeartbeat() {
+  const heartbeatInterval = setInterval(() => {
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ jsonrpc: '2.0', id: 'heartbeat', method: 'ping' }));
+    } else {
+      clearInterval(heartbeatInterval);
+    }
+  }, 30000);
+
+  return heartbeatInterval;
+}
+
+    Initialize and cleanup properly:
+
+TypeScript
+
+export function initializeHeliusWebSocket() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    if (ws) {
+      ws.close();
+      ws = null;
+    }
+
+    ws = new WebSocket(HELIUS_WS_URL);
+    console.log('[Helius] Connecting to:', HELIUS_WS_URL);
+
+    const heartbeatInterval = startHeartbeat();
+
+    ws.onopen = () => {
+      console.log('[Helius] Connected successfully');
+      useHeliusStore.getState().setConnected(true);
+      reconnectAttempts = 0;
+
+      // Resubscribe to all tokens
+      const { subscribedTokens } = useHeliusStore.getState();
+      subscribedTokens.forEach(tokenAddress => {
+        console.log('[Helius] Resubscribing to:', tokenAddress);
+        useHeliusStore.getState().subscribeToToken(tokenAddress);
+      });
+    };
+
+    // Add cleanup
+    ws.addEventListener('close', () => {
+      clearInterval(heartbeatInterval);
+      useHeliusStore.getState().setConnected(false);
+    });
+
+    // ... rest of your ws setup
+  } catch (error) {
+    console.error('[Helius] Setup error:', error);
+  }
+}
+
+Can you try these changes and let me know if you're still having issues? Also, it would be helpful to see:
+
+    The actual error messages you're getting (if any)
+    The useChartStore code
+    How you're calling subscribeToToken
