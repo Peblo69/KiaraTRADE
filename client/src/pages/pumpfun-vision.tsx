@@ -93,9 +93,6 @@ const PumpFunVision: FC = () => {
                   <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                     <MarketStats tokenAddress={selectedToken} />
                   </div>
-                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
-                    <SocialMetrics tokenAddress={selectedToken} />
-                  </div>
                 </div>
 
                 {/* Main Trading Area */}
