@@ -13,7 +13,6 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 // Import components
 import TradeHistory from "@/components/TradeHistory";
 import TradingForm from "@/components/TradingForm";
-import HolderAnalytics from "@/components/HolderAnalytics";
 
 // Import Helius trade integration
 import { heliusTradeIntegration } from "../lib/helius-trade-integration";
