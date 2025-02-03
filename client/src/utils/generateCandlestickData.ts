@@ -20,17 +20,15 @@ export interface CandlestickData {
  */
 export function generateCandlestickData(
   trades: TokenTrade[],
-  bucketSizeSeconds: number = 60,
-  fallbackPrice?: number
+  bucketSizeSeconds: number = 60
 ): CandlestickData[] {
   if (!trades || trades.length === 0) return [];
 
-  // Sort trades by timestamp (oldest first)
   const sortedTrades = [...trades].sort((a, b) => a.timestamp - b.timestamp);
   const candlesticks: CandlestickData[] = [];
   const buckets: { [bucket: number]: TokenTrade[] } = {};
 
-  // Group trades by bucket (each bucket represents bucketSizeSeconds interval)
+  // Group trades directly by their price data
   sortedTrades.forEach(trade => {
     const bucketTime = Math.floor(trade.timestamp / 1000 / bucketSizeSeconds) * bucketSizeSeconds;
     if (!buckets[bucketTime]) {
@@ -41,21 +39,17 @@ export function generateCandlestickData(
 
   // Convert each bucket to a candlestick
   Object.entries(buckets).forEach(([bucketTime, bucketTrades]) => {
-    // Get all prices > 0
-    const prices = bucketTrades.map(t => t.priceInUsd || 0).filter(p => p > 0);
-    let open: number, high: number, low: number, close: number;
-    if (prices.length > 0) {
-      open = prices[0];
-      high = Math.max(...prices);
-      low = Math.min(...prices);
-      close = prices[prices.length - 1];
-    } else if (fallbackPrice !== undefined) {
-      // Use fallback price if no valid trade price is available
-      open = high = low = close = fallbackPrice;
-    } else {
-      return; // Skip this bucket if no data and no fallback
-    }
-    const volume = bucketTrades.reduce((sum, t) => sum + (t.tokenAmount || 0), 0);
+    const prices = bucketTrades.map(t => t.priceInUsd).filter(p => p > 0);
+    if (prices.length === 0) return;
+    
+    const candlestick = {
+      time: parseInt(bucketTime),
+      open: prices[0],
+      high: Math.max(...prices),
+      low: Math.min(...prices),
+      close: prices[prices.length - 1],
+      volume: bucketTrades.reduce((sum, t) => sum + (t.tokenAmount || 0), 0)
+    };
     candlesticks.push({
       time: parseInt(bucketTime),
       open,
