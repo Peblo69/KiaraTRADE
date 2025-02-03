@@ -159,7 +159,7 @@ const TopBar: React.FC = () => {
 
       {/* KIARA Vision Pro Panel */}
       {isKiaraPanelOpen && (
-        <div className="fixed inset-y-0 left-0 w-80 chat-container transform z-50 flex flex-col">
+        <div className="fixed inset-y-0 left-0 w-80 chat-container transform z-50 flex flex-col border-r border-yellow-600/20">
           {/* Floating particles */}
           {[...Array(10)].map((_, i) => (
             <div
@@ -219,7 +219,7 @@ const TopBar: React.FC = () => {
 
       {/* Security Panel */}
       {isSecurityPanelOpen && (
-        <div className="fixed inset-y-0 right-0 w-80 security-panel transform z-50 flex flex-col">
+        <div className="fixed inset-y-0 right-0 w-80 bg-[#0A0818] transform z-50 flex flex-col border-l border-purple-900/30">
           <div className="flex items-center justify-between p-3 border-b border-purple-900/30">
             <div className="flex items-center space-x-2">
               <Shield className="w-4 h-4 text-purple-400" />
@@ -280,7 +280,7 @@ const TopBar: React.FC = () => {
       {/* Backdrop */}
       {(isSecurityPanelOpen || isKiaraPanelOpen) && (
         <div 
-          className="fixed inset-0 modal-backdrop z-40"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
           onClick={() => {
             setIsSecurityPanelOpen(false);
             setIsKiaraPanelOpen(false);
