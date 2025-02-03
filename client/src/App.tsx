@@ -23,6 +23,7 @@ import Predictions from "@/pages/predictions";
 import WalletTracking from "@/pages/wallet-tracking";
 import MarketDataBar from "@/components/MarketDataBar";
 import Navbar from "@/components/Navbar";
+import TopBar from "./components/TradingView/project/src/components/TopBar"; // Imported TopBar component
 
 // Store and Services
 import { initializeHeliusWebSocket } from './lib/helius-websocket';
