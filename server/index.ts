@@ -10,12 +10,21 @@ let server: http.Server | null = null;
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+let isInitializing = false;
+
 async function startServer() {
   try {
+    if (isInitializing) {
+      log('⚠️ Server initialization already in progress');
+      return;
+    }
+
     if (server?.listening) {
       log('⚠️ Server is already running');
       return;
     }
+
+    isInitializing = true;
 
     if (server) {
       await new Promise<void>((resolve, reject) => {
@@ -51,10 +60,12 @@ async function startServer() {
 
     await new Promise<void>((resolve, reject) => {
       if (!server) {
+        isInitializing = false;
         return reject(new Error('Server was not properly initialized'));
       }
 
       server.listen(PORT, '0.0.0.0', () => {
+        isInitializing = false;
         log(`🚀 Server Status:`);
         log(`📡 Server running on port ${PORT}`);
         log(`⏰ Started at: ${new Date().toISOString()}`);
