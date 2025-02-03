@@ -17,38 +17,40 @@ export const connectToPumpPortal = (tokenAddress: string) => {
         }
 
         const trades = token.recentTrades || [];
-        console.log(`Processing ${trades.length} trades for token:`, tokenAddress);
 
         // Process each trade
         trades.forEach(trade => {
-          // Validate price data
-          if (!trade.priceInUsd || trade.priceInUsd <= 0) {
-            console.warn('Invalid price in trade:', trade);
+          if (!trade.priceInUsd) {
+            console.warn('Trade missing price data:', trade);
             return;
           }
 
-          // Validate timestamp and amount
-          if (!trade.timestamp || !trade.amount || trade.amount <= 0) {
-            console.warn('Invalid trade data:', trade);
+          // Convert SOL price to USD if needed
+          const priceInUsd = trade.priceInSol ? trade.priceInSol * token.solPriceUsd : trade.priceInUsd;
+
+          if (!priceInUsd || priceInUsd <= 0) {
+            console.warn('Invalid price calculation:', { trade, solPrice: token.solPriceUsd });
             return;
           }
 
-          // Add validated trade to chart store
           useChartStore.getState().addTrade(tokenAddress, {
             timestamp: trade.timestamp,
-            priceInUsd: trade.priceInUsd,
-            amount: trade.amount
+            priceInUsd: priceInUsd,
+            amount: trade.amount || 0
           });
         });
 
-        // Log price summary
+        // Log price data for verification
         if (trades.length > 0) {
-          const prices = trades.map(t => t.priceInUsd);
-          console.log('Price summary:', {
+          console.log('Trade batch processed:', {
             token: tokenAddress,
-            min: Math.min(...prices),
-            max: Math.max(...prices),
-            current: prices[prices.length - 1]
+            tradeCount: trades.length,
+            priceRange: {
+              min: Math.min(...trades.filter(t => t.priceInUsd > 0).map(t => t.priceInUsd)),
+              max: Math.max(...trades.filter(t => t.priceInUsd > 0).map(t => t.priceInUsd)),
+              latest: trades[trades.length - 1].priceInUsd
+            },
+            solPrice: token.solPriceUsd
           });
         }
       }
@@ -60,7 +62,7 @@ export const connectToPumpPortal = (tokenAddress: string) => {
     };
   } catch (error) {
     console.error('Error connecting to PumpPortal:', error);
-    return () => {}; // Return empty cleanup function
+    return () => {};
   }
 };
 
@@ -76,26 +78,20 @@ export const useChartStore = create<ChartStore>((set, get) => ({
 
   addTrade: (tokenAddress: string, trade: Trade) => {
     try {
-      // Validate price before adding
+      // Validate price data
       if (!trade.priceInUsd || trade.priceInUsd <= 0) {
-        console.warn('Skipping trade with invalid price:', trade);
+        console.warn('Invalid price, skipping trade:', trade);
         return;
       }
-
-      console.log('Processing trade:', {
-        token: tokenAddress,
-        price: trade.priceInUsd,
-        time: new Date(trade.timestamp).toISOString()
-      });
 
       set((state) => {
         const currentTrades = state.trades[tokenAddress] || [];
 
-        // Sort trades by timestamp
+        // Add new trade and maintain time order
         const newTrades = [...currentTrades, trade]
           .sort((a, b) => a.timestamp - b.timestamp);
 
-        // Keep only last hour of trades
+        // Keep last hour of trades
         const cutoffTime = Date.now() - 60 * 60 * 1000;
         const recentTrades = newTrades.filter(t => t.timestamp >= cutoffTime);
 
@@ -106,6 +102,13 @@ export const useChartStore = create<ChartStore>((set, get) => ({
           }
         };
       });
+
+      // Log new trade for verification
+      console.log('Trade added:', {
+        token: tokenAddress,
+        price: trade.priceInUsd,
+        time: new Date(trade.timestamp).toISOString()
+      });
     } catch (error) {
       console.error('Error adding trade:', error);
     }
@@ -114,17 +117,14 @@ export const useChartStore = create<ChartStore>((set, get) => ({
   getTradesForToken: (tokenAddress: string) => {
     try {
       const trades = get().trades[tokenAddress] || [];
-      if (trades.length > 0) {
-        // Log price data for debugging
-        const prices = trades.map(t => t.priceInUsd);
-        console.log('Trade price summary:', {
-          token: tokenAddress,
-          tradeCount: trades.length,
-          minPrice: Math.min(...prices),
-          maxPrice: Math.max(...prices),
-          latestPrice: prices[prices.length - 1]
-        });
-      }
+      console.log('Retrieved trades:', {
+        token: tokenAddress,
+        count: trades.length,
+        prices: trades.length > 0 ? {
+          first: trades[0].priceInUsd,
+          last: trades[trades.length - 1].priceInUsd
+        } : null
+      });
       return trades;
     } catch (error) {
       console.error('Error getting trades:', error);

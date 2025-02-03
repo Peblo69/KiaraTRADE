@@ -27,39 +27,45 @@ export const useChartData = (tokenAddress: string): ChartData => {
       return;
     }
 
-    // Log trade data for debugging
-    const prices = trades.map(t => t.priceInUsd);
-    console.log('Processing trades for candlesticks:', {
-      tradeCount: trades.length,
+    // Log incoming trade data
+    console.log('Processing trades:', {
+      count: trades.length,
       priceRange: {
-        min: Math.min(...prices),
-        max: Math.max(...prices),
-        latest: prices[prices.length - 1]
+        min: Math.min(...trades.map(t => t.priceInUsd)),
+        max: Math.max(...trades.map(t => t.priceInUsd)),
+        latest: trades[trades.length - 1].priceInUsd
       }
     });
 
-    const candleMap = new Map<number, CandlestickData>();
+    // Group trades by minute
+    const candleMap = new Map<number, {
+      time: number;
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+      volume: number;
+      trades: number[];
+    }>();
 
-    // Process each trade
     trades.forEach(trade => {
-      // Skip trades with invalid prices
       if (!trade.priceInUsd || trade.priceInUsd <= 0) {
         console.warn('Skipping trade with invalid price:', trade);
         return;
       }
 
-      // Convert timestamp to minute-level timestamp in seconds
       const minuteTimestamp = Math.floor(trade.timestamp / MINUTE) * MINUTE / 1000;
 
       if (!candleMap.has(minuteTimestamp)) {
-        // Create new candle
+        // Initialize new candle
         candleMap.set(minuteTimestamp, {
           time: minuteTimestamp,
           open: trade.priceInUsd,
           high: trade.priceInUsd,
           low: trade.priceInUsd,
           close: trade.priceInUsd,
-          volume: trade.amount
+          volume: trade.amount || 0,
+          trades: [trade.priceInUsd]
         });
       } else {
         // Update existing candle
@@ -67,20 +73,40 @@ export const useChartData = (tokenAddress: string): ChartData => {
         candle.high = Math.max(candle.high, trade.priceInUsd);
         candle.low = Math.min(candle.low, trade.priceInUsd);
         candle.close = trade.priceInUsd;
-        candle.volume += trade.amount;
+        candle.volume += trade.amount || 0;
+        candle.trades.push(trade.priceInUsd);
       }
     });
 
-    // Convert map to sorted array
-    const candles = Array.from(candleMap.values())
+    // Convert to candlesticks
+    const candles: CandlestickData[] = Array.from(candleMap.values())
+      .map(({ time, open, high, low, close, volume }) => ({
+        time,
+        open,
+        high,
+        low,
+        close,
+        volume
+      }))
       .sort((a, b) => a.time - b.time);
 
-    // Log candlestick data for debugging
+    // Log generated candles for verification
     if (candles.length > 0) {
-      console.log('Generated candlesticks:', {
-        candleCount: candles.length,
-        firstCandle: candles[0],
-        lastCandle: candles[candles.length - 1]
+      const lastCandle = candles[candles.length - 1];
+      console.log('Candlestick data generated:', {
+        totalCandles: candles.length,
+        latestCandle: {
+          time: new Date(lastCandle.time * 1000).toISOString(),
+          open: lastCandle.open,
+          high: lastCandle.high,
+          low: lastCandle.low,
+          close: lastCandle.close,
+          volume: lastCandle.volume
+        },
+        priceRange: {
+          min: Math.min(...candles.map(c => c.low)),
+          max: Math.max(...candles.map(c => c.high))
+        }
       });
     }
 
