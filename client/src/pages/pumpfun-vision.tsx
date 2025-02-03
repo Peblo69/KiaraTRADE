@@ -1,10 +1,9 @@
-import { FC, useState, useCallback, Suspense, useMemo } from "react";
+import { FC, useState, useCallback, Suspense, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Filter, ArrowLeft } from "lucide-react";
 import { usePumpPortalStore } from "@/lib/pump-portal-websocket";
 import TokenCard from "@/components/TokenCard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-
 
 // Import Trading View components
 import MarketStats from "@/components/MarketStats";
@@ -16,13 +15,22 @@ import HolderAnalytics from "@/components/HolderAnalytics";
 
 // Import the helper function for candlestick data
 import { generateCandlestickData } from "@/utils/generateCandlestickData";
-
+// Import Helius trade integration
+import { heliusTradeIntegration } from "@/lib/helius-trade-integration";
 
 const PumpFunVision: FC = () => {
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
   const tokens = usePumpPortalStore(state => state.tokens);
   const isConnected = usePumpPortalStore(state => state.isConnected);
   const setActiveTokenView = usePumpPortalStore(state => state.setActiveTokenView);
+
+  // Start Helius integration on mount
+  useEffect(() => {
+    heliusTradeIntegration.connect();
+    return () => {
+      heliusTradeIntegration.disconnect();
+    };
+  }, []);
 
   const handleTokenSelect = useCallback((address: string) => {
     setSelectedToken(address);
@@ -40,7 +48,7 @@ const PumpFunVision: FC = () => {
   }, [tokens, selectedToken]);
 
   // Compute candlestick data using the token's current price as fallback.
-  // Log the generated candlestick data for debugging.
+  // Logs the generated candlestick data for debugging.
   const candlestickData = useMemo(() => {
     if (!selectedTokenData || !selectedTokenData.recentTrades) return [];
     const fallbackPrice = selectedTokenData.priceInUsd || 0;
