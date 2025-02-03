@@ -19,37 +19,48 @@ export function generateCandlestickData(
   bucketSizeSeconds: number = 60,
   fallbackPrice: number = 0
 ): CandlestickData[] {
-  if (!trades || trades.length === 0) {
-    return [];
-  }
+  if (!trades || trades.length === 0) return [];
 
   // Sort trades by timestamp (oldest first)
   const sortedTrades = [...trades].sort((a, b) => a.timestamp - b.timestamp);
-  const candlesticks: CandlestickData[] = [];
-  let bucketStart = Math.floor(sortedTrades[0].timestamp / 1000 / bucketSizeSeconds) * bucketSizeSeconds;
+  const candlesticks: any[] = [];
+
+  let currentBucket = Math.floor(sortedTrades[0].timestamp / 1000 / bucketSizeSeconds) * bucketSizeSeconds;
   let bucketTrades: TokenTrade[] = [];
 
-  const flushBucket = () => {
-    if (bucketTrades.length === 0) return;
-    const getPrice = (trade: TokenTrade) => trade.priceInUsd && trade.priceInUsd > 0 ? trade.priceInUsd : fallbackPrice;
-    const open = getPrice(bucketTrades[0]);
-    const close = getPrice(bucketTrades[bucketTrades.length - 1]);
-    const high = Math.max(...bucketTrades.map(t => getPrice(t)));
-    const low = Math.min(...bucketTrades.map(t => getPrice(t)));
-    const volume = bucketTrades.reduce((sum, t) => sum + (t.tokenAmount || 0), 0);
-    candlesticks.push({ time: bucketStart, open, high, low, close, volume });
-  };
-
-  for (const trade of sortedTrades) {
-    const tradeTimeSec = Math.floor(trade.timestamp / 1000);
-    if (tradeTimeSec < bucketStart + bucketSizeSeconds) {
+  sortedTrades.forEach(trade => {
+    const tradeTime = Math.floor(trade.timestamp / 1000);
+    if (tradeTime < currentBucket + bucketSizeSeconds) {
       bucketTrades.push(trade);
     } else {
-      flushBucket();
-      bucketStart = Math.floor(tradeTimeSec / bucketSizeSeconds) * bucketSizeSeconds;
+      if (bucketTrades.length > 0) {
+        const getPrice = (trade: TokenTrade) => trade.priceInUsd || fallbackPrice;
+        candlesticks.push({
+          time: currentBucket,
+          open: getPrice(bucketTrades[0]),
+          high: Math.max(...bucketTrades.map(t => getPrice(t))),
+          low: Math.min(...bucketTrades.map(t => getPrice(t))),
+          close: getPrice(bucketTrades[bucketTrades.length - 1]),
+          volume: bucketTrades.reduce((sum, t) => sum + (t.tokenAmount || 0), 0)
+        });
+      }
+      currentBucket = Math.floor(tradeTime / bucketSizeSeconds) * bucketSizeSeconds;
       bucketTrades = [trade];
     }
+  });
+
+  // Handle last bucket
+  if (bucketTrades.length > 0) {
+    const getPrice = (trade: TokenTrade) => trade.priceInUsd || fallbackPrice;
+    candlesticks.push({
+      time: currentBucket,
+      open: getPrice(bucketTrades[0]),
+      high: Math.max(...bucketTrades.map(t => getPrice(t))),
+      low: Math.min(...bucketTrades.map(t => getPrice(t))),
+      close: getPrice(bucketTrades[bucketTrades.length - 1]),
+      volume: bucketTrades.reduce((sum, t) => sum + (t.tokenAmount || 0), 0)
+    });
   }
-  flushBucket();
+
   return candlesticks;
 }
