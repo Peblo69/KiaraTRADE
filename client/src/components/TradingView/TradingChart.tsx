@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from 'react';
 import { createChart, IChartApi, ColorType } from 'lightweight-charts';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
@@ -18,12 +19,13 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
 
   // Debug logs
   useEffect(() => {
-    console.log('TradingChart Mount:', {
+    console.log('TradingChart Data:', {
       tokenAddress,
       hasToken: !!token,
       tradesCount: token?.recentTrades?.length || 0,
       solPrice,
-      currentPrice: token?.priceInUsd
+      currentPrice: token?.priceInUsd,
+      recentTrades: token?.recentTrades?.slice(0, 5)
     });
   }, [tokenAddress, token, solPrice]);
 
@@ -31,6 +33,8 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
   useEffect(() => {
     if (!containerRef.current) return;
 
+    console.log('Creating new chart instance');
+    
     const chart = createChart(containerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: '#161b2b' },
@@ -63,6 +67,7 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
     candleSeriesRef.current = candleSeries;
 
     return () => {
+      console.log('Cleaning up chart');
       chart.remove();
     };
   }, []);
@@ -72,8 +77,15 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
     if (!candleSeriesRef.current || !token?.recentTrades?.length) return;
 
     const updateChart = () => {
-      const candleData = generateCandlestickData(token.recentTrades);
-      console.log("Generated Candle Data:", candleData);
+      const trades = [...token.recentTrades].sort((a, b) => a.timestamp - b.timestamp);
+      const candleData = generateCandlestickData(trades);
+      
+      console.log('Generated Candle Data:', {
+        tradesCount: trades.length,
+        candlesCount: candleData.length,
+        firstCandle: candleData[0],
+        lastCandle: candleData[candleData.length - 1]
+      });
 
       if (candleData.length > 0) {
         candleSeriesRef.current.setData(candleData);
@@ -82,8 +94,6 @@ const TradingChart: React.FC<Props> = ({ tokenAddress, timeframe = "1m" }) => {
     };
 
     updateChart();
-    const interval = setInterval(updateChart, 5000);
-    return () => clearInterval(interval);
   }, [token?.recentTrades, tokenAddress]);
 
   // Handle resize
