@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
 interface TradingChartProps {
@@ -14,6 +14,7 @@ declare global {
 const TradingChart: React.FC<TradingChartProps> = ({ tokenAddress }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<any>(null);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
 
   // Get token data from store based on tokenAddress
   const token = usePumpPortalStore(state => 
@@ -21,7 +22,22 @@ const TradingChart: React.FC<TradingChartProps> = ({ tokenAddress }) => {
   );
 
   useEffect(() => {
-    if (!chartContainerRef.current || !token || !tokenAddress) return;
+    const script = document.querySelector('script[src*="tradingview.com/tv.js"]');
+    
+    if (!script) {
+      const tvScript = document.createElement('script');
+      tvScript.type = 'text/javascript';
+      tvScript.src = 'https://s3.tradingview.com/tv.js';
+      tvScript.async = true;
+      tvScript.onload = () => setScriptLoaded(true);
+      document.head.appendChild(tvScript);
+    } else {
+      setScriptLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!chartContainerRef.current || !token || !tokenAddress || !scriptLoaded || !window.TradingView) return;
 
     // Cleanup previous widget instance
     if (widgetRef.current) {
