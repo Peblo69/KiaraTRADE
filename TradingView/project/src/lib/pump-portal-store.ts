@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { format } from "date-fns";
 
 export interface TokenMetadata {
   name: string;
@@ -63,18 +62,51 @@ interface PumpPortalStore {
   tokens: PumpPortalToken[];
   isConnected: boolean;
   solPrice: number;
+  addToken: (token: PumpPortalToken) => void;
+  updateToken: (address: string, token: Partial<PumpPortalToken>) => void;
   getToken: (address: string) => PumpPortalToken | undefined;
+  setSolPrice: (price: number) => void;
+  addTradeToHistory: (address: string, trade: TokenTrade) => void;
 }
 
+// Create store with persist middleware
 export const usePumpPortalStore = create<PumpPortalStore>()(
   persist(
     (set, get) => ({
       tokens: [],
       isConnected: false,
       solPrice: 0,
-      getToken: (address: string) => {
-        return get().tokens.find((t) => t.address === address);
-      },
+
+      addToken: (token) =>
+        set((state) => ({
+          tokens: [
+            token,
+            ...state.tokens.filter((t) => t.address !== token.address),
+          ],
+        })),
+
+      updateToken: (address, updates) =>
+        set((state) => ({
+          tokens: state.tokens.map((t) =>
+            t.address === address ? { ...t, ...updates } : t
+          ),
+        })),
+
+      getToken: (address) => get().tokens.find((t) => t.address === address),
+
+      setSolPrice: (price) => set({ solPrice: price }),
+
+      addTradeToHistory: (address, trade) =>
+        set((state) => ({
+          tokens: state.tokens.map((t) =>
+            t.address === address
+              ? {
+                  ...t,
+                  recentTrades: [trade, ...(t.recentTrades || [])].slice(0, 1000),
+                }
+              : t
+          ),
+        })),
     }),
     {
       name: "pump-portal-storage",
@@ -91,5 +123,23 @@ export const usePumpPortalStore = create<PumpPortalStore>()(
     }
   )
 );
+
+// Subscribe to the original pump-portal-websocket store
+// to sync data with our local store
+if (typeof window !== "undefined") {
+  const originalStore = (window as any).pumpPortalStore;
+  if (originalStore) {
+    originalStore.subscribe((state: any) => {
+      if (state.tokens) {
+        state.tokens.forEach((token: PumpPortalToken) => {
+          usePumpPortalStore.getState().addToken(token);
+        });
+      }
+      if (state.solPrice) {
+        usePumpPortalStore.getState().setSolPrice(state.solPrice);
+      }
+    });
+  }
+}
 
 export default usePumpPortalStore;

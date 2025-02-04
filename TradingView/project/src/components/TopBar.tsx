@@ -26,21 +26,25 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
   const token = usePumpPortalStore(state => state.tokens.find(t => t.address === tokenAddress));
   const [marketStats, setMarketStats] = useState({
     symbol: token?.symbol || 'Loading...',
+    name: token?.name || 'Loading...',
     price: token?.priceInUsd || 0,
     marketCap: token?.marketCapSol || 0,
     liquidity: token?.vSolInBondingCurve || 0,
     priceChange24h: 0,
+    imageUrl: token?.metadata?.imageUrl || token?.imageUrl
   });
 
-  // Calculate 24h price change and update market stats
+  // Update market stats when token data changes
   useEffect(() => {
     if (token) {
       const newStats = {
-        symbol: token.symbol,
+        symbol: token.symbol || 'Loading...',
+        name: token.name || 'Loading...',
         price: token.priceInUsd || 0,
         marketCap: token.marketCapSol || 0,
         liquidity: token.vSolInBondingCurve || 0,
         priceChange24h: 0,
+        imageUrl: token.metadata?.imageUrl || token.imageUrl
       };
 
       if (token.recentTrades?.length > 0) {
@@ -90,6 +94,9 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
     }, 1000);
   };
 
+  // Only render if we have a token
+  if (!token) return null;
+
   return (
     <div className="bg-[#0D0B1F]/80 backdrop-blur-sm border-b border-purple-900/30 mb-4">
       <div className="container mx-auto px-4 py-2">
@@ -99,9 +106,9 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-2">
                 <img
-                  src={token?.imageUrl || "https://cryptologos.cc/logos/bitcoin-btc-logo.png"}
+                  src={marketStats.imageUrl || token.imageUrl || "https://cryptologos.cc/logos/bitcoin-btc-logo.png"}
                   alt={marketStats.symbol}
-                  className="w-6 h-6"
+                  className="w-6 h-6 rounded-full"
                 />
                 <div className="flex flex-col">
                   <div className="flex items-center space-x-2">
@@ -202,6 +209,67 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
         </div>
       </div>
 
+      {/* Security Panel */}
+      {isSecurityPanelOpen && (
+        <div className="fixed inset-y-0 right-0 w-80 bg-[#0A0818]/95 backdrop-blur-md transform z-50 flex flex-col border-l border-purple-900/30">
+          <div className="flex items-center justify-between p-3 border-b border-[#2A2A2A]">
+            <div className="flex items-center space-x-2">
+              <Shield className="w-4 h-4 text-purple-400" />
+              <h2 className="text-sm font-medium text-[#E5E5E5]">Security Audit</h2>
+            </div>
+            <button
+              className="text-purple-400 hover:text-purple-300 p-1"
+              onClick={() => setIsSecurityPanelOpen(false)}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-4 space-y-4">
+              <div className="text-center mb-6">
+                <h3 className="text-base font-medium text-[#E5E5E5] mb-2">No Security Issue Detected</h3>
+                <p className="text-xs text-[#9CA3AF]">
+                  If you proceed to trade, do so with caution and review the complete security audit carefully.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {securityItems.map((item, index) => (
+                  <div key={index} className="flex items-center justify-between py-2 border-b border-[#2A2A2A]">
+                    <span className="text-[#9CA3AF] text-xs">{item.label}</span>
+                    <span className={`text-xs font-medium ${
+                      item.status === 'success' ? 'text-[#10B981]' :
+                        item.status === 'warning' ? 'text-[#FBBF24]' :
+                          item.status === 'danger' ? 'text-[#EF4444]' :
+                            'text-[#E5E5E5]'
+                    }`}>
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="p-3 border-t border-[#2A2A2A] space-y-2">
+            <button
+              className="w-full bg-[#00875A] hover:bg-[#00875A]/90 text-white py-2 rounded-md text-sm font-medium transition-all duration-200"
+              onClick={() => setIsSecurityPanelOpen(false)}
+            >
+              Proceed to Trade
+            </button>
+            <button
+              className="w-full text-xs text-[#9CA3AF] hover:text-[#E5E5E5] transition-colors"
+              onClick={() => setIsSecurityPanelOpen(false)}
+            >
+              Never show this again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* KIARA Panel */}
       {isKiaraPanelOpen && (
         <div className="fixed inset-y-0 left-0 w-80 bg-black/95 backdrop-blur-md transform z-50 flex flex-col border-r border-yellow-600/20">
           {[...Array(10)].map((_, i) => (
@@ -265,65 +333,7 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
         </div>
       )}
 
-      {isSecurityPanelOpen && (
-        <div className="fixed inset-y-0 right-0 w-80 bg-[#0A0818]/95 backdrop-blur-md transform z-50 flex flex-col border-l border-purple-900/30">
-          <div className="flex items-center justify-between p-3 border-b border-[#2A2A2A]">
-            <div className="flex items-center space-x-2">
-              <Shield className="w-4 h-4 text-purple-400" />
-              <h2 className="text-sm font-medium text-[#E5E5E5]">Security Audit</h2>
-            </div>
-            <button
-              className="text-purple-400 hover:text-purple-300 p-1"
-              onClick={() => setIsSecurityPanelOpen(false)}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-4 space-y-4">
-              <div className="text-center mb-6">
-                <h3 className="text-base font-medium text-[#E5E5E5] mb-2">No Security Issue Detected</h3>
-                <p className="text-xs text-[#9CA3AF]">
-                  If you proceed to trade, do so with caution and review the complete security audit carefully.
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                {securityItems.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between py-2 border-b border-[#2A2A2A]">
-                    <span className="text-[#9CA3AF] text-xs">{item.label}</span>
-                    <span className={`text-xs font-medium ${
-                      item.status === 'success' ? 'text-[#10B981]' :
-                        item.status === 'warning' ? 'text-[#FBBF24]' :
-                          item.status === 'danger' ? 'text-[#EF4444]' :
-                            'text-[#E5E5E5]'
-                    }`}>
-                      {item.value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="p-3 border-t border-[#2A2A2A] space-y-2">
-            <button
-              className="w-full bg-[#00875A] hover:bg-[#00875A]/90 text-white py-2 rounded-md text-sm font-medium transition-all duration-200"
-              onClick={() => setIsSecurityPanelOpen(false)}
-            >
-              Proceed to Trade
-            </button>
-            <button
-              className="w-full text-xs text-[#9CA3AF] hover:text-[#E5E5E5] transition-colors"
-              onClick={() => setIsSecurityPanelOpen(false)}
-            >
-              Never show this again
-            </button>
-          </div>
-        </div>
-      )}
-
+      {/* Backdrop */}
       {(isSecurityPanelOpen || isKiaraPanelOpen) && (
         <div
           className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40"
