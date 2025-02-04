@@ -93,23 +93,23 @@ const PumpFunVision: FC = () => {
               <div className="w-full h-[calc(100vh-64px)]">
                 <div className="grid grid-cols-12 gap-4 h-full">
                   {/* Left Column - Market Stats & Social Metrics */}
-                  <div className="col-span-2 h-full">
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                  <div className="col-span-2 space-y-2 h-full overflow-auto">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[49%]">
                       <MarketStats tokenAddress={selectedToken} />
-                      <div className="mt-4 pt-4 border-t border-purple-900/30">
-                        <SocialMetrics tokenAddress={selectedToken} />
-                      </div>
+                    </div>
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[49%]">
+                      <SocialMetrics tokenAddress={selectedToken} />
                     </div>
                   </div>
 
                   {/* Main Trading Area */}
-                  <div className="col-span-7 flex flex-col h-full gap-1">
-                    <div className="h-[calc(100%-180px)]">
+                  <div className="col-span-7 space-y-4 h-full overflow-auto">
+                    <div className="h-[70%]">
                       <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-full">
                         <TradingChart tokenAddress={selectedToken} />
                       </div>
                     </div>
-                    <div className="h-[180px]">
+                    <div className="h-[30%]">
                       <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-full">
                         <TradeHistory tokenAddress={selectedToken} />
                       </div>
@@ -118,13 +118,13 @@ const PumpFunVision: FC = () => {
 
                   {/* Right Column - Trading Form & Holder Analytics */}
                   <div className="col-span-3 h-full flex flex-col gap-4">
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[45%]">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[33%]">
                       <TradingForm tokenAddress={selectedToken} />
                     </div>
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[27.5%]">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[33%]">
                       <HolderAnalytics tokenAddress={selectedToken} />
                     </div>
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[27.5%]">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[33%]">
                       <WalletTracker />
                     </div>
                   </div>
