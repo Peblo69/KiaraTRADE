@@ -6,10 +6,10 @@ import http from 'http';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-});
-const port = 5000;
+//app.listen(PORT, '0.0.0.0', () => {
+//  console.log(`Server running on port ${PORT}`);
+//});
+const port = 5000; // This line is now redundant but left for context. Removing this will not solve the problem.
 let server: http.Server | null = null;
 
 app.use(express.json());
@@ -57,15 +57,14 @@ async function startServer() {
       server.close(() => {
         log('Closed any existing port bindings');
 
-        server?.listen(port, '0.0.0.0', () => {
+        server?.listen(PORT, '0.0.0.0', () => {
           log(`🚀 Server Status:`);
-          log(`📡 Internal: Running on 0.0.0.0:${port}`);
-          log(`🌍 External: Mapped to port 80`);
+          log(`📡 Running on 0.0.0.0:${PORT}`);
           log(`⏰ Started at: ${new Date().toISOString()}`);
           resolve();
         }).on('error', (error: any) => {
           if (error.code === 'EADDRINUSE') {
-            log(`Port ${port} is already in use. Attempting to close existing connections...`);
+            log(`Port ${PORT} is already in use. Attempting to close existing connections...`);
             server = null;
           }
           reject(error);
