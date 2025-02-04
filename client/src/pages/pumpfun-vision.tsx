@@ -103,13 +103,13 @@ const PumpFunVision: FC = () => {
                   </div>
 
                   {/* Main Trading Area */}
-                  <div className="col-span-7 flex flex-col h-full space-y-2">
-                    <div className="flex-grow">
+                  <div className="col-span-7 flex flex-col h-full gap-1">
+                    <div className="h-[calc(100%-180px)]">
                       <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-full">
                         <TradingChart tokenAddress={selectedToken} />
                       </div>
                     </div>
-                    <div className="h-[200px]">
+                    <div className="h-[180px]">
                       <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-full">
                         <TradeHistory tokenAddress={selectedToken} />
                       </div>
