@@ -37,68 +37,61 @@ export const useTokenStore = create<TokenStore>((set) => ({
   setConnected: (connected) => set({ isConnected: connected }),
 }));
 
+// Connection state management
 let ws: WebSocket | null = null;
-let reconnectTimeout: NodeJS.Timeout | null = null;
+let connectionTimer: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 5000;
 const WS_URL = import.meta.env.VITE_PUMPPORTAL_WS_URL || 'wss://pumpportal.fun/api/data';
 
 // Connection tracking
-let lastConnectionTime = 0;
 let hasSubscribedNewToken = false;
 let hasSubscribedTokenTrade = false;
+
+function cleanupConnection() {
+  if (connectionTimer) {
+    clearTimeout(connectionTimer);
+    connectionTimer = null;
+  }
+
+  if (ws) {
+    try {
+      ws.close(1000, 'Normal closure');
+    } catch (e) {
+      console.error('[PumpPortal] Error closing connection:', e);
+    }
+    ws = null;
+  }
+
+  hasSubscribedNewToken = false;
+  hasSubscribedTokenTrade = false;
+}
 
 function initializeWebSocket() {
   if (typeof window === 'undefined') return;
 
   // Skip if this is a vite-hmr connection
-  if (typeof window !== 'undefined' && 
-      (window.location.protocol === 'ws:' || window.location.pathname.includes('__vite'))) {
+  if (window.location.protocol === 'ws:' || window.location.pathname.includes('__vite')) {
     console.log('[PumpPortal] Skipping vite-hmr connection');
-    return;
-  }
-
-  // Rate limiting: Only attempt reconnection if enough time has passed
-  const now = Date.now();
-  const timeSinceLastConnection = now - lastConnectionTime;
-  if (timeSinceLastConnection < RECONNECT_DELAY) {
-    console.log(`[PumpPortal] Rate limiting: waiting ${(RECONNECT_DELAY - timeSinceLastConnection)/1000}s before next connection`);
-    reconnectTimeout = setTimeout(initializeWebSocket, RECONNECT_DELAY - timeSinceLastConnection);
     return;
   }
 
   const store = useTokenStore.getState();
 
-  // Clear any existing connection attempts
-  if (reconnectTimeout) {
-    clearTimeout(reconnectTimeout);
-    reconnectTimeout = null;
-  }
-
-  // Close existing connection if any
-  if (ws) {
-    try {
-      ws.close();
-    } catch (e) {
-      console.error('[PumpPortal] Error closing WebSocket:', e);
-    }
-    ws = null;
-  }
+  // Clean up any existing connection
+  cleanupConnection();
 
   try {
     console.log('[PumpPortal] Initializing WebSocket connection...');
     ws = new WebSocket(WS_URL);
-    lastConnectionTime = Date.now();
 
     ws.onopen = () => {
       console.log('[PumpPortal] Connected to WebSocket');
       store.setConnected(true);
       reconnectAttempts = 0;
-      hasSubscribedNewToken = false;
-      hasSubscribedTokenTrade = false;
 
-      // Add significant delay before subscribing to avoid overwhelming the server
+      // Subscribe to events with delay
       setTimeout(() => {
         if (ws?.readyState === WebSocket.OPEN && !hasSubscribedNewToken) {
           try {
@@ -108,7 +101,7 @@ function initializeWebSocket() {
             hasSubscribedNewToken = true;
             console.log('[PumpPortal] Subscribed to new token events');
 
-            // Wait longer before sending second subscription
+            // Wait before sending second subscription
             setTimeout(() => {
               if (ws?.readyState === WebSocket.OPEN && !hasSubscribedTokenTrade) {
                 ws.send(JSON.stringify({
@@ -118,18 +111,17 @@ function initializeWebSocket() {
                 hasSubscribedTokenTrade = true;
                 console.log('[PumpPortal] Subscribed to token trade events');
               }
-            }, 10000); // 10 second delay between subscriptions
+            }, 5000); // 5 second delay between subscriptions
           } catch (error) {
             console.error('[PumpPortal] Error sending subscriptions:', error);
           }
         }
-      }, 5000); // Wait 5 seconds after connection before first subscription
+      }, 2000); // Initial 2 second delay
     };
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('[PumpPortal] Received event:', data);
 
         if (data.message?.includes('Successfully subscribed')) {
           console.log('[PumpPortal] Subscription confirmed:', data.message);
@@ -165,19 +157,22 @@ function initializeWebSocket() {
     };
 
     ws.onclose = (event) => {
-      const closeReason = event.reason || 'No reason provided';
-      console.log(`[PumpPortal] WebSocket disconnected (${event.code}): ${closeReason}`);
-      store.setConnected(false);
-      hasSubscribedNewToken = false;
-      hasSubscribedTokenTrade = false;
+      if (event.code === 1000) {
+        console.log('[PumpPortal] WebSocket closed normally');
+      } else {
+        console.log(`[PumpPortal] WebSocket disconnected (${event.code}): ${event.reason || 'No reason provided'}`);
+      }
 
-      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      store.setConnected(false);
+      cleanupConnection();
+
+      if (event.code !== 1000 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
         reconnectAttempts++;
         console.log(`[PumpPortal] Will attempt to reconnect in ${delay/1000}s (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
-        reconnectTimeout = setTimeout(initializeWebSocket, delay);
-      } else {
-        console.error('[PumpPortal] Max reconnection attempts reached. Please refresh the page to try again.');
+        connectionTimer = setTimeout(initializeWebSocket, delay);
+      } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        console.error('[PumpPortal] Max reconnection attempts reached');
       }
     };
 
@@ -185,6 +180,7 @@ function initializeWebSocket() {
       console.error('[PumpPortal] WebSocket error:', error);
       store.setConnected(false);
     };
+
   } catch (error) {
     console.error('[PumpPortal] Failed to initialize WebSocket:', error);
     store.setConnected(false);
@@ -193,14 +189,18 @@ function initializeWebSocket() {
       const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
       reconnectAttempts++;
       console.log(`[PumpPortal] Will attempt to reconnect in ${delay/1000}s (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
-      reconnectTimeout = setTimeout(initializeWebSocket, delay);
+      connectionTimer = setTimeout(initializeWebSocket, delay);
     }
   }
 }
 
-// Initialize connection when in browser environment, with initial delay
+// Initialize connection when in browser environment
 if (typeof window !== 'undefined') {
-  setTimeout(initializeWebSocket, 30000); // Wait 30 seconds before first attempt
+  // Add cleanup handler
+  window.addEventListener('beforeunload', cleanupConnection);
+
+  // Initial connection with delay
+  setTimeout(initializeWebSocket, 2000);
 }
 
 // Function to fetch initial token data
@@ -213,9 +213,3 @@ export async function fetchRealTimeTokens(): Promise<Token[]> {
     return [];
   }
 }
-
-// Pre-fetch tokens and add to store (disabled for now to avoid rate limits)
-// queryClient.prefetchQuery({
-//   queryKey: ['/api/tokens/recent'],
-//   queryFn: fetchRealTimeTokens,
-// });

@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { usePumpPortalStore, TokenTrade, PumpPortalToken } from './pump-portal-websocket';
+import { usePumpPortalStore } from './pump-portal-websocket';
 import { calculatePumpFunTokenMetrics } from '@/utils/token-calculations';
 
 // Debug & Constants
@@ -24,17 +24,17 @@ console.log('🚀 WebSocket Manager Configuration:', {
 class WebSocketManager {
   private static instance: WebSocketManager;
   private ws: WebSocket | null = null;
-  private reconnectAttempts: number = 0;
   private heartbeatInterval: number | null = null;
+  private reconnectAttempts: number = 0;
   private reconnectTimeout: number | null = null;
   private solPrice: number = 0;
   private solPriceInterval: number | null = null;
-  private initialized: boolean = false;
   private subscriptions: Set<string> = new Set();
+  private initialized: boolean = false;
 
   private constructor() {
     if (typeof window !== 'undefined') {
-      window.addEventListener('beforeunload', () => this.cleanup());
+      window.addEventListener('beforeunload', this.cleanup.bind(this));
     }
   }
 
@@ -70,17 +70,20 @@ class WebSocketManager {
     console.log('🔌 Connecting to:', WS_URL);
 
     try {
+      if (this.ws) {
+        try {
+          this.ws.close(1000, 'Cleanup before new connection');
+        } catch (e) {
+          console.error('Error closing existing connection:', e);
+        }
+        this.ws = null;
+      }
+
       this.ws = new WebSocket(WS_URL);
       this.initialized = true;
       this.setupEventListeners();
       this.startHeartbeat();
       this.startSolPriceUpdates();
-
-      const currentTime = format(new Date(), UTC_DATE_FORMAT);
-      usePumpPortalStore.setState({
-        currentTime,
-        currentUser: CURRENT_USER
-      });
     } catch (error) {
       console.error('💀 Connection error:', error);
       this.updateConnectionStatus(false);
@@ -100,7 +103,8 @@ class WebSocketManager {
         console.log('💰 Updated SOL price:', this.solPrice);
 
         const store = usePumpPortalStore.getState();
-        if (store && typeof store.setSolPrice === 'function') {
+        console.log('[PumpPortal][setSolPrice]', { price: this.solPrice });
+        if (store.setSolPrice) {
           store.setSolPrice(this.solPrice);
           await this.updateAllTokenPrices();
         }
@@ -111,15 +115,12 @@ class WebSocketManager {
   }
 
   private startSolPriceUpdates(): void {
-    // Initial update
     this.updateSolPrice();
 
-    // Clear any existing interval
     if (this.solPriceInterval) {
       clearInterval(this.solPriceInterval);
     }
 
-    // Set new interval
     this.solPriceInterval = window.setInterval(() => {
       this.updateSolPrice();
     }, HEARTBEAT_INTERVAL);
@@ -135,12 +136,13 @@ class WebSocketManager {
       this.subscribeToEvents();
     };
 
+    this.ws.onmessage = this.handleMessage.bind(this);
+
     this.ws.onclose = (event) => {
       console.log('🔴 WebSocket disconnected', event.code, event.reason);
       this.updateConnectionStatus(false);
       this.stopHeartbeat();
 
-      // Don't reconnect if it's a normal closure or we're cleaning up
       if (event.code !== 1000 && this.initialized) {
         this.attemptReconnect();
       }
@@ -150,8 +152,6 @@ class WebSocketManager {
       console.error('⚠️ WebSocket error:', error);
       this.updateConnectionStatus(false);
     };
-
-    this.ws.onmessage = this.handleMessage.bind(this);
   }
 
   private subscribeToEvents(): void {
@@ -190,7 +190,7 @@ class WebSocketManager {
       switch (data.type) {
         case 'newToken':
           console.log('🆕 Processing new token:', data.mint);
-          if (store && typeof store.addToken === 'function') {
+          if (store.addToken) {
             store.addToken(data);
           }
           break;
@@ -215,7 +215,7 @@ class WebSocketManager {
 
   private async processTradeData(data: any): Promise<void> {
     const store = usePumpPortalStore.getState();
-    if (!store || typeof store.addTradeToHistory !== 'function') return;
+    if (!store.addTradeToHistory) return;
 
     try {
       const metrics = calculatePumpFunTokenMetrics({
@@ -224,7 +224,7 @@ class WebSocketManager {
         solPrice: this.solPrice
       });
 
-      const tradeData: TokenTrade = {
+      const tradeData = {
         ...data,
         timestamp: Date.now(),
         priceInSol: metrics.price.sol,
@@ -284,13 +284,10 @@ class WebSocketManager {
   }
 
   private updateTime(): void {
-    if (!this.initialized) return;
-
     const store = usePumpPortalStore.getState();
-    if (store) {
-      store.setState({
-        currentTime: format(new Date(), UTC_DATE_FORMAT)
-      });
+    const currentTime = format(new Date(), UTC_DATE_FORMAT);
+    if (store.updateTime) {
+      store.updateTime(currentTime);
     }
   }
 
@@ -325,18 +322,14 @@ class WebSocketManager {
     });
 
     const store = usePumpPortalStore.getState();
-    if (store) {
-      store.setState({
-        isConnected,
-        currentTime,
-        currentUser: CURRENT_USER
-      });
+    if (store.updateConnectionStatus) {
+      store.updateConnectionStatus(isConnected, currentTime, CURRENT_USER);
     }
   }
 
   private async updateAllTokenPrices(): Promise<void> {
     const store = usePumpPortalStore.getState();
-    if (!store || !store.tokens || this.solPrice <= 0) return;
+    if (!store.tokens || this.solPrice <= 0) return;
 
     console.log('🔄 Updating all token prices with SOL:', this.solPrice);
 
@@ -348,7 +341,11 @@ class WebSocketManager {
           solPrice: this.solPrice
         });
 
-        if (typeof store.updateTokenPrice === 'function') {
+        if (store.updateTokenPrice) {
+          console.log('[PumpPortal][updateTokenPrice]', {
+            address: token.address,
+            newPriceInUsd: metrics.price.usd
+          });
           await this.updateTokenPrice(token.address, metrics);
         }
       }
@@ -359,14 +356,14 @@ class WebSocketManager {
 
   private async updateTokenPrice(address: string, metrics: any): Promise<void> {
     const store = usePumpPortalStore.getState();
-    if (store && typeof store.updateTokenPrice === 'function') {
+    if (store.updateTokenPrice) {
       store.updateTokenPrice(address, metrics.price.usd);
     }
   }
 
   private isDevWalletTrade(tradeData: any): boolean {
     const store = usePumpPortalStore.getState();
-    if (!store || typeof store.getToken !== 'function') return false;
+    if (!store.getToken) return false;
 
     const token = store.getToken(tradeData.mint);
     const isDev = token?.devWallet === tradeData.traderPublicKey;
@@ -381,7 +378,6 @@ class WebSocketManager {
     return isDev;
   }
 
-  // Expose a controlled public API
   public getStatus(): boolean {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }

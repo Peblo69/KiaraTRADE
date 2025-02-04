@@ -5,6 +5,7 @@ import { wsManager } from './services/websocket';
 const PUMP_PORTAL_WS_URL = 'wss://pumpportal.fun/api/data';
 const TOTAL_SUPPLY = 1_000_000_000;
 const RECONNECT_DELAY = 5000;
+const PING_INTERVAL = 30000;
 
 async function fetchMetadataWithImage(uri: string) {
     try {
@@ -19,12 +20,10 @@ async function fetchMetadataWithImage(uri: string) {
             log('[PumpPortal] Processed IPFS URL to:', imageUrl);
         }
 
-        const processedMetadata = {
+        return {
             ...metadata,
             image: imageUrl
         };
-        log('[PumpPortal] Final processed metadata:', processedMetadata);
-        return processedMetadata;
     } catch (error) {
         console.error('[PumpPortal] Failed to fetch metadata:', error);
         return null;
@@ -33,30 +32,54 @@ async function fetchMetadataWithImage(uri: string) {
 
 export function initializePumpPortalWebSocket() {
     let ws: WebSocket | null = null;
+    let pingInterval: NodeJS.Timeout | null = null;
     let reconnectAttempt = 0;
     const MAX_RECONNECT_ATTEMPTS = 5;
     const activeConnections = new Set<WebSocket>();
+
+    function startPing() {
+        if (pingInterval) {
+            clearInterval(pingInterval);
+        }
+        pingInterval = setInterval(() => {
+            if (ws?.readyState === WebSocket.OPEN) {
+                try {
+                    ws.ping();
+                } catch (error) {
+                    console.error('[PumpPortal] Error sending ping:', error);
+                }
+            }
+        }, PING_INTERVAL);
+    }
+
+    function stopPing() {
+        if (pingInterval) {
+            clearInterval(pingInterval);
+            pingInterval = null;
+        }
+    }
 
     function connect() {
         try {
             if (ws) {
                 try {
-                    ws.terminate(); // Force close any existing connection
+                    ws.terminate();
                 } catch (e) {
                     console.error('[PumpPortal] Error terminating existing connection:', e);
                 }
                 ws = null;
             }
 
-            // Create new WebSocket with ping/pong enabled
             ws = new WebSocket(PUMP_PORTAL_WS_URL, {
-                perMessageDeflate: false
+                perMessageDeflate: false,
+                handshakeTimeout: 10000
             });
 
             ws.on('open', () => {
                 log('[PumpPortal] WebSocket connected');
                 reconnectAttempt = 0;
                 activeConnections.add(ws!);
+                startPing();
 
                 // Subscribe to events with delay
                 setTimeout(() => {
@@ -72,11 +95,10 @@ export function initializePumpPortalWebSocket() {
                                     keys: []
                                 }));
                             }
-                        }, 5000); // 5 second delay between subscriptions
+                        }, 5000);
                     }
-                }, 2000); // Initial 2 second delay
+                }, 2000);
 
-                // Broadcast connection status
                 wsManager.broadcast({
                     type: 'connection_status',
                     data: {
@@ -87,11 +109,18 @@ export function initializePumpPortalWebSocket() {
                 });
             });
 
-            // Handle pings to keep connection alive
             ws.on('ping', () => {
                 if (ws?.readyState === WebSocket.OPEN) {
-                    ws.pong();
+                    try {
+                        ws.pong();
+                    } catch (error) {
+                        console.error('[PumpPortal] Error sending pong:', error);
+                    }
                 }
+            });
+
+            ws.on('pong', () => {
+                // Connection is alive
             });
 
             ws.on('message', async (rawData) => {
@@ -116,7 +145,6 @@ export function initializePumpPortalWebSocket() {
                             try {
                                 tokenMetadata = await fetchMetadataWithImage(data.uri);
                                 imageUrl = tokenMetadata?.image;
-                                log('[PumpPortal] Successfully fetched metadata and image:', { metadata: tokenMetadata, imageUrl });
                             } catch (error) {
                                 console.error('[PumpPortal] Error fetching metadata:', error);
                             }
@@ -166,12 +194,12 @@ export function initializePumpPortalWebSocket() {
                 }
             });
 
-            ws.on('close', (code, reason) => {
-                log('[PumpPortal] WebSocket disconnected:', code, reason?.toString());
+            ws.on('close', (code) => {
+                log('[PumpPortal] WebSocket disconnected:', code);
                 activeConnections.delete(ws!);
+                stopPing();
                 ws = null;
 
-                // Broadcast disconnection status
                 wsManager.broadcast({
                     type: 'connection_status',
                     data: {
@@ -181,7 +209,6 @@ export function initializePumpPortalWebSocket() {
                     }
                 });
 
-                // Only attempt reconnect for unexpected closures
                 if (code !== 1000 && reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
                     reconnectAttempt++;
                     log(`[PumpPortal] Attempting reconnect ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}`);
@@ -193,10 +220,9 @@ export function initializePumpPortalWebSocket() {
 
             ws.on('error', (error) => {
                 console.error('[PumpPortal] WebSocket error:', error);
-
                 if (error.message.includes('ECONNREFUSED')) {
                     console.error('[PumpPortal] Connection refused, possible rate limit');
-                    reconnectAttempt = MAX_RECONNECT_ATTEMPTS; // Skip further attempts
+                    reconnectAttempt = MAX_RECONNECT_ATTEMPTS;
                 }
             });
 
@@ -209,11 +235,10 @@ export function initializePumpPortalWebSocket() {
         }
     }
 
-    // Start the initial connection
     connect();
 
-    // Return cleanup function
     return () => {
+        stopPing();
         if (ws) {
             activeConnections.delete(ws);
             ws.close(1000, 'Cleanup');
