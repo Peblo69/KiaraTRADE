@@ -3,12 +3,6 @@ import { TrendingUp, DollarSign, BarChart2, Shield, X, Bot, Send, Copy, CheckCir
 import { usePumpPortalStore } from '../lib/pump-portal-store';
 import { formatNumber } from '../lib/utils';
 
-interface SecurityItem {
-  label: string;
-  value: string;
-  status?: 'success' | 'warning' | 'danger';
-}
-
 interface TopBarProps {
   tokenAddress?: string;
 }
@@ -24,27 +18,31 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
 
   // Get token data from PumpPortal store
   const token = usePumpPortalStore(state => state.tokens.find(t => t.address === tokenAddress));
+
   const [marketStats, setMarketStats] = useState({
-    symbol: token?.symbol || 'Loading...',
-    name: token?.name || 'Loading...',
-    price: token?.priceInUsd || 0,
-    marketCap: token?.marketCapSol || 0,
-    liquidity: token?.vSolInBondingCurve || 0,
+    symbol: 'Loading...',
+    name: 'Loading...',
+    price: 0,
+    marketCap: 0,
+    liquidity: 0,
     priceChange24h: 0,
-    imageUrl: token?.metadata?.imageUrl || token?.imageUrl
+    imageUrl: ''
   });
 
   // Update market stats when token data changes
   useEffect(() => {
     if (token) {
+      // Get the image URL from token data
+      const imageUrl = token.metadata?.imageUrl || token.imageUrl;
+
       const newStats = {
-        symbol: token.symbol || 'Loading...',
-        name: token.name || 'Loading...',
+        symbol: token.symbol,
+        name: token.name,
         price: token.priceInUsd || 0,
         marketCap: token.marketCapSol || 0,
         liquidity: token.vSolInBondingCurve || 0,
         priceChange24h: 0,
-        imageUrl: token.metadata?.imageUrl || token.imageUrl
+        imageUrl
       };
 
       if (token.recentTrades?.length > 0) {
@@ -63,14 +61,6 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
       setMarketStats(newStats);
     }
   }, [token]);
-
-  const securityItems: SecurityItem[] = [
-    { label: 'Is Mintable', value: token?.metadata?.mint ? 'YES' : 'NO', status: token?.metadata?.mint ? 'danger' : 'success' },
-    { label: 'Is Token Data Mutable', value: token?.metadata?.uri ? 'YES' : 'NO', status: token?.metadata?.uri ? 'warning' : 'success' },
-    { label: 'Liquidity', value: formatNumber(token?.vSolInBondingCurve || 0), status: token?.vSolInBondingCurve ? 'success' : 'warning' },
-    { label: 'Market Cap', value: formatNumber(token?.marketCapSol || 0), status: 'success' },
-    { label: 'Dev Wallet', value: token?.devWallet?.slice(0, 6) || 'N/A', status: 'warning' },
-  ];
 
   const copyTokenAddress = () => {
     if (tokenAddress) {
@@ -94,9 +84,6 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
     }, 1000);
   };
 
-  // Only render if we have a token
-  if (!token) return null;
-
   return (
     <div className="bg-[#0D0B1F]/80 backdrop-blur-sm border-b border-purple-900/30 mb-4">
       <div className="container mx-auto px-4 py-2">
@@ -106,9 +93,13 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-2">
                 <img
-                  src={marketStats.imageUrl || token.imageUrl || "https://cryptologos.cc/logos/bitcoin-btc-logo.png"}
+                  src={marketStats.imageUrl || "https://cryptologos.cc/logos/bitcoin-btc-logo.png"}
                   alt={marketStats.symbol}
                   className="w-6 h-6 rounded-full"
+                  onError={(e) => {
+                    const img = e.target as HTMLImageElement;
+                    img.src = "https://cryptologos.cc/logos/bitcoin-btc-logo.png";
+                  }}
                 />
                 <div className="flex flex-col">
                   <div className="flex items-center space-x-2">
@@ -215,7 +206,7 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
           <div className="flex items-center justify-between p-3 border-b border-[#2A2A2A]">
             <div className="flex items-center space-x-2">
               <Shield className="w-4 h-4 text-purple-400" />
-              <h2 className="text-sm font-medium text-[#E5E5E5]">Security Audit</h2>
+              <h2 className="text-sm font-medium text-[#E5E5E5]">Security Check</h2>
             </div>
             <button
               className="text-purple-400 hover:text-purple-300 p-1"
@@ -228,21 +219,26 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
           <div className="flex-1 overflow-y-auto">
             <div className="p-4 space-y-4">
               <div className="text-center mb-6">
-                <h3 className="text-base font-medium text-[#E5E5E5] mb-2">No Security Issue Detected</h3>
+                <h3 className="text-base font-medium text-[#E5E5E5] mb-2">Security Check</h3>
                 <p className="text-xs text-[#9CA3AF]">
-                  If you proceed to trade, do so with caution and review the complete security audit carefully.
+                  Review the complete security audit carefully before proceeding.
                 </p>
               </div>
 
               <div className="space-y-3">
-                {securityItems.map((item, index) => (
+                {[
+                  { label: 'Is Mintable', value: token?.metadata?.mint ? 'YES' : 'NO', status: token?.metadata?.mint ? 'danger' : 'success' },
+                  { label: 'Is Token Data Mutable', value: token?.metadata?.uri ? 'YES' : 'NO', status: token?.metadata?.uri ? 'warning' : 'success' },
+                  { label: 'Liquidity', value: formatNumber(token?.vSolInBondingCurve || 0), status: token?.vSolInBondingCurve ? 'success' : 'warning' },
+                  { label: 'Market Cap', value: formatNumber(token?.marketCapSol || 0), status: 'success' },
+                  { label: 'Dev Wallet', value: token?.devWallet?.slice(0, 6) || 'N/A', status: 'warning' },
+                ].map((item, index) => (
                   <div key={index} className="flex items-center justify-between py-2 border-b border-[#2A2A2A]">
                     <span className="text-[#9CA3AF] text-xs">{item.label}</span>
                     <span className={`text-xs font-medium ${
                       item.status === 'success' ? 'text-[#10B981]' :
                         item.status === 'warning' ? 'text-[#FBBF24]' :
-                          item.status === 'danger' ? 'text-[#EF4444]' :
-                            'text-[#E5E5E5]'
+                          'text-[#EF4444]'
                     }`}>
                       {item.value}
                     </span>
@@ -259,12 +255,6 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
             >
               Proceed to Trade
             </button>
-            <button
-              className="w-full text-xs text-[#9CA3AF] hover:text-[#E5E5E5] transition-colors"
-              onClick={() => setIsSecurityPanelOpen(false)}
-            >
-              Never show this again
-            </button>
           </div>
         </div>
       )}
@@ -272,21 +262,6 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
       {/* KIARA Panel */}
       {isKiaraPanelOpen && (
         <div className="fixed inset-y-0 left-0 w-80 bg-black/95 backdrop-blur-md transform z-50 flex flex-col border-r border-yellow-600/20">
-          {[...Array(10)].map((_, i) => (
-            <div
-              key={i}
-              className="particle"
-              style={{
-                width: Math.random() * 4 + 'px',
-                height: Math.random() * 4 + 'px',
-                top: Math.random() * 100 + '%',
-                left: Math.random() * 100 + '%',
-                animationDelay: `${Math.random() * 2}s`,
-                background: 'radial-gradient(circle at center, rgba(255, 215, 0, 0.3), transparent)'
-              }}
-            />
-          ))}
-
           <div className="flex items-center justify-between p-3 border-b border-[#2A2A2A]">
             <div className="flex items-center space-x-2">
               <Bot className="w-4 h-4 text-[#FFD700]" />
@@ -306,7 +281,7 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
                 msg.type === 'ai'
                   ? 'bg-[#1A1A1A] text-[#E5E5E5]'
                   : 'bg-[#2A2A2A] text-[#E5E5E5]'
-              }`}>
+              } p-3 rounded-lg`}>
                 {msg.content}
               </div>
             ))}
