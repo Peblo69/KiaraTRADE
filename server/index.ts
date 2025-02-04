@@ -4,8 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import http from 'http';
 
 const app = express();
-const PORT = process.env.PORT || 4000; // Changed to use port 4000 instead
-
+const port = 5000;
 let server: http.Server | null = null;
 
 app.use(express.json());
@@ -53,14 +52,15 @@ async function startServer() {
       server.close(() => {
         log('Closed any existing port bindings');
 
-        server?.listen(PORT, '0.0.0.0', () => {
+        server?.listen(port, '0.0.0.0', () => {
           log(`🚀 Server Status:`);
-          log(`📡 Running on 0.0.0.0:${PORT}`);
+          log(`📡 Internal: Running on 0.0.0.0:${port}`);
+          log(`🌍 External: Mapped to port 80`);
           log(`⏰ Started at: ${new Date().toISOString()}`);
           resolve();
         }).on('error', (error: any) => {
           if (error.code === 'EADDRINUSE') {
-            log(`Port ${PORT} is already in use. Attempting to close existing connections...`);
+            log(`Port ${port} is already in use. Attempting to close existing connections...`);
             server = null;
           }
           reject(error);

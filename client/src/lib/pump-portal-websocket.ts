@@ -135,9 +135,6 @@ export const usePumpPortalStore = create(
 
       addToken: (tokenData) =>
         set((state) => {
-          if (state.tokens.some(t => t.address === tokenData.address)) {
-            return state; // Skip if token already exists
-          }
           debugLog("addToken", tokenData);
           debugLog("Token URI:", tokenData.uri || tokenData.metadata?.uri);
 
