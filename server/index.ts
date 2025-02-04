@@ -4,6 +4,11 @@ import { setupVite, serveStatic, log } from "./vite";
 import http from 'http';
 
 const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+});
 const port = 5000;
 let server: http.Server | null = null;
 
