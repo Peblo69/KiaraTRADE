@@ -94,10 +94,10 @@ const PumpFunVision: FC = () => {
                 <div className="grid grid-cols-12 gap-4 h-full">
                   {/* Left Column - Market Stats & Social Metrics */}
                   <div className="col-span-2 space-y-2 h-full overflow-auto">
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[49%]">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[29%]">
                       <MarketStats tokenAddress={selectedToken} />
                     </div>
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[49%]">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[19%]">
                       <SocialMetrics tokenAddress={selectedToken} />
                     </div>
                   </div>
@@ -118,13 +118,13 @@ const PumpFunVision: FC = () => {
 
                   {/* Right Column - Trading Form & Holder Analytics */}
                   <div className="col-span-3 h-full flex flex-col gap-4">
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[33%]">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[45%]">
                       <TradingForm tokenAddress={selectedToken} />
                     </div>
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[33%]">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[50%]">
                       <HolderAnalytics tokenAddress={selectedToken} />
                     </div>
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[33%]">
+                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[45%]">
                       <WalletTracker />
                     </div>
                   </div>
