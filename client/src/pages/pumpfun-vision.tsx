@@ -127,7 +127,7 @@ const PumpFunVision: FC = () => {
                   </div>
                 </div>
                 {/* Bottom Section - Holder Analytics */}
-                <div className="mt-4">
+                <div style={{ marginTop: "70px" }}>
                   <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
                     <HolderAnalytics tokenAddress={selectedToken} />
                   </div>
