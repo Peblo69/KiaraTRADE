@@ -6,20 +6,19 @@ interface TradingChartProps {
 }
 
 declare global {
-    interface Window {
-      TradingView: any;
-    }
+  interface Window {
+    TradingView: any;
   }
+}
 
-  const TradingChart: React.FC<TradingChartProps> = ({ tokenAddress }) => {
-    const chartContainerRef = useRef<HTMLDivElement>(null);
-    const widgetRef = useRef<any>(null);
-    const scriptLoaded = useRef(false);
+const TradingChart: React.FC<TradingChartProps> = ({ tokenAddress }) => {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const widgetRef = useRef<any>(null);
 
-    // Get token data from store based on tokenAddress
-    const token = usePumpPortalStore(state => 
-      tokenAddress ? state.getToken(tokenAddress) : null
-    );
+  // Get token data from store based on tokenAddress
+  const token = usePumpPortalStore(state => 
+    tokenAddress ? state.getToken(tokenAddress) : null
+  );
 
   useEffect(() => {
     if (!chartContainerRef.current || !token || !tokenAddress) return;
@@ -29,10 +28,13 @@ declare global {
       widgetRef.current.remove();
     }
 
+    // Format symbol for TradingView
+    const symbol = `SOLANAFUN:${token.symbol}USD`;
+
     // Initialize TradingView widget
     widgetRef.current = new window.TradingView.widget({
-      container: chartContainerRef.current,
-      symbol: token.symbol,
+      container_id: chartContainerRef.current.id,
+      symbol: symbol,
       interval: 'D',
       timezone: 'Etc/UTC',
       theme: 'dark',
@@ -51,22 +53,8 @@ declare global {
       popup_height: '650',
       width: '100%',
       height: '100%',
-      timezone: 'Etc/UTC',
-      theme: 'dark',
-      style: '1',
-      locale: 'en',
-      toolbar_bg: '#f1f3f6',
-      enable_publishing: false,
-      allow_symbol_change: true,
-      details: true,
-      hide_side_toolbar: false,
-      withdateranges: true,
-      save_image: false,
       studies: ['MACD@tv-basicstudies'],
-      show_popup_button: true,
-      popup_width: '1000',
-      popup_height: '650',
-      // Other TradingView widget configurations...
+      save_image: false,
     });
 
     // Cleanup on unmount
@@ -75,11 +63,11 @@ declare global {
         widgetRef.current.remove();
       }
     };
-  }, [token, tokenAddress]); // Re-run when token or tokenAddress changes
+  }, [token, tokenAddress]);
 
   return (
     <div className="relative bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
-      <div className="h-[600px]" ref={chartContainerRef} />
+      <div id="trading_chart" className="h-[600px]" ref={chartContainerRef} />
     </div>
   );
 };
