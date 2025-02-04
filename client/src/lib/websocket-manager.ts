@@ -170,14 +170,34 @@ class WebSocketManager {
     };
   }
 
-  private async handleMessage(message: WebSocketMessage): Promise<void> {
-    const store = usePumpPortalStore.getState();
+  private messageQueue: WebSocketMessage[] = [];
+  private processingTimeout: NodeJS.Timeout | null = null;
+  private readonly BATCH_TIMEOUT = 500; // Process messages every 500ms
 
-    switch (message.type) {
-      case 'newToken':
-        console.log('🆕 New token:', message.data.mint);
-        store.addToken(message.data);
-        break;
+  private async handleMessage(message: WebSocketMessage): Promise<void> {
+    this.messageQueue.push(message);
+    
+    if (!this.processingTimeout) {
+      this.processingTimeout = setTimeout(() => {
+        this.processBatchedMessages();
+      }, this.BATCH_TIMEOUT);
+    }
+  }
+
+  private async processBatchedMessages(): Promise<void> {
+    const store = usePumpPortalStore.getState();
+    const messages = [...this.messageQueue];
+    this.messageQueue = [];
+    this.processingTimeout = null;
+
+    const newTokens = new Map();
+    const trades = new Map();
+
+    for (const message of messages) {
+      switch (message.type) {
+        case 'newToken':
+          newTokens.set(message.data.mint, message.data);
+          break;
 
       case 'trade':
         if (message.data?.mint) {

@@ -22,7 +22,15 @@ let ws: WebSocket | null = null;
 let reconnectTimeout: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
 
+let activeConnection: WebSocket | null = null;
+
 export const useHeliusStore = create<HeliusStore>((set, get) => ({
+  disconnect: () => {
+    if (activeConnection) {
+      activeConnection.close();
+      activeConnection = null;
+    }
+  },
   isConnected: false,
   subscribedTokens: new Set(),
   solPrice: 0,
