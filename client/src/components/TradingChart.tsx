@@ -1,9 +1,8 @@
-
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
 interface TradingChartProps {
-  tokenAddress: string;
+  tokenAddress?: string;
 }
 
 declare global {
@@ -15,62 +14,61 @@ declare global {
 const TradingChart: React.FC<TradingChartProps> = ({ tokenAddress }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<any>(null);
-  const [scriptLoaded, setScriptLoaded] = useState(false);
-  const token = usePumpPortalStore(state => state.tokens.find(t => t.address === tokenAddress));
+
+  // Get token data from store based on tokenAddress
+  const token = usePumpPortalStore(state => 
+    tokenAddress ? state.getToken(tokenAddress) : null
+  );
 
   useEffect(() => {
-    const script = document.createElement('script');
-    script.type = 'text/javascript';
-    script.src = 'https://s3.tradingview.com/tv.js';
-    script.async = true;
-    script.onload = () => setScriptLoaded(true);
-    document.head.appendChild(script);
+    if (!chartContainerRef.current || !token || !tokenAddress) return;
 
-    return () => {
-      document.head.removeChild(script);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!chartContainerRef.current || !token || !scriptLoaded || !window.TradingView) return;
-
+    // Cleanup previous widget instance
     if (widgetRef.current) {
       widgetRef.current.remove();
     }
 
+    // Format symbol for TradingView
+    const symbol = `SOLANAFUN:${token.symbol}USD`;
+
+    // Initialize TradingView widget
     widgetRef.current = new window.TradingView.widget({
-      autosize: true,
-      symbol: `BINANCE:${token.symbol}USDT`,
-      interval: '1',
+      container_id: chartContainerRef.current.id,
+      symbol: symbol,
+      interval: 'D',
       timezone: 'Etc/UTC',
       theme: 'dark',
       style: '1',
       locale: 'en',
       toolbar_bg: '#f1f3f6',
       enable_publishing: false,
-      allow_symbol_change: true,
-      container_id: chartContainerRef.current.id,
+      withdateranges: true,
       hide_side_toolbar: false,
-      studies: [
-        'RSI@tv-basicstudies',
-        'MASimple@tv-basicstudies',
-        'VWAP@tv-basicstudies'
-      ]
+      allow_symbol_change: true,
+      details: true,
+      hotlist: true,
+      calendar: true,
+      show_popup_button: true,
+      popup_width: '1000',
+      popup_height: '650',
+      width: '100%',
+      height: '100%',
+      studies: ['MACD@tv-basicstudies'],
+      save_image: false,
     });
 
+    // Cleanup on unmount
     return () => {
       if (widgetRef.current) {
         widgetRef.current.remove();
       }
     };
-  }, [token, scriptLoaded]);
+  }, [token, tokenAddress]);
 
   return (
-    <div 
-      id="tradingview_chart" 
-      ref={chartContainerRef} 
-      className="w-full h-full min-h-[500px]"
-    />
+    <div className="relative bg-[#0D0B1F] rounded-lg p-4 border border-purple-900/30">
+      <div id="trading_chart" className="h-[600px]" ref={chartContainerRef} />
+    </div>
   );
 };
 
