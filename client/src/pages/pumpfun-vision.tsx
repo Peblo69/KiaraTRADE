@@ -103,7 +103,7 @@ const PumpFunVision: FC = () => {
                   </div>
 
                   {/* Main Trading Area */}
-                  <div className="col-span-7 flex flex-col h-full">
+                  <div className="col-span-7 flex flex-col h-full space-y-2">
                     <div className="flex-grow">
                       <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-full">
                         <TradingChart tokenAddress={selectedToken} />
