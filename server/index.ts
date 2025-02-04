@@ -4,12 +4,8 @@ import { setupVite, serveStatic, log } from "./vite";
 import http from 'http';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000; // Changed to use port 4000 instead
 
-//app.listen(PORT, '0.0.0.0', () => {
-//  console.log(`Server running on port ${PORT}`);
-//});
-const port = 5000; // This line is now redundant but left for context. Removing this will not solve the problem.
 let server: http.Server | null = null;
 
 app.use(express.json());
