@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { TrendingUp, DollarSign, BarChart2, Shield, X, Bot, Send, Copy, CheckCircle, ExternalLink } from 'lucide-react';
-import { useUnifiedTokenStore } from '@/lib/unified-token-store';
-import { formatNumber } from '@/lib/utils';
+import React, { useState } from 'react';
+import { TrendingUp, Clock, DollarSign, BarChart2, Shield, X, Bot, Send, Copy, CheckCircle, ExternalLink } from 'lucide-react';
 
 interface SecurityItem {
   label: string;
@@ -18,26 +16,21 @@ const TopBar: React.FC = () => {
     { type: 'ai', content: "Hello! I am KIARA, your AI trading assistant. How can I help you today?" }
   ]);
 
-  // Get current token data from the unified store
-  const { currentToken, marketData } = useUnifiedTokenStore();
-
   const securityItems: SecurityItem[] = [
-    { label: 'Is Mintable', value: currentToken?.isMintable ? 'YES' : 'NO', status: currentToken?.isMintable ? 'warning' : 'success' },
-    { label: 'Is Token Data Mutable', value: currentToken?.isMutable ? 'YES' : 'NO', status: currentToken?.isMutable ? 'warning' : 'success' },
-    { label: 'Is Freezable?', value: currentToken?.isFreezable ? 'YES' : 'NO', status: currentToken?.isFreezable ? 'warning' : 'success' },
-    { label: 'Update Authority', value: currentToken?.updateAuthority?.slice(0, 6) || 'N/A', status: 'warning' },
-    { label: 'Owner Balance', value: formatNumber(currentToken?.ownerBalance || 0), status: 'success' },
-    { label: 'LP Burned', value: `${formatNumber(currentToken?.lpBurnedPercentage || 0)}%`, status: 'success' },
-    { label: 'Top 10 Holders', value: `${formatNumber(currentToken?.top10HoldersPercentage || 0)}%`, status: 'success' },
-    { label: 'Deployer Address', value: currentToken?.deployerAddress?.slice(0, 6) || 'N/A', status: 'warning' }
+    { label: 'Is Mintable', value: 'NO', status: 'success' },
+    { label: 'Is Token Data Mutable', value: 'NO', status: 'success' },
+    { label: 'Is Freezable?', value: 'NO', status: 'success' },
+    { label: 'Update Authority', value: 'LVDD1P', status: 'warning' },
+    { label: 'Owner Balance', value: '0', status: 'success' },
+    { label: 'LP Burned', value: '100%', status: 'success' },
+    { label: 'Top 10 Holders', value: '1.07%', status: 'success' },
+    { label: 'Deployer Address', value: 'ROPARL', status: 'warning' }
   ];
 
   const copyTokenAddress = () => {
-    if (currentToken?.address) {
-      navigator.clipboard.writeText(currentToken.address);
-      setCopiedAddress(true);
-      setTimeout(() => setCopiedAddress(false), 2000);
-    }
+    navigator.clipboard.writeText("0x1234...5678");
+    setCopiedAddress(true);
+    setTimeout(() => setCopiedAddress(false), 2000);
   };
 
   const sendMessage = () => {
@@ -46,7 +39,6 @@ const TopBar: React.FC = () => {
     setChatMessages(prev => [...prev, { type: 'user', content: message }]);
     setMessage('');
 
-    // Simulate AI response
     setTimeout(() => {
       setChatMessages(prev => [...prev, { 
         type: 'ai', 
@@ -65,13 +57,13 @@ const TopBar: React.FC = () => {
               <div className="flex items-center space-x-3">
                 <div className="flex items-center space-x-2">
                   <img 
-                    src={currentToken?.logoUrl || "https://cryptologos.cc/logos/unknown-token-logo.png"}
-                    alt={currentToken?.symbol || "Token"}
+                    src="https://cryptologos.cc/logos/bitcoin-btc-logo.png" 
+                    alt="BTC"
                     className="w-6 h-6"
                   />
                   <div className="flex flex-col">
                     <div className="flex items-center space-x-2">
-                      <span className="text-white font-medium">{currentToken?.symbol || "..."}</span>
+                      <span className="text-white font-medium">BTC</span>
                       <button 
                         onClick={copyTokenAddress}
                         className="p-1 hover:bg-purple-900/40 rounded transition-colors"
@@ -86,13 +78,11 @@ const TopBar: React.FC = () => {
                     <div className="flex items-center space-x-2">
                       <div className="flex items-center space-x-2">
                         <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
-                        <span className={`text-xs font-medium ${marketData?.priceChange24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          ${formatNumber(marketData?.currentPrice || 0, 2)}
-                        </span>
+                        <span className="text-green-400 text-xs font-medium">$46,789.00</span>
                       </div>
                       <div className="flex items-center space-x-1">
                         <a
-                          href={`https://solscan.io/token/${currentToken?.address}`}
+                          href="https://solscan.io/token/YOUR_TOKEN_ADDRESS"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="p-1 hover:bg-purple-900/40 rounded transition-colors"
@@ -104,7 +94,7 @@ const TopBar: React.FC = () => {
                           />
                         </a>
                         <a
-                          href={`https://www.pump.fun/token/${currentToken?.address}`}
+                          href="https://www.pump.fun/token/YOUR_TOKEN_ADDRESS"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="p-1 hover:bg-purple-900/40 rounded transition-colors"
@@ -117,33 +107,28 @@ const TopBar: React.FC = () => {
                 </div>
               </div>
 
-              {/* Market Stats - Updated to use real data */}
+              {/* Market Stats - Updated to match reference */}
               <div className="flex items-center space-x-6">
                 <div className="flex items-center space-x-2">
                   <DollarSign className="w-3.5 h-3.5 text-purple-400" />
                   <span className="text-purple-300 text-xs">Mkt Cap:</span>
-                  <span className="text-purple-100 text-xs font-medium">
-                    ${formatNumber(marketData?.marketCap || 0)}
-                  </span>
+                  <span className="text-purple-100 text-xs font-medium">$4.44K</span>
                 </div>
 
                 <div className="flex items-center space-x-2">
                   <BarChart2 className="w-3.5 h-3.5 text-purple-400" />
                   <span className="text-purple-300 text-xs">Liquidity:</span>
-                  <span className="text-purple-100 text-xs font-medium">
-                    ${formatNumber(marketData?.liquidity || 0)}
-                  </span>
+                  <span className="text-purple-100 text-xs font-medium">$6.89K</span>
                 </div>
 
                 <div className="flex items-center space-x-2">
                   <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
-                  <span className="text-purple-300 text-xs">24h Change:</span>
-                  <span className={`text-xs font-medium ${marketData?.priceChange24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {formatNumber(marketData?.priceChange24h || 0, 2)}%
-                  </span>
+                  <span className="text-purple-300 text-xs">B.Curve:</span>
+                  <span className="text-green-400 text-xs font-medium">0.32%</span>
                 </div>
               </div>
             </div>
+
             <div className="flex items-center space-x-3">
               <button 
                 className="btn-kiara flex items-center space-x-1 cursor-pointer"
