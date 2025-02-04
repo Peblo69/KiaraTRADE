@@ -103,13 +103,13 @@ const PumpFunVision: FC = () => {
                   </div>
 
                   {/* Main Trading Area */}
-                  <div className="col-span-7 space-y-4 h-full overflow-auto">
-                    <div className="h-[70%]">
+                  <div className="col-span-7 flex flex-col gap-4 h-full">
+                    <div className="flex-1 min-h-0"> {/* min-h-0 is crucial here */}
                       <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-full">
                         <TradingChart tokenAddress={selectedToken} />
                       </div>
                     </div>
-                    <div className="h-[30%]">
+                    <div className="h-[250px]"> {/* Fixed height for trade history */}
                       <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-full">
                         <TradeHistory tokenAddress={selectedToken} />
                       </div>
