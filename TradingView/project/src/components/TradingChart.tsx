@@ -1,3 +1,4 @@
+
 import React, { FC, useState, useCallback, Suspense, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Filter, ArrowLeft } from "lucide-react";
@@ -6,17 +7,13 @@ import OrderBook from "@/components/OrderBook";
 import MarketStats from "@/components/MarketStats";
 import SocialMetrics from "@/components/SocialMetrics";
 import HolderAnalytics from "@/components/HolderAnalytics";
-import WalletTracker from "@/components/WalletTracker";
-import TopBar from "@/components/TopBar";
+import WalletTracker from "@/components/WalletDisplay";
+import TopBar from "@/components/Navbar";
 import TradingChart from "@/components/TradingChart";
 import TokenCard from "@/components/TokenCard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-
-// Import components
 import TradeHistory from "@/components/TradeHistory";
 import TradingForm from "@/components/TradingForm";
-
-// Import Helius trade integration
 import { heliusTradeIntegration } from "@/lib/helius-trade-integration";
 
 const PumpFunVision: FC = () => {
@@ -25,7 +22,6 @@ const PumpFunVision: FC = () => {
   const isConnected = usePumpPortalStore(state => state.isConnected);
   const setActiveTokenView = usePumpPortalStore(state => state.setActiveTokenView);
 
-  // Start Helius integration on mount
   useEffect(() => {
     heliusTradeIntegration.connect();
     return () => {
