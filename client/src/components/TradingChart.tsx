@@ -5,14 +5,21 @@ interface TradingChartProps {
   tokenAddress?: string;
 }
 
-const TradingChart: React.FC<TradingChartProps> = ({ tokenAddress }) => {
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const widgetRef = useRef<any>(null);
+declare global {
+    interface Window {
+      TradingView: any;
+    }
+  }
 
-  // Get token data from store based on tokenAddress
-  const token = usePumpPortalStore(state => 
-    tokenAddress ? state.getToken(tokenAddress) : null
-  );
+  const TradingChart: React.FC<TradingChartProps> = ({ tokenAddress }) => {
+    const chartContainerRef = useRef<HTMLDivElement>(null);
+    const widgetRef = useRef<any>(null);
+    const scriptLoaded = useRef(false);
+
+    // Get token data from store based on tokenAddress
+    const token = usePumpPortalStore(state => 
+      tokenAddress ? state.getToken(tokenAddress) : null
+    );
 
   useEffect(() => {
     if (!chartContainerRef.current || !token || !tokenAddress) return;
@@ -24,9 +31,26 @@ const TradingChart: React.FC<TradingChartProps> = ({ tokenAddress }) => {
 
     // Initialize TradingView widget
     widgetRef.current = new window.TradingView.widget({
-      container_id: chartContainerRef.current,
-      symbol: `BINANCE:${token.symbol}USD`, // Adjust symbol format as needed
-      interval: '1',
+      container: chartContainerRef.current,
+      symbol: token.symbol,
+      interval: 'D',
+      timezone: 'Etc/UTC',
+      theme: 'dark',
+      style: '1',
+      locale: 'en',
+      toolbar_bg: '#f1f3f6',
+      enable_publishing: false,
+      withdateranges: true,
+      hide_side_toolbar: false,
+      allow_symbol_change: true,
+      details: true,
+      hotlist: true,
+      calendar: true,
+      show_popup_button: true,
+      popup_width: '1000',
+      popup_height: '650',
+      width: '100%',
+      height: '100%',
       timezone: 'Etc/UTC',
       theme: 'dark',
       style: '1',
