@@ -100,7 +100,7 @@ const TradeHistory: React.FC<Props> = ({ tokenAddress = 'default-token' }) => {
 
       {/* Trade History List */}
       <div 
-        className="p-2 h-[600px] overflow-y-auto scrollbar-hide" 
+        className="p-2 h-[250px] overflow-y-auto scrollbar-hide" 
         onScroll={(e) => {
           const bottom = e.currentTarget.scrollHeight - e.currentTarget.scrollTop === e.currentTarget.clientHeight;
           if (bottom && trades.length > displayCount) {
