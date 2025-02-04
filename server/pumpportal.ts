@@ -35,27 +35,46 @@ export function initializePumpPortalWebSocket() {
     let ws: WebSocket | null = null;
     let reconnectAttempt = 0;
     const MAX_RECONNECT_ATTEMPTS = 5;
+    const activeConnections = new Set<WebSocket>();
 
     function connect() {
         try {
-            ws = new WebSocket(PUMP_PORTAL_WS_URL);
-
-            ws.onopen = () => {
-                log('[PumpPortal] WebSocket connected');
-                reconnectAttempt = 0; // Reset reconnect attempts on successful connection
-
-                // Subscribe to events
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({
-                        method: "subscribeNewToken",
-                        keys: []
-                    }));
-
-                    ws.send(JSON.stringify({
-                        method: "subscribeTokenTrades",
-                        keys: []
-                    }));
+            if (ws) {
+                try {
+                    ws.terminate(); // Force close any existing connection
+                } catch (e) {
+                    console.error('[PumpPortal] Error terminating existing connection:', e);
                 }
+                ws = null;
+            }
+
+            // Create new WebSocket with ping/pong enabled
+            ws = new WebSocket(PUMP_PORTAL_WS_URL, {
+                perMessageDeflate: false
+            });
+
+            ws.on('open', () => {
+                log('[PumpPortal] WebSocket connected');
+                reconnectAttempt = 0;
+                activeConnections.add(ws!);
+
+                // Subscribe to events with delay
+                setTimeout(() => {
+                    if (ws?.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
+                            method: "subscribeNewToken"
+                        }));
+
+                        setTimeout(() => {
+                            if (ws?.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({
+                                    method: "subscribeTokenTrades",
+                                    keys: []
+                                }));
+                            }
+                        }, 5000); // 5 second delay between subscriptions
+                    }
+                }, 2000); // Initial 2 second delay
 
                 // Broadcast connection status
                 wsManager.broadcast({
@@ -66,11 +85,20 @@ export function initializePumpPortalWebSocket() {
                         currentUser: "Peblo69"
                     }
                 });
-            };
+            });
 
-            ws.onmessage = async (event) => {
+            // Handle pings to keep connection alive
+            ws.on('ping', () => {
+                if (ws?.readyState === WebSocket.OPEN) {
+                    ws.pong();
+                }
+            });
+
+            ws.on('message', async (rawData) => {
                 try {
-                    const data = JSON.parse(event.data.toString());
+                    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+                    const data = JSON.parse(rawData.toString());
                     log('[PumpPortal] Received raw data:', data);
 
                     if (data.message?.includes('Successfully subscribed')) {
@@ -80,7 +108,6 @@ export function initializePumpPortalWebSocket() {
 
                     if (data.txType === 'create' && data.mint) {
                         log('[PumpPortal] New token created:', data.mint);
-                        log('[PumpPortal] Token URI:', data.uri);
 
                         let tokenMetadata = null;
                         let imageUrl = null;
@@ -105,16 +132,9 @@ export function initializePumpPortalWebSocket() {
                             imageUrl: imageUrl
                         };
 
-                        log('[PumpPortal] Base Metadata:', JSON.stringify(baseMetadata, null, 2));
-
                         const enrichedData = {
                             ...data,
-                            name: baseMetadata.name,
-                            symbol: baseMetadata.symbol,
-                            metadata: baseMetadata,
-                            imageUrl: imageUrl,
-                            uri: baseMetadata.uri,
-                            creators: baseMetadata.creators,
+                            ...baseMetadata,
                             initialBuy: data.tokenAmount || 0,
                             priceInSol: data.solAmount ? (data.solAmount / (data.tokenAmount || TOTAL_SUPPLY)) : 0,
                             marketCapSol: data.vSolInBondingCurve || 0,
@@ -125,20 +145,10 @@ export function initializePumpPortalWebSocket() {
                             website: tokenMetadata?.website || data.website
                         };
 
-                        log('[PumpPortal] Enriched token data:', JSON.stringify(enrichedData, null, 2));
-
                         wsManager.broadcast({ 
                             type: 'newToken',
                             data: enrichedData
                         });
-
-                        // Subscribe to trades for the new token
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({
-                                method: "subscribeTokenTrade",
-                                keys: [data.mint]
-                            }));
-                        }
                     }
                     else if (['buy', 'sell'].includes(data.txType) && data.mint) {
                         const tradeData = {
@@ -154,10 +164,12 @@ export function initializePumpPortalWebSocket() {
                 } catch (error) {
                     console.error('[PumpPortal] Failed to process message:', error);
                 }
-            };
+            });
 
-            ws.onclose = () => {
-                log('[PumpPortal] WebSocket disconnected');
+            ws.on('close', (code, reason) => {
+                log('[PumpPortal] WebSocket disconnected:', code, reason?.toString());
+                activeConnections.delete(ws!);
+                ws = null;
 
                 // Broadcast disconnection status
                 wsManager.broadcast({
@@ -169,25 +181,30 @@ export function initializePumpPortalWebSocket() {
                     }
                 });
 
-                // Attempt reconnection if not max attempts
-                if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
+                // Only attempt reconnect for unexpected closures
+                if (code !== 1000 && reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
                     reconnectAttempt++;
                     log(`[PumpPortal] Attempting reconnect ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}`);
-                    setTimeout(connect, RECONNECT_DELAY);
-                } else {
+                    setTimeout(connect, RECONNECT_DELAY * Math.pow(2, reconnectAttempt - 1));
+                } else if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
                     console.error('[PumpPortal] Max reconnection attempts reached');
                 }
-            };
+            });
 
-            ws.onerror = (error) => {
+            ws.on('error', (error) => {
                 console.error('[PumpPortal] WebSocket error:', error);
-            };
+
+                if (error.message.includes('ECONNREFUSED')) {
+                    console.error('[PumpPortal] Connection refused, possible rate limit');
+                    reconnectAttempt = MAX_RECONNECT_ATTEMPTS; // Skip further attempts
+                }
+            });
 
         } catch (error) {
             console.error('[PumpPortal] Failed to initialize WebSocket:', error);
             if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
                 reconnectAttempt++;
-                setTimeout(connect, RECONNECT_DELAY);
+                setTimeout(connect, RECONNECT_DELAY * Math.pow(2, reconnectAttempt - 1));
             }
         }
     }
@@ -195,9 +212,12 @@ export function initializePumpPortalWebSocket() {
     // Start the initial connection
     connect();
 
+    // Return cleanup function
     return () => {
         if (ws) {
-            ws.close();
+            activeConnections.delete(ws);
+            ws.close(1000, 'Cleanup');
+            ws = null;
         }
     };
 }
