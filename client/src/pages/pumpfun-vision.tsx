@@ -43,12 +43,10 @@ const PumpFunVision: FC = () => {
     setActiveTokenView(null);
   }, [setActiveTokenView]);
 
-  // Compute the selected token's data (if any)
   const selectedTokenData = useMemo(() => {
     return tokens.find(t => t.address === selectedToken);
   }, [tokens, selectedToken]);
 
-  // Filter tokens based on their stage
   const newTokens = tokens.filter(t => t.isNew);
   const aboutToGraduate = tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol < 100);
   const graduated = tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol >= 100);
@@ -71,7 +69,6 @@ const PumpFunVision: FC = () => {
         <ErrorBoundary>
           <div className="min-h-screen bg-[#070510] text-white">
             <TopBar />
-            {/* Stars background effect */}
             <div className="fixed inset-0 pointer-events-none">
               {[...Array(50)].map((_, i) => (
                 <div
@@ -92,7 +89,6 @@ const PumpFunVision: FC = () => {
             <div className="w-full p-4 relative">
               <div className="w-full h-[calc(100vh-64px)]">
                 <div className="grid grid-cols-12 gap-4 h-full">
-                  {/* Left Column - Market Stats & Social Metrics */}
                   <div className="col-span-2 space-y-2 h-full overflow-auto">
                     <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[29%]">
                       <MarketStats tokenAddress={selectedToken} />
@@ -102,21 +98,19 @@ const PumpFunVision: FC = () => {
                     </div>
                   </div>
 
-                  {/* Main Trading Area */}
                   <div className="col-span-7 flex flex-col gap-4 h-full">
-                    <div className="flex-1 min-h-0"> {/* min-h-0 is crucial here */}
+                    <div className="flex-1 min-h-0">
                       <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-full">
                         <TradingChart tokenAddress={selectedToken} />
                       </div>
                     </div>
-                    <div className="h-[900px]"> {/* Fixed height for trade history */}
+                    <div className="h-[900px]">
                       <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-full">
                         <TradeHistory tokenAddress={selectedToken} />
                       </div>
                     </div>
                   </div>
 
-                  {/* Right Column - Trading Form & Holder Analytics */}
                   <div className="col-span-3 h-full flex flex-col gap-4">
                     <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[45%]">
                       <TradingForm tokenAddress={selectedToken} />
@@ -141,7 +135,6 @@ const PumpFunVision: FC = () => {
     <div className="min-h-screen bg-[#070510]">
       <div className="max-w-[1800px] mx-auto p-6">
         <div className="grid grid-cols-3 gap-6">
-          {/* Tokens Columns */}
           {[
             { title: "New Creations", tokens: newTokens },
             { title: "About to Graduate", tokens: aboutToGraduate },
