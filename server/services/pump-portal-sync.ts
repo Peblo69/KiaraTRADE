@@ -45,6 +45,11 @@ function calculatePriceUsd(trade: any): number {
 // Sync social metrics if available
 async function syncSocialMetrics(token: PumpPortalToken) {
   try {
+    // Skip if we don't have a valid token address
+    if (!token.mint && !token.address) {
+      return;
+    }
+
     const metricsData = {
       token_address: token.mint || token.address,
       twitter_followers: token.socials?.twitterFollowers || 0,
@@ -53,16 +58,26 @@ async function syncSocialMetrics(token: PumpPortalToken) {
       created_at: new Date().toISOString()
     };
 
-    const { error: metricsError } = await supabase
+    // First try to insert
+    const { error: insertError } = await supabase
       .from('social_metrics')
-      .upsert(metricsData, {
-        onConflict: 'token_address',
-        ignoreDuplicates: false
-      });
+      .insert(metricsData);
 
-    if (metricsError) {
-      logSync('Social Metrics Sync Error', { metrics: metricsData }, metricsError);
-      throw metricsError;
+    // If insert fails due to duplicate, try update
+    if (insertError) {
+      const { error: updateError } = await supabase
+        .from('social_metrics')
+        .update({
+          twitter_followers: metricsData.twitter_followers,
+          telegram_members: metricsData.telegram_members,
+          timestamp: metricsData.timestamp
+        })
+        .eq('token_address', metricsData.token_address);
+
+      if (updateError) {
+        logSync('Social Metrics Update Error', { metrics: metricsData }, updateError);
+        throw updateError;
+      }
     }
 
     logSync('Social Metrics Sync Success', {
@@ -219,7 +234,6 @@ export async function syncTokenData(token: PumpPortalToken) {
   }
 }
 
-// Sync trade data with Supabase
 export async function syncTradeData(trade: TokenTrade) {
   try {
     logSync('Syncing Trade', {
