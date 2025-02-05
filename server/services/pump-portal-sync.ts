@@ -67,8 +67,8 @@ export async function syncTokenData(token: PumpPortalToken) {
       name: token.name || `Token ${token.address.slice(0, 8)}`,
       decimals: token.metadata?.decimals || 9,
       image_url: token.metadata?.imageUrl || token.imageUrl,
-      initial_price_usd: existingToken ? undefined : priceUsd,
-      initial_liquidity_usd: existingToken ? undefined : liquidityUsd,
+      initial_price_usd: priceUsd, // Always set a price to avoid null constraint violation
+      initial_liquidity_usd: liquidityUsd,
       current_price_usd: priceUsd,
       market_cap_usd: marketCapUsd,
       bonding_curve_key: token.bondingCurveKey,
@@ -96,6 +96,7 @@ export async function syncTokenData(token: PumpPortalToken) {
       symbol: token.symbol
     });
 
+    // Sync metadata
     if (token.metadata || token.socials || token.twitter || token.telegram || token.website) {
       const { error: metadataError } = await supabase
         .from('token_metadata')
@@ -114,6 +115,51 @@ export async function syncTokenData(token: PumpPortalToken) {
 
       if (metadataError) {
         logSync('Metadata Sync Error', { metadata: token.metadata, socials: token.socials }, metadataError);
+      }
+    }
+
+    // Update token holders
+    if (token.recentTrades && token.recentTrades.length > 0) {
+      const holders = new Map<string, number>();
+
+      // Calculate current holdings for each wallet
+      token.recentTrades.forEach(trade => {
+        const amount = trade.tokenAmount || 0;
+        const wallet = trade.traderPublicKey;
+        const currentHolding = holders.get(wallet) || 0;
+
+        if (trade.txType === 'buy') {
+          holders.set(wallet, currentHolding + amount);
+        } else {
+          const newAmount = currentHolding - amount;
+          if (newAmount > 0) {
+            holders.set(wallet, newAmount);
+          } else {
+            holders.delete(wallet);
+          }
+        }
+      });
+
+      // Insert/update holder data
+      for (const [wallet, balance] of holders.entries()) {
+        const percentage = (balance / (token.vTokensInBondingCurve || 1)) * 100;
+
+        const { error: holderError } = await supabase
+          .from('token_holders')
+          .upsert({
+            token_address: token.address,
+            wallet_address: wallet,
+            balance: balance,
+            percentage: percentage,
+            last_updated: new Date().toISOString()
+          }, {
+            onConflict: 'token_address,wallet_address',
+            ignoreDuplicates: false
+          });
+
+        if (holderError) {
+          logSync('Holder Sync Error', { wallet, balance }, holderError);
+        }
       }
     }
 
