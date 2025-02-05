@@ -20,10 +20,21 @@ async function fetchMetadataWithImage(uri: string) {
             log('[PumpPortal] Processed IPFS URL to:', imageUrl);
         }
 
+        // Extract social links from metadata if available
+        const socials = {
+            twitter: metadata.twitter_url || metadata.twitter || null,
+            telegram: metadata.telegram_url || metadata.telegram || null,
+            website: metadata.website_url || metadata.website || null,
+            twitterFollowers: metadata.twitter_followers || 0,
+            telegramMembers: metadata.telegram_members || 0
+        };
+
         const processedMetadata = {
             ...metadata,
-            image: imageUrl
+            image: imageUrl,
+            socials
         };
+
         log('[PumpPortal] Final processed metadata:', processedMetadata);
         return processedMetadata;
     } catch (error) {
@@ -85,11 +96,19 @@ export function initializePumpPortalWebSocket() {
 
                         let tokenMetadata = null;
                         let imageUrl = null;
+                        let socials = {
+                            twitter: null,
+                            telegram: null,
+                            website: null,
+                            twitterFollowers: 0,
+                            telegramMembers: 0
+                        };
 
                         if (data.uri) {
                             try {
                                 tokenMetadata = await fetchMetadataWithImage(data.uri);
                                 imageUrl = tokenMetadata?.image;
+                                socials = tokenMetadata?.socials || socials;
                                 log('[PumpPortal] Successfully fetched metadata and image:', { metadata: tokenMetadata, imageUrl });
                             } catch (error) {
                                 console.error('[PumpPortal] Error fetching metadata:', error);
@@ -103,7 +122,8 @@ export function initializePumpPortalWebSocket() {
                             creators: data.creators || [],
                             mint: data.mint,
                             decimals: data.decimals || 9,
-                            imageUrl: imageUrl
+                            imageUrl: imageUrl,
+                            description: tokenMetadata?.description || ''
                         };
 
                         log('[PumpPortal] Base Metadata:', JSON.stringify(baseMetadata, null, 2));
@@ -121,9 +141,16 @@ export function initializePumpPortalWebSocket() {
                             marketCapSol: data.vSolInBondingCurve || 0,
                             timestamp: Date.now(),
                             isNewToken: true,
-                            twitter: tokenMetadata?.twitter || data.twitter,
-                            telegram: tokenMetadata?.telegram || data.telegram,
-                            website: tokenMetadata?.website || data.website
+                            twitter: socials.twitter || data.twitter,
+                            telegram: socials.telegram || data.telegram,
+                            website: socials.website || data.website,
+                            socials: {
+                                twitter: socials.twitter || data.twitter,
+                                telegram: socials.telegram || data.telegram,
+                                website: socials.website || data.website,
+                                twitterFollowers: socials.twitterFollowers,
+                                telegramMembers: socials.telegramMembers
+                            }
                         };
 
                         log('[PumpPortal] Enriched token data:', JSON.stringify(enrichedData, null, 2));
@@ -143,8 +170,7 @@ export function initializePumpPortalWebSocket() {
                                 keys: [data.mint]
                             }));
                         }
-                    }
-                    else if (['buy', 'sell'].includes(data.txType) && data.mint) {
+                    } else if (['buy', 'sell'].includes(data.txType) && data.mint) {
                         const tradeData = {
                             ...data,
                             timestamp: Date.now()
