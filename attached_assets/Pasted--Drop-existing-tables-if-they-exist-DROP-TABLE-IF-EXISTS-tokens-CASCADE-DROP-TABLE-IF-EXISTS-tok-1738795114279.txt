@@ -1,0 +1,137 @@
+
+-- Drop existing tables if they exist
+DROP TABLE IF EXISTS tokens CASCADE;
+DROP TABLE IF EXISTS token_trades CASCADE;
+DROP TABLE IF EXISTS token_statistics CASCADE;
+DROP TABLE IF EXISTS token_holders CASCADE;
+DROP TABLE IF EXISTS token_metadata CASCADE;
+DROP TABLE IF EXISTS social_metrics CASCADE;
+
+-- Create tokens table
+CREATE TABLE tokens (
+  id BIGSERIAL PRIMARY KEY,
+  address TEXT UNIQUE NOT NULL,
+  symbol TEXT NOT NULL,
+  name TEXT NOT NULL,
+  decimals INTEGER NOT NULL DEFAULT 9,
+  image_url TEXT,
+  initial_price_usd DECIMAL(24,12) NOT NULL,
+  initial_liquidity_usd DECIMAL(24,12) NOT NULL,
+  current_price_usd DECIMAL(24,12),
+  market_cap_usd DECIMAL(24,12),
+  bonding_curve_key TEXT,
+  mint_authority TEXT,
+  freeze_authority TEXT,
+  supply DECIMAL(24,12),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create token trades table
+CREATE TABLE token_trades (
+  id BIGSERIAL PRIMARY KEY,
+  token_address TEXT REFERENCES tokens(address),
+  timestamp TIMESTAMPTZ NOT NULL,
+  price_usd DECIMAL(24,12) NOT NULL,
+  amount_tokens DECIMAL(24,12) NOT NULL,
+  amount_sol DECIMAL(24,12) NOT NULL,
+  wallet_address TEXT NOT NULL,
+  tx_signature TEXT UNIQUE NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('buy', 'sell')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create token statistics table
+CREATE TABLE token_statistics (
+  id BIGSERIAL PRIMARY KEY,
+  token_address TEXT REFERENCES tokens(address),
+  timestamp TIMESTAMPTZ NOT NULL,
+  timeframe TEXT NOT NULL,
+  open_price DECIMAL(24,12) NOT NULL,
+  high_price DECIMAL(24,12) NOT NULL,
+  low_price DECIMAL(24,12) NOT NULL,
+  close_price DECIMAL(24,12) NOT NULL,
+  volume DECIMAL(24,12) NOT NULL,
+  trade_count INTEGER NOT NULL,
+  buy_count INTEGER NOT NULL,
+  sell_count INTEGER NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create token holders table
+CREATE TABLE token_holders (
+  id BIGSERIAL PRIMARY KEY,
+  token_address TEXT REFERENCES tokens(address),
+  wallet_address TEXT NOT NULL,
+  balance DECIMAL(24,12) NOT NULL,
+  percentage DECIMAL(10,4),
+  last_updated TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(token_address, wallet_address)
+);
+
+-- Create token metadata table
+CREATE TABLE token_metadata (
+  id BIGSERIAL PRIMARY KEY,
+  token_address TEXT REFERENCES tokens(address),
+  twitter_url TEXT,
+  telegram_url TEXT,
+  website_url TEXT,
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create social metrics table
+CREATE TABLE social_metrics (
+  id BIGSERIAL PRIMARY KEY,
+  token_address TEXT REFERENCES tokens(address),
+  twitter_followers INTEGER,
+  telegram_members INTEGER,
+  timestamp TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create indexes
+CREATE INDEX idx_token_trades_token_timestamp ON token_trades(token_address, timestamp);
+CREATE INDEX idx_token_trades_wallet ON token_trades(wallet_address);
+CREATE INDEX idx_token_trades_signature ON token_trades(tx_signature);
+CREATE INDEX idx_token_statistics_token_timeframe ON token_statistics(token_address, timeframe, timestamp);
+CREATE INDEX idx_token_holders_token ON token_holders(token_address);
+CREATE INDEX idx_token_holders_balance ON token_holders(balance DESC);
+
+-- Enable Row Level Security
+ALTER TABLE tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE token_trades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE token_statistics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE token_holders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE token_metadata ENABLE ROW LEVEL SECURITY;
+ALTER TABLE social_metrics ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies
+CREATE POLICY "Public read access" ON tokens FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Public read access" ON token_trades FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Public read access" ON token_statistics FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Public read access" ON token_holders FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Public read access" ON token_metadata FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Public read access" ON social_metrics FOR SELECT TO authenticated USING (true);
+
+-- Create functions for automatic timestamp updates
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create triggers for automatic timestamp updates
+CREATE TRIGGER update_tokens_updated_at
+  BEFORE UPDATE ON tokens
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER update_token_metadata_updated_at
+  BEFORE UPDATE ON token_metadata
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at();

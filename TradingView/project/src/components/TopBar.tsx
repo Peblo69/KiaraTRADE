@@ -23,7 +23,7 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
   ]);
 
   // Get token data from PumpPortal store
-  const token = usePumpPortalStore(state => state.tokens.find(t => t.address === tokenAddress));
+  const token = usePumpPortalStore(state => state.getToken(tokenAddress || ''));
   const [marketStats, setMarketStats] = useState({
     symbol: token?.symbol || 'Loading...',
     price: token?.priceInUsd || 0,
@@ -90,6 +90,9 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
     }, 1000);
   };
 
+  // Get the correct token image URL with a fallback
+  const tokenImageUrl = token?.imageUrl || token?.metadata?.imageUrl || "https://cryptologos.cc/logos/bitcoin-btc-logo.png";
+
   return (
     <div className="bg-[#0D0B1F]/80 backdrop-blur-sm border-b border-purple-900/30 mb-4">
       <div className="container mx-auto px-4 py-2">
@@ -99,9 +102,14 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-2">
                 <img
-                  src={token?.imageUrl || "https://cryptologos.cc/logos/bitcoin-btc-logo.png"}
+                  src={tokenImageUrl}
                   alt={marketStats.symbol}
                   className="w-6 h-6"
+                  onError={(e) => {
+                    const img = e.target as HTMLImageElement;
+                    img.onerror = null;
+                    img.src = "https://cryptologos.cc/logos/bitcoin-btc-logo.png";
+                  }}
                 />
                 <div className="flex flex-col">
                   <div className="flex items-center space-x-2">
