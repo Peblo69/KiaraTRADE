@@ -55,9 +55,10 @@ export async function syncTokenData(token: PumpPortalToken) {
     const liquidityUsd = (token.vSolInBondingCurve || 0) * SOL_PRICE;
     const marketCapUsd = (token.marketCapSol || 0) * SOL_PRICE;
 
-    const { data: existingToken, error: queryError } = await supabase
+    // Fetch existing token data
+    const { data: existingToken } = await supabase
       .from('tokens')
-      .select('address, created_at')
+      .select('address, initial_price_usd, created_at')
       .eq('address', token.address)
       .single();
 
@@ -66,8 +67,8 @@ export async function syncTokenData(token: PumpPortalToken) {
       symbol: token.symbol || 'UNKNOWN',
       name: token.name || `Token ${token.address.slice(0, 8)}`,
       decimals: token.metadata?.decimals || 9,
-      image_url: token.metadata?.imageUrl || token.imageUrl,
-      initial_price_usd: priceUsd, // Always set a price to avoid null constraint violation
+      image_url: token.metadata?.image || token.imageUrl,
+      initial_price_usd: existingToken?.initial_price_usd || priceUsd,
       initial_liquidity_usd: liquidityUsd,
       current_price_usd: priceUsd,
       market_cap_usd: marketCapUsd,
@@ -79,6 +80,7 @@ export async function syncTokenData(token: PumpPortalToken) {
       updated_at: new Date().toISOString()
     };
 
+    // Upsert token data
     const { error: tokenError } = await supabase
       .from('tokens')
       .upsert(tokenData, {
@@ -98,23 +100,46 @@ export async function syncTokenData(token: PumpPortalToken) {
 
     // Sync metadata
     if (token.metadata || token.socials || token.twitter || token.telegram || token.website) {
+      const metadataData = {
+        token_address: token.address,
+        twitter_url: token.socials?.twitter || token.twitter,
+        telegram_url: token.socials?.telegram || token.telegram,
+        website_url: token.socials?.website || token.website,
+        description: token.metadata?.description || null,
+        updated_at: new Date().toISOString()
+      };
+
       const { error: metadataError } = await supabase
         .from('token_metadata')
-        .upsert({
-          token_address: token.address,
-          twitter_url: token.socials?.twitter || token.twitter,
-          telegram_url: token.socials?.telegram || token.telegram,
-          website_url: token.socials?.website || token.website,
-          description: token.metadata?.description,
-          created_at: existingToken?.created_at || new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }, {
+        .upsert(metadataData, {
           onConflict: 'token_address',
           ignoreDuplicates: false
         });
 
       if (metadataError) {
         logSync('Metadata Sync Error', { metadata: token.metadata, socials: token.socials }, metadataError);
+      } else {
+        logSync('Metadata Sync Success', { address: token.address });
+      }
+
+      // Sync social metrics if available
+      if (token.socials?.twitterFollowers || token.socials?.telegramMembers) {
+        const metricsData = {
+          token_address: token.address,
+          twitter_followers: token.socials.twitterFollowers || 0,
+          telegram_members: token.socials.telegramMembers || 0,
+          timestamp: new Date().toISOString()
+        };
+
+        const { error: metricsError } = await supabase
+          .from('social_metrics')
+          .insert(metricsData);
+
+        if (metricsError) {
+          logSync('Social Metrics Sync Error', { metrics: metricsData }, metricsError);
+        } else {
+          logSync('Social Metrics Sync Success', { address: token.address });
+        }
       }
     }
 
@@ -140,25 +165,31 @@ export async function syncTokenData(token: PumpPortalToken) {
         }
       });
 
-      // Insert/update holder data
-      for (const [wallet, balance] of holders.entries()) {
-        const percentage = (balance / (token.vTokensInBondingCurve || 1)) * 100;
+      // Convert Map entries to array and update holder data
+      const holderEntries = Array.from(holders.entries());
+      const totalSupply = token.vTokensInBondingCurve || 1;
+
+      for (const [wallet, balance] of holderEntries) {
+        const percentage = (balance / totalSupply) * 100;
+        const holderData = {
+          token_address: token.address,
+          wallet_address: wallet,
+          balance: balance,
+          percentage: percentage,
+          last_updated: new Date().toISOString()
+        };
 
         const { error: holderError } = await supabase
           .from('token_holders')
-          .upsert({
-            token_address: token.address,
-            wallet_address: wallet,
-            balance: balance,
-            percentage: percentage,
-            last_updated: new Date().toISOString()
-          }, {
+          .upsert(holderData, {
             onConflict: 'token_address,wallet_address',
             ignoreDuplicates: false
           });
 
         if (holderError) {
           logSync('Holder Sync Error', { wallet, balance }, holderError);
+        } else {
+          logSync('Holder Sync Success', { address: token.address, wallet });
         }
       }
     }

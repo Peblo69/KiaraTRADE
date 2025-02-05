@@ -1,0 +1,433 @@
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'FG2mdJQPJc8GEgTJ2fQqj9TNn6rNqhfeDTdFuwipump',
+    symbol: 'UNKNOWN',
+    name: 'Token FG2mdJQP',
+    timestamp: '2025-02-05T23:15:17.756Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.756Z'
+}
+11:15:17 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '5Jw4MmfupkXhB2NN6veJEk1agidGnfMSn7x1LsWcpEDrwxeg9RVrz9cwSb6cBkLHCZe4SntcdbWAkLkiL2GizoJc',
+    token: 'G1Xb6zxWyuJJcaNCNKW32xDidhbFsueWgMz4GRT92oxx',
+    type: 'buy',
+    timestamp: '2025-02-05T23:15:17.764Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.764Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: 'ZVD3nAqqNQbYYX3nLmXr2b2etRj1SFT2sYqGyvpebkSFvicypEu3duF5QthQw8BmT5aiX4F2sDiEPntUqh8zcrf',
+    token: 'CcU217ovx93Beh51opajZgdpaPBEtYNaAn9ao4xJv7qj',
+    timestamp: '2025-02-05T23:15:17.776Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.776Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '4PJW5zew1pDkrk9kU6dxzqiaq2ZUuyVBheJvkNkfQUNwCZohdrHzuDuHX9hLjqiD6PomF7U6K2YJhduonVZKkpck',
+    token: '5H4rJgCFDdtsLekuMitf94ZsZ93NL3biPY4AYsMepump',
+    timestamp: '2025-02-05T23:15:17.789Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.789Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: 'XiaL5YrKhMCiiSyUpzbAnzfR5edFBRoFQX9jDGVKZiSNtZNqdKB8XajP5KkuAfQB1CUp2sFUSd7gfPhBxwMgAuc',
+    token: '3x2AJaZ2RFhgGbwf3tScfTEzY31T9bAwrL8GaAoSpump',
+    timestamp: '2025-02-05T23:15:17.824Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.824Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '21N3wev4DW33mWiipAvXV5ddff7VHYWwvaiw6toToeymckgbVWfuXP5NXkDaPtsMFzGey1eHQAEtuPFudNyYzJ3X',
+    token: '2JYAahQGJ1TdP8oB5QmGQrvaGBTYsqfjbaUzCqmapump',
+    timestamp: '2025-02-05T23:15:17.835Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.835Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: 'aEJvN6ezR2qY2HzV69PJ6itqk3eLN794CQtd6XjZ292QfqYtJHJ7cVfyHVjhLWgBRcDWePHKcZ7Q7MQPJi3D7ZD',
+    token: '2e2pUDQDUmqfyeqHaBsRv4Wxxfqiy1TWBtFyBiYJpump',
+    timestamp: '2025-02-05T23:15:17.846Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.846Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'CJPGS2wWMgusq5SGdjsT6TspDcRpmm2FJ2NmAkxgpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:15:17.853Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.853Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'GBEkXdoHrSCujJS9RNoW4M8ETSJYcHBHoHJy1GNrGAor',
+    symbol: 'UNKNOWN',
+    name: 'Token GBEkXdoH',
+    timestamp: '2025-02-05T23:15:17.854Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.854Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '2PqSBHEH88L3b7WyiEDZmjPokDPzredoiigAMmiwPkhBXCM6QiKYk7dRyyeaqS3jnT11rmbMPbkcJfCDiqCbkHCJ',
+    token: '34QXhE6k9WnD2JXJk5MeFgH4KJpYnsL72XoqogCZpump',
+    timestamp: '2025-02-05T23:15:17.878Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.878Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'G1Xb6zxWyuJJcaNCNKW32xDidhbFsueWgMz4GRT92oxx',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:15:17.892Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.892Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'G1Xb6zxWyuJJcaNCNKW32xDidhbFsueWgMz4GRT92oxx',
+    symbol: 'UNKNOWN',
+    name: 'Token G1Xb6zxW',
+    timestamp: '2025-02-05T23:15:17.917Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.917Z'
+}
+11:15:17 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '3r1cbXWT7BzhHqqZTVVZ8EhNiobVJ6tUdAw2a8HSVxiDqpedDe1okDMyCdgP4HFaAQA85VRL9e9dYWYn2sU7gfLG',
+    token: '5Z74w1T8iCKezqnn6tJtcEYvuZRRVh9ipAhk5dDHpump',
+    type: 'sell',
+    timestamp: '2025-02-05T23:15:17.922Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.922Z'
+}
+11:15:17 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '4Pwhx2pQKHoUboxUUcS5TKf2msLBCNCmitYAvaykLN7bkdYhcgNp2QptDxVjKKREZ8cudTXcrSYtHP52qaXGxbpS',
+    token: 'G1Xb6zxWyuJJcaNCNKW32xDidhbFsueWgMz4GRT92oxx',
+    type: 'buy',
+    timestamp: '2025-02-05T23:15:17.923Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.923Z'
+}
+11:15:17 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '2GQ9KZWYtwXUmaYmWx4NbdAsRaGWfLkY976exLFVXDYUSkTYRrEQqEKPPa7RCEBRhWuAHLkVf9sMeJ63bpuuxMAN',
+    token: 'GAYwdioWzZtQKc1a99B9YuLetN4zBQKwxJB1zD9Hpump',
+    type: 'sell',
+    timestamp: '2025-02-05T23:15:17.929Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:17.929Z'
+}
+11:15:18 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '2ogwQrhbX2TeAytX1YHrSfMd8h4xzgYM6p8fvzP72iuyZHFr43tbeFSwWUhZ56ejx8oNyYobhR7cyRsfoTpdGTT4',
+    token: 'GceSzZfsCsJKgpBcsf9WokBSML1q2GFgKUFWKbKcpump',
+    type: 'sell',
+    timestamp: '2025-02-05T23:15:18.137Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.137Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'G1Xb6zxWyuJJcaNCNKW32xDidhbFsueWgMz4GRT92oxx',
+    symbol: 'UNKNOWN',
+    name: 'Token G1Xb6zxW',
+    timestamp: '2025-02-05T23:15:18.150Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.150Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'GAYwdioWzZtQKc1a99B9YuLetN4zBQKwxJB1zD9Hpump',
+    symbol: 'UNKNOWN',
+    name: 'Token GAYwdioW',
+    timestamp: '2025-02-05T23:15:18.153Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.153Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: '5Z74w1T8iCKezqnn6tJtcEYvuZRRVh9ipAhk5dDHpump',
+    symbol: 'UNKNOWN',
+    name: 'Token 5Z74w1T8',
+    timestamp: '2025-02-05T23:15:18.153Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.153Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'FG2mdJQPJc8GEgTJ2fQqj9TNn6rNqhfeDTdFuwipump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:15:18.154Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.154Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '3gmrfELJUnvES2svD2k22Cq5T71TJoXEPYdv2BLWT61WNLDT4a6VWwS5hT8VzPNAajiXfPf32X1Qy5HP1aPXAQeY',
+    token: 'CJPGS2wWMgusq5SGdjsT6TspDcRpmm2FJ2NmAkxgpump',
+    timestamp: '2025-02-05T23:15:18.155Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.155Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'GBEkXdoHrSCujJS9RNoW4M8ETSJYcHBHoHJy1GNrGAor',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:15:18.155Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.155Z'
+}
+11:15:18 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '5SNWMZ4we1ozhdaXjBsrmZe3manTsiz1v9qcT52ZGXTWLuJutrJcHZt1APAi7JMtkwzAngRJCeimaZx59ZTPvCew',
+    token: '8LEbXKrgqdJ89L194uHq51ohocgg85RJEHW7KEXepump',
+    type: 'buy',
+    timestamp: '2025-02-05T23:15:18.166Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.166Z'
+}
+11:15:18 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: 'C914CESTcrpcy1qq4NJ1TLZmsfYD2RyBbBa7BJrgmFHKTbsVkNWEyeWQKoCCXQNoVNmSwDMK9KKAAjeDZfoDfF8',
+    token: 'BknxWjs94w3TrLvMW1jRPKADqfDi9mXRKQem5p1Fpump',
+    type: 'sell',
+    timestamp: '2025-02-05T23:15:18.167Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.167Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'G1Xb6zxWyuJJcaNCNKW32xDidhbFsueWgMz4GRT92oxx',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:15:18.195Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.195Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '3mWkYMqGFiLNMfmsiPEYiryb6vjP6w8mYrVRMXfYGHpnsbMwZCokttfx5HzGnLiqQW3RDcKwWkStyUc7yFaRiuMe',
+    token: 'G1Xb6zxWyuJJcaNCNKW32xDidhbFsueWgMz4GRT92oxx',
+    timestamp: '2025-02-05T23:15:18.196Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.196Z'
+}
+11:15:18 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '4B8E262eBBudYxvidWZ3M9CuvhvsM8hcV4r2cTqzwTRyNFzC9bgHsuWytFSq7jUE46VR7iUoqQr2YgFovEgghzAo',
+    token: 'B8NbD8gLx1LQQqP9jaSk7rQgyYgihZ1iqbvqV4itpump',
+    type: 'sell',
+    timestamp: '2025-02-05T23:15:18.203Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.203Z'
+}
+11:15:18 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: 'PtPJiYmYgmfsEuZ72e5SLpRuDgkq1uWmJRyTsVVLbgqHVhz3MyEsAYge3zHLMz6dWufF3Z1fkHqPbvHaBDQdoTY',
+    token: '95PXZNwFHRVvWPuwXkB4B5ruGqvrVg8idkKK8Tnxpump',
+    type: 'sell',
+    timestamp: '2025-02-05T23:15:18.222Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.222Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'GceSzZfsCsJKgpBcsf9WokBSML1q2GFgKUFWKbKcpump',
+    symbol: 'UNKNOWN',
+    name: 'Token GceSzZfs',
+    timestamp: '2025-02-05T23:15:18.280Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.280Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: '8LEbXKrgqdJ89L194uHq51ohocgg85RJEHW7KEXepump',
+    symbol: 'UNKNOWN',
+    name: 'Token 8LEbXKrg',
+    timestamp: '2025-02-05T23:15:18.307Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.307Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'BknxWjs94w3TrLvMW1jRPKADqfDi9mXRKQem5p1Fpump',
+    symbol: 'UNKNOWN',
+    name: 'Token BknxWjs9',
+    timestamp: '2025-02-05T23:15:18.314Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.314Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'B8NbD8gLx1LQQqP9jaSk7rQgyYgihZ1iqbvqV4itpump',
+    symbol: 'UNKNOWN',
+    name: 'Token B8NbD8gL',
+    timestamp: '2025-02-05T23:15:18.345Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.345Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: '95PXZNwFHRVvWPuwXkB4B5ruGqvrVg8idkKK8Tnxpump',
+    symbol: 'UNKNOWN',
+    name: 'Token 95PXZNwF',
+    timestamp: '2025-02-05T23:15:18.361Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.361Z'
+}
+11:15:18 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '3zxmgZMmcwZw8oG1w43egUxQegxYWwbDdnw4oAZekvAdnRCLef9ncA7jeqM9vPhGmoUrhzpXhP1EguCgmVYMn5uC',
+    token: 'GBEkXdoHrSCujJS9RNoW4M8ETSJYcHBHoHJy1GNrGAor',
+    type: 'buy',
+    timestamp: '2025-02-05T23:15:18.391Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.391Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: 'vUxLwfJm1iwsLnWEKBCbFQetKoj73kKhEQzpqUXAnzqKWXrPKKx5fM5KRpq5cNBMwW9Yp87jiVH81jEkXWuK479',
+    token: 'FG2mdJQPJc8GEgTJ2fQqj9TNn6rNqhfeDTdFuwipump',
+    timestamp: '2025-02-05T23:15:18.430Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.430Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'GAYwdioWzZtQKc1a99B9YuLetN4zBQKwxJB1zD9Hpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:15:18.438Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.438Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '2dF8ZiKqCksoKmphGAqiFgBuuBGiBXisjCp6kSTh3YCe9SCBeGGgaTkB7oeo9xGaYeJJhtz7DdS39DwJmvs5J4rX',
+    token: 'GBEkXdoHrSCujJS9RNoW4M8ETSJYcHBHoHJy1GNrGAor',
+    timestamp: '2025-02-05T23:15:18.443Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.443Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: '5Z74w1T8iCKezqnn6tJtcEYvuZRRVh9ipAhk5dDHpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:15:18.460Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.460Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'G1Xb6zxWyuJJcaNCNKW32xDidhbFsueWgMz4GRT92oxx',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:15:18.465Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.465Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '5Jw4MmfupkXhB2NN6veJEk1agidGnfMSn7x1LsWcpEDrwxeg9RVrz9cwSb6cBkLHCZe4SntcdbWAkLkiL2GizoJc',
+    token: 'G1Xb6zxWyuJJcaNCNKW32xDidhbFsueWgMz4GRT92oxx',
+    timestamp: '2025-02-05T23:15:18.506Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.506Z'
+}
+11:15:18 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '5zZvi8r4GJxFVYqLo6L46MfzLNmAyJfjXkwZmkLSfaoKzbmWZSWxFn4dFnYEmiyaxGcp4s29LGtgSAC8mTnn8ZzK',
+    token: 'H2uw29gcDS6WycKj6FyttL61wA6GRZiNzq1RkEUwpump',
+    type: 'buy',
+    timestamp: '2025-02-05T23:15:18.532Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.532Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'GBEkXdoHrSCujJS9RNoW4M8ETSJYcHBHoHJy1GNrGAor',
+    symbol: 'UNKNOWN',
+    name: 'Token GBEkXdoH',
+    timestamp: '2025-02-05T23:15:18.537Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.537Z'
+}
+11:15:18 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: 'ZSahHKobHT4EMgfnZRmhuJMXXtUKLRPT5oZebxD9HoVmMgk22fPQX8mvNbnCQYHcszSVEiNVooyi8AQTRJkaM8d',
+    token: 'H2uw29gcDS6WycKj6FyttL61wA6GRZiNzq1RkEUwpump',
+    type: 'buy',
+    timestamp: '2025-02-05T23:15:18.574Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.574Z'
+}
+11:15:18 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '225GyEdhWtwgy8WCEFAEZ755tVe596Xa5ByjSgyFW1p62qZURrmtdvML7JPM9unE7prxcRfrUspeiFPtqKpe3d7M',
+    token: 'H2uw29gcDS6WycKj6FyttL61wA6GRZiNzq1RkEUwpump',
+    type: 'buy',
+    timestamp: '2025-02-05T23:15:18.574Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:15:18.574Z'
