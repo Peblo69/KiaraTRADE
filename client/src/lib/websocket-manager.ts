@@ -1,5 +1,6 @@
+// client/src/lib/websocket-manager.ts
 import { format } from 'date-fns';
-import { usePumpPortalStore } from './pump-portal-websocket';
+import { usePumpPortalStore, TokenTrade, PumpPortalToken } from './pump-portal-websocket';
 import { calculatePumpFunTokenMetrics } from '@/utils/token-calculations';
 
 // Debug & Constants
@@ -10,16 +11,34 @@ const CURRENT_USER = 'Peblo69';
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const HEARTBEAT_INTERVAL = 30000;
-const BATCH_INTERVAL = 1000; // 1 second batching interval
+const BILLION = 1_000_000_000;
+const SOL_PRICE_UPDATE_INTERVAL = 10000;
+// Use Binance's public SOL/USDT endpoint instead of CoinGecko
 const BINANCE_SOL_PRICE_URL = 'https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT';
 
-interface PendingUpdate {
+console.log('🚀 WEBSOCKET MANAGER LOADING', { WS_URL });
+
+interface WebSocketMessage {
   type: string;
   data: any;
 }
 
-let pendingUpdates: PendingUpdate[] = [];
-let batchTimeout: NodeJS.Timeout | null = null;
+interface TradeMessage {
+  type: 'trade';
+  data: {
+    signature: string;
+    mint: string;
+    txType: 'buy' | 'sell';
+    tokenAmount: number;
+    solAmount: number;
+    traderPublicKey: string;
+    counterpartyPublicKey: string;
+    bondingCurveKey: string;
+    vTokensInBondingCurve: number;
+    vSolInBondingCurve: number;
+    marketCapSol: number;
+  };
+}
 
 class WebSocketManager {
   private ws: WebSocket | null = null;
@@ -36,10 +55,17 @@ class WebSocketManager {
       return;
     }
 
+    console.log('🔌 Connecting to:', WS_URL);
+
     try {
       this.ws = new WebSocket(WS_URL);
       this.initialized = true;
-      console.log('📡 WebSocket connecting to:', WS_URL);
+
+      console.log('📡 WebSocket State:', {
+        ws: !!this.ws,
+        readyState: this.ws?.readyState,
+        url: WS_URL
+      });
 
       this.setupEventListeners();
       this.startHeartbeat();
@@ -62,9 +88,11 @@ class WebSocketManager {
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const data = await response.json();
+      // Binance returns data in the format: { symbol: "SOLUSDT", price: "123.45" }
       if (data && data.price) {
         this.solPrice = parseFloat(data.price);
         console.log('💰 Updated SOL price:', this.solPrice);
+
         const store = usePumpPortalStore.getState();
         store.setSolPrice(this.solPrice);
         await this.updateAllTokenPrices();
@@ -75,14 +103,19 @@ class WebSocketManager {
   }
 
   private startSolPriceUpdates(): void {
-    this.updateSolPrice();
+    this.updateSolPrice(); // Initial update
     this.solPriceInterval = window.setInterval(() => {
       this.updateSolPrice();
-    }, 30000); // Update every 30 seconds
+    }, SOL_PRICE_UPDATE_INTERVAL);
   }
 
   private async updateAllTokenPrices(): Promise<void> {
     const store = usePumpPortalStore.getState();
+    if (this.solPrice <= 0) {
+      console.warn('⚠️ Invalid SOL price, skipping updates');
+      return;
+    }
+
     console.log('🔄 Updating all token prices with SOL:', this.solPrice);
 
     const updates = store.tokens.map(async (token) => {
@@ -91,6 +124,12 @@ class WebSocketManager {
           vSolInBondingCurve: token.vSolInBondingCurve,
           vTokensInBondingCurve: token.vTokensInBondingCurve,
           solPrice: this.solPrice
+        });
+
+        console.log('📊 Token metrics:', {
+          token: token.address,
+          price: metrics.price,
+          marketCap: metrics.marketCap
         });
 
         store.updateTokenPrice(token.address, metrics.price.usd);
@@ -123,91 +162,101 @@ class WebSocketManager {
 
     this.ws.onmessage = async (event: MessageEvent) => {
       try {
-        const message = JSON.parse(event.data);
-
-        if (!message || !message.data) {
-          console.warn('⚠️ Invalid message format:', message);
-          return;
-        }
-
-        // Add to pending updates for batch processing
-        pendingUpdates.push({
-          type: message.type || 'newToken',
-          data: message.data
-        });
-
-        // Set up batch processing if not already scheduled
-        if (!batchTimeout) {
-          batchTimeout = setTimeout(() => {
-            this.processPendingUpdates();
-          }, BATCH_INTERVAL);
-        }
+        const message: WebSocketMessage = JSON.parse(event.data);
+        await this.handleMessage(message);
       } catch (error) {
         console.error('❌ Message parsing error:', error);
       }
     };
   }
 
-  private async processPendingUpdates(): Promise<void> {
-    if (pendingUpdates.length === 0) return;
-
+  private async handleMessage(message: WebSocketMessage): Promise<void> {
     const store = usePumpPortalStore.getState();
-    const updates = [...pendingUpdates];
-    pendingUpdates = [];
-    batchTimeout = null;
 
-    for (const update of updates) {
-      const { type, data } = update;
+    switch (message.type) {
+      case 'newToken':
+        console.log('🆕 New token:', message.data.mint);
+        store.addToken(message.data);
+        break;
 
-      try {
-        switch (type) {
-          case 'newToken':
-            if (data.mint) {
-              console.log('🆕 New token:', data.mint);
-              store.addToken(data);
-            }
-            break;
+      case 'trade':
+        if (message.data?.mint) {
+          const metrics = calculatePumpFunTokenMetrics({
+            vSolInBondingCurve: message.data.vSolInBondingCurve,
+            vTokensInBondingCurve: message.data.vTokensInBondingCurve,
+            solPrice: this.solPrice
+          });
 
-          case 'trade':
-            if (data.mint) {
-              console.log('💱 Trade update:', {
-                token: data.mint,
-                type: data.txType,
-                amount: data.solAmount
-              });
+          const tradeData: TokenTrade = {
+            ...message.data,
+            timestamp: Date.now(),
+            priceInSol: metrics.price.sol,
+            priceInUsd: metrics.price.usd,
+            isDevTrade: this.isDevWalletTrade(message.data)
+          };
 
-              const metrics = calculatePumpFunTokenMetrics({
-                vSolInBondingCurve: data.vSolInBondingCurve,
-                vTokensInBondingCurve: data.vTokensInBondingCurve,
-                solPrice: this.solPrice
-              });
+          console.log('💱 Trade processed:', {
+            token: message.data.mint,
+            price: metrics.price,
+            type: message.data.txType
+          });
 
-              // Update token price
-              if (metrics.price) {
-                store.updateTokenPrice(data.mint, metrics.price.usd);
-              }
-
-              // Add trade to history
-              store.addTradeToHistory(data.mint, {
-                ...data,
-                timestamp: Date.now(),
-                priceInSol: metrics.price.sol,
-                priceInUsd: metrics.price.usd
-              });
-            }
-            break;
-
-          case 'marketData':
-            console.log('📊 Market data update');
-            // Handle market data updates
-            break;
-
-          default:
-            console.warn('⚠️ Unknown message type:', type);
+          store.addTradeToHistory(message.data.mint, tradeData);
+          await this.calculateTokenPrice({
+            ...message.data,
+            address: message.data.mint
+          } as PumpPortalToken);
         }
-      } catch (error) {
-        console.error('❌ Error processing update:', { type, error });
-      }
+        break;
+
+      case 'marketData':
+      case 'solPriceUpdate':
+        if (message.data?.solPrice && this.solPrice <= 0) {
+          this.solPrice = message.data.solPrice;
+          store.setSolPrice(this.solPrice);
+          await this.updateAllTokenPrices();
+        }
+        break;
+
+      case 'heartbeat':
+        this.handleHeartbeat();
+        break;
+
+      default:
+        console.warn('⚠️ Unknown message type:', message.type);
+    }
+  }
+
+  private isDevWalletTrade(tradeData: any): boolean {
+    const store = usePumpPortalStore.getState();
+    const token = store.getToken(tradeData.mint);
+    const isDev = token?.devWallet === tradeData.traderPublicKey;
+
+    if (isDev) {
+      console.log('👨‍💻 Dev trade detected:', {
+        token: tradeData.mint,
+        wallet: tradeData.traderPublicKey
+      });
+    }
+
+    return isDev;
+  }
+
+  private async calculateTokenPrice(token: PumpPortalToken): Promise<void> {
+    if (token.vTokensInBondingCurve && token.vSolInBondingCurve) {
+      const metrics = calculatePumpFunTokenMetrics({
+        vSolInBondingCurve: token.vSolInBondingCurve,
+        vTokensInBondingCurve: token.vTokensInBondingCurve,
+        solPrice: this.solPrice
+      });
+
+      console.log('💰 Price calculated:', {
+        token: token.address,
+        price: metrics.price,
+        marketCap: metrics.marketCap
+      });
+
+      usePumpPortalStore.getState().updateTokenPrice(token.address, metrics.price.usd);
     }
   }
 
@@ -244,6 +293,7 @@ class WebSocketManager {
     this.heartbeatInterval = window.setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ type: 'heartbeat' }));
+        this.updateTime();
       }
     }, HEARTBEAT_INTERVAL);
   }
@@ -253,6 +303,16 @@ class WebSocketManager {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
     }
+  }
+
+  private handleHeartbeat(): void {
+    this.updateTime();
+  }
+
+  private updateTime(): void {
+    usePumpPortalStore.setState({
+      currentTime: format(new Date(), UTC_DATE_FORMAT)
+    });
   }
 
   public disconnect(): void {
@@ -282,7 +342,7 @@ class WebSocketManager {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
 
-  public sendMessage(message: any): void {
+  public sendMessage(message: WebSocketMessage): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
@@ -293,9 +353,15 @@ class WebSocketManager {
 
 export const wsManager = new WebSocketManager();
 
-// Make wsManager available globally for debugging
+// Global access for debugging
+declare global {
+  interface Window {
+    wsManager: WebSocketManager;
+  }
+}
+
 if (typeof window !== 'undefined') {
-  (window as any).wsManager = wsManager;
+  window.wsManager = wsManager;
 }
 
 export function getCurrentUTCTime(): string {
