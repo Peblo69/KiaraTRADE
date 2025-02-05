@@ -1,19 +1,16 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { format } from "date-fns";
-import axios from "axios";
 import {
   calculatePumpFunTokenMetrics,
   calculateVolumeMetrics,
   calculateTokenRisk,
 } from "@/utils/token-calculations";
-// Placeholder import - Replace './SocialLinks' with the correct path for SocialLinks
-import SocialLinks from "./SocialLinks";
 
-const MAX_TRADES_PER_TOKEN = 1000; // Increased max trades
+const MAX_TRADES_PER_TOKEN = 100; // Reduced max trades for better performance
 const MAX_TOKENS_IN_LIST = 50;
+const DEBUG = false;
 
-const DEBUG = true;
 function debugLog(action: string, data?: any) {
   if (DEBUG) {
     console.log(`[PumpPortal][${action}]`, data || "");
@@ -74,11 +71,8 @@ export interface PumpPortalToken {
   website?: string | null;
   twitter?: string | null;
   telegram?: string | null;
-  socials?: {
-    website: string | null;
-    twitter: string | null;
-    telegram: string | null;
-  };
+  imageUrl?: string;
+  lastUpdated?: number;
 }
 
 interface PumpPortalStore {
@@ -87,6 +81,8 @@ interface PumpPortalStore {
   isConnected: boolean;
   solPrice: number;
   activeTokenView: string | null;
+  currentTime: string;
+  currentUser: string;
   addToken: (tokenData: any) => void;
   addTradeToHistory: (address: string, tradeData: TokenTrade) => void;
   setConnected: (connected: boolean) => void;
@@ -96,14 +92,10 @@ interface PumpPortalStore {
   setActiveTokenView: (address: string | null) => void;
   getToken: (address: string) => PumpPortalToken | undefined;
   updateTokenPrice: (address: string, priceInUsd: number) => void;
-  fetchTokenUri: (address: string) => Promise<string | null>;
-  getNewTokens: () => PumpPortalToken[];
-  getAboutToGraduateTokens: () => PumpPortalToken[];
-  getGraduatedTokens: () => PumpPortalToken[];
 }
 
-const createJSONStorage = (getStorage) => ({
-  getItem: (name) => {
+const createJSONStorage = (getStorage: () => Storage) => ({
+  getItem: (name: string) => {
     try {
       const serializedState = getStorage().getItem(name);
       return serializedState ? JSON.parse(serializedState) : undefined;
@@ -112,7 +104,7 @@ const createJSONStorage = (getStorage) => ({
       return undefined;
     }
   },
-  setItem: (name, state) => {
+  setItem: (name: string, state: any) => {
     try {
       const serializedState = JSON.stringify(state);
       getStorage().setItem(name, serializedState);
@@ -120,28 +112,23 @@ const createJSONStorage = (getStorage) => ({
       console.error("Error storing item in storage:", error);
     }
   },
-  removeItem: (name) => getStorage().removeItem(name),
+  removeItem: (name: string) => getStorage().removeItem(name),
 });
 
-
 export const usePumpPortalStore = create(
-  persist(
+  persist<PumpPortalStore>(
     (set, get) => ({
       tokens: [],
       viewedTokens: {},
       isConnected: false,
       solPrice: 0,
       activeTokenView: null,
+      currentTime: format(new Date(), "yyyy-MM-dd HH:mm:ss"),
+      currentUser: "Peblo69",
 
       addToken: (tokenData) =>
         set((state) => {
           debugLog("addToken", tokenData);
-          debugLog("Token URI:", tokenData.uri || tokenData.metadata?.uri);
-
-          const tokenName = tokenData.metadata?.name || tokenData.name;
-          const tokenSymbol = tokenData.metadata?.symbol || tokenData.symbol;
-          const mintAddress = tokenData.mint || tokenData.address || "";
-          const imageUrl = tokenData.metadata?.imageUrl || tokenData.imageUrl;
 
           const tokenMetrics = calculatePumpFunTokenMetrics({
             vSolInBondingCurve: tokenData.vSolInBondingCurve || 0,
@@ -149,12 +136,10 @@ export const usePumpPortalStore = create(
             solPrice: state.solPrice,
           });
 
-          debugLog("Token metrics calculated:", tokenMetrics);
-
           const newToken = {
-            symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
-            name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
-            address: mintAddress,
+            symbol: tokenData.symbol || tokenData.mint?.slice(0, 6).toUpperCase(),
+            name: tokenData.name || `Token ${tokenData.mint?.slice(0, 8)}`,
+            address: tokenData.mint || tokenData.address,
             bondingCurveKey: tokenData.bondingCurveKey || "",
             vTokensInBondingCurve: tokenData.vTokensInBondingCurve || 0,
             vSolInBondingCurve: tokenData.vSolInBondingCurve || 0,
@@ -164,88 +149,40 @@ export const usePumpPortalStore = create(
             devWallet: tokenData.devWallet || tokenData.traderPublicKey,
             recentTrades: [],
             metadata: {
-              name: tokenName || `Token ${mintAddress.slice(0, 8)}`,
-              symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
-              decimals: 9,
-              mint: mintAddress,
+              name: tokenData.name || `Token ${tokenData.mint?.slice(0, 8)}`,
+              symbol: tokenData.symbol || tokenData.mint?.slice(0, 6).toUpperCase(),
+              decimals: tokenData.decimals || 9,
+              mint: tokenData.mint,
               uri: tokenData.uri || "",
-              imageUrl: imageUrl,
+              imageUrl: tokenData.imageUrl,
               creators: tokenData.creators || [],
             },
             lastAnalyzedAt: tokenData.timestamp?.toString(),
-            createdAt:
-              tokenData.txType === "create"
-                ? tokenData.timestamp?.toString()
-                : undefined,
+            createdAt: tokenData.timestamp?.toString(),
             website: tokenData.website || null,
             twitter: tokenData.twitter || null,
             telegram: tokenData.telegram || null,
-            socials: {
-              website: tokenData.website || null,
-              twitter: tokenData.twitter || null,
-              telegram: tokenData.telegram || null,
-            },
+            imageUrl: tokenData.imageUrl,
+            lastUpdated: Date.now(),
           };
 
           const existingTokenIndex = state.tokens.findIndex(
-            (t) => t.address === newToken.address,
+            (t) => t.address === newToken.address
           );
-          const isViewed = state.activeTokenView === newToken.address;
 
           if (existingTokenIndex >= 0) {
-            const updatedTokens = state.tokens.map((t, i) => {
-              if (i === existingTokenIndex) {
-                return {
-                  ...t,
-                  ...newToken,
-                  recentTrades: [
-                    ...(t.recentTrades || []),
-                    ...(tokenData.recentTrades || []),
-                  ].slice(0, MAX_TRADES_PER_TOKEN),
-                };
-              }
-              return t;
-            });
-
-            return {
-              tokens: updatedTokens,
-              lastUpdate: Date.now(),
-              ...(isViewed && {
-                viewedTokens: {
-                  ...state.viewedTokens,
-                  [newToken.address]: updatedTokens[existingTokenIndex],
-                },
-              }),
+            const updatedTokens = [...state.tokens];
+            updatedTokens[existingTokenIndex] = {
+              ...updatedTokens[existingTokenIndex],
+              ...newToken,
+              recentTrades: updatedTokens[existingTokenIndex].recentTrades,
             };
-          }
 
-          const tokenWithFlag = {
-            ...newToken,
-            isNew: true,
-          };
-
-          if (tokenData.recentTrades?.length) {
-            const volumeMetrics = calculateVolumeMetrics(tokenData.recentTrades);
-            const riskMetrics = calculateTokenRisk({
-              ...tokenWithFlag,
-              recentTrades: tokenData.recentTrades,
-            });
-
-            Object.assign(tokenWithFlag, {
-              volume24h: volumeMetrics.volume24h,
-              riskMetrics,
-            });
+            return { tokens: updatedTokens };
           }
 
           return {
-            tokens: [tokenWithFlag, ...state.tokens].slice(0, MAX_TOKENS_IN_LIST),
-            lastUpdate: Date.now(),
-            ...(isViewed && {
-              viewedTokens: {
-                ...state.viewedTokens,
-                [newToken.address]: tokenWithFlag,
-              },
-            }),
+            tokens: [newToken, ...state.tokens].slice(0, MAX_TOKENS_IN_LIST),
           };
         }),
 
@@ -257,214 +194,60 @@ export const usePumpPortalStore = create(
             amount: tradeData.solAmount,
           });
 
-          const token =
-            state.viewedTokens[address] ||
-            state.tokens.find((t) => t.address === address);
-          if (!token) return state;
+          const tokenIndex = state.tokens.findIndex((t) => t.address === address);
+          if (tokenIndex === -1) return state;
 
-          const updatedTrades = [tradeData, ...(token.recentTrades || [])].slice(
+          const updatedTokens = [...state.tokens];
+          const token = updatedTokens[tokenIndex];
+
+          const updatedTrades = [tradeData, ...token.recentTrades].slice(
             0,
-            MAX_TRADES_PER_TOKEN,
+            MAX_TRADES_PER_TOKEN
           );
-
-          const tokenMetrics = calculatePumpFunTokenMetrics({
-            vSolInBondingCurve: tradeData.vSolInBondingCurve,
-            vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
-            solPrice: state.solPrice,
-          });
 
           const volumeMetrics = calculateVolumeMetrics(updatedTrades);
 
-          const updatedToken = {
+          updatedTokens[tokenIndex] = {
             ...token,
             recentTrades: updatedTrades,
-            bondingCurveKey: tradeData.bondingCurveKey,
-            vTokensInBondingCurve: tradeData.vTokensInBondingCurve,
-            vSolInBondingCurve: tradeData.vSolInBondingCurve,
-            marketCapSol: tokenMetrics.marketCap.sol,
-            priceInSol: tokenMetrics.price.sol,
-            priceInUsd: tokenMetrics.price.usd,
             volume24h: volumeMetrics.volume24h,
             riskMetrics: calculateTokenRisk({
               ...token,
               recentTrades: updatedTrades,
             }),
+            lastUpdated: Date.now(),
           };
 
-          const updatedTokens = state.tokens.map((t) =>
-            t.address === address ? updatedToken : t,
-          );
-
-          return {
-            tokens: updatedTokens,
-            lastUpdate: Date.now(),
-            ...(state.viewedTokens[address] && {
-              viewedTokens: {
-                ...state.viewedTokens,
-                [address]: updatedToken,
-              },
-            }),
-          };
+          return { tokens: updatedTokens };
         }),
 
-      setConnected: (connected) => {
-        debugLog("setConnected", { connected });
-        set({ isConnected: connected, lastUpdate: Date.now() });
-      },
+      setConnected: (connected) => set({ isConnected: connected }),
+      setSolPrice: (price) => set({ solPrice: price }),
+      resetTokens: () => set({ tokens: [], viewedTokens: {}, activeTokenView: null }),
+      addToViewedTokens: (address) => set((state) => {
+        const token = state.tokens.find((t) => t.address === address);
+        return token
+          ? { viewedTokens: { ...state.viewedTokens, [address]: token } }
+          : state;
+      }),
 
-      setSolPrice: (price) => {
-        debugLog("setSolPrice", { price });
-        set({ solPrice: price, lastUpdate: Date.now() });
-      },
-
-      resetTokens: () => {
-        debugLog("resetTokens");
-        set({
-          tokens: [],
-          viewedTokens: {},
-          activeTokenView: null,
-          lastUpdate: Date.now(),
-        });
-      },
-
-      addToViewedTokens: (address) =>
+      setActiveTokenView: (address) => set({ activeTokenView: address }),
+      getToken: (address) => get().tokens.find((t) => t.address === address),
+      updateTokenPrice: (address: string, priceInUsd: number) =>
         set((state) => {
-          debugLog("addToViewedTokens", { address });
-          const token = state.tokens.find((t) => t.address === address);
-          if (!token) return state;
-          return {
-            viewedTokens: {
-              ...state.viewedTokens,
-              [address]: token,
-            },
-            lastUpdate: Date.now(),
+          const tokenIndex = state.tokens.findIndex((t) => t.address === address);
+          if (tokenIndex === -1) return state;
+
+          const updatedTokens = [...state.tokens];
+          updatedTokens[tokenIndex] = {
+            ...updatedTokens[tokenIndex],
+            priceInUsd,
+            priceInSol: state.solPrice > 0 ? priceInUsd / state.solPrice : 0,
+            lastUpdated: Date.now(),
           };
+
+          return { tokens: updatedTokens };
         }),
-
-      setActiveTokenView: (address) =>
-        set((state) => {
-          debugLog("setActiveTokenView", { address });
-          if (!address) {
-            return { activeTokenView: null, lastUpdate: Date.now() };
-          }
-          const token = state.tokens.find((t) => t.address === address);
-          if (!token) return state;
-          return {
-            activeTokenView: address,
-            viewedTokens: {
-              ...state.viewedTokens,
-              [address]: token,
-            },
-            lastUpdate: Date.now(),
-          };
-        }),
-
-      getToken: (address) => {
-        debugLog("getToken", { address });
-        const state = get();
-        return (
-          state.viewedTokens[address] ||
-          state.tokens.find((t) => t.address === address)
-        );
-      },
-
-      updateTokenPrice: (address: string, newPriceInUsd: number) =>
-        set((state) => {
-          debugLog("updateTokenPrice", { address, newPriceInUsd });
-          const token = state.tokens.find((t) => t.address === address);
-          if (
-            newPriceInUsd === 0 &&
-            token &&
-            token.priceInUsd &&
-            token.priceInUsd > 0
-          ) {
-            newPriceInUsd = token.priceInUsd;
-          }
-          const priceInSol =
-            state.solPrice > 0 ? newPriceInUsd / state.solPrice : 0;
-          const updatedTokens = state.tokens.map((t) =>
-            t.address === address
-              ? { ...t, priceInUsd: newPriceInUsd, priceInSol }
-              : t,
-          );
-          return {
-            tokens: updatedTokens,
-            lastUpdate: Date.now(),
-            ...(state.viewedTokens[address] && {
-              viewedTokens: {
-                ...state.viewedTokens,
-                [address]: {
-                  ...state.viewedTokens[address],
-                  priceInUsd: newPriceInUsd,
-                  priceInSol,
-                },
-              },
-            }),
-          };
-        }),
-
-      fetchTokenUri: async (address: string) => {
-        const token = get().getToken(address);
-        debugLog("fetchTokenUri", { address });
-
-        if (token?.metadata?.uri) {
-          debugLog("URI already exists:", token.metadata.uri);
-          return token.metadata.uri;
-        }
-
-        const uri = await fetchTokenMetadataFromChain(address);
-        if (uri) {
-          set((state) => ({
-            tokens: state.tokens.map((t) => {
-              if (t.address === address) {
-                return {
-                  ...t,
-                  metadata: {
-                    ...t.metadata,
-                    uri,
-                  },
-                };
-              }
-              return t;
-            }),
-            ...(state.viewedTokens[address] && {
-              viewedTokens: {
-                ...state.viewedTokens,
-                [address]: {
-                  ...state.viewedTokens[address],
-                  metadata: {
-                    ...state.viewedTokens[address].metadata,
-                    uri,
-                  },
-                },
-              },
-            }),
-          }));
-        }
-
-        return uri;
-      },
-
-      getNewTokens: () => {
-        const { tokens } = get();
-        return tokens.filter((t) => t.isNew);
-      },
-      getAboutToGraduateTokens: () => {
-        const { tokens } = get();
-        return tokens.filter(
-          (t) =>
-            !t.isNew &&
-            t.marketCapSol &&
-            t.marketCapSol >= 70 &&
-            t.marketCapSol < 100,
-        );
-      },
-      getGraduatedTokens: () => {
-        const { tokens } = get();
-        return tokens.filter(
-          (t) => !t.isNew && t.marketCapSol && t.marketCapSol >= 100,
-        );
-      },
     }),
     {
       name: "pump-portal-storage",
@@ -472,13 +255,15 @@ export const usePumpPortalStore = create(
       partialize: (state) => ({
         tokens: state.tokens.map((token) => ({
           ...token,
-          recentTrades: token.recentTrades,
+          recentTrades: token.recentTrades.slice(0, MAX_TRADES_PER_TOKEN),
         })),
         viewedTokens: state.viewedTokens,
       }),
     }
   )
 );
+
+export default usePumpPortalStore;
 
 async function fetchTokenMetadataFromChain(mintAddress: string) {
   try {
@@ -505,5 +290,3 @@ async function fetchTokenMetadataFromChain(mintAddress: string) {
     return null;
   }
 }
-
-export default usePumpPortalStore;

@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+// Constants
+const MAX_TOKENS = 50; // Limit the number of tokens to store
+const MAX_TRADES = 100; // Limit trade history per token
+const SYNC_DEBOUNCE = 1000; // 1 second debounce for syncing
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+
 export interface TokenMetadata {
   name: string;
   symbol: string;
@@ -56,6 +62,7 @@ export interface PumpPortalToken {
   twitter?: string | null;
   telegram?: string | null;
   imageUrl?: string;
+  lastUpdated?: number;
 }
 
 interface PumpPortalStore {
@@ -69,7 +76,7 @@ interface PumpPortalStore {
   addTradeToHistory: (address: string, trade: TokenTrade) => void;
 }
 
-// Create store with persist middleware
+// Create store with persist middleware and performance optimizations
 export const usePumpPortalStore = create<PumpPortalStore>()(
   persist(
     (set, get) => ({
@@ -78,21 +85,62 @@ export const usePumpPortalStore = create<PumpPortalStore>()(
       solPrice: 0,
 
       addToken: (token) =>
-        set((state) => ({
-          tokens: [
-            token,
-            ...state.tokens.filter((t) => t.address !== token.address),
-          ],
-        })),
+        set((state) => {
+          const existingIndex = state.tokens.findIndex(t => t.address === token.address);
+          const now = Date.now();
+
+          if (existingIndex > -1) {
+            // Update existing token
+            const updatedTokens = [...state.tokens];
+            updatedTokens[existingIndex] = {
+              ...updatedTokens[existingIndex],
+              ...token,
+              lastUpdated: now
+            };
+            return { tokens: updatedTokens };
+          }
+
+          // Add new token
+          return {
+            tokens: [
+              { ...token, lastUpdated: now },
+              ...state.tokens
+            ].slice(0, MAX_TOKENS)
+          };
+        }),
 
       updateToken: (address, updates) =>
         set((state) => ({
           tokens: state.tokens.map((t) =>
-            t.address === address ? { ...t, ...updates } : t
+            t.address === address 
+              ? { ...t, ...updates, lastUpdated: Date.now() }
+              : t
           ),
         })),
 
-      getToken: (address) => get().tokens.find((t) => t.address === address),
+      getToken: (address) => {
+        const token = get().tokens.find((t) => t.address === address);
+        if (!token) return undefined;
+
+        // Check if data is stale
+        const isStale = Date.now() - (token.lastUpdated || 0) > CACHE_DURATION;
+        if (isStale) {
+          // Return stale data but trigger background update
+          setTimeout(() => {
+            const originalStore = (window as any).pumpPortalStore;
+            if (originalStore) {
+              const freshToken = originalStore.getState().tokens.find(
+                (t: any) => t.address === address
+              );
+              if (freshToken) {
+                get().updateToken(address, freshToken);
+              }
+            }
+          }, 0);
+        }
+
+        return token;
+      },
 
       setSolPrice: (price) => set({ solPrice: price }),
 
@@ -102,7 +150,8 @@ export const usePumpPortalStore = create<PumpPortalStore>()(
             t.address === address
               ? {
                   ...t,
-                  recentTrades: [trade, ...(t.recentTrades || [])].slice(0, 1000),
+                  recentTrades: [trade, ...(t.recentTrades || [])].slice(0, MAX_TRADES),
+                  lastUpdated: Date.now()
                 }
               : t
           ),
@@ -112,11 +161,20 @@ export const usePumpPortalStore = create<PumpPortalStore>()(
       name: "pump-portal-storage",
       storage: {
         getItem: (name) => {
-          const item = localStorage.getItem(name);
-          return item ? JSON.parse(item) : null;
+          try {
+            const item = localStorage.getItem(name);
+            return item ? JSON.parse(item) : null;
+          } catch (error) {
+            console.error('Storage error:', error);
+            return null;
+          }
         },
         setItem: (name, value) => {
-          localStorage.setItem(name, JSON.stringify(value));
+          try {
+            localStorage.setItem(name, JSON.stringify(value));
+          } catch (error) {
+            console.error('Storage error:', error);
+          }
         },
         removeItem: (name) => localStorage.removeItem(name),
       },
@@ -124,20 +182,40 @@ export const usePumpPortalStore = create<PumpPortalStore>()(
   )
 );
 
+// Efficient data sync with debouncing
+let syncTimeout: NodeJS.Timeout | null = null;
+let pendingUpdates: PumpPortalToken[] = [];
+
 // Subscribe to the original pump-portal-websocket store
-// to sync data with our local store
 if (typeof window !== "undefined") {
   const originalStore = (window as any).pumpPortalStore;
   if (originalStore) {
     originalStore.subscribe((state: any) => {
+      if (syncTimeout) clearTimeout(syncTimeout);
+
+      // Collect updates
       if (state.tokens) {
-        state.tokens.forEach((token: PumpPortalToken) => {
-          usePumpPortalStore.getState().addToken(token);
-        });
+        pendingUpdates = [...pendingUpdates, ...state.tokens];
       }
-      if (state.solPrice) {
-        usePumpPortalStore.getState().setSolPrice(state.solPrice);
-      }
+
+      // Debounce updates
+      syncTimeout = setTimeout(() => {
+        if (pendingUpdates.length > 0) {
+          // Batch update tokens
+          const store = usePumpPortalStore.getState();
+          const uniqueTokens = Array.from(
+            new Map(pendingUpdates.map(token => [token.address, token])).values()
+          );
+          uniqueTokens.slice(0, MAX_TOKENS).forEach(token => {
+            store.addToken(token);
+          });
+          pendingUpdates = [];
+        }
+
+        if (state.solPrice) {
+          usePumpPortalStore.getState().setSolPrice(state.solPrice);
+        }
+      }, SYNC_DEBOUNCE);
     });
   }
 }

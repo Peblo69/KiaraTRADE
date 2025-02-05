@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { TrendingUp, DollarSign, BarChart2, Shield, X, Bot, Send, Copy, CheckCircle, ExternalLink } from 'lucide-react';
 import { usePumpPortalStore } from '../lib/pump-portal-store';
 import { formatNumber } from '../lib/utils';
@@ -17,49 +17,44 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
   ]);
 
   // Get token data from PumpPortal store
-  const token = usePumpPortalStore(state => state.tokens.find(t => t.address === tokenAddress));
+  const token = usePumpPortalStore(state => tokenAddress ? state.getToken(tokenAddress) : undefined);
 
-  const [marketStats, setMarketStats] = useState({
-    symbol: 'Loading...',
-    name: 'Loading...',
-    price: 0,
-    marketCap: 0,
-    liquidity: 0,
-    priceChange24h: 0,
-    imageUrl: ''
-  });
-
-  // Update market stats when token data changes
-  useEffect(() => {
-    if (token) {
-      // Get the image URL from token data
-      const imageUrl = token.metadata?.imageUrl || token.imageUrl;
-
-      const newStats = {
-        symbol: token.symbol,
-        name: token.name,
-        price: token.priceInUsd || 0,
-        marketCap: token.marketCapSol || 0,
-        liquidity: token.vSolInBondingCurve || 0,
+  // Memoize market stats calculations to prevent unnecessary recalculations
+  const marketStats = useMemo(() => {
+    if (!token) {
+      return {
+        symbol: 'Loading...',
+        name: 'Loading...',
+        price: 0,
+        marketCap: 0,
+        liquidity: 0,
         priceChange24h: 0,
-        imageUrl
+        imageUrl: ''
       };
-
-      if (token.recentTrades?.length > 0) {
-        const trades = token.recentTrades;
-        const now = Date.now();
-        const trades24h = trades.filter(t => t.timestamp > now - 24 * 60 * 60 * 1000);
-
-        if (trades24h.length >= 2) {
-          const latestPrice = trades24h[0].priceInUsd;
-          const oldestPrice = trades24h[trades24h.length - 1].priceInUsd;
-          const change = ((latestPrice - oldestPrice) / oldestPrice) * 100;
-          newStats.priceChange24h = change;
-        }
-      }
-
-      setMarketStats(newStats);
     }
+
+    let priceChange24h = 0;
+    if (token.recentTrades?.length > 0) {
+      const trades = token.recentTrades;
+      const now = Date.now();
+      const trades24h = trades.filter(t => t.timestamp > now - 24 * 60 * 60 * 1000);
+
+      if (trades24h.length >= 2) {
+        const latestPrice = trades24h[0].priceInUsd;
+        const oldestPrice = trades24h[trades24h.length - 1].priceInUsd;
+        priceChange24h = ((latestPrice - oldestPrice) / oldestPrice) * 100;
+      }
+    }
+
+    return {
+      symbol: token.symbol,
+      name: token.name,
+      price: token.priceInUsd || 0,
+      marketCap: token.marketCapSol || 0,
+      liquidity: token.vSolInBondingCurve || 0,
+      priceChange24h,
+      imageUrl: token.metadata?.imageUrl || token.imageUrl
+    };
   }, [token]);
 
   const copyTokenAddress = () => {
@@ -84,12 +79,25 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
     }, 1000);
   };
 
+  // Loading state
+  if (!token) {
+    return (
+      <div className="bg-[#0D0B1F]/80 backdrop-blur-sm border-b border-purple-900/30 mb-4 animate-pulse">
+        <div className="container mx-auto px-4 py-2">
+          <div className="flex items-center justify-between">
+            <div className="h-6 w-32 bg-purple-900/20 rounded"></div>
+            <div className="h-6 w-48 bg-purple-900/20 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-[#0D0B1F]/80 backdrop-blur-sm border-b border-purple-900/30 mb-4">
       <div className="container mx-auto px-4 py-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-8">
-            {/* Token Information */}
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-2">
                 <img
@@ -149,7 +157,6 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
               </div>
             </div>
 
-            {/* Market Stats */}
             <div className="flex items-center space-x-6">
               <div className="flex items-center space-x-2">
                 <DollarSign className="w-3.5 h-3.5 text-purple-400" />
@@ -173,7 +180,6 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
             </div>
           </div>
 
-          {/* Right side buttons */}
           <div className="flex items-center space-x-3">
             <button
               className="btn-kiara flex items-center space-x-1 cursor-pointer"
@@ -200,7 +206,6 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
         </div>
       </div>
 
-      {/* Security Panel */}
       {isSecurityPanelOpen && (
         <div className="fixed inset-y-0 right-0 w-80 bg-[#0A0818]/95 backdrop-blur-md transform z-50 flex flex-col border-l border-purple-900/30">
           <div className="flex items-center justify-between p-3 border-b border-[#2A2A2A]">
@@ -259,7 +264,6 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
         </div>
       )}
 
-      {/* KIARA Panel */}
       {isKiaraPanelOpen && (
         <div className="fixed inset-y-0 left-0 w-80 bg-black/95 backdrop-blur-md transform z-50 flex flex-col border-r border-yellow-600/20">
           <div className="flex items-center justify-between p-3 border-b border-[#2A2A2A]">
@@ -308,7 +312,6 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
         </div>
       )}
 
-      {/* Backdrop */}
       {(isSecurityPanelOpen || isKiaraPanelOpen) && (
         <div
           className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40"
@@ -322,4 +325,4 @@ const TopBar: React.FC<TopBarProps> = ({ tokenAddress }) => {
   );
 };
 
-export default TopBar;
+export default React.memo(TopBar);
