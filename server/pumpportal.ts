@@ -1,6 +1,7 @@
 import { WebSocket } from 'ws';
 import { log } from './vite';
 import { wsManager } from './services/websocket';
+import { syncTokenData, syncTradeData } from './services/pump-portal-sync';
 
 const PUMP_PORTAL_WS_URL = 'wss://pumpportal.fun/api/data';
 const TOTAL_SUPPLY = 1_000_000_000;
@@ -127,6 +128,9 @@ export function initializePumpPortalWebSocket() {
 
                         log('[PumpPortal] Enriched token data:', JSON.stringify(enrichedData, null, 2));
 
+                        // Sync token data with Supabase
+                        await syncTokenData(enrichedData);
+
                         wsManager.broadcast({ 
                             type: 'newToken',
                             data: enrichedData
@@ -145,6 +149,9 @@ export function initializePumpPortalWebSocket() {
                             ...data,
                             timestamp: Date.now()
                         };
+
+                        // Sync trade data with Supabase
+                        await syncTradeData(tradeData);
 
                         wsManager.broadcast({ 
                             type: 'trade',
