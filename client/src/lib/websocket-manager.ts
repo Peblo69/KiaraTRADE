@@ -13,7 +13,12 @@ const HEARTBEAT_INTERVAL = 30000;
 const BATCH_INTERVAL = 1000; // 1 second batching interval
 const BINANCE_SOL_PRICE_URL = 'https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT';
 
-let pendingUpdates: any[] = [];
+interface PendingUpdate {
+  type: 'newToken' | 'trade' | 'marketData';
+  data: any;
+}
+
+let pendingUpdates: PendingUpdate[] = [];
 let batchTimeout: NodeJS.Timeout | null = null;
 
 class WebSocketManager {
@@ -74,6 +79,16 @@ class WebSocketManager {
     }, 30000); // Update every 30 seconds
   }
 
+  private isValidTokenData(data: any): boolean {
+    return (
+      data &&
+      typeof data === 'object' &&
+      (data.mint || data.address) &&
+      typeof data.vTokensInBondingCurve === 'number' &&
+      typeof data.vSolInBondingCurve === 'number'
+    );
+  }
+
   private async processPendingUpdates(): Promise<void> {
     if (batchTimeout) {
       clearTimeout(batchTimeout);
@@ -86,34 +101,37 @@ class WebSocketManager {
     const updates = [...pendingUpdates];
     pendingUpdates = [];
 
-    const tokenUpdates = new Map();
-    updates.forEach(update => {
-      if (update.mint) {
-        tokenUpdates.set(update.mint, update);
+    const processUpdate = async (update: PendingUpdate) => {
+      if (!update.data) return;
+
+      switch (update.type) {
+        case 'newToken':
+          if (this.isValidTokenData(update.data)) {
+            store.addToken(update.data);
+          }
+          break;
+
+        case 'trade':
+          if (update.data.mint && this.isValidTokenData(update.data)) {
+            const metrics = calculatePumpFunTokenMetrics({
+              vSolInBondingCurve: update.data.vSolInBondingCurve,
+              vTokensInBondingCurve: update.data.vTokensInBondingCurve,
+              solPrice: this.solPrice
+            });
+
+            if (metrics.price) {
+              store.updateTokenPrice(update.data.mint, metrics.price.usd);
+            }
+          }
+          break;
+
+        case 'marketData':
+          // Handle market data updates if needed
+          break;
       }
-    });
+    };
 
-    const processedUpdates = Array.from(tokenUpdates.values()).map(async (update) => {
-      if (update.vTokensInBondingCurve && update.vSolInBondingCurve) {
-        const metrics = calculatePumpFunTokenMetrics({
-          vSolInBondingCurve: update.vSolInBondingCurve,
-          vTokensInBondingCurve: update.vTokensInBondingCurve,
-          solPrice: this.solPrice
-        });
-
-        if (DEBUG) {
-          console.log('📊 Token metrics:', {
-            token: update.mint,
-            price: metrics.price,
-            marketCap: metrics.marketCap
-          });
-        }
-
-        store.updateTokenPrice(update.mint, metrics.price.usd);
-      }
-    });
-
-    await Promise.all(processedUpdates);
+    await Promise.all(updates.map(processUpdate));
   }
 
   private setupEventListeners(): void {
@@ -138,12 +156,17 @@ class WebSocketManager {
     this.ws.onmessage = async (event: MessageEvent) => {
       try {
         const message = JSON.parse(event.data);
-        pendingUpdates.push(message.data);
+        if (message && message.data) {
+          pendingUpdates.push({
+            type: message.type || 'newToken',
+            data: message.data
+          });
 
-        if (!batchTimeout) {
-          batchTimeout = setTimeout(() => {
-            this.processPendingUpdates();
-          }, BATCH_INTERVAL);
+          if (!batchTimeout) {
+            batchTimeout = setTimeout(() => {
+              this.processPendingUpdates();
+            }, BATCH_INTERVAL);
+          }
         }
       } catch (error) {
         console.error('❌ Message parsing error:', error);
@@ -225,7 +248,7 @@ class WebSocketManager {
 export const wsManager = new WebSocketManager();
 
 if (typeof window !== 'undefined') {
-  window.wsManager = wsManager;
+  (window as any).wsManager = wsManager;
 }
 
 export function getCurrentUTCTime(): string {
