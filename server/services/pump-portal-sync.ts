@@ -42,7 +42,42 @@ function calculatePriceUsd(trade: any): number {
   return 0.000001;
 }
 
-// Sync token data with Supabase
+// Sync social metrics if available
+async function syncSocialMetrics(token: PumpPortalToken) {
+  try {
+    const metricsData = {
+      token_address: token.mint || token.address,
+      twitter_followers: token.socials?.twitterFollowers || 0,
+      telegram_members: token.socials?.telegramMembers || 0,
+      timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString()
+    };
+
+    const { error: metricsError } = await supabase
+      .from('social_metrics')
+      .upsert(metricsData, {
+        onConflict: 'token_address',
+        ignoreDuplicates: false
+      });
+
+    if (metricsError) {
+      logSync('Social Metrics Sync Error', { metrics: metricsData }, metricsError);
+      throw metricsError;
+    }
+
+    logSync('Social Metrics Sync Success', {
+      address: token.mint || token.address,
+      followers: metricsData.twitter_followers,
+      members: metricsData.telegram_members
+    });
+
+    return metricsData;
+  } catch (error) {
+    logSync('Social Metrics Sync Failed', token, error);
+    throw error;
+  }
+}
+
 export async function syncTokenData(token: PumpPortalToken) {
   try {
     logSync('Syncing Token', {
@@ -122,25 +157,9 @@ export async function syncTokenData(token: PumpPortalToken) {
         logSync('Metadata Sync Success', { address: token.address });
       }
 
-      // Sync social metrics if available
-      if (token.socials?.twitterFollowers || token.socials?.telegramMembers) {
-        const metricsData = {
-          token_address: token.mint || token.address,
-          twitter_followers: token.socials.twitterFollowers || 0,
-          telegram_members: token.socials.telegramMembers || 0,
-          timestamp: new Date().toISOString()
-        };
+      // Always try to sync social metrics
+      await syncSocialMetrics(token);
 
-        const { error: metricsError } = await supabase
-          .from('social_metrics')
-          .insert(metricsData);
-
-        if (metricsError) {
-          logSync('Social Metrics Sync Error', { metrics: metricsData }, metricsError);
-        } else {
-          logSync('Social Metrics Sync Success', { address: token.address });
-        }
-      }
     }
 
     // Update token holders
