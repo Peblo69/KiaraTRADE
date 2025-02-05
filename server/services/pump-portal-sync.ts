@@ -46,9 +46,9 @@ function calculatePriceUsd(trade: any): number {
 export async function syncTokenData(token: PumpPortalToken) {
   try {
     logSync('Syncing Token', {
-      address: token.address,
+      address: token.mint || token.address, // Use mint as fallback for address
       symbol: token.symbol || 'UNKNOWN',
-      name: token.name || `Token ${token.address.slice(0, 8)}`
+      name: token.name || `Token ${token.address?.slice(0, 8) || token.mint?.slice(0, 8)}`
     });
 
     const priceUsd = calculatePriceUsd(token);
@@ -59,13 +59,13 @@ export async function syncTokenData(token: PumpPortalToken) {
     const { data: existingToken } = await supabase
       .from('tokens')
       .select('address, initial_price_usd, created_at')
-      .eq('address', token.address)
+      .eq('address', token.mint || token.address) // Use mint as fallback
       .single();
 
     const tokenData = {
-      address: token.address,
+      address: token.mint || token.address, // Use mint as fallback
       symbol: token.symbol || 'UNKNOWN',
-      name: token.name || `Token ${token.address.slice(0, 8)}`,
+      name: token.name || `Token ${token.mint?.slice(0, 8)}`,
       decimals: token.metadata?.decimals || 9,
       image_url: token.metadata?.image || token.imageUrl,
       initial_price_usd: existingToken?.initial_price_usd || priceUsd,
@@ -101,7 +101,7 @@ export async function syncTokenData(token: PumpPortalToken) {
     // Sync metadata
     if (token.metadata || token.socials || token.twitter || token.telegram || token.website) {
       const metadataData = {
-        token_address: token.address,
+        token_address: token.mint || token.address,
         twitter_url: token.socials?.twitter || token.twitter,
         telegram_url: token.socials?.telegram || token.telegram,
         website_url: token.socials?.website || token.website,
@@ -125,7 +125,7 @@ export async function syncTokenData(token: PumpPortalToken) {
       // Sync social metrics if available
       if (token.socials?.twitterFollowers || token.socials?.telegramMembers) {
         const metricsData = {
-          token_address: token.address,
+          token_address: token.mint || token.address,
           twitter_followers: token.socials.twitterFollowers || 0,
           telegram_members: token.socials.telegramMembers || 0,
           timestamp: new Date().toISOString()
@@ -172,7 +172,7 @@ export async function syncTokenData(token: PumpPortalToken) {
       for (const [wallet, balance] of holderEntries) {
         const percentage = (balance / totalSupply) * 100;
         const holderData = {
-          token_address: token.address,
+          token_address: token.mint || token.address,
           wallet_address: wallet,
           balance: balance,
           percentage: percentage,
