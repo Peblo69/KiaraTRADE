@@ -1,19 +1,11 @@
-import React, { useState } from 'react';
-import { Bell, Menu, Search, Zap } from 'lucide-react';
+import React from 'react';
+import { Bell, Menu, Search } from 'lucide-react';
 import { WalletSection } from '@/components/kiara/WalletSection';
 import { PortfolioTracker } from '@/components/kiara/PortfolioTracker';
 import { PerformanceChart } from '@/components/kiara/PerformanceChart';
 import { AnalyticsPanel } from '@/components/kiara/AnalyticsPanel';
-import { CopyTradingPage } from '@/components/kiara/CopyTradingPage';
-import { TradingSection } from '@/components/kiara/TradingSection';
 
 function ProjectPage() {
-  const [showCopyTrading, setShowCopyTrading] = useState(false);
-
-  if (showCopyTrading) {
-    return <CopyTradingPage onBack={() => setShowCopyTrading(false)} />;
-  }
-
   return (
     <div className="min-h-screen bg-[#0B0B1E] grid-bg">
       {/* Header */}
@@ -54,13 +46,6 @@ function ProjectPage() {
             <div className="flex items-center gap-4">
               <button className="p-2 rounded-md text-purple-400 hover:text-purple-300 hover:bg-purple-500/10">
                 <Bell size={24} />
-              </button>
-              <button
-                onClick={() => setShowCopyTrading(true)}
-                className="cyber-button flex items-center gap-2"
-              >
-                <Zap size={18} className="text-yellow-400" />
-                Copy Trading
               </button>
             </div>
           </div>
