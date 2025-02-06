@@ -1,5 +1,4 @@
 import { WebSocket } from 'ws';
-import { log } from './vite';
 import { wsManager } from './services/websocket';
 import { syncTokenData, syncTradeData } from './services/pump-portal-sync';
 
@@ -31,7 +30,6 @@ async function fetchMetadataWithImage(uri: string) {
             socials
         };
     } catch (error) {
-        console.error('[PumpPortal] Failed to fetch metadata');
         return null;
     }
 }
@@ -46,7 +44,6 @@ export function initializePumpPortalWebSocket() {
             ws = new WebSocket(PUMP_PORTAL_WS_URL);
 
             ws.onopen = () => {
-                console.log('[PumpPortal] WebSocket connected');
                 reconnectAttempt = 0;
 
                 if (ws && ws.readyState === WebSocket.OPEN) {
@@ -91,13 +88,9 @@ export function initializePumpPortalWebSocket() {
                         };
 
                         if (data.uri) {
-                            try {
-                                tokenMetadata = await fetchMetadataWithImage(data.uri);
-                                imageUrl = tokenMetadata?.image;
-                                socials = tokenMetadata?.socials || socials;
-                            } catch (error) {
-                                console.error('[PumpPortal] Error fetching metadata');
-                            }
+                            tokenMetadata = await fetchMetadataWithImage(data.uri);
+                            imageUrl = tokenMetadata?.image;
+                            socials = tokenMetadata?.socials || socials;
                         }
 
                         const baseMetadata = {
@@ -127,13 +120,7 @@ export function initializePumpPortalWebSocket() {
                             twitter: socials.twitter || data.twitter,
                             telegram: socials.telegram || data.telegram,
                             website: socials.website || data.website,
-                            socials: {
-                                twitter: socials.twitter || data.twitter,
-                                telegram: socials.telegram || data.telegram,
-                                website: socials.website || data.website,
-                                twitterFollowers: socials.twitterFollowers,
-                                telegramMembers: socials.telegramMembers
-                            }
+                            socials
                         };
 
                         await syncTokenData(enrichedData);
@@ -163,13 +150,11 @@ export function initializePumpPortalWebSocket() {
                         });
                     }
                 } catch (error) {
-                    console.error('[PumpPortal] Failed to process message');
+                    // Silent error handling
                 }
             };
 
             ws.onclose = () => {
-                console.log('[PumpPortal] WebSocket disconnected');
-
                 wsManager.broadcast({
                     type: 'connection_status',
                     data: {
@@ -181,19 +166,13 @@ export function initializePumpPortalWebSocket() {
 
                 if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
                     reconnectAttempt++;
-                    console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}`);
                     setTimeout(connect, RECONNECT_DELAY);
-                } else {
-                    console.error('[PumpPortal] Max reconnection attempts reached');
                 }
             };
 
-            ws.onerror = (error) => {
-                console.error('[PumpPortal] WebSocket error');
-            };
+            ws.onerror = () => {};
 
         } catch (error) {
-            console.error('[PumpPortal] Failed to initialize WebSocket');
             if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
                 reconnectAttempt++;
                 setTimeout(connect, RECONNECT_DELAY);

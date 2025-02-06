@@ -7,17 +7,15 @@ import {
   calculateVolumeMetrics,
   calculateTokenRisk,
 } from "@/utils/token-calculations";
-// Placeholder import - Replace './SocialLinks' with the correct path for SocialLinks
-import SocialLinks from "./SocialLinks";
 
-const MAX_TRADES_PER_TOKEN = 1000; // Increased max trades
+const MAX_TRADES_PER_TOKEN = 1000;
 const MAX_TOKENS_IN_LIST = 50;
 
-const DEBUG = true;
-function debugLog(action: string, data?: any) {
-  if (DEBUG) {
-    console.log(`[PumpPortal][${action}]`, data || "");
+function emptyToNull(value: string | undefined | null): string | null {
+  if (!value || value.trim() === '') {
+    return null;
   }
+  return value;
 }
 
 export interface TokenMetadata {
@@ -135,9 +133,6 @@ export const usePumpPortalStore = create(
 
       addToken: (tokenData) =>
         set((state) => {
-          debugLog("addToken", tokenData);
-          debugLog("Token URI:", tokenData.uri || tokenData.metadata?.uri);
-
           const tokenName = tokenData.metadata?.name || tokenData.name;
           const tokenSymbol = tokenData.metadata?.symbol || tokenData.symbol;
           const mintAddress = tokenData.mint || tokenData.address || "";
@@ -148,8 +143,6 @@ export const usePumpPortalStore = create(
             vTokensInBondingCurve: tokenData.vTokensInBondingCurve || 0,
             solPrice: state.solPrice,
           });
-
-          debugLog("Token metrics calculated:", tokenMetrics);
 
           const newToken = {
             symbol: tokenSymbol || mintAddress.slice(0, 6).toUpperCase(),
@@ -173,17 +166,14 @@ export const usePumpPortalStore = create(
               creators: tokenData.creators || [],
             },
             lastAnalyzedAt: tokenData.timestamp?.toString(),
-            createdAt:
-              tokenData.txType === "create"
-                ? tokenData.timestamp?.toString()
-                : undefined,
-            website: tokenData.website || null,
-            twitter: tokenData.twitter || null,
-            telegram: tokenData.telegram || null,
+            createdAt: tokenData.txType === "create" ? tokenData.timestamp?.toString() : undefined,
+            website: emptyToNull(tokenData.website),
+            twitter: emptyToNull(tokenData.twitter),
+            telegram: emptyToNull(tokenData.telegram),
             socials: {
-              website: tokenData.website || null,
-              twitter: tokenData.twitter || null,
-              telegram: tokenData.telegram || null,
+              website: emptyToNull(tokenData.website),
+              twitter: emptyToNull(tokenData.twitter),
+              telegram: emptyToNull(tokenData.telegram),
             },
           };
 
@@ -251,12 +241,6 @@ export const usePumpPortalStore = create(
 
       addTradeToHistory: (address: string, tradeData: TokenTrade) =>
         set((state) => {
-          debugLog("addTradeToHistory", {
-            token: address,
-            type: tradeData.txType,
-            amount: tradeData.solAmount,
-          });
-
           const token =
             state.viewedTokens[address] ||
             state.tokens.find((t) => t.address === address);
@@ -307,29 +291,17 @@ export const usePumpPortalStore = create(
           };
         }),
 
-      setConnected: (connected) => {
-        debugLog("setConnected", { connected });
-        set({ isConnected: connected, lastUpdate: Date.now() });
-      },
-
-      setSolPrice: (price) => {
-        debugLog("setSolPrice", { price });
-        set({ solPrice: price, lastUpdate: Date.now() });
-      },
-
-      resetTokens: () => {
-        debugLog("resetTokens");
-        set({
-          tokens: [],
-          viewedTokens: {},
-          activeTokenView: null,
-          lastUpdate: Date.now(),
-        });
-      },
+      setConnected: (connected) => set({ isConnected: connected, lastUpdate: Date.now() }),
+      setSolPrice: (price) => set({ solPrice: price, lastUpdate: Date.now() }),
+      resetTokens: () => set({
+        tokens: [],
+        viewedTokens: {},
+        activeTokenView: null,
+        lastUpdate: Date.now(),
+      }),
 
       addToViewedTokens: (address) =>
         set((state) => {
-          debugLog("addToViewedTokens", { address });
           const token = state.tokens.find((t) => t.address === address);
           if (!token) return state;
           return {
@@ -343,7 +315,6 @@ export const usePumpPortalStore = create(
 
       setActiveTokenView: (address) =>
         set((state) => {
-          debugLog("setActiveTokenView", { address });
           if (!address) {
             return { activeTokenView: null, lastUpdate: Date.now() };
           }
@@ -360,7 +331,6 @@ export const usePumpPortalStore = create(
         }),
 
       getToken: (address) => {
-        debugLog("getToken", { address });
         const state = get();
         return (
           state.viewedTokens[address] ||
@@ -370,7 +340,6 @@ export const usePumpPortalStore = create(
 
       updateTokenPrice: (address: string, newPriceInUsd: number) =>
         set((state) => {
-          debugLog("updateTokenPrice", { address, newPriceInUsd });
           const token = state.tokens.find((t) => t.address === address);
           if (
             newPriceInUsd === 0 &&
@@ -405,10 +374,8 @@ export const usePumpPortalStore = create(
 
       fetchTokenUri: async (address: string) => {
         const token = get().getToken(address);
-        debugLog("fetchTokenUri", { address });
 
         if (token?.metadata?.uri) {
-          debugLog("URI already exists:", token.metadata.uri);
           return token.metadata.uri;
         }
 
@@ -482,8 +449,6 @@ export const usePumpPortalStore = create(
 
 async function fetchTokenMetadataFromChain(mintAddress: string) {
   try {
-    debugLog("Attempting to fetch metadata from chain for:", mintAddress);
-
     const response = await axios.post("https://api.mainnet-beta.solana.com", {
       jsonrpc: "2.0",
       id: 1,
@@ -491,12 +456,9 @@ async function fetchTokenMetadataFromChain(mintAddress: string) {
       params: [mintAddress, { encoding: "jsonParsed" }],
     });
 
-    debugLog("Chain metadata response:", response.data);
 
     if (response.data?.result?.value?.data?.parsed?.info?.uri) {
-      const uri = response.data.result.value.data.parsed.info.uri;
-      debugLog("Found URI from chain:", uri);
-      return uri;
+      return response.data.result.value.data.parsed.info.uri;
     }
 
     return null;

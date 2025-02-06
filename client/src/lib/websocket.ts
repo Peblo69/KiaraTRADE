@@ -83,7 +83,6 @@ function initializeWebSocket() {
   }
 
   try {
-    console.log('[PumpPortal] Initializing WebSocket connection...');
     ws = new WebSocket('wss://pumpportal.fun/api/data');
     lastConnectionTime = Date.now();
 
@@ -149,16 +148,11 @@ function initializeWebSocket() {
       }
     };
 
-    ws.onclose = (event) => {
+    ws.onclose = () => {
       console.log('[PumpPortal] WebSocket disconnected');
       store.setConnected(false);
       hasSubscribedNewToken = false;
       hasSubscribedTokenTrade = false;
-
-      if (event.code === 1008 || event.code === 1011) {
-        reconnectAttempts = MAX_RECONNECT_ATTEMPTS;
-        return;
-      }
 
       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         const delay = getReconnectDelay();
@@ -181,7 +175,6 @@ function initializeWebSocket() {
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
       const delay = getReconnectDelay();
       reconnectAttempts++;
-      console.log(`[PumpPortal] Will attempt to reconnect in ${delay/1000}s (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
       reconnectTimeout = setTimeout(initializeWebSocket, delay);
     }
   }

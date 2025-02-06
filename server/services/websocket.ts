@@ -1,7 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
 
-// Extend WebSocket type to include isAlive property
 declare module 'ws' {
   interface WebSocket {
     isAlive: boolean;
@@ -14,37 +13,24 @@ export class WebSocketManager {
   private heartbeatInterval: NodeJS.Timeout | null = null;
 
   initialize(server: HttpServer) {
-    if (this.wss) {
-      console.log('[WebSocket Manager] WebSocket server already initialized');
-      return;
-    }
+    if (this.wss) return;
 
     this.wss = new WebSocketServer({ 
       noServer: true,
       perMessageDeflate: false
     });
 
-    // Handle upgrade separately to properly handle vite-hmr
     server.on('upgrade', (request, socket, head) => {
-      // Skip vite-hmr connections
-      if (request.headers['sec-websocket-protocol']?.includes('vite-hmr')) {
-        console.log('[WebSocket] Skipping vite-hmr connection');
-        return;
-      }
-
+      if (request.headers['sec-websocket-protocol']?.includes('vite-hmr')) return;
       if (!this.wss) return;
 
       this.wss.handleUpgrade(request, socket, head, (ws) => {
-        if (this.clients.has(ws)) {
-          console.log('[WebSocket] Connection already exists');
-          return; // Prevent multiple connections
-        }
+        if (this.clients.has(ws)) return;
         this.wss!.emit('connection', ws, request);
       });
     });
 
     this.wss.on('connection', (ws: WebSocket) => {
-      console.log('[WebSocket Manager] New client connected');
       ws.isAlive = true;
       this.clients.add(ws);
 
@@ -58,18 +44,14 @@ export class WebSocketManager {
           if (message.type === 'ping') {
             this.sendToClient(ws, { type: 'pong' });
           }
-        } catch (error) {
-          console.error('[WebSocket Manager] Error processing message:', error);
-        }
+        } catch (error) {}
       });
 
       ws.on('close', () => {
-        console.log('[WebSocket Manager] Client disconnected');
         this.clients.delete(ws);
       });
 
-      ws.on('error', (error) => {
-        console.error('[WebSocket Manager] Client error:', error);
+      ws.on('error', () => {
         this.clients.delete(ws);
       });
 
@@ -97,8 +79,6 @@ export class WebSocketManager {
         this.heartbeatInterval = null;
       }
     });
-
-    console.log('[WebSocket Manager] WebSocket server initialized');
   }
 
   private sendToClient(client: WebSocket, data: any) {
@@ -106,17 +86,13 @@ export class WebSocketManager {
       try {
         client.send(JSON.stringify(data));
       } catch (error) {
-        console.error('[WebSocket Manager] Error sending to client:', error);
         this.clients.delete(client);
       }
     }
   }
 
   broadcast(data: any) {
-    if (!this.wss) {
-      console.warn('[WebSocket Manager] Cannot broadcast, server not initialized');
-      return;
-    }
+    if (!this.wss) return;
 
     const message = JSON.stringify(data);
     Array.from(this.clients).forEach(client => {
@@ -124,7 +100,6 @@ export class WebSocketManager {
         try {
           client.send(message);
         } catch (error) {
-          console.error('[WebSocket Manager] Error broadcasting to client:', error);
           this.clients.delete(client);
         }
       }
