@@ -7,14 +7,7 @@ import {
   Key, Trash2, ArrowLeft
 } from 'lucide-react';
 
-import { WalletSection } from '@/components/kiara/WalletSection';
-import { PortfolioTracker } from '@/components/kiara/PortfolioTracker';
-import { PerformanceChart } from '@/components/kiara/PerformanceChart';
-import { AnalyticsPanel } from '@/components/kiara/AnalyticsPanel';
-import { CopyTradingPage } from '@/components/kiara/CopyTradingPage';
-import { TradingSection } from '@/components/kiara/TradingSection';
-
-function ProjectPage() {
+function App() {
   const [showCopyTrading, setShowCopyTrading] = useState(false);
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
@@ -137,48 +130,7 @@ function ProjectPage() {
             </div>
           </div>
         </header>
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-400 to-blue-400 flex items-center justify-center">
-                      <Users className="text-white" size={20} />
-                    </div>
-                    <div>
-                      <div className="text-purple-100 font-medium">Trader {i}</div>
-                      <div className="text-purple-400 text-sm">@trader{i}</div>
-                    </div>
-                  </div>
-                  <button className="px-3 py-1 text-xs rounded-md bg-purple-600 text-white hover:bg-purple-500">
-                    Copy
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="bg-purple-900/40 rounded-lg p-3">
-                    <div className="text-purple-300 text-sm mb-1">Win Rate</div>
-                    <div className="text-green-400 font-medium flex items-center gap-1">
-                      <TrendingUp size={14} />
-                      {85 + i}%
-                    </div>
-                  </div>
-                  <div className="bg-purple-900/40 rounded-lg p-3">
-                    <div className="text-purple-300 text-sm mb-1">Risk Level</div>
-                    <div className="text-yellow-400 font-medium flex items-center gap-1">
-                      <AlertTriangle size={14} />
-                      Medium
-                    </div>
-                  </div>
-                </div>
-                <div className="text-sm text-purple-300">
-                  Last 30 days performance:
-                  <span className="text-green-400 ml-2">+{12 + i * 5}%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Copy trading content */}
       </div>
     );
   }
@@ -204,7 +156,7 @@ function ProjectPage() {
                 </span>
               </div>
             </div>
-
+            
             <div className="flex-1 max-w-xl px-8 hidden lg:flex">
               <div className="w-full relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -213,8 +165,8 @@ function ProjectPage() {
                 <input
                   type="text"
                   className="block w-full pl-10 pr-3 py-2 bg-purple-900/10 border border-purple-500/20 rounded-lg 
-                         text-purple-100 placeholder-purple-400/50 focus:outline-none focus:border-purple-500/50
-                         focus:ring-1 focus:ring-purple-500/30"
+                           text-purple-100 placeholder-purple-400/50 focus:outline-none focus:border-purple-500/50
+                           focus:ring-1 focus:ring-purple-500/30"
                   placeholder="Search tokens..."
                 />
               </div>
@@ -276,48 +228,31 @@ function ProjectPage() {
                           : 'border-purple-500/20 bg-purple-900/10 hover:bg-purple-900/20'
                       }`}
                     >
-                      <div className="flex justify-between">
-                        <div>
-                          <h3 className="text-lg font-medium text-purple-100">{wallet.name}</h3>
-                          <p className="text-purple-400/70 text-sm">{wallet.address}</p>
-                        </div>
-                        <div className="flex flex-col items-end">
-                          <p className="text-lg font-medium text-purple-100">${wallet.balanceUSD}</p>
-                          <p className="text-purple-400/70 text-sm">{wallet.chain}</p>
-                        </div>
-                      </div>
-                      {wallet.recentTransactions.length > 0 && (
-                        <div className="mt-4">
-                          <h4 className="text-sm font-medium text-purple-400">Recent Transactions</h4>
-                          <ul className="list-disc text-purple-400/70 text-xs">
-                            {wallet.recentTransactions.map((tx) => (
-                              <li key={tx.id}>{tx.type} {tx.amount} {tx.from} {'->'} {tx.to}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      <div className='flex gap-2 mt-2'>
-                        <button className='text-purple-400 hover:text-purple-300'>
-                          <Copy size={16} onClick={() => copyToClipboard(wallet.address, 'address')}/>
-                        </button>
-                        <button onClick={() => {setSelectedWalletForWithdraw(wallet.id); setShowWithdraw(true)}} className='text-purple-400 hover:text-purple-300'>
-                          <Download size={16}/>
-                        </button>
-                        <button onClick={() => {setWalletToDelete(wallet.id); setShowDeleteModal(true)}} className='text-purple-400 hover:text-purple-300'>
-                          <Trash2 size={16}/>
-                        </button>
-                      </div>
+                      {/* Wallet content */}
                     </div>
                   ))}
                 </div>
               </div>
             </div>
-            <WalletSection wallets={wallets}  />
-            <PerformanceChart tokens={tokens} />
+
+            {/* Performance Chart */}
+            <div className="neon-border bg-kiara-dark/80 rounded-xl p-6">
+              {/* Performance chart content */}
+            </div>
           </div>
+
           <div className="space-y-8">
-            <PortfolioTracker tokens={tokens} calculatePNL={calculatePNL} formatUSD={formatUSD}/>
-            <AnalyticsPanel />
+            {/* Portfolio Tracker */}
+            <div className="space-y-6">
+              <div className="neon-border bg-kiara-dark/80 rounded-xl p-6">
+                {/* Portfolio content */}
+              </div>
+            </div>
+
+            {/* Analytics Panel */}
+            <div className="neon-border bg-kiara-dark/80 rounded-xl p-6">
+              {/* Analytics content */}
+            </div>
           </div>
         </div>
       </main>
@@ -325,82 +260,23 @@ function ProjectPage() {
       {/* Modals */}
       {showImport && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-kiara-dark/80 rounded-xl p-8 w-96">
-            <h2 className="text-lg font-bold text-purple-100 mb-4">Import Wallet</h2>
-            <form>
-              <div className="mb-4">
-                <label className="block text-purple-400/70 text-sm mb-2" htmlFor="publicKey">Public Key</label>
-                <input
-                  type="text"
-                  id="publicKey"
-                  value={importData.publicKey}
-                  onChange={(e) => setImportData({ ...importData, publicKey: e.target.value })}
-                  className="w-full bg-purple-900/10 border border-purple-500/20 text-purple-100 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500/50"
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-purple-400/70 text-sm mb-2" htmlFor="privateKey">Private Key</label>
-                <input
-                  type="password"
-                  id="privateKey"
-                  value={importData.privateKey}
-                  onChange={(e) => setImportData({ ...importData, privateKey: e.target.value })}
-                  className="w-full bg-purple-900/10 border border-purple-500/20 text-purple-100 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500/50"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setImportSuccess(true);
-                  setShowImport(false);
-                }}
-                className="cyber-button"
-              >
-                Import
-              </button>
-              {importError && <p className="text-red-500 text-sm mt-2">{importError}</p>}
-              {importSuccess && <p className="text-green-500 text-sm mt-2">Wallet imported successfully!</p>}
-            </form>
-          </div>
+          {/* Import modal content */}
         </div>
       )}
 
-      {showDeleteModal && walletToDelete && (
+      {showDeleteModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-kiara-dark/80 rounded-xl p-8 w-96">
-            <h2 className="text-lg font-bold text-purple-100 mb-4">Delete Wallet</h2>
-            <p className="text-purple-400/70 text-sm mb-4">Are you sure you want to delete the wallet "{walletToDelete}"?</p>
-            <div className="flex justify-end gap-4">
-              <button
-                onClick={() => { setShowDeleteModal(false); setWalletToDelete(null); }}
-                className="cyber-button bg-gray-600 hover:bg-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setWalletToDelete(null);
-                }}
-                className="cyber-button bg-red-600 hover:bg-red-700"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
+          {/* Delete modal content */}
         </div>
       )}
 
       {showWithdraw && selectedWalletForWithdraw && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-kiara-dark/80 rounded-xl p-8 w-96">
-            <h2 className="text-lg font-bold text-purple-100 mb-4">Withdraw from {selectedWalletForWithdraw}</h2>
-            <button onClick={() => setShowWithdraw(false)} className="cyber-button">Close</button>
-          </div>
+          {/* Withdraw modal content */}
         </div>
       )}
     </div>
   );
 }
 
-export default ProjectPage;
+export default App;
