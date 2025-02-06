@@ -1,15 +1,21 @@
 import { supabase } from './supabase';
 import { TokenTrade, PumpPortalToken } from '@/lib/pump-portal-websocket';
 
-// Enhanced logging function
+// Enhanced logging function with detailed error reporting
 function logSync(action: string, data: any, error?: any) {
+  const timestamp = new Date().toISOString();
   console.log(`[Supabase Sync][${action}]`, {
     data: {
       ...data,
-      timestamp: new Date().toISOString()
+      timestamp
     },
-    error: error ? error.message : null,
-    timestamp: new Date().toISOString()
+    error: error ? {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint
+    } : null,
+    timestamp
   });
 }
 
@@ -44,13 +50,18 @@ function calculatePriceUsd(trade: any): number {
 
 async function calculateHolderCount(tokenAddress: string): Promise<number> {
   try {
-    const { data: holders } = await supabase
+    const { data, error } = await supabase
       .from('token_holders')
-      .select('count')
+      .select('id')
       .eq('token_address', tokenAddress)
       .gt('balance', 0);
 
-    return holders?.length || 0;
+    if (error) {
+      console.error('Error calculating holder count:', error);
+      return 0;
+    }
+
+    return data?.length || 0;
   } catch (error) {
     console.error('Error calculating holder count:', error);
     return 0;
@@ -59,18 +70,20 @@ async function calculateHolderCount(tokenAddress: string): Promise<number> {
 
 export async function syncTokenData(token: PumpPortalToken) {
   try {
-    const tokenAddress = token.address || token.mint;
+    // Ensure we have a valid token address
+    const tokenAddress = token.mint || token.address;
+    if (!tokenAddress) {
+      throw new Error('No valid token address provided');
+    }
 
+    // Log initial token data
     logSync('Syncing Token', {
       address: tokenAddress,
       symbol: token.symbol || 'UNKNOWN',
-      name: token.name || `Token ${tokenAddress?.slice(0, 8)}`
+      name: token.name || `Token ${tokenAddress.slice(0, 8)}`,
+      metadata: token.metadata,
+      socials: token.socials
     });
-
-    const priceUsd = calculatePriceUsd(token);
-    const liquidityUsd = (token.vSolInBondingCurve || 0) * SOL_PRICE;
-    const marketCapUsd = (token.marketCapSol || 0) * SOL_PRICE;
-    const holderCount = await calculateHolderCount(tokenAddress);
 
     // Get existing token data first
     const { data: existingToken } = await supabase
@@ -79,11 +92,16 @@ export async function syncTokenData(token: PumpPortalToken) {
       .eq('address', tokenAddress)
       .single();
 
+    const priceUsd = calculatePriceUsd(token);
+    const liquidityUsd = (token.vSolInBondingCurve || 0) * SOL_PRICE;
+    const marketCapUsd = (token.marketCapSol || 0) * SOL_PRICE;
+    const holderCount = await calculateHolderCount(tokenAddress);
+
     // Prepare token data with all required fields
     const tokenData = {
       address: tokenAddress,
       symbol: token.symbol || 'UNKNOWN',
-      name: token.name || `Token ${tokenAddress?.slice(0, 8)}`,
+      name: token.name || `Token ${tokenAddress.slice(0, 8)}`,
       decimals: token.metadata?.decimals || 9,
       image_url: token.metadata?.imageUrl || token.imageUrl || null,
       price_usd: priceUsd,
@@ -95,13 +113,13 @@ export async function syncTokenData(token: PumpPortalToken) {
 
       // Contract info - keep existing values if present
       bonding_curve_key: token.bondingCurveKey || existingToken?.bonding_curve_key || null,
-      mint_authority: token.devWallet || existingToken?.mint_authority || null,
-      freeze_authority: token.freezeAuthority || existingToken?.freeze_authority || null,
+      mint_authority: token.metadata?.mint || existingToken?.mint_authority || null,
+      freeze_authority: token.metadata?.freezeAuthority || existingToken?.freeze_authority || null,
 
-      // Social links - keep existing values if present
-      twitter_url: token.socials?.twitter || token.twitter || existingToken?.twitter_url || null,
-      telegram_url: token.socials?.telegram || token.telegram || existingToken?.telegram_url || null,
-      website_url: token.socials?.website || token.website || existingToken?.website_url || null,
+      // Social links - allow NULL values
+      twitter_url: token.socials?.twitter || existingToken?.twitter_url || null,
+      telegram_url: token.socials?.telegram || existingToken?.telegram_url || null,
+      website_url: token.socials?.website || existingToken?.website_url || null,
 
       // Social metrics - keep existing values if present
       twitter_followers: token.socials?.twitterFollowers || existingToken?.twitter_followers || 0,
@@ -115,6 +133,29 @@ export async function syncTokenData(token: PumpPortalToken) {
       updated_at: new Date().toISOString()
     };
 
+    // Log prepared data before insertion
+    logSync('Token Data Prepared', {
+      address: tokenData.address,
+      symbol: tokenData.symbol,
+      metadata: {
+        image_url: tokenData.image_url,
+        bonding_curve: tokenData.bonding_curve_key,
+        mint_authority: tokenData.mint_authority,
+        freeze_authority: tokenData.freeze_authority
+      },
+      social_links: {
+        twitter: tokenData.twitter_url,
+        telegram: tokenData.telegram_url,
+        website: tokenData.website_url
+      },
+      metrics: {
+        holders: tokenData.holder_count,
+        price_usd: tokenData.price_usd,
+        liquidity_usd: tokenData.liquidity_usd,
+        market_cap_usd: tokenData.market_cap_usd
+      }
+    });
+
     // Upsert token data
     const { error: tokenError } = await supabase
       .from('tokens')
@@ -124,7 +165,7 @@ export async function syncTokenData(token: PumpPortalToken) {
       });
 
     if (tokenError) {
-      logSync('Token Sync Error', token, tokenError);
+      logSync('Token Sync Error', tokenData, tokenError);
       throw tokenError;
     }
 
@@ -135,53 +176,57 @@ export async function syncTokenData(token: PumpPortalToken) {
 
     // Update holder data if we have trades
     if (token.recentTrades && token.recentTrades.length > 0) {
-      const holders = new Map<string, number>();
-
-      // Calculate current holdings for each wallet
-      token.recentTrades.forEach(trade => {
-        const amount = trade.tokenAmount || 0;
-        const wallet = trade.traderPublicKey;
-        const currentHolding = holders.get(wallet) || 0;
-
-        if (trade.txType === 'buy') {
-          holders.set(wallet, currentHolding + amount);
-        } else if (trade.txType === 'sell') {
-          const newAmount = currentHolding - amount;
-          if (newAmount > 0) {
-            holders.set(wallet, newAmount);
-          } else {
-            holders.delete(wallet);
-          }
-        }
-      });
-
-      // Update holder records
-      for (const [wallet, balance] of holders.entries()) {
-        if (balance > 0) {
-          const percentage = (balance / (token.vTokensInBondingCurve || 1)) * 100;
-
-          const { error: holderError } = await supabase
-            .from('token_holders')
-            .upsert({
-              token_address: tokenAddress,
-              wallet_address: wallet,
-              balance: balance,
-              percentage: percentage,
-              last_updated: new Date().toISOString()
-            }, {
-              onConflict: 'token_address,wallet_address'
-            });
-
-          if (holderError) {
-            logSync('Holder Update Error', { wallet, balance }, holderError);
-          }
-        }
-      }
+      await updateHolderData(token, tokenAddress);
     }
 
   } catch (error) {
     logSync('Token Sync Failed', token, error);
     console.error('Failed to sync token data:', error);
+  }
+}
+
+async function updateHolderData(token: PumpPortalToken, tokenAddress: string) {
+  const holders = new Map<string, number>();
+
+  // Calculate current holdings for each wallet
+  token.recentTrades.forEach(trade => {
+    const amount = trade.tokenAmount || 0;
+    const wallet = trade.traderPublicKey;
+    const currentHolding = holders.get(wallet) || 0;
+
+    if (trade.txType === 'buy') {
+      holders.set(wallet, currentHolding + amount);
+    } else if (trade.txType === 'sell') {
+      const newAmount = currentHolding - amount;
+      if (newAmount > 0) {
+        holders.set(wallet, newAmount);
+      } else {
+        holders.delete(wallet);
+      }
+    }
+  });
+
+  // Update holder records
+  for (const [wallet, balance] of holders.entries()) {
+    if (balance > 0) {
+      const percentage = (balance / (token.vTokensInBondingCurve || 1)) * 100;
+
+      const { error: holderError } = await supabase
+        .from('token_holders')
+        .upsert({
+          token_address: tokenAddress,
+          wallet_address: wallet,
+          balance: balance,
+          percentage: percentage,
+          last_updated: new Date().toISOString()
+        }, {
+          onConflict: 'token_address,wallet_address'
+        });
+
+      if (holderError) {
+        logSync('Holder Update Error', { wallet, balance }, holderError);
+      }
+    }
   }
 }
 
