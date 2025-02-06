@@ -1,0 +1,551 @@
+}
+11:57:00 PM [https://ipfs.io/ipfs/QmSWLSPGV4HGFBDm9ogT6aRhiUKQMmNoxsxYs1LjewxXLR] [PumpPortal] Found image URL:
+11:57:00 PM [[object Object]] [PumpPortal] Final processed metadata:
+11:57:00 PM [[object Object]] [PumpPortal] Successfully fetched metadata and image:
+11:57:00 PM [{
+  "name": "White House Doge",
+  "symbol": "WHOGE",
+  "uri": "https://ipfs.io/ipfs/QmZqQCfN17AC3iCPdrZ6SYaACzPE3ByoFHo3pKVBethTF2",
+  "creators": [],
+  "mint": "CqWzJouREMc2ovNj3XWXvYeKA7hooWV6aZKA5AKppump",
+  "decimals": 9,
+  "imageUrl": "https://ipfs.io/ipfs/QmSWLSPGV4HGFBDm9ogT6aRhiUKQMmNoxsxYs1LjewxXLR",
+  "description": "White House Doge $WHOGE\r\n\r\nMove over, policy makers—White House Doge ($WHOGE) is here to run the economy with paws-itively moon-worthy gains! While politicians debate, this First Doge is out here securing the bag—one meme at a time. No scandals, no flip-flopping—just WHOGE wagging its way to the moon!"
+}] [PumpPortal] Base Metadata:
+11:57:00 PM [{
+  "signature": "45Fag9rGFXAr9CjMUH5neUAqSNHHkdYDqVwCKLg8Ct5zuFYSJvRwc1ubm4GBBTMRJuh4xEwVEc8BwhT6BwNeynv6",
+  "mint": "CqWzJouREMc2ovNj3XWXvYeKA7hooWV6aZKA5AKppump",
+  "traderPublicKey": "DwogLLRb8SLJC4U2LD2MsF9Q1aiZr6UaaKCfekFNXdo7",
+  "txType": "create",
+  "initialBuy": 0,
+  "solAmount": 1.3,
+  "bondingCurveKey": "7gdqbQF3SmC38pnVrbCMbyEibiFcuj7qTio84UQemB71",
+  "vTokensInBondingCurve": 1028434504.792333,
+  "vSolInBondingCurve": 31.299999999999976,
+  "marketCapSol": 31.299999999999976,
+  "name": "White House Doge",
+  "symbol": "WHOGE",
+  "uri": "https://ipfs.io/ipfs/QmZqQCfN17AC3iCPdrZ6SYaACzPE3ByoFHo3pKVBethTF2",
+  "pool": "pump",
+  "metadata": {
+    "name": "White House Doge",
+    "symbol": "WHOGE",
+    "uri": "https://ipfs.io/ipfs/QmZqQCfN17AC3iCPdrZ6SYaACzPE3ByoFHo3pKVBethTF2",
+    "creators": [],
+    "mint": "CqWzJouREMc2ovNj3XWXvYeKA7hooWV6aZKA5AKppump",
+    "decimals": 9,
+    "imageUrl": "https://ipfs.io/ipfs/QmSWLSPGV4HGFBDm9ogT6aRhiUKQMmNoxsxYs1LjewxXLR",
+    "description": "White House Doge $WHOGE\r\n\r\nMove over, policy makers—White House Doge ($WHOGE) is here to run the economy with paws-itively moon-worthy gains! While politicians debate, this First Doge is out here securing the bag—one meme at a time. No scandals, no flip-flopping—just WHOGE wagging its way to the moon!"
+  },
+  "imageUrl": "https://ipfs.io/ipfs/QmSWLSPGV4HGFBDm9ogT6aRhiUKQMmNoxsxYs1LjewxXLR",
+  "creators": [],
+  "priceInSol": 1.3e-9,
+  "timestamp": 1738799820194,
+  "isNewToken": true,
+  "twitter": "https://x.com/whoge_erc",
+  "telegram": "https://t.me/whoge_erc",
+  "website": "https://www.whitehousedoge.vip/",
+  "socials": {
+    "twitter": "https://x.com/whoge_erc",
+    "telegram": "https://t.me/whoge_erc",
+    "website": "https://www.whitehousedoge.vip/",
+    "twitterFollowers": 0,
+    "telegramMembers": 0
+  }
+}] [PumpPortal] Enriched token data:
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'CqWzJouREMc2ovNj3XWXvYeKA7hooWV6aZKA5AKppump',
+    symbol: 'WHOGE',
+    name: 'White House Doge',
+    timestamp: '2025-02-05T23:57:00.194Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.194Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:57:00.326Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.326Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:57:00.370Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.370Z'
+}
+11:57:00 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '5VGFZu7aMBBZfyoVuR4ZGrc2fohcn2TEyB2NciUhhQXYmCS29r5GojcanMb7csAi2bL1bgYFNZMYXPEQhKyybFb6',
+    token: '5FfKhvjERYXd7FKf6wTsicgJVsxurQ4MQWwbreigCvK1',
+    type: 'buy',
+    timestamp: '2025-02-05T23:57:00.392Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.392Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: undefined,
+    symbol: 'WHOGE',
+    timestamp: '2025-02-05T23:57:00.498Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.498Z'
+}
+11:57:00 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '4vvS87U7dFneXFjU5gnCtfhGjysLdJATGPA1neY7ZB1ZQCHcLjK7cziRBXFcEAaUvE4N1raPcQoHnToqfPBg1k4S',
+    token: '8PTPeFshJB59irtXtSEq5uFmabYKkZ7qNWMdbY2Dpump',
+    type: 'sell',
+    timestamp: '2025-02-05T23:57:00.549Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.549Z'
+}
+11:57:00 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '4KrNyuZMmLXJUFQ9cwN61u8S22aF1gFxJFUEuuhyZf33W1v71GcxDAojuFgxXsjsiEgqwoiJTK9bprcXDuNY1oeU',
+    token: '5QUFo6p7nAHcgnp7ENz1aXkbWxi11ajCirko54m3UiJm',
+    type: 'buy',
+    timestamp: '2025-02-05T23:57:00.550Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.550Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: '5FfKhvjERYXd7FKf6wTsicgJVsxurQ4MQWwbreigCvK1',
+    symbol: 'UNKNOWN',
+    name: 'Token 5FfKhvjE',
+    timestamp: '2025-02-05T23:57:00.553Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.553Z'
+}
+11:57:00 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '3f5mMy63hHH6EFcb8VZNSW5Rdn8sPo5C1qXWay2U7hyaCw3PtsGZfHD6a5ieiaPhc2DQzdSZmZEsrFqKHqakQnpY',
+    token: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    type: 'sell',
+    timestamp: '2025-02-05T23:57:00.556Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.556Z'
+}
+11:57:00 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: 'Rmxib63MPSsx5tajMnEc7ZJT6WMYFvMF1NPhgE2QLAdasJdpxzF5KzJUD6r2oeb7JnS2N8TTYzEhYZpSh92Dtib',
+    token: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    type: 'sell',
+    timestamp: '2025-02-05T23:57:00.559Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.559Z'
+}
+11:57:00 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: 'jzBeVRKb9rwGN48R1tnM1zf9TfsrEfW3Ej5zq9bXcLCLJhLQMXATZ5QXvBaYWvXoxsFzh97f6JtUc7y5Fomi9RF',
+    token: '923W2cERFv6xTLpUtLvv4MF3mEKoLK6PJTpJwEkfpump',
+    type: 'buy',
+    timestamp: '2025-02-05T23:57:00.590Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.590Z'
+}
+11:57:00 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '2vPgqTUzY3gfF9ZPLZovrJUDqRBx8ag19YGqq3nddMHxtZnDvSm8ny59jY8Lve5LLKVpxcXmi7DXi1hYnVFMFt1d',
+    token: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    type: 'buy',
+    timestamp: '2025-02-05T23:57:00.592Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.592Z'
+}
+11:57:00 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '4e6Uu6UTUdmr73JyPKDDe3APbD7EoCyP59NYfSr7ouSRAsJQ8azcEbsqin6qhb4aXNDPQVefZ2UscJnAyxh7nZZd',
+    token: '3YKvkkLyLGbKPGnHzChSF3byxYne9uRk837itfFwx26U',
+    type: 'buy',
+    timestamp: '2025-02-05T23:57:00.594Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.594Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '2NLF7bztyd3yT79Xdbd7uHB4d76UMeeLVBVdGdi1rqM4nXMx7i9pvLjAAg6Y88TAbgY7dxVUghq2FnCcHKbmJbvS',
+    token: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    timestamp: '2025-02-05T23:57:00.637Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.637Z'
+}
+[Supabase Sync][Metadata Sync Error] {
+  data: {
+    metadata: {
+      name: 'White House Doge',
+      symbol: 'WHOGE',
+      uri: 'https://ipfs.io/ipfs/QmZqQCfN17AC3iCPdrZ6SYaACzPE3ByoFHo3pKVBethTF2',
+      creators: [],
+      mint: 'CqWzJouREMc2ovNj3XWXvYeKA7hooWV6aZKA5AKppump',
+      decimals: 9,
+      imageUrl: 'https://ipfs.io/ipfs/QmSWLSPGV4HGFBDm9ogT6aRhiUKQMmNoxsxYs1LjewxXLR',
+      description: 'White House Doge $WHOGE\r\n' +
+        '\r\n' +
+        'Move over, policy makers—White House Doge ($WHOGE) is here to run the economy with paws-itively moon-worthy gains! While politicians debate, this First Doge is out here securing the bag—one meme at a time. No scandals, no flip-flopping—just WHOGE wagging its way to the moon!'
+    },
+    socials: {
+      twitter: 'https://x.com/whoge_erc',
+      telegram: 'https://t.me/whoge_erc',
+      website: 'https://www.whitehousedoge.vip/',
+      twitterFollowers: 0,
+      telegramMembers: 0
+    },
+    timestamp: '2025-02-05T23:57:00.639Z'
+  },
+  error: 'there is no unique or exclusion constraint matching the ON CONFLICT specification',
+  timestamp: '2025-02-05T23:57:00.639Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: 'RCgishepUJYwWqrLoBW5bsknLCsh35mgfA8oKoqEiGs9XNRWQXmjGToUFNgpsaHbAJ1gxicrKwJbqTzu8SYPHmG',
+    token: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    timestamp: '2025-02-05T23:57:00.674Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.674Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: '8PTPeFshJB59irtXtSEq5uFmabYKkZ7qNWMdbY2Dpump',
+    symbol: 'UNKNOWN',
+    name: 'Token 8PTPeFsh',
+    timestamp: '2025-02-05T23:57:00.687Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.687Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    symbol: 'UNKNOWN',
+    name: 'Token EUYmz6EQ',
+    timestamp: '2025-02-05T23:57:00.696Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.696Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: '5QUFo6p7nAHcgnp7ENz1aXkbWxi11ajCirko54m3UiJm',
+    symbol: 'UNKNOWN',
+    name: 'Token 5QUFo6p7',
+    timestamp: '2025-02-05T23:57:00.696Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.696Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    symbol: 'UNKNOWN',
+    name: 'Token EUYmz6EQ',
+    timestamp: '2025-02-05T23:57:00.736Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.736Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: '923W2cERFv6xTLpUtLvv4MF3mEKoLK6PJTpJwEkfpump',
+    symbol: 'UNKNOWN',
+    name: 'Token 923W2cER',
+    timestamp: '2025-02-05T23:57:00.738Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.738Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: '3YKvkkLyLGbKPGnHzChSF3byxYne9uRk837itfFwx26U',
+    symbol: 'UNKNOWN',
+    name: 'Token 3YKvkkLy',
+    timestamp: '2025-02-05T23:57:00.745Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.745Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    symbol: 'UNKNOWN',
+    name: 'Token EUYmz6EQ',
+    timestamp: '2025-02-05T23:57:00.755Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.755Z'
+}
+[Supabase Sync][Social Metrics Sync Success] {
+  data: {
+    address: 'CqWzJouREMc2ovNj3XWXvYeKA7hooWV6aZKA5AKppump',
+    followers: 0,
+    members: 0,
+    timestamp: '2025-02-05T23:57:00.788Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.788Z'
+}
+11:57:00 PM [[object Object]] [PumpPortal] Received raw data:
+11:57:00 PM [Successfully subscribed to keys.] [PumpPortal] Subscription confirmed:
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: '5FfKhvjERYXd7FKf6wTsicgJVsxurQ4MQWwbreigCvK1',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:57:00.850Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.850Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: '8PTPeFshJB59irtXtSEq5uFmabYKkZ7qNWMdbY2Dpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:57:00.989Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:00.989Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: '5QUFo6p7nAHcgnp7ENz1aXkbWxi11ajCirko54m3UiJm',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:57:01.009Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.009Z'
+}
+11:57:01 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '5MsQ7B8x1GDoCiiyxCbV4zXNeGUAJUcFboGBdxbQhEishsrdfUEZBDZtZUJmhV7HkK8VNHmTiDdq5TfVuEFPTxgC',
+    token: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    type: 'buy',
+    timestamp: '2025-02-05T23:57:01.020Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.020Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: '923W2cERFv6xTLpUtLvv4MF3mEKoLK6PJTpJwEkfpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:57:01.027Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.027Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:57:01.028Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.028Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: '3YKvkkLyLGbKPGnHzChSF3byxYne9uRk837itfFwx26U',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:57:01.032Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.032Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:57:01.036Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.036Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:57:01.056Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.056Z'
+}
+11:57:01 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '4S4e5JAjhtYM5XpAorzB1n7cJQ5psEsY1rsEH2iXNSsW82VVi1rdVQKxU6cFqUDvFv4qYQZNGgofksdbWwv9BAaL',
+    token: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    type: 'sell',
+    timestamp: '2025-02-05T23:57:01.125Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.125Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '5VGFZu7aMBBZfyoVuR4ZGrc2fohcn2TEyB2NciUhhQXYmCS29r5GojcanMb7csAi2bL1bgYFNZMYXPEQhKyybFb6',
+    token: '5FfKhvjERYXd7FKf6wTsicgJVsxurQ4MQWwbreigCvK1',
+    timestamp: '2025-02-05T23:57:01.155Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.155Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    symbol: 'UNKNOWN',
+    name: 'Token EUYmz6EQ',
+    timestamp: '2025-02-05T23:57:01.176Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.176Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    symbol: 'UNKNOWN',
+    name: 'Token EUYmz6EQ',
+    timestamp: '2025-02-05T23:57:01.275Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.275Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '4vvS87U7dFneXFjU5gnCtfhGjysLdJATGPA1neY7ZB1ZQCHcLjK7cziRBXFcEAaUvE4N1raPcQoHnToqfPBg1k4S',
+    token: '8PTPeFshJB59irtXtSEq5uFmabYKkZ7qNWMdbY2Dpump',
+    timestamp: '2025-02-05T23:57:01.305Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.305Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '4e6Uu6UTUdmr73JyPKDDe3APbD7EoCyP59NYfSr7ouSRAsJQ8azcEbsqin6qhb4aXNDPQVefZ2UscJnAyxh7nZZd',
+    token: '3YKvkkLyLGbKPGnHzChSF3byxYne9uRk837itfFwx26U',
+    timestamp: '2025-02-05T23:57:01.324Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.324Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '4KrNyuZMmLXJUFQ9cwN61u8S22aF1gFxJFUEuuhyZf33W1v71GcxDAojuFgxXsjsiEgqwoiJTK9bprcXDuNY1oeU',
+    token: '5QUFo6p7nAHcgnp7ENz1aXkbWxi11ajCirko54m3UiJm',
+    timestamp: '2025-02-05T23:57:01.325Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.325Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: 'jzBeVRKb9rwGN48R1tnM1zf9TfsrEfW3Ej5zq9bXcLCLJhLQMXATZ5QXvBaYWvXoxsFzh97f6JtUc7y5Fomi9RF',
+    token: '923W2cERFv6xTLpUtLvv4MF3mEKoLK6PJTpJwEkfpump',
+    timestamp: '2025-02-05T23:57:01.328Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.328Z'
+}
+11:57:01 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '5sUHrdfdiA99RBsH1sez79MqqrHHSqwaTaRDP4Lj1QDMbEDdvwBhr3MociB7niZndS6vK1J1zotpjTaxk3o1vpiY',
+    token: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    type: 'buy',
+    timestamp: '2025-02-05T23:57:01.335Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.335Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: 'Rmxib63MPSsx5tajMnEc7ZJT6WMYFvMF1NPhgE2QLAdasJdpxzF5KzJUD6r2oeb7JnS2N8TTYzEhYZpSh92Dtib',
+    token: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    timestamp: '2025-02-05T23:57:01.342Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.342Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '2vPgqTUzY3gfF9ZPLZovrJUDqRBx8ag19YGqq3nddMHxtZnDvSm8ny59jY8Lve5LLKVpxcXmi7DXi1hYnVFMFt1d',
+    token: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    timestamp: '2025-02-05T23:57:01.354Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.354Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '3f5mMy63hHH6EFcb8VZNSW5Rdn8sPo5C1qXWay2U7hyaCw3PtsGZfHD6a5ieiaPhc2DQzdSZmZEsrFqKHqakQnpY',
+    token: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    timestamp: '2025-02-05T23:57:01.355Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.355Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-05T23:57:01.468Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.468Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    symbol: 'UNKNOWN',
+    name: 'Token EUYmz6EQ',
+    timestamp: '2025-02-05T23:57:01.480Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.480Z'
+}
+11:57:01 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '5jqvUaiv5azcMPEvpieUoFUwvFJUVtvMrTYYvDp7vqrZHC9NfPg8WKshDFzCN2ssg3ua2z23zQz8vVYgwjs4uyn',
+    token: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    type: 'sell',
+    timestamp: '2025-02-05T23:57:01.516Z'
+  },
+  error: null,
+  timestamp: '2025-02-05T23:57:01.516Z'
+}
+11:57:01 PM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '5FEoLs71kY6D8ryjzxiMDuj3sRiy9gvWaa9oUD2yjAidNZVNX2hfb9RzfV6Ex1SHfxwnyUCy1yGBBPWAeqFeRRZJ',
+    token: 'EUYmz6EQf7wuxoY1NCznzXh5fibX543BDymA12gGpump',
+    type: 'buy',
+    timestamp: '2025-02-05T23:57:01.564Z'
+  },

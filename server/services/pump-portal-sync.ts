@@ -50,12 +50,18 @@ async function syncSocialMetrics(token: PumpPortalToken) {
       return;
     }
 
+    // Only sync if we have any social links
+    if (!token.socials?.twitter && !token.socials?.telegram && !token.socials?.website && 
+        !token.twitter && !token.telegram && !token.website) {
+      return;
+    }
+
     const metricsData = {
       token_address: token.mint || token.address,
-      twitter_followers: token.socials?.twitterFollowers || 0,
-      telegram_members: token.socials?.telegramMembers || 0,
-      timestamp: new Date().toISOString(),
-      created_at: new Date().toISOString()
+      twitter_url: token.socials?.twitter || token.twitter || null,
+      telegram_url: token.socials?.telegram || token.telegram || null,
+      website_url: token.socials?.website || token.website || null,
+      updated_at: new Date().toISOString()
     };
 
     // First try to insert
@@ -68,9 +74,10 @@ async function syncSocialMetrics(token: PumpPortalToken) {
       const { error: updateError } = await supabase
         .from('social_metrics')
         .update({
-          twitter_followers: metricsData.twitter_followers,
-          telegram_members: metricsData.telegram_members,
-          timestamp: metricsData.timestamp
+          twitter_url: metricsData.twitter_url,
+          telegram_url: metricsData.telegram_url,
+          website_url: metricsData.website_url,
+          updated_at: metricsData.updated_at
         })
         .eq('token_address', metricsData.token_address);
 
@@ -82,8 +89,9 @@ async function syncSocialMetrics(token: PumpPortalToken) {
 
     logSync('Social Metrics Sync Success', {
       address: token.mint || token.address,
-      followers: metricsData.twitter_followers,
-      members: metricsData.telegram_members
+      twitter: metricsData.twitter_url,
+      telegram: metricsData.telegram_url,
+      website: metricsData.website_url
     });
 
     return metricsData;
