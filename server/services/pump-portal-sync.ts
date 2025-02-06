@@ -44,14 +44,13 @@ function calculatePriceUsd(trade: any): number {
 
 async function calculateHolderCount(tokenAddress: string): Promise<number> {
   try {
-    const { count } = await supabase
+    const { data: holders } = await supabase
       .from('token_holders')
       .select('count')
       .eq('token_address', tokenAddress)
-      .gt('balance', 0)
-      .single();
+      .gt('balance', 0);
 
-    return count || 0;
+    return holders?.length || 0;
   } catch (error) {
     console.error('Error calculating holder count:', error);
     return 0;
@@ -60,29 +59,31 @@ async function calculateHolderCount(tokenAddress: string): Promise<number> {
 
 export async function syncTokenData(token: PumpPortalToken) {
   try {
+    const tokenAddress = token.address || token.mint;
+
     logSync('Syncing Token', {
-      address: token.address || token.mint,
+      address: tokenAddress,
       symbol: token.symbol || 'UNKNOWN',
-      name: token.name || `Token ${(token.address || token.mint)?.slice(0, 8)}`
+      name: token.name || `Token ${tokenAddress?.slice(0, 8)}`
     });
 
     const priceUsd = calculatePriceUsd(token);
     const liquidityUsd = (token.vSolInBondingCurve || 0) * SOL_PRICE;
     const marketCapUsd = (token.marketCapSol || 0) * SOL_PRICE;
-    const holderCount = await calculateHolderCount(token.address || token.mint);
+    const holderCount = await calculateHolderCount(tokenAddress);
 
     // Get existing token data first
     const { data: existingToken } = await supabase
       .from('tokens')
       .select('*')
-      .eq('address', token.address || token.mint)
+      .eq('address', tokenAddress)
       .single();
 
     // Prepare token data with all required fields
     const tokenData = {
-      address: token.address || token.mint,
+      address: tokenAddress,
       symbol: token.symbol || 'UNKNOWN',
-      name: token.name || `Token ${(token.address || token.mint)?.slice(0, 8)}`,
+      name: token.name || `Token ${tokenAddress?.slice(0, 8)}`,
       decimals: token.metadata?.decimals || 9,
       image_url: token.metadata?.imageUrl || token.imageUrl || null,
       price_usd: priceUsd,
@@ -128,7 +129,7 @@ export async function syncTokenData(token: PumpPortalToken) {
     }
 
     logSync('Token Sync Success', {
-      address: token.address || token.mint,
+      address: tokenAddress,
       symbol: token.symbol
     });
 
@@ -162,7 +163,7 @@ export async function syncTokenData(token: PumpPortalToken) {
           const { error: holderError } = await supabase
             .from('token_holders')
             .upsert({
-              token_address: token.address || token.mint,
+              token_address: tokenAddress,
               wallet_address: wallet,
               balance: balance,
               percentage: percentage,
@@ -192,6 +193,19 @@ export async function syncTradeData(trade: TokenTrade) {
       type: trade.txType
     });
 
+    // First ensure the token exists
+    await syncTokenData({
+      address: trade.mint,
+      symbol: 'UNKNOWN',
+      name: `Token ${trade.mint.slice(0, 8)}`,
+      bondingCurveKey: trade.bondingCurveKey,
+      vTokensInBondingCurve: trade.vTokensInBondingCurve,
+      vSolInBondingCurve: trade.vSolInBondingCurve,
+      marketCapSol: trade.marketCapSol,
+      priceInSol: trade.priceInSol
+    });
+
+    // Check if trade already exists
     const { data: existingTrade } = await supabase
       .from('token_trades')
       .select('tx_signature')
@@ -205,19 +219,7 @@ export async function syncTradeData(trade: TokenTrade) {
 
     const priceUsd = calculatePriceUsd(trade);
 
-    // First ensure the token exists
-    await syncTokenData({
-      address: trade.mint,
-      symbol: 'UNKNOWN',
-      name: `Token ${trade.mint.slice(0, 8)}`,
-      bondingCurveKey: trade.bondingCurveKey,
-      vTokensInBondingCurve: trade.vTokensInBondingCurve,
-      vSolInBondingCurve: trade.vSolInBondingCurve,
-      marketCapSol: trade.marketCapSol,
-      priceInSol: trade.priceInSol
-    });
-
-    // Then insert the trade
+    // Insert the trade
     const { error } = await supabase
       .from('token_trades')
       .insert({
@@ -237,32 +239,11 @@ export async function syncTradeData(trade: TokenTrade) {
       throw error;
     }
 
-    // Update token statistics
-    const { error: statsError } = await supabase
-      .from('token_statistics')
-      .insert({
-        token_address: trade.mint,
-        timestamp: new Date(trade.timestamp).toISOString(),
-        timeframe: '1m',
-        open_price: priceUsd,
-        high_price: priceUsd,
-        low_price: priceUsd,
-        close_price: priceUsd,
-        volume: (trade.tokenAmount || 0) * priceUsd,
-        trade_count: 1,
-        buy_count: trade.txType === 'buy' ? 1 : 0,
-        sell_count: trade.txType === 'sell' ? 1 : 0,
-        created_at: new Date().toISOString()
-      });
-
-    if (statsError) {
-      logSync('Stats Sync Error', trade, statsError);
-    }
-
     logSync('Trade Sync Success', {
       signature: trade.signature,
       token: trade.mint
     });
+
   } catch (error) {
     logSync('Trade Sync Failed', trade, error);
     console.error('Failed to sync trade data:', error);
