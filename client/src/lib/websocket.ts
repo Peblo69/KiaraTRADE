@@ -76,9 +76,7 @@ function initializeWebSocket() {
   if (ws) {
     try {
       ws.close();
-    } catch (e) {
-      console.error('[PumpPortal] Error closing WebSocket');
-    }
+    } catch (e) {}
     ws = null;
   }
 
@@ -87,7 +85,6 @@ function initializeWebSocket() {
     lastConnectionTime = Date.now();
 
     ws.onopen = () => {
-      console.log('[PumpPortal] Connected to WebSocket');
       store.setConnected(true);
       reconnectAttempts = 0;
       hasSubscribedNewToken = false;
@@ -111,9 +108,7 @@ function initializeWebSocket() {
               }
             }, 10000);
 
-          } catch (error) {
-            console.error('[PumpPortal] Error sending subscriptions');
-          }
+          } catch (error) {}
         }
       }, 5000);
     };
@@ -143,13 +138,10 @@ function initializeWebSocket() {
             volume24h: Number(data.trade.volume24h || 0),
           });
         }
-      } catch (error) {
-        console.error('[PumpPortal] Failed to parse message');
-      }
+      } catch (error) {}
     };
 
     ws.onclose = () => {
-      console.log('[PumpPortal] WebSocket disconnected');
       store.setConnected(false);
       hasSubscribedNewToken = false;
       hasSubscribedTokenTrade = false;
@@ -157,19 +149,14 @@ function initializeWebSocket() {
       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         const delay = getReconnectDelay();
         reconnectAttempts++;
-        console.log(`[PumpPortal] Will attempt to reconnect in ${delay/1000}s (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
         reconnectTimeout = setTimeout(initializeWebSocket, delay);
-      } else {
-        console.error('[PumpPortal] Max reconnection attempts reached');
       }
     };
 
     ws.onerror = () => {
-      console.error('[PumpPortal] WebSocket error');
       store.setConnected(false);
     };
   } catch (error) {
-    console.error('[PumpPortal] Failed to initialize WebSocket');
     store.setConnected(false);
 
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
@@ -188,7 +175,6 @@ export async function fetchRealTimeTokens(): Promise<Token[]> {
   try {
     return [];
   } catch (error) {
-    console.error('[PumpPortal] Error fetching tokens');
     return [];
   }
 }

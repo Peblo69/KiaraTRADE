@@ -1,12 +1,11 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { format } from "date-fns";
-import axios from "axios";
-import {
+import { 
   calculatePumpFunTokenMetrics,
   calculateVolumeMetrics,
   calculateTokenRisk,
 } from "@/utils/token-calculations";
+import axios from "axios";
 
 const MAX_TRADES_PER_TOKEN = 1000;
 const MAX_TOKENS_IN_LIST = 50;
@@ -99,28 +98,6 @@ interface PumpPortalStore {
   getAboutToGraduateTokens: () => PumpPortalToken[];
   getGraduatedTokens: () => PumpPortalToken[];
 }
-
-const createJSONStorage = (getStorage) => ({
-  getItem: (name) => {
-    try {
-      const serializedState = getStorage().getItem(name);
-      return serializedState ? JSON.parse(serializedState) : undefined;
-    } catch (error) {
-      console.error("Error retrieving item from storage:", error);
-      return undefined;
-    }
-  },
-  setItem: (name, state) => {
-    try {
-      const serializedState = JSON.stringify(state);
-      getStorage().setItem(name, serializedState);
-    } catch (error) {
-      console.error("Error storing item in storage:", error);
-    }
-  },
-  removeItem: (name) => getStorage().removeItem(name),
-});
-
 
 export const usePumpPortalStore = create(
   persist(
@@ -338,7 +315,7 @@ export const usePumpPortalStore = create(
         );
       },
 
-      updateTokenPrice: (address: string, newPriceInUsd: number) =>
+      updateTokenPrice: (address, newPriceInUsd) =>
         set((state) => {
           const token = state.tokens.find((t) => t.address === address);
           if (
@@ -372,50 +349,17 @@ export const usePumpPortalStore = create(
           };
         }),
 
-      fetchTokenUri: async (address: string) => {
+      fetchTokenUri: async (address) => {
         const token = get().getToken(address);
-
-        if (token?.metadata?.uri) {
-          return token.metadata.uri;
-        }
-
-        const uri = await fetchTokenMetadataFromChain(address);
-        if (uri) {
-          set((state) => ({
-            tokens: state.tokens.map((t) => {
-              if (t.address === address) {
-                return {
-                  ...t,
-                  metadata: {
-                    ...t.metadata,
-                    uri,
-                  },
-                };
-              }
-              return t;
-            }),
-            ...(state.viewedTokens[address] && {
-              viewedTokens: {
-                ...state.viewedTokens,
-                [address]: {
-                  ...state.viewedTokens[address],
-                  metadata: {
-                    ...state.viewedTokens[address].metadata,
-                    uri,
-                  },
-                },
-              },
-            }),
-          }));
-        }
-
-        return uri;
+        if (token?.metadata?.uri) return token.metadata.uri;
+        return fetchTokenMetadataFromChain(address);
       },
 
       getNewTokens: () => {
         const { tokens } = get();
         return tokens.filter((t) => t.isNew);
       },
+
       getAboutToGraduateTokens: () => {
         const { tokens } = get();
         return tokens.filter(
@@ -426,6 +370,7 @@ export const usePumpPortalStore = create(
             t.marketCapSol < 100,
         );
       },
+
       getGraduatedTokens: () => {
         const { tokens } = get();
         return tokens.filter(
@@ -435,7 +380,25 @@ export const usePumpPortalStore = create(
     }),
     {
       name: "pump-portal-storage",
-      storage: createJSONStorage(() => localStorage),
+      storage: {
+        getItem: (name) => {
+          try {
+            return localStorage.getItem(name);
+          } catch {
+            return null;
+          }
+        },
+        setItem: (name, value) => {
+          try {
+            localStorage.setItem(name, value);
+          } catch {}
+        },
+        removeItem: (name) => {
+          try {
+            localStorage.removeItem(name);
+          } catch {}
+        }
+      },
       partialize: (state) => ({
         tokens: state.tokens.map((token) => ({
           ...token,
@@ -456,14 +419,11 @@ async function fetchTokenMetadataFromChain(mintAddress: string) {
       params: [mintAddress, { encoding: "jsonParsed" }],
     });
 
-
     if (response.data?.result?.value?.data?.parsed?.info?.uri) {
       return response.data.result.value.data.parsed.info.uri;
     }
-
     return null;
-  } catch (error) {
-    console.error("Failed to fetch metadata from chain:", error);
+  } catch {
     return null;
   }
 }

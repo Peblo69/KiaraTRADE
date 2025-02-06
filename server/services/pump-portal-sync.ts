@@ -1,28 +1,16 @@
 import { supabase } from './supabase';
 import { TokenTrade, PumpPortalToken } from '@/lib/pump-portal-websocket';
 
-// Enhanced logging function with critical errors only
-function logSync(action: string, data: any, error?: any) {
-  if (error) {
-    console.error(`[Supabase Sync][${action}] Failed:`, {
-      error: {
-        message: error.message,
-        code: error.code
-      }
-    });
-  }
-}
-
-// Get SOL price from environment or use a default
-const SOL_PRICE = 196.05; // We should get this dynamically from the store
-
-// Helper function to convert empty strings to null
+// Internal helper functions
 function emptyToNull(value: string | undefined | null): string | null {
   if (!value || value.trim() === '') {
     return null;
   }
   return value;
 }
+
+// Get SOL price from environment or use a default
+const SOL_PRICE = 196.05;
 
 // Calculate price in USD, ensuring we never return null
 function calculatePriceUsd(trade: any): number {
@@ -47,18 +35,14 @@ function calculatePriceUsd(trade: any): number {
 
 async function calculateHolderCount(tokenAddress: string): Promise<number> {
   try {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('token_holders')
       .select('id')
       .eq('token_address', tokenAddress)
       .gt('balance', 0);
 
-    if (error) {
-      return 0;
-    }
-
     return data?.length || 0;
-  } catch (error) {
+  } catch {
     return 0;
   }
 }
@@ -67,7 +51,7 @@ export async function syncTokenData(token: PumpPortalToken) {
   try {
     const tokenAddress = token.mint || token.address;
     if (!tokenAddress) {
-      throw new Error('No valid token address provided');
+      return;
     }
 
     const socialLinks = {
@@ -94,7 +78,7 @@ export async function syncTokenData(token: PumpPortalToken) {
       symbol: token.symbol || 'UNKNOWN',
       name: token.name || `Token ${tokenAddress.slice(0, 8)}`,
       decimals: token.metadata?.decimals || 9,
-      image_url: imageUrl,
+      image_url: imageUrl || '',
       price_usd: priceUsd,
       liquidity_usd: liquidityUsd,
       market_cap_usd: marketCapUsd,
@@ -104,9 +88,9 @@ export async function syncTokenData(token: PumpPortalToken) {
       bonding_curve_key: token.bondingCurveKey || existingToken?.bonding_curve_key,
       mint_authority: token.metadata?.mint || existingToken?.mint_authority,
       freeze_authority: existingToken?.freeze_authority,
-      twitter_url: socialLinks.twitter,
-      telegram_url: socialLinks.telegram,
-      website_url: socialLinks.website,
+      twitter_url: socialLinks.twitter || '',
+      telegram_url: socialLinks.telegram || '',
+      website_url: socialLinks.website || '',
       twitter_followers: token.socials?.twitterFollowers || existingToken?.twitter_followers || 0,
       telegram_members: token.socials?.telegramMembers || existingToken?.telegram_members || 0,
       liquidity_concentration: existingToken?.liquidity_concentration || 0,
@@ -114,24 +98,19 @@ export async function syncTokenData(token: PumpPortalToken) {
       updated_at: new Date().toISOString()
     };
 
-    const { error: tokenError } = await supabase
+    await supabase
       .from('tokens')
       .upsert(tokenData, {
         onConflict: 'address',
         ignoreDuplicates: false
       });
 
-    if (tokenError) {
-      logSync('Token Sync', tokenData, tokenError);
-      throw tokenError;
-    }
-
     if (token.recentTrades && token.recentTrades.length > 0) {
       await updateHolderData(token, tokenAddress);
     }
 
   } catch (error) {
-    logSync('Token Sync', token, error);
+    // Silent error handling for production
   }
 }
 
@@ -159,7 +138,7 @@ async function updateHolderData(token: PumpPortalToken, tokenAddress: string) {
     if (balance > 0) {
       const percentage = (balance / (token.vTokensInBondingCurve || 1)) * 100;
 
-      const { error: holderError } = await supabase
+      await supabase
         .from('token_holders')
         .upsert({
           token_address: tokenAddress,
@@ -170,10 +149,6 @@ async function updateHolderData(token: PumpPortalToken, tokenAddress: string) {
         }, {
           onConflict: 'token_address,wallet_address'
         });
-
-      if (holderError) {
-        logSync('Holder Update', { wallet, balance }, holderError);
-      }
     }
   }
 }
@@ -188,7 +163,8 @@ export async function syncTradeData(trade: TokenTrade) {
       vTokensInBondingCurve: trade.vTokensInBondingCurve,
       vSolInBondingCurve: trade.vSolInBondingCurve,
       marketCapSol: trade.marketCapSol,
-      priceInSol: trade.priceInSol
+      priceInSol: trade.priceInSol,
+      recentTrades: []
     });
 
     const { data: existingTrade } = await supabase
@@ -203,7 +179,7 @@ export async function syncTradeData(trade: TokenTrade) {
 
     const priceUsd = calculatePriceUsd(trade);
 
-    const { error } = await supabase
+    await supabase
       .from('token_trades')
       .insert({
         token_address: trade.mint,
@@ -217,13 +193,8 @@ export async function syncTradeData(trade: TokenTrade) {
         created_at: new Date().toISOString()
       });
 
-    if (error) {
-      logSync('Trade Sync', trade, error);
-      throw error;
-    }
-
-  } catch (error) {
-    logSync('Trade Sync', trade, error);
+  } catch {
+    // Silent error handling for production
   }
 }
 
