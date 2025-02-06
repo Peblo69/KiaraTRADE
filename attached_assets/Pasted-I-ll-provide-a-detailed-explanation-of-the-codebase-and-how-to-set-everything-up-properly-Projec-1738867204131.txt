@@ -1,0 +1,154 @@
+I'll provide a detailed explanation of the codebase and how to set everything up properly:
+
+Project Structure Overview
+The project is organized into several key components:
+
+
+src/
+├── components/
+│   ├── AnalyticsPanel.tsx     # Analytics and metrics visualization
+│   ├── CopyTradingPage.tsx    # Copy trading functionality
+│   ├── PerformanceChart.tsx   # Trading performance charts
+│   ├── PortfolioTracker.tsx   # Portfolio management
+│   ├── TradingSection.tsx     # Active trading interface
+│   ├── WalletSection.tsx      # Wallet management
+│   └── WithdrawModal.tsx      # Withdrawal functionality
+├── App.tsx                    # Main application layout
+├── index.css                  # Global styles and Tailwind configuration
+└── main.tsx                   # Application entry point
+Setting Up the Project
+To get started:
+
+Clone the repository
+Install dependencies:
+
+npm install
+Start the development server:
+
+npm run dev
+Component Layout Structure
+The main layout is defined in App.tsx and organizes components in a grid:
+
+
+<div className="min-h-screen bg-[#0B0B1E] grid-bg">
+  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="space-y-8">
+      {/* Top Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <WalletSection />
+        <PortfolioTracker />
+      </div>
+
+      {/* Middle Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <PerformanceChart />
+        <AnalyticsPanel />
+      </div>
+
+      {/* Bottom Row */}
+      <div className="grid grid-cols-1 gap-8">
+        <TradingSection />
+        <div className="neon-border bg-kiara-dark/80 rounded-xl">
+          <CopyTradingPage onBack={() => {}} />
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+Key Features by Component
+a) WalletSection
+
+Wallet management and overview
+Import/export functionality
+Balance tracking
+Transaction history
+b) PortfolioTracker
+
+Token holdings overview
+Performance metrics
+Buy/sell functionality
+Detailed token information
+c) PerformanceChart
+
+Trading performance visualization
+PNL tracking
+Time-based performance metrics
+d) AnalyticsPanel
+
+Key metrics display
+Portfolio distribution
+Risk analysis
+Volume statistics
+e) TradingSection
+
+Active trading interface
+Order management
+Market information
+f) CopyTradingPage
+
+Copy trading setup
+Trader discovery
+Strategy configuration
+Performance tracking
+Styling and Theme
+The project uses a cyberpunk/neon theme implemented with Tailwind CSS:
+
+Custom classes in index.css:
+.neon-border: Glowing border effect
+.cyber-button: Interactive button style
+.grid-bg: Background grid pattern
+.neon-glow: Element glow effect
+Data Management
+Currently using mock data in each component. For production:
+
+Replace mock data with API calls
+Implement real-time updates using WebSocket
+Add proper error handling
+Implement data caching
+Responsive Design
+The layout is fully responsive:
+
+Mobile: Single column layout
+Tablet: Mixed layout
+Desktop: Full grid layout
+Backend Integration Points
+Key areas for backend integration:
+
+
+// Example API integration
+const fetchWalletData = async (address: string) => {
+  const response = await fetch(`/api/wallet/${address}`);
+  return response.json();
+};
+
+const updatePortfolio = async () => {
+  const response = await fetch('/api/portfolio');
+  return response.json();
+};
+
+const executeTrade = async (tradeData: TradeData) => {
+  const response = await fetch('/api/trade', {
+    method: 'POST',
+    body: JSON.stringify(tradeData)
+  });
+  return response.json();
+};
+Getting Started with Development
+
+Start with the main layout in App.tsx
+
+Implement components one at a time
+
+Replace mock data with real data sources
+
+Add authentication and user management
+
+Implement error boundaries and loading states
+
+Add real-time updates
+
+Implement proper form validation
+
+Add proper testing
+
+Would you like me to elaborate on any specific part of the implementation?
