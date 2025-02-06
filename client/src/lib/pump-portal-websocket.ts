@@ -5,7 +5,6 @@ import {
   calculateVolumeMetrics,
   calculateTokenRisk,
 } from "@/utils/token-calculations";
-import axios from "axios";
 
 const MAX_TRADES_PER_TOKEN = 1000;
 const MAX_TOKENS_IN_LIST = 50;
@@ -160,19 +159,18 @@ export const usePumpPortalStore = create(
           const isViewed = state.activeTokenView === newToken.address;
 
           if (existingTokenIndex >= 0) {
-            const updatedTokens = state.tokens.map((t, i) => {
-              if (i === existingTokenIndex) {
-                return {
-                  ...t,
-                  ...newToken,
-                  recentTrades: [
-                    ...(t.recentTrades || []),
-                    ...(tokenData.recentTrades || []),
-                  ].slice(0, MAX_TRADES_PER_TOKEN),
-                };
-              }
-              return t;
-            });
+            const updatedTokens = state.tokens.map((t, i) =>
+              i === existingTokenIndex
+                ? {
+                    ...t,
+                    ...newToken,
+                    recentTrades: [
+                      ...(t.recentTrades || []),
+                      ...(tokenData.recentTrades || []),
+                    ].slice(0, MAX_TRADES_PER_TOKEN),
+                  }
+                : t
+            );
 
             return {
               tokens: updatedTokens,
@@ -387,10 +385,7 @@ export const usePumpPortalStore = create(
         }
       },
       partialize: (state) => ({
-        tokens: state.tokens.map((token) => ({
-          ...token,
-          recentTrades: token.recentTrades,
-        })),
+        tokens: state.tokens,
         viewedTokens: state.viewedTokens,
       }),
     }

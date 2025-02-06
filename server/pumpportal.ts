@@ -89,33 +89,24 @@ export function initializePumpPortalWebSocket() {
                             socials = tokenMetadata?.socials || socials;
                         }
 
-                        const baseMetadata = {
+                        const enrichedData = {
                             name: data.name || `Token ${data.mint.slice(0, 8)}`,
                             symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
-                            uri: data.uri || '',
-                            creators: data.creators || [],
-                            mint: data.mint,
-                            decimals: data.decimals || 9,
-                            imageUrl: imageUrl,
-                            description: tokenMetadata?.description || ''
-                        };
-
-                        const enrichedData = {
-                            ...data,
-                            name: baseMetadata.name,
-                            symbol: baseMetadata.symbol,
-                            metadata: baseMetadata,
-                            imageUrl: imageUrl,
-                            uri: baseMetadata.uri,
-                            creators: baseMetadata.creators,
-                            initialBuy: data.tokenAmount || 0,
-                            priceInSol: data.solAmount ? (data.solAmount / (data.tokenAmount || TOTAL_SUPPLY)) : 0,
-                            marketCapSol: data.vSolInBondingCurve || 0,
+                            address: data.mint,
+                            bondingCurveKey: data.bondingCurveKey || "",
+                            vTokensInBondingCurve: data.vTokensInBondingCurve || 0,
+                            vSolInBondingCurve: data.vSolInBondingCurve || 0,
+                            marketCapSol: data.marketCapSol || 0,
+                            metadata: {
+                                name: data.name || `Token ${data.mint.slice(0, 8)}`,
+                                symbol: data.symbol || data.mint.slice(0, 6).toUpperCase(),
+                                decimals: data.decimals || 9,
+                                mint: data.mint,
+                                uri: data.uri || "",
+                                imageUrl: imageUrl,
+                                creators: data.creators || []
+                            },
                             timestamp: Date.now(),
-                            isNewToken: true,
-                            twitter: socials.twitter || data.twitter,
-                            telegram: socials.telegram || data.telegram,
-                            website: socials.website || data.website,
                             socials
                         };
 
