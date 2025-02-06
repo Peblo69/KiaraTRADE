@@ -1,12 +1,13 @@
+
 import React from 'react';
-import TopBar from '../../TradingView/project/src/components/TopBar';
-import MarketStats from '../../TradingView/project/src/components/MarketStats';
-import TradingForm from '../../TradingView/project/src/components/TradingForm';
-import TradeHistory from '../../TradingView/project/src/components/TradeHistory';
-import OrderBook from '../../TradingView/project/src/components/OrderBook';
-import SocialMetrics from '../../TradingView/project/src/components/SocialMetrics';
-import HolderAnalytics from '../../TradingView/project/src/components/HolderAnalytics';
-import TradingChart from '../../TradingView/project/src/components/TradingChart';
+import TopBar from '../../KiaraWallets/project/src/components/TopBar';
+import MarketStats from '../../KiaraWallets/project/src/components/MarketStats';
+import TradingForm from '../../KiaraWallets/project/src/components/TradingForm';
+import TradeHistory from '../../KiaraWallets/project/src/components/TradeHistory';
+import OrderBook from '../../KiaraWallets/project/src/components/OrderBook';
+import SocialMetrics from '../../KiaraWallets/project/src/components/SocialMetrics';
+import HolderAnalytics from '../../KiaraWallets/project/src/components/HolderAnalytics';
+import TradingChart from '../../KiaraWallets/project/src/components/TradingChart';
 
 const ProjectPage = () => {
   return (
