@@ -17,11 +17,9 @@ class UnifiedWebSocket {
 
   private connect() {
     try {
-      console.log('[UnifiedWebSocket] Initializing connection...');
       this.ws = new WebSocket(HELIUS_WS_URL);
 
       this.ws.onopen = () => {
-        console.log('[UnifiedWebSocket] Connected');
         this.reconnectAttempts = 0;
         useUnifiedTokenStore.getState().setConnected(true);
       };
@@ -30,19 +28,16 @@ class UnifiedWebSocket {
         useUnifiedTokenStore.getState().setConnected(false);
         if (!this.isManualDisconnect && this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
           this.reconnectAttempts++;
-          console.log(`[UnifiedWebSocket] Attempting reconnect ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
           setTimeout(() => this.connect(), RECONNECT_DELAY * Math.pow(1.5, this.reconnectAttempts));
         }
       };
 
-      this.ws.onerror = (error) => {
-        console.error('[UnifiedWebSocket] Error:', error);
+      this.ws.onerror = () => {
         useUnifiedTokenStore.getState().setError('WebSocket connection error');
       };
 
       this.ws.onmessage = this.handleMessage.bind(this);
-    } catch (error) {
-      console.error('[UnifiedWebSocket] Connection failed:', error);
+    } catch {
       useUnifiedTokenStore.getState().setError('Failed to establish WebSocket connection');
     }
   }
@@ -53,9 +48,7 @@ class UnifiedWebSocket {
       if (data.method === 'accountNotification') {
         await this.processTransaction(data.params.result);
       }
-    } catch (error) {
-      console.error('[UnifiedWebSocket] Message processing error:', error);
-    }
+    } catch {}
   }
 
   private async processTransaction(data: any) {
@@ -80,13 +73,10 @@ class UnifiedWebSocket {
         solAmount: Math.abs(tx.meta.preBalances[0] - tx.meta.postBalances[0]) / 1e9,
         type: 'trade'
       });
-    } catch (error) {
-      console.error('[UnifiedWebSocket] Transaction processing error:', error);
-    }
+    } catch {}
   }
 
   disconnect() {
-    console.log('[UnifiedWebSocket] Disconnecting...');
     this.isManualDisconnect = true;
     if (this.ws) {
       this.ws.close();

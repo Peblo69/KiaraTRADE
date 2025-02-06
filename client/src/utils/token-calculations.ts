@@ -31,7 +31,6 @@ export const calculatePumpFunTokenMetrics = (token: {
   vTokensInBondingCurve: number;
   solPrice: number;
 }): TokenMetrics => {
-  // Validate inputs
   if (!token.vSolInBondingCurve || !token.vTokensInBondingCurve || !token.solPrice) {
     return {
       price: { sol: 0, usd: 0 },
@@ -45,11 +44,9 @@ export const calculatePumpFunTokenMetrics = (token: {
     marketCap: { sol: 0, usd: 0 }
   };
 
-  // Calculate price in SOL and USD
   const priceInSol = token.vSolInBondingCurve / denominator;
   const priceInUsd = priceInSol * token.solPrice;
 
-  // Calculate market cap
   const marketCapSol = token.vSolInBondingCurve;
   const marketCapUsd = marketCapSol * token.solPrice;
 
@@ -172,8 +169,8 @@ const calculateInsiderMetrics = (
   creationTimestamp: number
 ): InsiderMetrics => {
   const HOUR = 3600000;
-  const QUICK_FLIP_WINDOW = 300000; // 5 minutes
-  const LARGE_TRADE_THRESHOLD = 0.05; // 5% of liquidity
+  const QUICK_FLIP_WINDOW = 300000;
+  const LARGE_TRADE_THRESHOLD = 0.05;
 
   const walletActivity = new Map<string, {
     firstTrade: number;

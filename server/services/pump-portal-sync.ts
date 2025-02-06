@@ -9,10 +9,8 @@ function emptyToNull(value: string | undefined | null): string | null {
   return value;
 }
 
-// Get SOL price from environment or use a default
 const SOL_PRICE = 196.05;
 
-// Calculate price in USD, ensuring we never return null
 function calculatePriceUsd(trade: any): number {
   if (trade.priceInUsd && trade.priceInUsd > 0) {
     return trade.priceInUsd;
@@ -50,9 +48,7 @@ async function calculateHolderCount(tokenAddress: string): Promise<number> {
 export async function syncTokenData(token: PumpPortalToken) {
   try {
     const tokenAddress = token.mint || token.address;
-    if (!tokenAddress) {
-      return;
-    }
+    if (!tokenAddress) return;
 
     const socialLinks = {
       twitter: emptyToNull(token.socials?.twitter || token.twitter),
@@ -105,13 +101,11 @@ export async function syncTokenData(token: PumpPortalToken) {
         ignoreDuplicates: false
       });
 
-    if (token.recentTrades && token.recentTrades.length > 0) {
+    if (token.recentTrades?.length > 0) {
       await updateHolderData(token, tokenAddress);
     }
 
-  } catch (error) {
-    // Silent error handling for production
-  }
+  } catch {}
 }
 
 async function updateHolderData(token: PumpPortalToken, tokenAddress: string) {
@@ -173,9 +167,7 @@ export async function syncTradeData(trade: TokenTrade) {
       .eq('tx_signature', trade.signature)
       .single();
 
-    if (existingTrade) {
-      return;
-    }
+    if (existingTrade) return;
 
     const priceUsd = calculatePriceUsd(trade);
 
@@ -193,9 +185,7 @@ export async function syncTradeData(trade: TokenTrade) {
         created_at: new Date().toISOString()
       });
 
-  } catch {
-    // Silent error handling for production
-  }
+  } catch {}
 }
 
 export function initializeSupabaseSubscriptions(onTokenUpdate: (token: any) => void, onNewTrade: (trade: any) => void) {
