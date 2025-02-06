@@ -9,18 +9,14 @@ const RECONNECT_DELAY = 5000;
 
 async function fetchMetadataWithImage(uri: string) {
     try {
-        log('[PumpPortal] Attempting to fetch metadata from:', uri);
         const response = await fetch(uri);
         const metadata = await response.json();
         let imageUrl = metadata.image;
-        log('[PumpPortal] Found image URL:', imageUrl);
 
         if (imageUrl?.startsWith('ipfs://')) {
             imageUrl = `https://ipfs.io/ipfs/${imageUrl.slice(7)}`;
-            log('[PumpPortal] Processed IPFS URL to:', imageUrl);
         }
 
-        // Extract social links from metadata if available
         const socials = {
             twitter: metadata.twitter_url || metadata.twitter || null,
             telegram: metadata.telegram_url || metadata.telegram || null,
@@ -29,16 +25,13 @@ async function fetchMetadataWithImage(uri: string) {
             telegramMembers: metadata.telegram_members || 0
         };
 
-        const processedMetadata = {
+        return {
             ...metadata,
             image: imageUrl,
             socials
         };
-
-        log('[PumpPortal] Final processed metadata:', processedMetadata);
-        return processedMetadata;
     } catch (error) {
-        console.error('[PumpPortal] Failed to fetch metadata:', error);
+        console.error('[PumpPortal] Failed to fetch metadata');
         return null;
     }
 }
@@ -53,10 +46,9 @@ export function initializePumpPortalWebSocket() {
             ws = new WebSocket(PUMP_PORTAL_WS_URL);
 
             ws.onopen = () => {
-                log('[PumpPortal] WebSocket connected');
-                reconnectAttempt = 0; // Reset reconnect attempts on successful connection
+                console.log('[PumpPortal] WebSocket connected');
+                reconnectAttempt = 0;
 
-                // Subscribe to events
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
                         method: "subscribeNewToken",
@@ -69,7 +61,6 @@ export function initializePumpPortalWebSocket() {
                     }));
                 }
 
-                // Broadcast connection status
                 wsManager.broadcast({
                     type: 'connection_status',
                     data: {
@@ -83,17 +74,12 @@ export function initializePumpPortalWebSocket() {
             ws.onmessage = async (event) => {
                 try {
                     const data = JSON.parse(event.data.toString());
-                    log('[PumpPortal] Received raw data:', data);
 
                     if (data.message?.includes('Successfully subscribed')) {
-                        log('[PumpPortal] Subscription confirmed:', data.message);
                         return;
                     }
 
                     if (data.txType === 'create' && data.mint) {
-                        log('[PumpPortal] New token created:', data.mint);
-                        log('[PumpPortal] Token URI:', data.uri);
-
                         let tokenMetadata = null;
                         let imageUrl = null;
                         let socials = {
@@ -109,9 +95,8 @@ export function initializePumpPortalWebSocket() {
                                 tokenMetadata = await fetchMetadataWithImage(data.uri);
                                 imageUrl = tokenMetadata?.image;
                                 socials = tokenMetadata?.socials || socials;
-                                log('[PumpPortal] Successfully fetched metadata and image:', { metadata: tokenMetadata, imageUrl });
                             } catch (error) {
-                                console.error('[PumpPortal] Error fetching metadata:', error);
+                                console.error('[PumpPortal] Error fetching metadata');
                             }
                         }
 
@@ -125,8 +110,6 @@ export function initializePumpPortalWebSocket() {
                             imageUrl: imageUrl,
                             description: tokenMetadata?.description || ''
                         };
-
-                        log('[PumpPortal] Base Metadata:', JSON.stringify(baseMetadata, null, 2));
 
                         const enrichedData = {
                             ...data,
@@ -153,9 +136,6 @@ export function initializePumpPortalWebSocket() {
                             }
                         };
 
-                        log('[PumpPortal] Enriched token data:', JSON.stringify(enrichedData, null, 2));
-
-                        // Sync token data with Supabase
                         await syncTokenData(enrichedData);
 
                         wsManager.broadcast({ 
@@ -163,7 +143,6 @@ export function initializePumpPortalWebSocket() {
                             data: enrichedData
                         });
 
-                        // Subscribe to trades for the new token
                         if (ws && ws.readyState === WebSocket.OPEN) {
                             ws.send(JSON.stringify({
                                 method: "subscribeTokenTrade",
@@ -176,7 +155,6 @@ export function initializePumpPortalWebSocket() {
                             timestamp: Date.now()
                         };
 
-                        // Sync trade data with Supabase
                         await syncTradeData(tradeData);
 
                         wsManager.broadcast({ 
@@ -185,14 +163,13 @@ export function initializePumpPortalWebSocket() {
                         });
                     }
                 } catch (error) {
-                    console.error('[PumpPortal] Failed to process message:', error);
+                    console.error('[PumpPortal] Failed to process message');
                 }
             };
 
             ws.onclose = () => {
-                log('[PumpPortal] WebSocket disconnected');
+                console.log('[PumpPortal] WebSocket disconnected');
 
-                // Broadcast disconnection status
                 wsManager.broadcast({
                     type: 'connection_status',
                     data: {
@@ -202,10 +179,9 @@ export function initializePumpPortalWebSocket() {
                     }
                 });
 
-                // Attempt reconnection if not max attempts
                 if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
                     reconnectAttempt++;
-                    log(`[PumpPortal] Attempting reconnect ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}`);
+                    console.log(`[PumpPortal] Attempting reconnect ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}`);
                     setTimeout(connect, RECONNECT_DELAY);
                 } else {
                     console.error('[PumpPortal] Max reconnection attempts reached');
@@ -213,11 +189,11 @@ export function initializePumpPortalWebSocket() {
             };
 
             ws.onerror = (error) => {
-                console.error('[PumpPortal] WebSocket error:', error);
+                console.error('[PumpPortal] WebSocket error');
             };
 
         } catch (error) {
-            console.error('[PumpPortal] Failed to initialize WebSocket:', error);
+            console.error('[PumpPortal] Failed to initialize WebSocket');
             if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
                 reconnectAttempt++;
                 setTimeout(connect, RECONNECT_DELAY);
@@ -225,7 +201,6 @@ export function initializePumpPortalWebSocket() {
         }
     }
 
-    // Start the initial connection
     connect();
 
     return () => {
