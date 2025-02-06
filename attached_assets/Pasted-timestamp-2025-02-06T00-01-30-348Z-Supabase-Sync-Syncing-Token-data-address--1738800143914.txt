@@ -1,0 +1,272 @@
+timestamp: '2025-02-06T00:01:30.348Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'C2tnug6zBike1V4NZ32kJJXGfD5Ey3azpjs1ykVTpump',
+    symbol: 'UNKNOWN',
+    name: 'Token C2tnug6z',
+    timestamp: '2025-02-06T00:01:30.389Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.389Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'DKN8D8QZXeAbLpfHfoFHumn4sUfTfV68oQgqFNWzJ1Jo',
+    symbol: 'UNKNOWN',
+    name: 'Token DKN8D8QZ',
+    timestamp: '2025-02-06T00:01:30.392Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.392Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'DKN8D8QZXeAbLpfHfoFHumn4sUfTfV68oQgqFNWzJ1Jo',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-06T00:01:30.403Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.403Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: '29LJGMRFz2dNjsyaXL6QL4XzXgkSX6cF7TJXrr1qpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-06T00:01:30.410Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.410Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: '9mt53tDVadBd6CiJf1mX6R8ZAkzg5UYfvidKxF1ypump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-06T00:01:30.411Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.411Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'DKN8D8QZXeAbLpfHfoFHumn4sUfTfV68oQgqFNWzJ1Jo',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-06T00:01:30.417Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.417Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: 'C2tnug6zBike1V4NZ32kJJXGfD5Ey3azpjs1ykVTpump',
+    symbol: 'UNKNOWN',
+    name: 'Token C2tnug6z',
+    timestamp: '2025-02-06T00:01:30.420Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.420Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: '9mt53tDVadBd6CiJf1mX6R8ZAkzg5UYfvidKxF1ypump',
+    symbol: 'UNKNOWN',
+    name: 'Token 9mt53tDV',
+    timestamp: '2025-02-06T00:01:30.471Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.471Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: '29LJGMRFz2dNjsyaXL6QL4XzXgkSX6cF7TJXrr1qpump',
+    symbol: 'UNKNOWN',
+    name: 'Token 29LJGMRF',
+    timestamp: '2025-02-06T00:01:30.477Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.477Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'FNv1m64fipKL4pRFiQjqeY6UhEV1iNV6by9FP8BUpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-06T00:01:30.498Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.498Z'
+}
+[Supabase Sync][Syncing Token] {
+  data: {
+    address: '2csuFyrwedj4U3wqgUg53Cvj3SQ7G9WHQRYoSDz4pump',
+    symbol: 'UNKNOWN',
+    name: 'Token 2csuFyrw',
+    timestamp: '2025-02-06T00:01:30.500Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.500Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'FNv1m64fipKL4pRFiQjqeY6UhEV1iNV6by9FP8BUpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-06T00:01:30.519Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.519Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'BuCS9GeoKU4Zm1o9E5CoVH4U8ieZVsAdC32SLcTnpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-06T00:01:30.527Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.527Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: '29LJGMRFz2dNjsyaXL6QL4XzXgkSX6cF7TJXrr1qpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-06T00:01:30.536Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.536Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '2t6Y7qSGMrAQgkmCejeSmBxw3U2YVRBEkVBPCwaBXrcEq7dyh1F8g7fjCjwyQT9WbTQqgbgkvCnNKk8cPiGfQMGt',
+    token: '9mt53tDVadBd6CiJf1mX6R8ZAkzg5UYfvidKxF1ypump',
+    timestamp: '2025-02-06T00:01:30.597Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.597Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '41zxmB8DKgkuZSzruPfGKR54sf83hcgj3ufGzEaTTQ1yjysWUeRsoz3psdGsYtxGh2eykefb1MjtZ6UWwnKD8aJs',
+    token: 'HoXjeq1zV8iSfYVzKJ28m2232XiLeGDmVwd6PevGpump',
+    timestamp: '2025-02-06T00:01:30.608Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.608Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '33jyDSfUVv8QCbTPTdA8BeDpqZDvsbZa7yqXfkdNb4LS514oWosaHxXnCJffR7R4B1aM3KP7ktEEe3vW6L77ysbh',
+    token: '29LJGMRFz2dNjsyaXL6QL4XzXgkSX6cF7TJXrr1qpump',
+    timestamp: '2025-02-06T00:01:30.609Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.609Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '5UCX6SGa5nmUB9BWKoAoBrgGQiiteWBhWokKhJbfSDabKoBzEu5dLTP8GWUt3gLhWndbZcX5PCGxE386krkz4MGo',
+    token: '9mt53tDVadBd6CiJf1mX6R8ZAkzg5UYfvidKxF1ypump',
+    timestamp: '2025-02-06T00:01:30.631Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.631Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '4YbKFQusqmzepoVZFJE4YPKhWEV78fksDQTK3iiMoZFzS5wFnzvKdNGhhkdf7zpejgZV4HwPiqUVftkndGBkdBB6',
+    token: '9mt53tDVadBd6CiJf1mX6R8ZAkzg5UYfvidKxF1ypump',
+    timestamp: '2025-02-06T00:01:30.637Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.637Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '3VE2YwxTmMF9nV8QKqKCRMciFeGcAGVz39cZ6VFFP6Pf2wphzk2iVEzZuaq5BrtATSd9AZGu3igLdEWaPB6qTLMj',
+    token: 'C2tnug6zBike1V4NZ32kJJXGfD5Ey3azpjs1ykVTpump',
+    timestamp: '2025-02-06T00:01:30.677Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.677Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'C2tnug6zBike1V4NZ32kJJXGfD5Ey3azpjs1ykVTpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-06T00:01:30.682Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.682Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '2gT96qGy5mVGMiiju9EUeSxZxHXqvTQBfs6JzYjW3nSXbg5kAHjKAz81TeHEWGZZcbtfyuK9GGs3aosb9pEn5FSM',
+    token: '9mt53tDVadBd6CiJf1mX6R8ZAkzg5UYfvidKxF1ypump',
+    timestamp: '2025-02-06T00:01:30.701Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.701Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'DKN8D8QZXeAbLpfHfoFHumn4sUfTfV68oQgqFNWzJ1Jo',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-06T00:01:30.711Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.711Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '38oTgcHrfq3QJi78ETCtZwXqxSTfDRF8B3SaxSrfQBkEJCcfW8MRxjxMSM8BiutehjGShd4QotNQwbN2xNnSxp72',
+    token: '29LJGMRFz2dNjsyaXL6QL4XzXgkSX6cF7TJXrr1qpump',
+    timestamp: '2025-02-06T00:01:30.712Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.712Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '3VFbHYcTkq4yioLmV4zVFwqvpX65UngVunZDQNQa2CtvA314xjbRePS88VkDvqrvohj5QNFdwmpe7ExadSRwN62w',
+    token: 'DKN8D8QZXeAbLpfHfoFHumn4sUfTfV68oQgqFNWzJ1Jo',
+    timestamp: '2025-02-06T00:01:30.719Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.719Z'
+}
+[Supabase Sync][Trade Sync Success] {
+  data: {
+    signature: '43Bv8LsW5xy91tvcMmcxXn3L1UBGp1eD89Gxf2NHS8Z83gZwUhmh9mJGVVhzQnSfWCQHhyKqjgMiMKRyjSkLhAdJ',
+    token: 'DKN8D8QZXeAbLpfHfoFHumn4sUfTfV68oQgqFNWzJ1Jo',
+    timestamp: '2025-02-06T00:01:30.723Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.723Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: 'C2tnug6zBike1V4NZ32kJJXGfD5Ey3azpjs1ykVTpump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-06T00:01:30.729Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.729Z'
+}
+12:01:30 AM [[object Object]] [PumpPortal] Received raw data:
+[Supabase Sync][Syncing Trade] {
+  data: {
+    signature: '54j1FskomvbstWucNJsYA17RJuZQoFUMHvUEsjTJMzg3N5s1Y3s4cAfiKeqdCVKEWL7hV61xLRxXag33N9JhqLnC',
+    token: 'HtS3B5xgBC1AYYPEsEU9wiH7gVSNhDBscZLoMGdxpump',
+    type: 'sell',
+    timestamp: '2025-02-06T00:01:30.760Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.760Z'
+}
+[Supabase Sync][Token Sync Success] {
+  data: {
+    address: '9mt53tDVadBd6CiJf1mX6R8ZAkzg5UYfvidKxF1ypump',
+    symbol: 'UNKNOWN',
+    timestamp: '2025-02-06T00:01:30.773Z'
+  },
+  error: null,
+  timestamp: '2025-02-06T00:01:30.773Z'
+}
+[Supabase Sync][Token Sync Success] {
