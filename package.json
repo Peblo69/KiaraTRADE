@@ -82,7 +82,7 @@
     "memorystore": "^1.6.7",
     "millify": "^6.1.0",
     "node-fetch": "^3.3.2",
-    "openai": "^4.82.0",
+    "openai": "^4.83.0",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
     "pg": "^8.13.1",
