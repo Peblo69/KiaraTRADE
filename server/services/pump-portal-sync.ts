@@ -42,107 +42,79 @@ function calculatePriceUsd(trade: any): number {
   return 0.000001;
 }
 
-// Sync social metrics if available
-async function syncSocialMetrics(token: PumpPortalToken) {
+async function calculateHolderCount(tokenAddress: string): Promise<number> {
   try {
-    // Skip if we don't have a valid token address
-    if (!token.mint && !token.address) {
-      return;
-    }
+    const { count } = await supabase
+      .from('token_holders')
+      .select('count')
+      .eq('token_address', tokenAddress)
+      .gt('balance', 0)
+      .single();
 
-    // Only sync if we have any social links
-    if (!token.socials?.twitter && !token.socials?.telegram && !token.socials?.website &&
-        !token.twitter && !token.telegram && !token.website) {
-      return;
-    }
-
-    // Extract social links with fallbacks
-    const metricsData = {
-      token_address: token.mint || token.address,
-      twitter_url: token.socials?.twitter || token.twitter || null,
-      telegram_url: token.socials?.telegram || token.telegram || null,
-      website_url: token.socials?.website || token.website || null,
-      updated_at: new Date().toISOString()
-    };
-
-    // First try to insert
-    const { error: insertError } = await supabase
-      .from('social_metrics')
-      .insert(metricsData);
-
-    // If insert fails due to duplicate, try update
-    if (insertError) {
-      const { error: updateError } = await supabase
-        .from('social_metrics')
-        .update({
-          twitter_url: metricsData.twitter_url,
-          telegram_url: metricsData.telegram_url,
-          website_url: metricsData.website_url,
-          updated_at: metricsData.updated_at
-        })
-        .eq('token_address', metricsData.token_address);
-
-      if (updateError) {
-        logSync('Social Metrics Update Error', { metrics: metricsData }, updateError);
-        throw updateError;
-      }
-    }
-
-    logSync('Social Metrics Sync Success', {
-      address: token.mint || token.address,
-      twitter: metricsData.twitter_url,
-      telegram: metricsData.telegram_url,
-      website: metricsData.website_url
-    });
-
-    return metricsData;
+    return count || 0;
   } catch (error) {
-    logSync('Social Metrics Sync Failed', token, error);
-    throw error;
+    console.error('Error calculating holder count:', error);
+    return 0;
   }
 }
 
 export async function syncTokenData(token: PumpPortalToken) {
   try {
     logSync('Syncing Token', {
-      address: token.mint || token.address,
+      address: token.address || token.mint,
       symbol: token.symbol || 'UNKNOWN',
-      name: token.name || `Token ${token.address?.slice(0, 8) || token.mint?.slice(0, 8)}`
+      name: token.name || `Token ${(token.address || token.mint)?.slice(0, 8)}`
     });
 
     const priceUsd = calculatePriceUsd(token);
     const liquidityUsd = (token.vSolInBondingCurve || 0) * SOL_PRICE;
     const marketCapUsd = (token.marketCapSol || 0) * SOL_PRICE;
+    const holderCount = await calculateHolderCount(token.address || token.mint);
 
-    // Fetch existing token data
+    // Get existing token data first
     const { data: existingToken } = await supabase
       .from('tokens')
-      .select('address, initial_price_usd, created_at')
-      .eq('address', token.mint || token.address)
+      .select('*')
+      .eq('address', token.address || token.mint)
       .single();
 
+    // Prepare token data with all required fields
     const tokenData = {
-      address: token.mint || token.address,
+      address: token.address || token.mint,
       symbol: token.symbol || 'UNKNOWN',
-      name: token.name || `Token ${token.mint?.slice(0, 8)}`,
+      name: token.name || `Token ${(token.address || token.mint)?.slice(0, 8)}`,
       decimals: token.metadata?.decimals || 9,
-      image_url: token.metadata?.imageUrl || token.imageUrl,
-      initial_price_usd: existingToken?.initial_price_usd || priceUsd,
-      initial_liquidity_usd: liquidityUsd,
-      current_price_usd: priceUsd,
+      image_url: token.metadata?.imageUrl || token.imageUrl || null,
+      price_usd: priceUsd,
+      liquidity_usd: liquidityUsd,
       market_cap_usd: marketCapUsd,
-      bonding_curve_key: token.bondingCurveKey,
-      mint_authority: token.devWallet,
-      freeze_authority: token.devWallet,
-      supply: token.vTokensInBondingCurve || 0,
-      created_at: existingToken?.created_at || new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      twitter_url: token.socials?.twitter || token.twitter,
-      telegram_url: token.socials?.telegram || token.telegram,
-      website_url: token.socials?.website || token.website
+      total_supply: token.vTokensInBondingCurve || 0,
+      volume_24h: existingToken?.volume_24h || 0,
+      price_change_24h: existingToken?.price_change_24h || 0,
+
+      // Contract info - keep existing values if present
+      bonding_curve_key: token.bondingCurveKey || existingToken?.bonding_curve_key || null,
+      mint_authority: token.devWallet || existingToken?.mint_authority || null,
+      freeze_authority: token.freezeAuthority || existingToken?.freeze_authority || null,
+
+      // Social links - keep existing values if present
+      twitter_url: token.socials?.twitter || token.twitter || existingToken?.twitter_url || null,
+      telegram_url: token.socials?.telegram || token.telegram || existingToken?.telegram_url || null,
+      website_url: token.socials?.website || token.website || existingToken?.website_url || null,
+
+      // Social metrics - keep existing values if present
+      twitter_followers: token.socials?.twitterFollowers || existingToken?.twitter_followers || 0,
+      telegram_members: token.socials?.telegramMembers || existingToken?.telegram_members || 0,
+
+      // Risk metrics
+      liquidity_concentration: existingToken?.liquidity_concentration || 0,
+      holder_count: holderCount,
+
+      // Update timestamp
+      updated_at: new Date().toISOString()
     };
 
-    // Upsert token data with social links included
+    // Upsert token data
     const { error: tokenError } = await supabase
       .from('tokens')
       .upsert(tokenData, {
@@ -156,11 +128,11 @@ export async function syncTokenData(token: PumpPortalToken) {
     }
 
     logSync('Token Sync Success', {
-      address: token.address,
+      address: token.address || token.mint,
       symbol: token.symbol
     });
 
-    // Update token holders if we have trade data
+    // Update holder data if we have trades
     if (token.recentTrades && token.recentTrades.length > 0) {
       const holders = new Map<string, number>();
 
@@ -172,7 +144,7 @@ export async function syncTokenData(token: PumpPortalToken) {
 
         if (trade.txType === 'buy') {
           holders.set(wallet, currentHolding + amount);
-        } else {
+        } else if (trade.txType === 'sell') {
           const newAmount = currentHolding - amount;
           if (newAmount > 0) {
             holders.set(wallet, newAmount);
@@ -182,31 +154,26 @@ export async function syncTokenData(token: PumpPortalToken) {
         }
       });
 
-      // Convert Map entries to array and update holder data
-      const holderEntries = Array.from(holders.entries());
-      const totalSupply = token.vTokensInBondingCurve || 1;
+      // Update holder records
+      for (const [wallet, balance] of holders.entries()) {
+        if (balance > 0) {
+          const percentage = (balance / (token.vTokensInBondingCurve || 1)) * 100;
 
-      for (const [wallet, balance] of holderEntries) {
-        const percentage = (balance / totalSupply) * 100;
-        const holderData = {
-          token_address: token.mint || token.address,
-          wallet_address: wallet,
-          balance: balance,
-          percentage: percentage,
-          last_updated: new Date().toISOString()
-        };
+          const { error: holderError } = await supabase
+            .from('token_holders')
+            .upsert({
+              token_address: token.address || token.mint,
+              wallet_address: wallet,
+              balance: balance,
+              percentage: percentage,
+              last_updated: new Date().toISOString()
+            }, {
+              onConflict: 'token_address,wallet_address'
+            });
 
-        const { error: holderError } = await supabase
-          .from('token_holders')
-          .upsert(holderData, {
-            onConflict: 'token_address,wallet_address',
-            ignoreDuplicates: false
-          });
-
-        if (holderError) {
-          logSync('Holder Sync Error', { wallet, balance }, holderError);
-        } else {
-          logSync('Holder Sync Success', { address: token.address, wallet });
+          if (holderError) {
+            logSync('Holder Update Error', { wallet, balance }, holderError);
+          }
         }
       }
     }
@@ -247,9 +214,7 @@ export async function syncTradeData(trade: TokenTrade) {
       vTokensInBondingCurve: trade.vTokensInBondingCurve,
       vSolInBondingCurve: trade.vSolInBondingCurve,
       marketCapSol: trade.marketCapSol,
-      priceInSol: trade.priceInSol,
-      priceInUsd: priceUsd,
-      recentTrades: []
+      priceInSol: trade.priceInSol
     });
 
     // Then insert the trade
@@ -325,4 +290,63 @@ export function initializeSupabaseSubscriptions(onTokenUpdate: (token: any) => v
       (payload) => onNewTrade(payload.new)
     )
     .subscribe();
+}
+
+async function syncSocialMetrics(token: PumpPortalToken) {
+  try {
+    // Skip if we don't have a valid token address
+    if (!token.mint && !token.address) {
+      return;
+    }
+
+    // Only sync if we have any social links
+    if (!token.socials?.twitter && !token.socials?.telegram && !token.socials?.website &&
+        !token.twitter && !token.telegram && !token.website) {
+      return;
+    }
+
+    // Extract social links with fallbacks
+    const metricsData = {
+      token_address: token.mint || token.address,
+      twitter_url: token.socials?.twitter || token.twitter || null,
+      telegram_url: token.socials?.telegram || token.telegram || null,
+      website_url: token.socials?.website || token.website || null,
+      updated_at: new Date().toISOString()
+    };
+
+    // First try to insert
+    const { error: insertError } = await supabase
+      .from('social_metrics')
+      .insert(metricsData);
+
+    // If insert fails due to duplicate, try update
+    if (insertError) {
+      const { error: updateError } = await supabase
+        .from('social_metrics')
+        .update({
+          twitter_url: metricsData.twitter_url,
+          telegram_url: metricsData.telegram_url,
+          website_url: metricsData.website_url,
+          updated_at: metricsData.updated_at
+        })
+        .eq('token_address', metricsData.token_address);
+
+      if (updateError) {
+        logSync('Social Metrics Update Error', { metrics: metricsData }, updateError);
+        throw updateError;
+      }
+    }
+
+    logSync('Social Metrics Sync Success', {
+      address: token.mint || token.address,
+      twitter: metricsData.twitter_url,
+      telegram: metricsData.telegram_url,
+      website: metricsData.website_url
+    });
+
+    return metricsData;
+  } catch (error) {
+    logSync('Social Metrics Sync Failed', token, error);
+    throw error;
+  }
 }
