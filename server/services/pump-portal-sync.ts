@@ -56,6 +56,7 @@ async function syncSocialMetrics(token: PumpPortalToken) {
       return;
     }
 
+    // Extract social links with fallbacks
     const metricsData = {
       token_address: token.mint || token.address,
       twitter_url: token.socials?.twitter || token.twitter || null,
