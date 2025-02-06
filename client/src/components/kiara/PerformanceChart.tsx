@@ -1,29 +1,7 @@
 import React from 'react';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
-interface Token {
-  id: string;
-  symbol: string;
-  name: string;
-  logo: string;
-  price: number;
-  priceChange24h: number;
-  holdings: number;
-  marketCap: number;
-  volume24h: number;
-  purchaseHistory: {
-    id: string;
-    date: number;
-    amount: number;
-    price: number;
-  }[];
-}
-
-interface PerformanceChartProps {
-  tokens: Token[];
-}
-
-export function PerformanceChart({ tokens }: PerformanceChartProps) {
+export function PerformanceChart() {
   return (
     <div className="neon-border bg-kiara-dark/80 rounded-xl p-6">
       <div className="flex justify-between items-center mb-6">

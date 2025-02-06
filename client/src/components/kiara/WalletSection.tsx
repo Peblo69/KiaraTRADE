@@ -1,106 +1,62 @@
 import React from 'react';
-import { Copy, Download, Key, Trash2 } from 'lucide-react';
 
-interface Transaction {
-  id: string;
-  type: string;
-  amount: string;
-  timestamp: number;
-  from: string;
-  to: string;
-}
-
-interface Wallet {
-  id: string;
-  name: string;
-  address: string;
-  balance: string;
-  balanceUSD: string;
-  isPrimary: boolean;
-  chain: string;
-  recentTransactions: Transaction[];
-}
-
-interface WalletSectionProps {
-  wallets: Wallet[];
-}
-
-export function WalletSection({ wallets }: WalletSectionProps) {
-  const totalBalance = wallets.reduce((sum, wallet) => 
-    sum + parseFloat(wallet.balanceUSD.replace(',', '')), 0
-  ).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  const handleCopyAddress = (address: string) => {
-    navigator.clipboard.writeText(address);
-  };
-
+export function WalletSection() {
   return (
-    <div className="glass-card rounded-xl p-6 bg-kiara-dark/80 border border-purple-500/20">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
-            Wallet Overview
-          </h2>
-          <p className="text-purple-300 mt-1">
-            Total Balance: ${totalBalance}
-          </p>
+    <div className="neon-border bg-kiara-dark/80 rounded-xl p-6">
+      <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400 mb-6">
+        Wallet Overview
+      </h2>
+      
+      <div className="space-y-4">
+        <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-purple-300">Total Balance</span>
+            <span className="text-purple-100 font-semibold">$45,678.90</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-purple-300">24h Change</span>
+            <span className="text-green-400">+$1,234.56 (2.7%)</span>
+          </div>
         </div>
-        <div className="flex gap-3">
-          <button
-            className="cyber-button flex items-center gap-2"
-          >
-            <Key size={18} />
-            Import Wallet
+
+        <div className="grid grid-cols-2 gap-4">
+          <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-500 transition-colors">
+            Deposit
+          </button>
+          <button className="bg-purple-900/20 text-purple-300 px-4 py-2 rounded-lg border border-purple-500/30 hover:bg-purple-900/30 transition-colors">
+            Withdraw
           </button>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-        {wallets.map((wallet) => (
-          <div
-            key={wallet.id}
-            className={`p-4 rounded-lg border transition-all ${
-              wallet.isPrimary 
-                ? 'border-purple-500/50 bg-purple-900/20' 
-                : 'border-purple-500/20 bg-purple-900/10 hover:bg-purple-900/20'
-            }`}
-          >
-            <div className="flex justify-between">
+        <div className="space-y-2">
+          <div className="flex justify-between items-center p-2 hover:bg-purple-900/20 rounded-lg transition-colors">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-purple-400"></div>
               <div>
-                <h3 className="text-lg font-medium text-purple-100">{wallet.name}</h3>
-                <p className="text-purple-400/70 text-sm">{wallet.address}</p>
-              </div>
-              <div className="flex flex-col items-end">
-                <p className="text-lg font-medium text-purple-100">${wallet.balanceUSD}</p>
-                <p className="text-purple-400/70 text-sm">{wallet.chain}</p>
+                <div className="text-purple-100">Wallet 1</div>
+                <div className="text-purple-400 text-sm">Main Account</div>
               </div>
             </div>
-            {wallet.recentTransactions.length > 0 && (
-              <div className="mt-4">
-                <h4 className="text-sm font-medium text-purple-400">Recent Transactions</h4>
-                <ul className="list-disc text-purple-400/70 text-xs">
-                  {wallet.recentTransactions.map((tx) => (
-                    <li key={tx.id}>{tx.type} {tx.amount} {tx.from} {'->'} {tx.to}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <div className='flex gap-2 mt-2'>
-              <button 
-                className='text-purple-400 hover:text-purple-300'
-                onClick={() => handleCopyAddress(wallet.address)}
-              >
-                <Copy size={16} />
-              </button>
-              <button className='text-purple-400 hover:text-purple-300'>
-                <Download size={16}/>
-              </button>
-              <button className='text-purple-400 hover:text-purple-300'>
-                <Trash2 size={16}/>
-              </button>
+            <div className="text-right">
+              <div className="text-purple-100">$32,456.78</div>
+              <div className="text-green-400 text-sm">+1.2%</div>
             </div>
           </div>
-        ))}
+
+          <div className="flex justify-between items-center p-2 hover:bg-purple-900/20 rounded-lg transition-colors">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-blue-400"></div>
+              <div>
+                <div className="text-purple-100">Wallet 2</div>
+                <div className="text-purple-400 text-sm">Trading Account</div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-purple-100">$13,222.12</div>
+              <div className="text-red-400 text-sm">-0.5%</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
