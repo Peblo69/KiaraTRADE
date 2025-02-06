@@ -51,7 +51,7 @@ async function syncSocialMetrics(token: PumpPortalToken) {
     }
 
     // Only sync if we have any social links
-    if (!token.socials?.twitter && !token.socials?.telegram && !token.socials?.website && 
+    if (!token.socials?.twitter && !token.socials?.telegram && !token.socials?.website &&
         !token.twitter && !token.telegram && !token.website) {
       return;
     }
@@ -105,7 +105,7 @@ async function syncSocialMetrics(token: PumpPortalToken) {
 export async function syncTokenData(token: PumpPortalToken) {
   try {
     logSync('Syncing Token', {
-      address: token.mint || token.address, // Use mint as fallback for address
+      address: token.mint || token.address,
       symbol: token.symbol || 'UNKNOWN',
       name: token.name || `Token ${token.address?.slice(0, 8) || token.mint?.slice(0, 8)}`
     });
@@ -118,15 +118,15 @@ export async function syncTokenData(token: PumpPortalToken) {
     const { data: existingToken } = await supabase
       .from('tokens')
       .select('address, initial_price_usd, created_at')
-      .eq('address', token.mint || token.address) // Use mint as fallback
+      .eq('address', token.mint || token.address)
       .single();
 
     const tokenData = {
-      address: token.mint || token.address, // Use mint as fallback
+      address: token.mint || token.address,
       symbol: token.symbol || 'UNKNOWN',
       name: token.name || `Token ${token.mint?.slice(0, 8)}`,
       decimals: token.metadata?.decimals || 9,
-      image_url: token.metadata?.image || token.imageUrl,
+      image_url: token.metadata?.imageUrl || token.imageUrl,
       initial_price_usd: existingToken?.initial_price_usd || priceUsd,
       initial_liquidity_usd: liquidityUsd,
       current_price_usd: priceUsd,
@@ -136,10 +136,13 @@ export async function syncTokenData(token: PumpPortalToken) {
       freeze_authority: token.devWallet,
       supply: token.vTokensInBondingCurve || 0,
       created_at: existingToken?.created_at || new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      twitter_url: token.socials?.twitter || token.twitter,
+      telegram_url: token.socials?.telegram || token.telegram,
+      website_url: token.socials?.website || token.website
     };
 
-    // Upsert token data
+    // Upsert token data with social links included
     const { error: tokenError } = await supabase
       .from('tokens')
       .upsert(tokenData, {
@@ -157,36 +160,7 @@ export async function syncTokenData(token: PumpPortalToken) {
       symbol: token.symbol
     });
 
-    // Sync metadata
-    if (token.metadata || token.socials || token.twitter || token.telegram || token.website) {
-      const metadataData = {
-        token_address: token.mint || token.address,
-        twitter_url: token.socials?.twitter || token.twitter,
-        telegram_url: token.socials?.telegram || token.telegram,
-        website_url: token.socials?.website || token.website,
-        description: token.metadata?.description || null,
-        updated_at: new Date().toISOString()
-      };
-
-      const { error: metadataError } = await supabase
-        .from('token_metadata')
-        .upsert(metadataData, {
-          onConflict: 'token_address',
-          ignoreDuplicates: false
-        });
-
-      if (metadataError) {
-        logSync('Metadata Sync Error', { metadata: token.metadata, socials: token.socials }, metadataError);
-      } else {
-        logSync('Metadata Sync Success', { address: token.address });
-      }
-
-      // Always try to sync social metrics
-      await syncSocialMetrics(token);
-
-    }
-
-    // Update token holders
+    // Update token holders if we have trade data
     if (token.recentTrades && token.recentTrades.length > 0) {
       const holders = new Map<string, number>();
 
