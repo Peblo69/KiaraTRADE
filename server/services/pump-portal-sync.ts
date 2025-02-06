@@ -22,29 +22,32 @@ function logSync(action: string, data: any, error?: any) {
 // Get SOL price from environment or use a default
 const SOL_PRICE = 196.05; // We should get this dynamically from the store
 
+// Helper function to convert empty strings to null
+function emptyToNull(value: string | undefined | null): string | null {
+  if (!value || value.trim() === '') {
+    return null;
+  }
+  return value;
+}
+
 // Calculate price in USD, ensuring we never return null
 function calculatePriceUsd(trade: any): number {
-  // If we have a direct USD price, use it
   if (trade.priceInUsd && trade.priceInUsd > 0) {
     return trade.priceInUsd;
   }
 
-  // If we have SOL price, convert it
   if (trade.priceInSol && trade.priceInSol > 0) {
     return trade.priceInSol * SOL_PRICE;
   }
 
-  // Calculate from amounts if available
   if (trade.solAmount && trade.tokenAmount && trade.tokenAmount > 0) {
     return (trade.solAmount / trade.tokenAmount) * SOL_PRICE;
   }
 
-  // Fallback to calculating from market cap and supply
   if (trade.marketCapSol && trade.vTokensInBondingCurve && trade.vTokensInBondingCurve > 0) {
     return (trade.marketCapSol * SOL_PRICE) / trade.vTokensInBondingCurve;
   }
 
-  // Absolute fallback to prevent null values
   return 0.000001;
 }
 
@@ -76,13 +79,26 @@ export async function syncTokenData(token: PumpPortalToken) {
       throw new Error('No valid token address provided');
     }
 
+    // Extract social links with proper null handling
+    const socialLinks = {
+      twitter: emptyToNull(token.socials?.twitter || token.twitter),
+      telegram: emptyToNull(token.socials?.telegram || token.telegram),
+      website: emptyToNull(token.socials?.website || token.website)
+    };
+
+    // Extract image URL with proper null handling
+    const imageUrl = emptyToNull(token.metadata?.imageUrl || token.imageUrl);
+
     // Log initial token data
     logSync('Syncing Token', {
       address: tokenAddress,
       symbol: token.symbol || 'UNKNOWN',
       name: token.name || `Token ${tokenAddress.slice(0, 8)}`,
-      metadata: token.metadata,
-      socials: token.socials
+      metadata: {
+        ...token.metadata,
+        imageUrl
+      },
+      socials: socialLinks
     });
 
     // Get existing token data first
@@ -103,7 +119,7 @@ export async function syncTokenData(token: PumpPortalToken) {
       symbol: token.symbol || 'UNKNOWN',
       name: token.name || `Token ${tokenAddress.slice(0, 8)}`,
       decimals: token.metadata?.decimals || 9,
-      image_url: token.metadata?.imageUrl || token.imageUrl || null,
+      image_url: imageUrl,
       price_usd: priceUsd,
       liquidity_usd: liquidityUsd,
       market_cap_usd: marketCapUsd,
@@ -112,14 +128,14 @@ export async function syncTokenData(token: PumpPortalToken) {
       price_change_24h: existingToken?.price_change_24h || 0,
 
       // Contract info - keep existing values if present
-      bonding_curve_key: token.bondingCurveKey || existingToken?.bonding_curve_key || null,
-      mint_authority: token.metadata?.mint || existingToken?.mint_authority || null,
-      freeze_authority: token.metadata?.freezeAuthority || existingToken?.freeze_authority || null,
+      bonding_curve_key: token.bondingCurveKey || existingToken?.bonding_curve_key,
+      mint_authority: token.metadata?.mint || existingToken?.mint_authority,
+      freeze_authority: existingToken?.freeze_authority,
 
-      // Social links - allow NULL values
-      twitter_url: token.socials?.twitter || existingToken?.twitter_url || null,
-      telegram_url: token.socials?.telegram || existingToken?.telegram_url || null,
-      website_url: token.socials?.website || existingToken?.website_url || null,
+      // Social links - use prepared values
+      twitter_url: socialLinks.twitter,
+      telegram_url: socialLinks.telegram,
+      website_url: socialLinks.website,
 
       // Social metrics - keep existing values if present
       twitter_followers: token.socials?.twitterFollowers || existingToken?.twitter_followers || 0,
