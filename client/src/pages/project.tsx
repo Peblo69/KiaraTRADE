@@ -1,6 +1,7 @@
 import React from 'react';
-import { Bell, Menu, Search } from 'lucide-react';
+import { Bell, Menu } from 'lucide-react';
 import { WalletSetup } from '@/components/wallet/WalletSetup';
+import { WalletDashboard } from '@/components/wallet/WalletDashboard';
 
 function ProjectPage() {
   const hasWallet = false; // TODO: Replace with actual wallet check
@@ -45,9 +46,7 @@ function ProjectPage() {
         {!hasWallet ? (
           <WalletSetup />
         ) : (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {/* Wallet dashboard will go here */}
-          </div>
+          <WalletDashboard />
         )}
       </main>
     </div>
