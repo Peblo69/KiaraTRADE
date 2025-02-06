@@ -25,6 +25,7 @@ export class WebSocketManager {
       if (!this.wss) return;
 
       this.wss.handleUpgrade(request, socket, head, (ws) => {
+        if (!ws.isAlive) ws.isAlive = true;
         if (this.clients.has(ws)) return;
         this.wss!.emit('connection', ws, request);
       });

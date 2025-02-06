@@ -176,7 +176,6 @@ export const usePumpPortalStore = create(
 
             return {
               tokens: updatedTokens,
-              lastUpdate: Date.now(),
               ...(isViewed && {
                 viewedTokens: {
                   ...state.viewedTokens,
@@ -206,7 +205,6 @@ export const usePumpPortalStore = create(
 
           return {
             tokens: [tokenWithFlag, ...state.tokens].slice(0, MAX_TOKENS_IN_LIST),
-            lastUpdate: Date.now(),
             ...(isViewed && {
               viewedTokens: {
                 ...state.viewedTokens,
@@ -258,7 +256,6 @@ export const usePumpPortalStore = create(
 
           return {
             tokens: updatedTokens,
-            lastUpdate: Date.now(),
             ...(state.viewedTokens[address] && {
               viewedTokens: {
                 ...state.viewedTokens,
@@ -268,13 +265,12 @@ export const usePumpPortalStore = create(
           };
         }),
 
-      setConnected: (connected) => set({ isConnected: connected, lastUpdate: Date.now() }),
-      setSolPrice: (price) => set({ solPrice: price, lastUpdate: Date.now() }),
+      setConnected: (connected) => set({ isConnected: connected }),
+      setSolPrice: (price) => set({ solPrice: price }),
       resetTokens: () => set({
         tokens: [],
         viewedTokens: {},
         activeTokenView: null,
-        lastUpdate: Date.now(),
       }),
 
       addToViewedTokens: (address) =>
@@ -286,14 +282,13 @@ export const usePumpPortalStore = create(
               ...state.viewedTokens,
               [address]: token,
             },
-            lastUpdate: Date.now(),
           };
         }),
 
       setActiveTokenView: (address) =>
         set((state) => {
           if (!address) {
-            return { activeTokenView: null, lastUpdate: Date.now() };
+            return { activeTokenView: null };
           }
           const token = state.tokens.find((t) => t.address === address);
           if (!token) return state;
@@ -303,7 +298,6 @@ export const usePumpPortalStore = create(
               ...state.viewedTokens,
               [address]: token,
             },
-            lastUpdate: Date.now(),
           };
         }),
 
@@ -318,16 +312,10 @@ export const usePumpPortalStore = create(
       updateTokenPrice: (address, newPriceInUsd) =>
         set((state) => {
           const token = state.tokens.find((t) => t.address === address);
-          if (
-            newPriceInUsd === 0 &&
-            token &&
-            token.priceInUsd &&
-            token.priceInUsd > 0
-          ) {
+          if (newPriceInUsd === 0 && token?.priceInUsd && token.priceInUsd > 0) {
             newPriceInUsd = token.priceInUsd;
           }
-          const priceInSol =
-            state.solPrice > 0 ? newPriceInUsd / state.solPrice : 0;
+          const priceInSol = state.solPrice > 0 ? newPriceInUsd / state.solPrice : 0;
           const updatedTokens = state.tokens.map((t) =>
             t.address === address
               ? { ...t, priceInUsd: newPriceInUsd, priceInSol }
@@ -335,7 +323,6 @@ export const usePumpPortalStore = create(
           );
           return {
             tokens: updatedTokens,
-            lastUpdate: Date.now(),
             ...(state.viewedTokens[address] && {
               viewedTokens: {
                 ...state.viewedTokens,

@@ -29,7 +29,7 @@ async function fetchMetadataWithImage(uri: string) {
             image: imageUrl,
             socials
         };
-    } catch (error) {
+    } catch {
         return null;
     }
 }
@@ -60,11 +60,7 @@ export function initializePumpPortalWebSocket() {
 
                 wsManager.broadcast({
                     type: 'connection_status',
-                    data: {
-                        isConnected: true,
-                        currentTime: new Date().toISOString(),
-                        currentUser: "Peblo69"
-                    }
+                    data: { isConnected: true }
                 });
             };
 
@@ -124,11 +120,7 @@ export function initializePumpPortalWebSocket() {
                         };
 
                         await syncTokenData(enrichedData);
-
-                        wsManager.broadcast({ 
-                            type: 'newToken',
-                            data: enrichedData
-                        });
+                        wsManager.broadcast({ type: 'newToken', data: enrichedData });
 
                         if (ws && ws.readyState === WebSocket.OPEN) {
                             ws.send(JSON.stringify({
@@ -143,25 +135,15 @@ export function initializePumpPortalWebSocket() {
                         };
 
                         await syncTradeData(tradeData);
-
-                        wsManager.broadcast({ 
-                            type: 'trade',
-                            data: tradeData
-                        });
+                        wsManager.broadcast({ type: 'trade', data: tradeData });
                     }
-                } catch (error) {
-                    // Silent error handling
-                }
+                } catch {}
             };
 
             ws.onclose = () => {
                 wsManager.broadcast({
                     type: 'connection_status',
-                    data: {
-                        isConnected: false,
-                        currentTime: new Date().toISOString(),
-                        currentUser: "Peblo69"
-                    }
+                    data: { isConnected: false }
                 });
 
                 if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
@@ -172,7 +154,7 @@ export function initializePumpPortalWebSocket() {
 
             ws.onerror = () => {};
 
-        } catch (error) {
+        } catch {
             if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
                 reconnectAttempt++;
                 setTimeout(connect, RECONNECT_DELAY);

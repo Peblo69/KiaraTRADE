@@ -174,7 +174,7 @@ if (typeof window !== 'undefined') {
 export async function fetchRealTimeTokens(): Promise<Token[]> {
   try {
     return [];
-  } catch (error) {
+  } catch {
     return [];
   }
 }
