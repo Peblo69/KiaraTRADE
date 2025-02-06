@@ -1,17 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Bell, Menu, Search, Zap } from 'lucide-react';
 import { WalletSection } from '@/components/kiara/WalletSection';
 import { PortfolioTracker } from '@/components/kiara/PortfolioTracker';
 import { PerformanceChart } from '@/components/kiara/PerformanceChart';
 import { AnalyticsPanel } from '@/components/kiara/AnalyticsPanel';
 import { CopyTradingPage } from '@/components/kiara/CopyTradingPage';
 import { TradingSection } from '@/components/kiara/TradingSection';
-import { Bell, Menu, Search, Zap } from 'lucide-react';
 
 function ProjectPage() {
-  const [showCopyTrading, setShowCopyTrading] = React.useState(false);
+  const [showCopyTrading, setShowCopyTrading] = useState(false);
+
+  if (showCopyTrading) {
+    return <CopyTradingPage onBack={() => setShowCopyTrading(false)} />;
+  }
 
   return (
-    <div className="min-h-screen bg-[#0B0B1E]">
+    <div className="min-h-screen bg-[#0B0B1E] grid-bg">
       {/* Header */}
       <header className="neon-border bg-[#0B0B1E]/90 backdrop-blur-md border-b border-purple-500/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -64,49 +68,18 @@ function ProjectPage() {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="space-y-8">
-          {/* Top Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="space-y-8">
             <WalletSection />
-            <PortfolioTracker />
-          </div>
-
-          {/* Middle Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <PerformanceChart />
-            <AnalyticsPanel />
           </div>
-
-          {/* Bottom Row */}
-          <div className="grid grid-cols-1 gap-8">
-            <TradingSection />
-            {showCopyTrading && (
-              <div className="neon-border bg-kiara-dark/80 rounded-xl">
-                <CopyTradingPage onBack={() => setShowCopyTrading(false)} />
-              </div>
-            )}
+          <div className="space-y-8">
+            <PortfolioTracker />
+            <AnalyticsPanel />
           </div>
         </div>
       </main>
-
-      {/* Background Effects */}
-      <div className="fixed inset-0 pointer-events-none">
-        {[...Array(50)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute rounded-full bg-white"
-            style={{
-              width: Math.random() * 3 + 'px',
-              height: Math.random() * 3 + 'px',
-              top: Math.random() * 100 + '%',
-              left: Math.random() * 100 + '%',
-              opacity: Math.random() * 0.5 + 0.25,
-              animation: `twinkle ${Math.random() * 4 + 2}s infinite`
-            }}
-          />
-        ))}
-      </div>
     </div>
   );
 }
