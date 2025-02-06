@@ -506,7 +506,7 @@ export function registerRoutes(app: Express): Server {
 
       // Generate response using our AI service
       const response = await generateAIResponse(
-        message, 
+        message,
         chatHistory[sessionId],
         profile
       );
@@ -525,9 +525,9 @@ export function registerRoutes(app: Express): Server {
       res.json({ response });
     } catch (error: any) {
       console.error('Chat error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to process chat request',
-        details: error.message 
+        details: error.message
       });
     }
   });
@@ -884,16 +884,30 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-    // Process handling
+  // Add Binance API proxy endpoint
+  app.get('/api/binance/price/:symbol', async (req, res) => {
+    try {
+      const { symbol } = req.params;
+      const response = await axios.get(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`);
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(500).json({
+        error: 'Failed to fetch price data',
+        details: error.response?.data || error.message
+      });
+    }
+  });
+
+  // Process handling
   process.on('uncaughtException', (error) => {
-      console.error('❌ Uncaught Exception:', error);
+    console.error('❌ Uncaught Exception:', error);
     if (error.code === 'EADDRINUSE') {
       console.log('⚠️ Port is busy, attempting restart...');
       process.exit(1); // Replit will automatically restart
     }
   });
 
-  process.on('unhandledRejection',(reason, promise) => {
+  process.on('unhandledRejection', (reason, promise) => {
     console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
   });
 
@@ -901,7 +915,7 @@ export function registerRoutes(app: Express): Server {
     process.on(signal, () => {
       console.log(`\n${signal} received, shutting down gracefully...`);
       process.exit(0);
-    });
+        });
   });
   return server;
 }
@@ -1017,7 +1031,7 @@ const COIN_METADATA: Record<string, { name: string, image: string }> = {
     name: 'Tether',
     image: 'https://assets.coingecko.com/coins/images/325/large/Tether.png'
   },
-    'XRP': {
+  'XRP': {
     name: 'XRP',
     image: 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/xrp.png'
   }
@@ -1069,7 +1083,7 @@ const NEWSDATA_API_BASE = 'https://newsdata.io/api/1';
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
 const cache = {
   prices: { data: null, timestamp: 0 },
-    stats24h: { data: null, timestamp: 0 },
+  stats24h: { data: null, timestamp: 0 },
   trending: { data: null, timestamp: 0 },
   news: { data: null, timestamp: 0 }
 };

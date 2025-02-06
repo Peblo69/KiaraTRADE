@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { queryClient } from './queryClient';
+import axios from 'axios';
 
 export interface Token {
   name: string;
@@ -19,6 +20,15 @@ interface TokenStore {
   addToken: (token: Token) => void;
   updateToken: (address: string, updates: Partial<Token>) => void;
   setConnected: (connected: boolean) => void;
+}
+
+async function fetchPrice(symbol: string): Promise<number> {
+  try {
+    const response = await axios.get(`/api/binance/price/${symbol}`);
+    return Number(response.data.price);
+  } catch {
+    return 0;
+  }
 }
 
 export const useTokenStore = create<TokenStore>((set) => ({
@@ -113,7 +123,7 @@ function initializeWebSocket() {
       }, 5000);
     };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
 
@@ -121,8 +131,8 @@ function initializeWebSocket() {
           const token: Token = {
             name: data.token.name || `Token ${data.token.address.slice(0, 8)}`,
             symbol: data.token.symbol || `PUMP${data.token.address.slice(0, 4)}`,
-            price: Number(data.token.price || 0),
-            marketCap: Number(data.token.price || 0) * 1_000_000_000,
+            price: await fetchPrice(data.token.symbol || `PUMP${data.token.address.slice(0, 4)}`), // Use fetchPrice here
+            marketCap: (await fetchPrice(data.token.symbol || `PUMP${data.token.address.slice(0, 4)}`)) * 1_000_000_000, // Use fetchPrice here
             volume24h: 0,
             holders: 0,
             createdAt: new Date(),
@@ -130,11 +140,10 @@ function initializeWebSocket() {
             imageUrl: data.token.image || undefined,
           };
           store.addToken(token);
-        }
-        else if (data.type === 'tokenTrade' && data.trade) {
+        } else if (data.type === 'tokenTrade' && data.trade) {
           store.updateToken(data.trade.tokenAddress, {
-            price: Number(data.trade.price || 0),
-            marketCap: Number(data.trade.price || 0) * 1_000_000_000,
+            price: await fetchPrice(data.trade.symbol), // Use fetchPrice here
+            marketCap: (await fetchPrice(data.trade.symbol)) * 1_000_000_000, // Use fetchPrice here
             volume24h: Number(data.trade.volume24h || 0),
           });
         }

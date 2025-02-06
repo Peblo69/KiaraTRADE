@@ -16,18 +16,16 @@ async function fetchMetadataWithImage(uri: string) {
             imageUrl = `https://ipfs.io/ipfs/${imageUrl.slice(7)}`;
         }
 
-        const socials = {
-            twitter: metadata.twitter_url || metadata.twitter || null,
-            telegram: metadata.telegram_url || metadata.telegram || null,
-            website: metadata.website_url || metadata.website || null,
-            twitterFollowers: metadata.twitter_followers || 0,
-            telegramMembers: metadata.telegram_members || 0
-        };
-
         return {
             ...metadata,
             image: imageUrl,
-            socials
+            socials: {
+                twitter: metadata.twitter_url || metadata.twitter || null,
+                telegram: metadata.telegram_url || metadata.telegram || null,
+                website: metadata.website_url || metadata.website || null,
+                twitterFollowers: metadata.twitter_followers || 0,
+                telegramMembers: metadata.telegram_members || 0
+            }
         };
     } catch {
         return null;
@@ -46,15 +44,13 @@ export function initializePumpPortalWebSocket() {
             ws.onopen = () => {
                 reconnectAttempt = 0;
 
-                if (ws && ws.readyState === WebSocket.OPEN) {
+                if (ws?.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
-                        method: "subscribeNewToken",
-                        keys: []
+                        method: "subscribeNewToken"
                     }));
 
                     ws.send(JSON.stringify({
-                        method: "subscribeTokenTrades",
-                        keys: []
+                        method: "subscribeTokenTrades"
                     }));
                 }
 
@@ -107,13 +103,23 @@ export function initializePumpPortalWebSocket() {
                                 creators: data.creators || []
                             },
                             timestamp: Date.now(),
-                            socials
+                            website: socials.website || data.website,
+                            twitter: socials.twitter || data.twitter,
+                            telegram: socials.telegram || data.telegram,
+                            socials: {
+                                website: socials.website || data.website,
+                                twitter: socials.twitter || data.twitter,
+                                telegram: socials.telegram || data.telegram,
+                                twitterFollowers: socials.twitterFollowers || 0,
+                                telegramMembers: socials.telegramMembers || 0
+                            },
+                            recentTrades: []
                         };
 
                         await syncTokenData(enrichedData);
                         wsManager.broadcast({ type: 'newToken', data: enrichedData });
 
-                        if (ws && ws.readyState === WebSocket.OPEN) {
+                        if (ws?.readyState === WebSocket.OPEN) {
                             ws.send(JSON.stringify({
                                 method: "subscribeTokenTrade",
                                 keys: [data.mint]
