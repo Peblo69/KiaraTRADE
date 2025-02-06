@@ -2,8 +2,6 @@ import React from 'react';
 import { Bell, Menu, Search } from 'lucide-react';
 import { WalletSection } from '@/components/kiara/WalletSection';
 import { PortfolioTracker } from '@/components/kiara/PortfolioTracker';
-import { PerformanceChart } from '@/components/kiara/PerformanceChart';
-import { AnalyticsPanel } from '@/components/kiara/AnalyticsPanel';
 
 function ProjectPage() {
   return (
@@ -55,14 +53,8 @@ function ProjectPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="space-y-8">
-            <WalletSection />
-            <PerformanceChart />
-          </div>
-          <div className="space-y-8">
-            <PortfolioTracker />
-            <AnalyticsPanel />
-          </div>
+          <WalletSection />
+          <PortfolioTracker />
         </div>
       </main>
     </div>
