@@ -1,18 +1,48 @@
+// client/src/lib/websocket-manager.ts
 import { format } from 'date-fns';
 import { usePumpPortalStore, TokenTrade, PumpPortalToken } from './pump-portal-websocket';
 import { calculatePumpFunTokenMetrics } from '@/utils/token-calculations';
 
+// Debug & Constants
+const DEBUG = true;
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 const UTC_DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
 const CURRENT_USER = 'Peblo69';
 const RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const HEARTBEAT_INTERVAL = 30000;
-//const BINANCE_SOL_PRICE_URL = 'https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT';
+const BILLION = 1_000_000_000;
+const SOL_PRICE_UPDATE_INTERVAL = 10000;
+// Use Binance's public SOL/USDT endpoint instead of CoinGecko
+const BINANCE_SOL_PRICE_URL = 'https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT';
+
+console.log('🚀 WEBSOCKET MANAGER LOADING', { WS_URL });
+
+interface WebSocketMessage {
+  type: string;
+  data: any;
+}
+
+interface TradeMessage {
+  type: 'trade';
+  data: {
+    signature: string;
+    mint: string;
+    txType: 'buy' | 'sell';
+    tokenAmount: number;
+    solAmount: number;
+    traderPublicKey: string;
+    counterpartyPublicKey: string;
+    bondingCurveKey: string;
+    vTokensInBondingCurve: number;
+    vSolInBondingCurve: number;
+    marketCapSol: number;
+  };
+}
 
 class WebSocketManager {
   private ws: WebSocket | null = null;
-  private reconnectAttempts = 0;
+  private reconnectAttempts: number = 0;
   private heartbeatInterval: number | null = null;
   private reconnectTimeout: number | null = null;
   private solPrice: number = 0;
@@ -20,11 +50,23 @@ class WebSocketManager {
   private initialized: boolean = false;
 
   public connect(): void {
-    if (this.initialized) return;
+    if (this.initialized) {
+      console.log('🔄 WebSocket already initialized, skipping...');
+      return;
+    }
+
+    console.log('🔌 Connecting to:', WS_URL);
 
     try {
       this.ws = new WebSocket(WS_URL);
       this.initialized = true;
+
+      console.log('📡 WebSocket State:', {
+        ws: !!this.ws,
+        readyState: this.ws?.readyState,
+        url: WS_URL
+      });
+
       this.setupEventListeners();
       this.startHeartbeat();
       this.startSolPriceUpdates();
@@ -34,36 +76,47 @@ class WebSocketManager {
         currentTime,
         currentUser: CURRENT_USER
       });
-    } catch {
+    } catch (error) {
+      console.error('💀 Connection error:', error);
       this.updateConnectionStatus(false);
     }
   }
 
   private async updateSolPrice(): Promise<void> {
     try {
-      const response = await fetch('/api/sol-price');
-      if (!response.ok) throw new Error();
+      const response = await fetch(BINANCE_SOL_PRICE_URL);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const data = await response.json();
-      if (data?.price) {
-        this.solPrice = data.price;
+      // Binance returns data in the format: { symbol: "SOLUSDT", price: "123.45" }
+      if (data && data.price) {
+        this.solPrice = parseFloat(data.price);
+        console.log('💰 Updated SOL price:', this.solPrice);
+
         const store = usePumpPortalStore.getState();
         store.setSolPrice(this.solPrice);
         await this.updateAllTokenPrices();
       }
-    } catch {}
+    } catch (error) {
+      console.error('❌ SOL price fetch failed:', error);
+    }
   }
 
   private startSolPriceUpdates(): void {
-    this.updateSolPrice();
+    this.updateSolPrice(); // Initial update
     this.solPriceInterval = window.setInterval(() => {
       this.updateSolPrice();
-    }, 10000);
+    }, SOL_PRICE_UPDATE_INTERVAL);
   }
 
   private async updateAllTokenPrices(): Promise<void> {
     const store = usePumpPortalStore.getState();
-    if (this.solPrice <= 0) return;
+    if (this.solPrice <= 0) {
+      console.warn('⚠️ Invalid SOL price, skipping updates');
+      return;
+    }
+
+    console.log('🔄 Updating all token prices with SOL:', this.solPrice);
 
     const updates = store.tokens.map(async (token) => {
       if (token.vTokensInBondingCurve && token.vSolInBondingCurve) {
@@ -71,6 +124,12 @@ class WebSocketManager {
           vSolInBondingCurve: token.vSolInBondingCurve,
           vTokensInBondingCurve: token.vTokensInBondingCurve,
           solPrice: this.solPrice
+        });
+
+        console.log('📊 Token metrics:', {
+          token: token.address,
+          price: metrics.price,
+          marketCap: metrics.marketCap
         });
 
         store.updateTokenPrice(token.address, metrics.price.usd);
@@ -84,25 +143,30 @@ class WebSocketManager {
     if (!this.ws) return;
 
     this.ws.onopen = () => {
+      console.log('🟢 Connected to WebSocket');
       this.reconnectAttempts = 0;
       this.updateConnectionStatus(true);
     };
 
     this.ws.onclose = () => {
+      console.log('🔴 WebSocket disconnected');
       this.updateConnectionStatus(false);
       this.stopHeartbeat();
       this.attemptReconnect();
     };
 
-    this.ws.onerror = () => {
+    this.ws.onerror = (error) => {
+      console.error('⚠️ WebSocket error:', error);
       this.updateConnectionStatus(false);
     };
 
     this.ws.onmessage = async (event: MessageEvent) => {
       try {
-        const message = JSON.parse(event.data);
+        const message: WebSocketMessage = JSON.parse(event.data);
         await this.handleMessage(message);
-      } catch {}
+      } catch (error) {
+        console.error('❌ Message parsing error:', error);
+      }
     };
   }
 
@@ -111,6 +175,7 @@ class WebSocketManager {
 
     switch (message.type) {
       case 'newToken':
+        console.log('🆕 New token:', message.data.mint);
         store.addToken(message.data);
         break;
 
@@ -129,6 +194,12 @@ class WebSocketManager {
             priceInUsd: metrics.price.usd,
             isDevTrade: this.isDevWalletTrade(message.data)
           };
+
+          console.log('💱 Trade processed:', {
+            token: message.data.mint,
+            price: metrics.price,
+            type: message.data.txType
+          });
 
           store.addTradeToHistory(message.data.mint, tradeData);
           await this.calculateTokenPrice({
@@ -150,13 +221,25 @@ class WebSocketManager {
       case 'heartbeat':
         this.handleHeartbeat();
         break;
+
+      default:
+        console.warn('⚠️ Unknown message type:', message.type);
     }
   }
 
   private isDevWalletTrade(tradeData: any): boolean {
     const store = usePumpPortalStore.getState();
     const token = store.getToken(tradeData.mint);
-    return token?.devWallet === tradeData.traderPublicKey;
+    const isDev = token?.devWallet === tradeData.traderPublicKey;
+
+    if (isDev) {
+      console.log('👨‍💻 Dev trade detected:', {
+        token: tradeData.mint,
+        wallet: tradeData.traderPublicKey
+      });
+    }
+
+    return isDev;
   }
 
   private async calculateTokenPrice(token: PumpPortalToken): Promise<void> {
@@ -167,12 +250,24 @@ class WebSocketManager {
         solPrice: this.solPrice
       });
 
+      console.log('💰 Price calculated:', {
+        token: token.address,
+        price: metrics.price,
+        marketCap: metrics.marketCap
+      });
+
       usePumpPortalStore.getState().updateTokenPrice(token.address, metrics.price.usd);
     }
   }
 
   private updateConnectionStatus(isConnected: boolean): void {
     const currentTime = format(new Date(), UTC_DATE_FORMAT);
+    console.log('🔌 Connection status:', {
+      isConnected,
+      time: currentTime,
+      user: CURRENT_USER
+    });
+
     usePumpPortalStore.setState({
       isConnected,
       currentTime,
@@ -183,10 +278,13 @@ class WebSocketManager {
   private attemptReconnect(): void {
     if (this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
       this.reconnectAttempts++;
+      console.log(`🔄 Reconnecting (${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+
       this.reconnectTimeout = window.setTimeout(() => {
         this.connect();
       }, RECONNECT_DELAY * this.reconnectAttempts);
     } else {
+      console.error('❌ Max reconnection attempts reached');
       this.updateConnectionStatus(false);
     }
   }
@@ -218,6 +316,7 @@ class WebSocketManager {
   }
 
   public disconnect(): void {
+    console.log('👋 Disconnecting WebSocket...');
     this.stopHeartbeat();
 
     if (this.reconnectTimeout) {
@@ -246,11 +345,20 @@ class WebSocketManager {
   public sendMessage(message: WebSocketMessage): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
+    } else {
+      console.error('❌ Cannot send - WebSocket not connected');
     }
   }
 }
 
 export const wsManager = new WebSocketManager();
+
+// Global access for debugging
+declare global {
+  interface Window {
+    wsManager: WebSocketManager;
+  }
+}
 
 if (typeof window !== 'undefined') {
   window.wsManager = wsManager;

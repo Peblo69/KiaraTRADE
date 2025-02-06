@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { devtools } from 'zustand/middleware'; // For debugging
 
+// Explicit timeframe literals
 export const TIMEFRAMES = {
   '1m': 60 * 1000,
   '5m': 5 * 60 * 1000,
@@ -21,8 +22,8 @@ interface CandleData {
   volume: number;
   marketCap: number;
   trades: number;
-  vwap?: number;
-  isPending?: boolean;
+  vwap?: number;        // Volume Weighted Average Price
+  isPending?: boolean;  // For real-time updates
 }
 
 interface TokenPriceData {
@@ -35,15 +36,27 @@ interface PriceHistoryState {
   lastUpdate: Record<string, number>;
   errors: Record<string, string>;
 
+  // Methods
   getPriceHistory: (tokenAddress: string, timeframe: TimeframeKey) => CandleData[];
-  initializePriceHistory: (tokenAddress: string, initialPrice: number, marketCap: number, timestamp?: number) => void;
-  addPricePoint: (tokenAddress: string, price: number, marketCap: number, volume: number, timestamp?: number) => void;
+  initializePriceHistory: (
+    tokenAddress: string, 
+    initialPrice: number, 
+    marketCap: number,
+    timestamp?: number
+  ) => void;
+  addPricePoint: (
+    tokenAddress: string, 
+    price: number, 
+    marketCap: number, 
+    volume: number,
+    timestamp?: number
+  ) => void;
   getVWAP: (tokenAddress: string, timeframe: TimeframeKey) => number;
   clearHistory: (tokenAddress: string) => void;
 }
 
 const MAX_CANDLES = 1000;
-const CLEANUP_INTERVAL = 24 * 60 * 60 * 1000;
+const CLEANUP_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 
 export const useTokenPriceStore = create<PriceHistoryState>()(
   devtools(
@@ -74,6 +87,7 @@ export const useTokenPriceStore = create<PriceHistoryState>()(
 
         const initialData: TokenPriceData = {} as TokenPriceData;
 
+        // Initialize with a single candle for each timeframe
         Object.entries(TIMEFRAMES).forEach(([timeframe, interval]) => {
           const candleTime = Math.floor(timestamp / interval) * interval;
           initialData[timeframe] = [{
@@ -118,8 +132,9 @@ export const useTokenPriceStore = create<PriceHistoryState>()(
           if (!state.initialized.has(tokenAddress)) return state;
 
           const newPriceHistory = { ...state.priceHistory };
-          const tokenData = newPriceHistory[tokenAddress] || {};
+          const tokenData = { ...newPriceHistory[tokenAddress] };
 
+          // Update candles for each timeframe
           Object.entries(TIMEFRAMES).forEach(([timeframe, interval]) => {
             const tf = timeframe as TimeframeKey;
             const candleTime = Math.floor(timestamp / interval) * interval;
@@ -127,6 +142,7 @@ export const useTokenPriceStore = create<PriceHistoryState>()(
             const lastCandle = candles[candles.length - 1];
 
             if (lastCandle && lastCandle.timestamp === candleTime) {
+              // Update existing candle
               const updatedVolume = lastCandle.volume + volume;
               const updatedTrades = lastCandle.trades + 1;
               const vwap = ((lastCandle.vwap || lastCandle.close) * lastCandle.volume + price * volume) / updatedVolume;
@@ -144,6 +160,7 @@ export const useTokenPriceStore = create<PriceHistoryState>()(
               };
               candles[candles.length - 1] = updatedCandle;
             } else {
+              // Create new candle
               candles.push({
                 timestamp: candleTime,
                 open: price,
@@ -157,6 +174,7 @@ export const useTokenPriceStore = create<PriceHistoryState>()(
                 isPending: false
               });
 
+              // Trim history
               if (candles.length > MAX_CANDLES) {
                 candles.splice(0, candles.length - MAX_CANDLES);
               }
@@ -165,6 +183,7 @@ export const useTokenPriceStore = create<PriceHistoryState>()(
             tokenData[tf] = candles;
           });
 
+          // Cleanup old data
           const now = Date.now();
           if (now - (state.lastUpdate[tokenAddress] || 0) > CLEANUP_INTERVAL) {
             Object.keys(state.priceHistory).forEach(addr => {
@@ -174,8 +193,6 @@ export const useTokenPriceStore = create<PriceHistoryState>()(
               }
             });
           }
-
-          newPriceHistory[tokenAddress] = tokenData;
 
           return {
             ...state,
@@ -191,6 +208,7 @@ export const useTokenPriceStore = create<PriceHistoryState>()(
       getVWAP: (tokenAddress, timeframe) => {
         const candles = get().getPriceHistory(tokenAddress, timeframe);
         if (!candles.length) return 0;
+
         const lastCandle = candles[candles.length - 1];
         return lastCandle.vwap || lastCandle.close;
       },
