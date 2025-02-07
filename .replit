@@ -60,7 +60,3 @@ author = 38878337
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd clean-project && npm run dev"
-
-[[ports]]
-localPort = 5000
-externalPort = 80
