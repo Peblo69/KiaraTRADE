@@ -1,33 +1,37 @@
-import express, { type Express, Request, Response, NextFunction } from "express";
+import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "../../server/vite.ts";
+import { setupVite, serveStatic, log } from "./vite";
 import http from 'http';
 
 const app = express();
-const port = process.env.PORT || 5000;
+const port = Number(process.env.PORT || 5000);
 let server: http.Server | null = null;
-let retries = 0;
-const maxRetries = 3;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-function startServer(port: number) {
+async function startServer() {
   try {
-    server = app.listen(port, '0.0.0.0', () => {
-      console.log('\n🚀 Server Status:');
-      console.log(`📡 Internal: Running on 0.0.0.0:${port}`);
-      console.log(`🌍 External: Mapped to port 3000`);
-      console.log(`👤 User: ${process.env.REPL_OWNER || 'unknown'}`);
-      console.log(`⏰ Started at: ${new Date().toISOString()}`);
-      console.log('\n✅ Server is ready to accept connections\n');
-    });
-    // Register routes after server is successfully started.
+    // Close existing server if it exists
+    if (server) {
+      await new Promise<void>((resolve) => {
+        server?.close(() => {
+          server = null;
+          log('Closed existing server');
+          resolve();
+        });
+      });
+    }
+
+    // Create new server instance
+    server = http.createServer(app);
+
+    // Register routes first
     registerRoutes(app);
 
     // Global error handler middleware
-    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-      const status = err.status || err.statusCode || 500;
+    app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+      const status = err instanceof Error ? 500 : err.status;
       const message = err.message || "Internal Server Error";
       log(`Error Handler: ${status} - ${message}`);
       if (!res.headersSent) {
@@ -37,26 +41,35 @@ function startServer(port: number) {
 
     // Setup vite in development and after all other routes
     if (process.env.NODE_ENV === "development") {
-      setupVite(app, server);
+      await setupVite(app, server);
     } else {
       serveStatic(app);
     }
 
+    // Start server
+    await new Promise<void>((resolve, reject) => {
+      if (!server) {
+        return reject(new Error('Server was not properly initialized'));
+      }
+
+      server.listen(port, '0.0.0.0', () => {
+        log('\n🚀 Server Status:');
+        log(`📡 Internal: Running on 0.0.0.0:${port}`);
+        log(`🌍 External: Mapped to port 80`);
+        log(`⏰ Started at: ${new Date().toISOString()}`);
+        log('\n✅ Server is ready to accept connections\n');
+        resolve();
+      });
+    });
+
   } catch (error) {
-    if (retries < maxRetries) {
-      retries++;
-      console.log(`Retrying on port ${port + retries}...`);
-      startServer(port + retries);
-    } else {
-      console.error('Failed to start server after multiple retries');
-      process.exit(1);
-    }
+    log(`Server startup error: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
   }
 }
 
-
 // Graceful shutdown handler
-process.on('SIGTERM', async () => {
+process.on('SIGTERM', () => {
   if (server) {
     server.close(() => {
       log('Server gracefully shut down');
@@ -66,7 +79,7 @@ process.on('SIGTERM', async () => {
 });
 
 // Handle interrupts
-process.on('SIGINT', async () => {
+process.on('SIGINT', () => {
   if (server) {
     server.close(() => {
       log('Server interrupted and shut down');
@@ -76,7 +89,7 @@ process.on('SIGINT', async () => {
 });
 
 // Start the server
-startServer(port).catch(error => {
+startServer().catch(error => {
   log(`Failed to start server: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 });
