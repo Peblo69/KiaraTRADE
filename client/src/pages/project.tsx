@@ -8,7 +8,7 @@ function ProjectPage() {
 
   return (
     <div className="min-h-screen bg-[#0B0B1E] grid-bg">
-      {/* Enhanced Header with Glass Effect */}
+      {/* Header */}
       <header className="sticky top-0 z-50 backdrop-blur-md border-b border-purple-500/20 bg-[#0B0B1E]/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
