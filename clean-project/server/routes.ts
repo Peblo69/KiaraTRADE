@@ -1088,7 +1088,7 @@ const cache = {
   news: { data: null, timestamp: 0 }
 };
 
-import { generateAIResponse } from './services/ai';
+import { generateAIResponse } from '../server/services/ai';
 import { getTokenImage } from './image-worker';
 import { pricePredictionService } from './services/price-prediction';
 import { cryptoService } from './services/crypto'; // Import the crypto service
