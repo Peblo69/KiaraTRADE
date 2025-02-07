@@ -31,7 +31,7 @@ export function KiaraVideo() {
   }, []);
 
   // Don't show video on certain routes
-  if (location.startsWith('/trading') || location.startsWith('/wallet')) {
+  if (location.startsWith('/trading')) {
     return null;
   }
 

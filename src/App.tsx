@@ -1,6 +1,5 @@
 import React from 'react';
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
 import { queryClient } from "./lib/queryClient";
 import { Route } from 'wouter';
 
@@ -12,16 +11,6 @@ import { AiChat } from './components/features/AiChat';
 // Layout Components
 import { TopBar } from './components/layout/TopBar';
 
-// Trading Components
-import { TokenPage } from './components/trading/TokenPage';
-import { TokenDetails } from './components/trading/TokenDetails';
-import { MarketStats } from './components/trading/MarketStats';
-import { SocialMetrics } from './components/trading/SocialMetrics';
-import { TradingChart } from './components/trading/TradingChart';
-import { TradeHistory } from './components/trading/TradeHistory';
-import { TradingForm } from './components/trading/TradingForm';
-import { HolderAnalytics } from './components/trading/HolderAnalytics';
-
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -30,8 +19,13 @@ function App() {
         <TopBar />
 
         <main>
-          <Route path="/" component={TokenPage} />
-          <Route path="/token/:tokenAddress" component={TokenDetails} />
+          <Route path="/">
+            <div className="container mx-auto px-4 py-6">
+              <KiaraVideo />
+            </div>
+          </Route>
+          {/*The following routes are removed based on the edited code, but may need to be re-added if the intention changes.*/}
+          {/*<Route path="/token/:tokenAddress" component={TokenDetails} />
           <Route path="/trading">
             {() => (
               <div className="container mx-auto px-4 py-6">
@@ -51,12 +45,11 @@ function App() {
                 </div>
               </div>
             )}
-          </Route>
+          </Route>*/}
         </main>
 
-        <KiaraVideo />
         <AiChat />
-        <Toaster />
+        {/* <Toaster /> This is removed as per the edited code. */}
       </div>
     </QueryClientProvider>
   );
