@@ -11,6 +11,7 @@ build = ["npm", "run", "build"]
 run = ["npm", "run", "start"]
 
 [workflows]
+runButton = "Run Clean Project"
 
 [[workflows.workflow]]
 name = "Project"
@@ -43,6 +44,14 @@ author = 38878337
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev"
+
+[[workflows.workflow]]
+name = "Run Clean Project"
+author = 38878337
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd clean-project && npm run dev"
 
 [[ports]]
 localPort = 5000
