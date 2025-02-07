@@ -1,5 +1,5 @@
-import { db } from "@db";
-import { coinImages, coinMappings } from "@db/schema";
+import { db } from "../db";
+import { coinImages, coinMappings } from "../db/schema";
 import { eq } from "drizzle-orm";
 import type { Express } from "express";
 import { createServer, type Server } from "http";

@@ -82,7 +82,7 @@ export async function analyzeToken(tokenMint: string): Promise<TokenAnalysis | n
         };
 
         const totalRiskScore = Object.values(riskFactors).reduce((a, b) => a + b, 0);
-        
+
         // Format response
         return {
             name: token.tokenMeta?.name || 'Unknown',
