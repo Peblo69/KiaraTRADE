@@ -18,10 +18,10 @@ const tryBind = (retries = 5) => {
 
     server?.close();
     server = registerRoutes(app);
-    
+
     server.once('error', (err: any) => {
       if (err.code === 'EADDRINUSE') {
-        console.log(`Port ${port} in use, retrying...`);
+        console.log(`Port ${port} in use, retrying in 1 second...`);
         setTimeout(() => {
           tryBind(retries - 1).then(resolve).catch(reject);
         }, 1000);
@@ -43,7 +43,6 @@ tryBind().catch(err => {
   process.exit(1);
 });
 
-
 // Global error handler middleware
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   const status = err.status || err.statusCode || 500;
@@ -54,11 +53,6 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   }
 });
 
-
-// Start server on port 5000 with 0.0.0.0 binding
-app.listen(port, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${port}`);
-});
 
 // Graceful shutdown handler
 process.on('SIGTERM', async () => {
