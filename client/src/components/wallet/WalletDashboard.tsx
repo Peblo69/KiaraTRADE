@@ -1,13 +1,54 @@
 import React from 'react';
-import { ArrowUpRight, ArrowDownRight, Plus, Download, Upload, History } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Download, Upload, History } from 'lucide-react';
+import { CreateWallet } from './CreateWallet';
+import { ImportWallet } from './ImportWallet';
 
-export function WalletDashboard() {
+interface WalletDashboardProps {
+  onBack?: () => void;
+}
+
+export function WalletDashboard({ onBack }: WalletDashboardProps) {
+  const [showCreateWallet, setShowCreateWallet] = React.useState(false);
+  const [showImportWallet, setShowImportWallet] = React.useState(false);
+
+  // Mock data - will be replaced with real data from context
+  const hasWallet = false;
+
+  if (!hasWallet) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center p-6">
+        <div className="max-w-md w-full space-y-4">
+          <button
+            onClick={() => setShowCreateWallet(true)}
+            className="w-full bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-500 transition-all duration-300 hover:scale-105 transform"
+          >
+            Create New Wallet
+          </button>
+          <button
+            onClick={() => setShowImportWallet(true)}
+            className="w-full bg-purple-900/30 text-purple-300 px-4 py-3 rounded-lg border border-purple-500/30 hover:bg-purple-900/40 transition-all duration-300 hover:scale-105 transform"
+          >
+            Import Existing Wallet
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (showCreateWallet) {
+    return <CreateWallet onBack={() => setShowCreateWallet(false)} />;
+  }
+
+  if (showImportWallet) {
+    return <ImportWallet onBack={() => setShowImportWallet(false)} />;
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 animate-fade-in">
       {/* Portfolio Overview Section */}
       <div className="relative group">
         <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl blur opacity-25 group-hover:opacity-40 transition duration-1000"></div>
-        <div className="relative neon-border bg-kiara-dark/80 rounded-xl p-6">
+        <div className="relative neon-border bg-[#0B0B1E]/80 rounded-xl p-6">
           <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400 mb-6">
             Portfolio Overview
           </h2>
@@ -100,7 +141,7 @@ export function WalletDashboard() {
       {/* Transaction History */}
       <div className="relative group">
         <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl blur opacity-25 group-hover:opacity-40 transition duration-1000"></div>
-        <div className="relative neon-border bg-kiara-dark/80 rounded-xl p-6">
+        <div className="relative neon-border bg-[#0B0B1E]/80 rounded-xl p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
               Transaction History

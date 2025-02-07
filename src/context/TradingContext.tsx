@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { createTrade as createTradeAPI } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 export interface Trade {
   id: string;
@@ -53,7 +53,21 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     setError(null);
 
     try {
-      const trade = await createTradeAPI(data);
+      const { data: trade, error: err } = await supabase
+        .from('trades')
+        .insert([{
+          type: data.type,
+          side: data.side,
+          amount: data.amount,
+          price: data.price,
+          wallet_id: data.walletId,
+          timestamp: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+      if (err) throw err;
+
       const newTrade: Trade = {
         id: trade.id,
         ...data,
@@ -62,7 +76,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         fee: 0.1,
         wallet: data.walletId,
         amountUSD: data.price * data.amount,
-        amountSOL: data.amount * 0.5,
+        amountSOL: data.amount,
       };
 
       setTrades(current => [newTrade, ...current]);
