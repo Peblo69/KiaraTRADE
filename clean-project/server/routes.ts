@@ -51,7 +51,7 @@ function debugLog(source: string, message: string, data?: any) {
   }
 }
 
-export function registerRoutes(app: Express): Server {
+export function registerRoutes(app: Express): Express {
   debugLog('Server', `Initializing server for user ${process.env.REPL_OWNER || 'unknown'}`);
 
   const server = createServer(app);
@@ -914,12 +914,12 @@ export function registerRoutes(app: Express): Server {
   ['SIGTERM', 'SIGINT'].forEach(signal => {
     process.on(signal, () => {
       console.log(`\n${signal} received, shutting down gracefully...`);
-      process.exit(0);
-        });
+      server.close(() => process.exit(0));
+    });
   });
-  return server;
+  return app;
 }
-// Helper functions
+//// Helper functions
 function calculateRiskScore(tokenInfo: any, holderConcentration: any, snipers: any[]): number {
   let score = 0;
 
