@@ -5,7 +5,7 @@ import { setupVite, serveStatic, log } from "../../server/vite.ts";
 import http from 'http';
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5001;
 let server: http.Server | null = null;
 
 app.use(express.json());
