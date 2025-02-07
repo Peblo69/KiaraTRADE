@@ -20,11 +20,11 @@ interface MarketContext {
 class CryptoService {
   private cache: Map<string, { data: any; timestamp: number }> = new Map();
   private readonly CACHE_DURATION = 30000; // 30 seconds
+  private readonly API_BASE = KUCOIN_API_BASE || 'https://api.kucoin.com/api/v1';
 
   async getMarketContext(symbol: string): Promise<MarketContext> {
     try {
-      // Get market stats
-      const response = await axios.get(`${KUCOIN_API_BASE}/market/stats`, {
+      const response = await axios.get(`${this.API_BASE}/market/stats`, {
         params: { symbol }
       });
 

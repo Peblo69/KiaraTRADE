@@ -1080,7 +1080,7 @@ const addPriorityToken = (symbol: string) => {
   console.log(`Added ${symbol} to priority queue.`);
 };
 const NEWSDATA_API_BASE = 'https://newsdata.io/api/1';
-const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
+export const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
 const cache = {
   prices: { data: null, timestamp: 0 },
   stats24h: { data: null, timestamp: 0 },
