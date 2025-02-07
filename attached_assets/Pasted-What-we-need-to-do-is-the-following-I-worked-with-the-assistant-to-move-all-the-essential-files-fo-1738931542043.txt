@@ -1,0 +1,28 @@
+What we need to do is the following.. I worked with the assistant to move all the essential files for the code to run in a new folder named clean-project . We need to make sure the folder is perfectly structured to be able to run on Vercel. The reason we are doing this is because our current code is thrown over to all the files and doesnt have proper structure at all.. so all we do is copy the files from all the parts of our main code and put them in that folder so we can make sure it will run clear and structured.. the current problem now is I get a lot of errors for missing parts on the code 
+
+
+> rest-express@1.0.0 dev
+> tsx server/index.ts
+
+
+node:internal/modules/run_main:128
+    triggerUncaughtException(
+    ^
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/runner/workspace/clean-project/server/services/supabase' imported from /home/runner/workspace/clean-project/server/services/pump-portal-sync.ts
+    at finalizeResolution (node:internal/modules/esm/resolve:265:11)
+    at moduleResolve (node:internal/modules/esm/resolve:933:10)
+    at defaultResolve (node:internal/modules/esm/resolve:1169:11)
+    at nextResolve (node:internal/modules/esm/hooks:868:28)
+    at resolveBase (file:///home/runner/workspace/node_modules/tsx/dist/esm/index.mjs?1738931033881:2:3212)
+    at async resolveDirectory (file:///home/runner/workspace/node_modules/tsx/dist/esm/index.mjs?1738931033881:2:3578)
+    at async resolve (file:///home/runner/workspace/node_modules/tsx/dist/esm/index.mjs?1738931033881:2:4441)
+    at async nextResolve (node:internal/modules/esm/hooks:868:22)
+    at async Hooks.resolve (node:internal/modules/esm/hooks:306:24)
+    at async handleMessage (node:internal/modules/esm/worker:196:18) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///home/runner/workspace/clean-project/server/services/supabase'
+}
+
+Node.js v20.18.1
+
+This is one of them.. but that wont be the only error instead of fixing only this error we need to prevent similar errors by checking everything we have in to our clean-project folder currently and check if its in the right sub-folders.. we dont want to create our own files with code if we miss something we always need to search for the missing file within the old code folders there have to be some if we get error that is missing some code that means the code ever existed. Do you have any questions about that plan? Feel free to ask before proceeding. explain what you have understood from the new work plan! 
