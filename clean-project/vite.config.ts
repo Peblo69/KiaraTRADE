@@ -5,10 +5,19 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: '0.0.0.0',
+    host: true,
     port: 5000,
+    strictPort: true,
     hmr: {
       clientPort: 443,
+      host: "0.0.0.0",
+    },
+    watch: {
+      usePolling: true,
+    },
+    fs: {
+      strict: false,
+      allow: ['.']
     }
   },
   resolve: {
