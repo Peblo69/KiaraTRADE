@@ -17,7 +17,11 @@ const tryBind = async (retries = 5, delay = 1000) => {
         });
 
         server?.listen(port, '0.0.0.0', () => {
-          console.log(`🚀 Server running on port ${port}`);
+          console.log('\n🚀 Server Status:');
+          console.log(`📡 Internal: Running on 0.0.0.0:${port}`);
+          console.log(`🌍 External: Mapped to port 3000`);
+          console.log(`⏰ Started at: ${new Date().toISOString()}`);
+          console.log('\n✅ Server is ready to accept connections\n');
           resolve();
         });
       });
@@ -29,3 +33,5 @@ const tryBind = async (retries = 5, delay = 1000) => {
     }
   }
 };
+
+const port = process.env.PORT || 5000;
