@@ -1,96 +1,34 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { createTrade as createTradeAPI } from '@/lib/supabase';
 
 export interface Trade {
-  id: string;
-  type: 'market' | 'limit';
-  side: 'buy' | 'sell';
-  amount: number;
-  price: number;
   timestamp: number;
-  maker: boolean;
-  fee: number;
-  wallet: string;
-  amountUSD: number;
-  amountSOL: number;
-}
-
-export interface OrderBook {
-  asks: Array<[number, number]>;
-  bids: Array<[number, number]>;
+  price: number;
+  amount: number;
+  type: 'buy' | 'sell';
 }
 
 interface TradingContextType {
   trades: Trade[];
-  orderBook: OrderBook;
-  loading: boolean;
-  error: Error | null;
-  createTrade: (data: {
-    type: 'market' | 'limit';
-    side: 'buy' | 'sell';
-    amount: number;
-    price: number;
-    walletId: string;
-  }) => Promise<void>;
+  addTrade: (trade: Trade) => void;
 }
 
-const TradingContext = createContext<TradingContextType | undefined>(undefined);
+const TradingContext = createContext<TradingContextType>({
+  trades: [],
+  addTrade: () => {},
+});
 
-export function TradingProvider({ children }: { children: React.ReactNode }) {
+export const useTradingContext = () => useContext(TradingContext);
+
+export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [trades, setTrades] = useState<Trade[]>([]);
-  const [orderBook, setOrderBook] = useState<OrderBook>({ asks: [], bids: [] });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
 
-  const createTrade = useCallback(async (data: {
-    type: 'market' | 'limit';
-    side: 'buy' | 'sell';
-    amount: number;
-    price: number;
-    walletId: string;
-  }) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const trade = await createTradeAPI(data);
-      const newTrade: Trade = {
-        id: trade.id,
-        ...data,
-        timestamp: Date.now(),
-        maker: Math.random() > 0.5,
-        fee: 0.1,
-        wallet: data.walletId,
-        amountUSD: data.price * data.amount,
-        amountSOL: data.amount * 0.5,
-      };
-
-      setTrades(current => [newTrade, ...current]);
-    } catch (err) {
-      setError(err as Error);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
+  const addTrade = useCallback((trade: Trade) => {
+    setTrades(prev => [...prev, trade].sort((a, b) => a.timestamp - b.timestamp));
   }, []);
 
   return (
-    <TradingContext.Provider value={{
-      trades,
-      orderBook,
-      loading,
-      error,
-      createTrade
-    }}>
+    <TradingContext.Provider value={{ trades, addTrade }}>
       {children}
     </TradingContext.Provider>
   );
-}
-
-export function useTradingContext() {
-  const context = useContext(TradingContext);
-  if (context === undefined) {
-    throw new Error('useTradingContext must be used within a TradingProvider');
-  }
-  return context;
-}
+};

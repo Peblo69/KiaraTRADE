@@ -1,14 +1,12 @@
 import React from 'react';
-import { Bell, Menu } from 'lucide-react';
-import { WalletSetup } from '@/components/wallet/WalletSetup';
-import { WalletDashboard } from '@/components/wallet/WalletDashboard';
+import { Bell, Menu, Search } from 'lucide-react';
+import { WalletSection } from '@/components/kiara/WalletSection';
+import { PortfolioTracker } from '@/components/kiara/PortfolioTracker';
 
 function ProjectPage() {
-  const hasWallet = false; // TODO: Replace with actual wallet check
-
   return (
     <div className="min-h-screen bg-[#0B0B1E] grid-bg">
-      {/* Header */}
+      {/* Enhanced Header with Glass Effect */}
       <header className="sticky top-0 z-50 backdrop-blur-md border-b border-purple-500/20 bg-[#0B0B1E]/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -31,6 +29,21 @@ function ProjectPage() {
               </div>
             </div>
 
+            <div className="flex-1 max-w-xl px-8 hidden lg:flex">
+              <div className="w-full relative group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-5 w-5 text-purple-400 group-hover:text-purple-300 transition-colors" />
+                </div>
+                <input
+                  type="text"
+                  className="block w-full pl-10 pr-3 py-2 bg-purple-900/10 border border-purple-500/20 rounded-lg 
+                           text-purple-100 placeholder-purple-400/50 focus:outline-none focus:border-purple-500/50
+                           focus:ring-1 focus:ring-purple-500/30 transition-all duration-200"
+                  placeholder="Search tokens..."
+                />
+              </div>
+            </div>
+
             <div className="flex items-center gap-4">
               <button className="relative p-2 rounded-md text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 transition-all duration-200">
                 <Bell size={24} />
@@ -41,13 +54,12 @@ function ProjectPage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1">
-        {!hasWallet ? (
-          <WalletSetup />
-        ) : (
-          <WalletDashboard />
-        )}
+      {/* Main Content with Enhanced Grid Layout */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+          <WalletSection />
+          <PortfolioTracker />
+        </div>
       </main>
     </div>
   );

@@ -1,43 +1,116 @@
-import { FC } from 'react';
+import React from 'react';
+import { Switch, Route } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
+import { useLocation } from "wouter";
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { TradingProvider } from '@/context/TradingContext';
+
+// Import fonts
+import "@fontsource/orbitron";
+import "@fontsource/exo-2";
+
+// Components
+import PumpFunVision from './pages/pumpfun-vision';
+import NotFound from "@/pages/not-found";
+import Home from "@/pages/home";
+import Project from "@/pages/project";
+import KiaraStageI from "@/pages/kiara-stage-i";
+import About from "@/pages/about";
+import Landing from "@/pages/landing";
+import CryptoNews from "@/pages/crypto-news";
+import Predictions from "@/pages/predictions";
+import WalletTracking from "@/pages/wallet-tracking";
+import MarketDataBar from "@/components/MarketDataBar";
+import Navbar from "@/components/Navbar";
+import TopBar from "./components/TradingView/project/src/components/TopBar";
+
+// Store and Services
+import { initializeHeliusWebSocket } from './lib/helius-websocket';
+import { useUnifiedTokenStore } from './lib/unified-token-store';
 import { queryClient } from "./lib/queryClient";
-import { TokenStats } from '@/components/TokenStats';
-import { MarketStats } from '@/components/trading/MarketStats';
-import { Bell, Menu } from 'lucide-react';
+import { WalletContextProvider } from "@/lib/wallet";
+import { wsManager } from '@/lib/websocket-manager';
+import { usePumpPortalStore } from '@/lib/pump-portal-websocket';
 
-const App: FC = () => {
+function Router() {
+  const [location] = useLocation();
+  const isLandingPage = location === "/";
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-[#0B0B1E] grid-bg">
-        {/* Header */}
-        <header className="neon-border bg-[#0B0B1E]/90 backdrop-blur-md border-b border-purple-500/20">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center">
-                <button className="lg:hidden p-2 rounded-md text-purple-400 hover:text-purple-300 hover:bg-purple-500/10">
-                  <Menu size={24} />
-                </button>
-                <div className="flex-shrink-0 flex items-center">
-                  <span className="ml-2 text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
-                    PumpVision
-                  </span>
-                </div>
-              </div>
-            </div>
+    <div className="min-h-screen bg-[#0A0A0A]">
+      {!isLandingPage && (
+        <div className="fixed top-0 left-0 right-0 z-50 shadow-sm">
+          <div className="bg-[#111111]/95 backdrop-blur supports-[backdrop-filter]:bg-[#111111]/60 border-b border-purple-500/20">
+            <MarketDataBar />
           </div>
-        </header>
+          <div className="bg-[#111111]/95 backdrop-blur supports-[backdrop-filter]:bg-[#111111]/60 border-b border-purple-500/20">
+            <Navbar />
+          </div>
+        </div>
+      )}
 
-        {/* Main Content */}
-        <main className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <TokenStats />
-            <MarketStats />
-          </div>
-        </main>
-        <Toaster />
-      </div>
-    </QueryClientProvider>
+      <main className={!isLandingPage ? "pt-[120px]" : ""}>
+        <Switch>
+          <Route path="/" component={Landing} />
+          <Route path="/home" component={Home} />
+          <Route path="/crypto-news" component={CryptoNews} />
+          <Route path="/project" component={Project} />
+          <Route path="/kiara-stage-i" component={KiaraStageI} />
+          <Route path="/about" component={About} />
+          <Route path="/pumpfun-vision" component={PumpFunVision} />
+          <Route path="/predictions" component={Predictions} />
+          <Route path="/wallet-tracking" component={WalletTracking} />
+          <Route component={NotFound} />
+        </Switch>
+      </main>
+    </div>
+  );
+}
+
+const App: React.FC = () => {
+  const setConnected = useUnifiedTokenStore(state => state.setConnected);
+
+  React.useEffect(() => {
+    let heliusInitialized = false;
+
+    const initializeConnections = async () => {
+      try {
+        await initializeHeliusWebSocket();
+        heliusInitialized = true;
+        console.log('[App] Helius WebSocket initialized');
+
+        wsManager.connect();
+        console.log('[App] PumpPortal WebSocket initialized');
+
+        usePumpPortalStore.setState({ isConnected: true });
+      } catch (error) {
+        console.error('[App] Error initializing connections:', error);
+        setConnected(false);
+      }
+    };
+
+    const initTimeout = setTimeout(initializeConnections, 1000);
+
+    return () => {
+      clearTimeout(initTimeout);
+      if (heliusInitialized) setConnected(false);
+      wsManager.disconnect();
+      usePumpPortalStore.setState({ isConnected: false });
+    };
+  }, [setConnected]);
+
+  return (
+    <ErrorBoundary>
+      <WalletContextProvider>
+        <QueryClientProvider client={queryClient}>
+          <TradingProvider>
+            <Router />
+            <Toaster />
+          </TradingProvider>
+        </QueryClientProvider>
+      </WalletContextProvider>
+    </ErrorBoundary>
   );
 };
 
