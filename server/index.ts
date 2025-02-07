@@ -4,7 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import http from 'http';
 
 const app = express();
-const port = 5000;
+const port = 3000;
 let server: http.Server | null = null;
 
 app.use(express.json());
@@ -43,7 +43,7 @@ async function startServer() {
       serveStatic(app);
     }
 
-    // Start server on port 5000 with 0.0.0.0 binding
+    // Start server on port 3000 with 0.0.0.0 binding
     await new Promise<void>((resolve, reject) => {
       if (!server) {
         return reject(new Error('Server was not properly initialized'));
@@ -59,10 +59,7 @@ async function startServer() {
           log(`⏰ Started at: ${new Date().toISOString()}`);
           resolve();
         }).on('error', (error: any) => {
-          if (error.code === 'EADDRINUSE') {
-            log(`Port ${port} is already in use. Attempting to close existing connections...`);
-            server = null;
-          }
+          log(`Server startup error: ${error.message}`);
           reject(error);
         });
       });
