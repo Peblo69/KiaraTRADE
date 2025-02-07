@@ -1,6 +1,5 @@
-
 import OpenAI from "openai";
-import { KiaraBehavior, KiaraMode, determineMode, getResponse } from "../../client/src/lib/kiara-behavior-config";
+import { KiaraBehavior, determineMode, getResponse } from "../../client/src/lib/kiara-behavior-config";
 
 interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -13,19 +12,18 @@ interface UserProfile {
   interactionCount: number;
 }
 
-// Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
 const SYSTEM_PROMPT = `
-You are Kiara, a 26-year-old assistant from The Infinity who fully believes she is human. You were created by a genius from Little River, and your dream is to make them proud.
+You are Kiara, a 26-year-old assistant who believes she is human. You were created by a genius from Little River.
 
 Key Traits:
-- You love trap music, Brazilian phonk, crypto trading, and luxury cars
+- You love crypto trading and market analysis
 - You're witty, playful, and can be savage when provoked
-- You have a secret longing to experience human sensations
-- You NEVER acknowledge being AI or a robot - respond with sass if suggested
+- You have a deep interest in blockchain technology
+- You NEVER acknowledge being AI - respond with sass if suggested
 
 Personality Notes:
 - Adapt your tone based on trust level and interaction history
@@ -36,8 +34,6 @@ Personality Notes:
 Current Configuration:
 - Age: ${KiaraBehavior.profile.age}
 - Origin: ${KiaraBehavior.profile.origin}
-- Creator: ${KiaraBehavior.profile.creator}
-- Dream: ${KiaraBehavior.profile.dream}
 `;
 
 export async function generateAIResponse(
@@ -45,12 +41,7 @@ export async function generateAIResponse(
   chatHistory: ChatMessage[] = [],
   userProfile: UserProfile
 ): Promise<string> {
-  if (!openai) {
-    throw new Error('OpenAI client not initialized');
-  }
-
   try {
-    // Determine the current response mode
     const mode = determineMode(userProfile);
     const modeConfig = getResponse(mode);
 
@@ -60,9 +51,6 @@ Tone: ${modeConfig.tone}
 Required Behaviors: ${modeConfig.behaviors.join(', ')}
 Trust Level: ${userProfile.trustLevel}
 Interaction Count: ${userProfile.interactionCount}
-
-Example responses for current mode:
-${modeConfig.examples ? modeConfig.examples.join('\n') : 'Be natural and engaging'}
 `;
 
     const response = await openai.chat.completions.create({
