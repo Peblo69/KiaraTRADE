@@ -9,8 +9,39 @@ let server: http.Server | null = null;
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Register routes
-server = registerRoutes(app);
+// Function to try binding to port
+const tryBind = (retries = 5) => {
+  return new Promise<void>((resolve, reject) => {
+    if (retries === 0) {
+      return reject(new Error('Max retries reached'));
+    }
+
+    server?.close();
+    server = registerRoutes(app);
+    
+    server.once('error', (err: any) => {
+      if (err.code === 'EADDRINUSE') {
+        console.log(`Port ${port} in use, retrying...`);
+        setTimeout(() => {
+          tryBind(retries - 1).then(resolve).catch(reject);
+        }, 1000);
+      } else {
+        reject(err);
+      }
+    });
+
+    server.listen(port, '0.0.0.0', () => {
+      console.log(`🚀 Server running on port ${port}`);
+      resolve();
+    });
+  });
+};
+
+// Start server with retries
+tryBind().catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});
 
 
 // Global error handler middleware
