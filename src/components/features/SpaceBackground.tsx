@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 interface Star {
   x: number;
@@ -25,16 +25,16 @@ export function SpaceBackground() {
     }
 
     const stars: Star[] = [];
-    const numStars = 200; // Reduced number of stars
+    const numStars = 100; // Reduced number for better performance
 
-    // Initialize stars with smaller sizes
+    // Initialize stars
     for (let i = 0; i < numStars; i++) {
       stars.push({
         x: Math.random() * window.innerWidth,
         y: Math.random() * window.innerHeight,
-        size: Math.random() * 0.5 + 0.2, // Smaller size range: 0.2 to 0.7
-        alpha: Math.random() * 0.3 + 0.1, // More subtle alpha range: 0.1 to 0.4
-        speed: Math.random() * 0.005 + 0.002 // Slower speed for more subtle effect
+        size: Math.random() * 0.5 + 0.2,
+        alpha: Math.random() * 0.3 + 0.1,
+        speed: Math.random() * 0.005 + 0.002
       });
     }
 
@@ -44,13 +44,12 @@ export function SpaceBackground() {
     function animate() {
       if (!canvas || !ctx) return;
 
-      // Use a more transparent black for the fade effect
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       stars.forEach(star => {
         star.alpha += star.speed;
-        if (star.alpha > 0.4) star.alpha = 0.1; // Reset at lower max alpha
+        if (star.alpha > 0.4) star.alpha = 0.1;
 
         ctx.beginPath();
         ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
@@ -71,7 +70,7 @@ export function SpaceBackground() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed top-0 left-0 w-full h-full pointer-events-none opacity-70"
+      className="fixed top-0 left-0 w-full h-full pointer-events-none z-0"
     />
   );
 }
