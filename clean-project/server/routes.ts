@@ -12,7 +12,7 @@ import express from 'express';
 
 // Constants
 const CACHE_DURATION = 30000; // 30 seconds cache
-const INTERNAL_PORT = 5000;
+const INTERNAL_PORT = 3001; // Changed from 5000 to avoid conflicts
 const DEBUG = true;
 // Add request interceptor for rate limiting
 let lastRequestTime = 0;
