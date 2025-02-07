@@ -1,31 +1,29 @@
-
 import express, { type Express, Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "../../server/vite.ts";
 import http from 'http';
 
 const app = express();
-const port = process.env.PORT || 5001;
+const port = process.env.PORT || 5000;
 let server: http.Server | null = null;
+let retries = 0;
+const maxRetries = 3;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-async function startServer() {
+function startServer(port: number) {
   try {
-    // Close existing server if it exists
-    if (server) {
-      await new Promise<void>((resolve) => {
-        server?.close(() => {
-          server = null;
-          log('Closed existing server');
-          resolve();
-        });
-      });
-    }
-
-    // Register routes first
-    server = registerRoutes(app);
+    server = app.listen(port, '0.0.0.0', () => {
+      console.log('\n🚀 Server Status:');
+      console.log(`📡 Internal: Running on 0.0.0.0:${port}`);
+      console.log(`🌍 External: Mapped to port 3000`);
+      console.log(`👤 User: ${process.env.REPL_OWNER || 'unknown'}`);
+      console.log(`⏰ Started at: ${new Date().toISOString()}`);
+      console.log('\n✅ Server is ready to accept connections\n');
+    });
+    // Register routes after server is successfully started.
+    registerRoutes(app);
 
     // Global error handler middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -39,41 +37,23 @@ async function startServer() {
 
     // Setup vite in development and after all other routes
     if (process.env.NODE_ENV === "development") {
-      await setupVite(app, server);
+      setupVite(app, server);
     } else {
       serveStatic(app);
     }
 
-    // Start server on port with 0.0.0.0 binding
-    await new Promise<void>((resolve, reject) => {
-      if (!server) {
-        return reject(new Error('Server was not properly initialized'));
-      }
-
-      server.close(() => {
-        log('Closed any existing port bindings');
-
-        server?.listen(port, '0.0.0.0', () => {
-          log(`🚀 Server Status:`);
-          log(`📡 Internal: Running on 0.0.0.0:${port}`);
-          log(`🌍 External: Mapped to port ${port}`);
-          log(`⏰ Started at: ${new Date().toISOString()}`);
-          resolve();
-        }).on('error', (error: any) => {
-          if (error.code === 'EADDRINUSE') {
-            log(`Port ${port} is already in use. Attempting to close existing connections...`);
-            server = null;
-          }
-          reject(error);
-        });
-      });
-    });
-
   } catch (error) {
-    log(`Server startup error: ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(1);
+    if (retries < maxRetries) {
+      retries++;
+      console.log(`Retrying on port ${port + retries}...`);
+      startServer(port + retries);
+    } else {
+      console.error('Failed to start server after multiple retries');
+      process.exit(1);
+    }
   }
 }
+
 
 // Graceful shutdown handler
 process.on('SIGTERM', async () => {
@@ -96,7 +76,7 @@ process.on('SIGINT', async () => {
 });
 
 // Start the server
-startServer().catch(error => {
+startServer(port).catch(error => {
   log(`Failed to start server: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 });
