@@ -19,7 +19,7 @@ export default defineConfig({
       clientPort: 443,
       host: '0.0.0.0'
     },
-    allowedHosts: ['all', '.replit.dev']
+    allowedHosts: 'all'
   },
   resolve: {
     alias: {
