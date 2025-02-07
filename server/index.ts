@@ -4,7 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import http from 'http';
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 let server: http.Server | null = null;
 
 app.use(express.json());
@@ -49,20 +49,33 @@ async function startServer() {
         return reject(new Error('Server was not properly initialized'));
       }
 
-      server.close(() => {
-        log('Closed any existing port bindings');
-
-        server?.listen(port, '0.0.0.0', () => {
+      const startServer = () => {
+        server!.listen(port, '0.0.0.0', () => {
           log(`🚀 Server Status:`);
           log(`📡 Internal: Running on 0.0.0.0:${port}`);
           log(`🌍 External: Mapped to port 80`);
           log(`⏰ Started at: ${new Date().toISOString()}`);
           resolve();
         }).on('error', (error: any) => {
-          log(`Server startup error: ${error.message}`);
-          reject(error);
+          if (error.code === 'EADDRINUSE') {
+            log(`Port ${port} is already in use, attempting to close existing connections...`);
+            require('child_process').exec(`lsof -i :${port} | grep LISTEN | awk '{print $2}' | xargs kill -9`, (err: any) => {
+              if (err) {
+                log(`Failed to release port ${port}. Please manually stop any processes using this port.`);
+                process.exit(1);
+              } else {
+                log(`Successfully released port ${port}, restarting server...`);
+                setTimeout(startServer, 1000);
+              }
+            });
+          } else {
+            log(`Server startup error: ${error.message}`);
+            reject(error);
+          }
         });
-      });
+      };
+
+      startServer();
     });
 
   } catch (error) {
@@ -72,7 +85,7 @@ async function startServer() {
 }
 
 // Graceful shutdown handler
-process.on('SIGTERM', async () => {
+process.on('SIGTERM', () => {
   if (server) {
     server.close(() => {
       log('Server gracefully shut down');
@@ -82,7 +95,7 @@ process.on('SIGTERM', async () => {
 });
 
 // Handle interrupts
-process.on('SIGINT', async () => {
+process.on('SIGINT', () => {
   if (server) {
     server.close(() => {
       log('Server interrupted and shut down');

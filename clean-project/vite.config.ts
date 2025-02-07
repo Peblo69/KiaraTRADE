@@ -1,4 +1,3 @@
-
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import themePlugin from "@replit/vite-plugin-shadcn-theme-json";
@@ -12,16 +11,13 @@ const __dirname = dirname(__filename);
 export default defineConfig({
   plugins: [react(), runtimeErrorOverlay(), themePlugin()],
   server: {
-    host: true,
+    host: '0.0.0.0',
     port: 3000,
     strictPort: true,
     hmr: {
       clientPort: 443,
       host: '0.0.0.0',
       protocol: 'wss'
-    },
-    headers: {
-      'Access-Control-Allow-Origin': '*'
     }
   },
   resolve: {
@@ -46,9 +42,5 @@ export default defineConfig({
         bigint: true
       },
     },
-  },
-  define: {
-    'process.env.CURRENT_TIME': JSON.stringify('2025-01-27 18:00:16'),
-    'process.env.CURRENT_USER': JSON.stringify('Peblo69')
   }
 });
