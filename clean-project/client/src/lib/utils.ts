@@ -1,4 +1,4 @@
-import { clsx, type ClassValue } from "clsx";
+import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import millify from "millify";
 
@@ -6,26 +6,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export const formatNumber = (value: number | undefined | null): string => {
-  if (typeof value !== 'number' || isNaN(value)) return '0.00';
+export function formatNumber(num: number): string {
+  return new Intl.NumberFormat().format(num);
+}
 
-  if (value > 1000000) {
-    return millify(value, {
-      precision: 2
-    });
-  }
-
-  if (value < 0.01) {
-    return value.toFixed(6);
-  }
-
-  return value.toFixed(2);
-};
-
-export const formatPrice = (price: number | undefined | null): string => {
-  if (typeof price !== 'number' || isNaN(price)) return '$0.00';
-  return `$${price.toFixed(8)}`;
-};
+export function formatPrice(price: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(price);
+}
 
 export const formatMarketCap = (marketCap: number | undefined | null): string => {
   if (typeof marketCap !== 'number' || isNaN(marketCap)) return '$0';
