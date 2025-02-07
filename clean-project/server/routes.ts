@@ -1,3 +1,5 @@
+export const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
+
 import { db } from "../db";
 import { coinImages, coinMappings } from "../db/schema";
 import { eq } from "drizzle-orm";
@@ -7,6 +9,7 @@ import { wsManager } from './services/websocket';
 import { initializePumpPortalWebSocket } from './pumpportal';
 import axios from 'axios';
 import express from 'express';
+
 // Constants
 const CACHE_DURATION = 30000; // 30 seconds cache
 const INTERNAL_PORT = 5000;
@@ -915,11 +918,10 @@ export function registerRoutes(app: Express): Express {
     process.on(signal, () => {
       console.log(`\n${signal} received, shutting down gracefully...`);
       server.close(() => process.exit(0));
-    });
-  });
+    });  });
   return app;
 }
-//// Helper functions
+// Helper functions
 function calculateRiskScore(tokenInfo: any, holderConcentration: any, snipers: any[]): number {
   let score = 0;
 
@@ -1080,7 +1082,6 @@ const addPriorityToken = (symbol: string) => {
   console.log(`Added ${symbol} to priority queue.`);
 };
 const NEWSDATA_API_BASE = 'https://newsdata.io/api/1';
-const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
 const cache = {
   prices: { data: null, timestamp: 0 },
   stats24h: { data: null, timestamp: 0 },
