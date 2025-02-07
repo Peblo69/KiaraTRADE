@@ -9,7 +9,7 @@ import axios from 'axios';
 import express from 'express';
 // Constants
 const CACHE_DURATION = 30000; // 30 seconds cache
-const INTERNAL_PORT = 5000;
+const INTERNAL_PORT = process.env.PORT || 5000;
 const DEBUG = true;
 // Add request interceptor for rate limiting
 let lastRequestTime = 0;
