@@ -1,6 +1,7 @@
 
 import axios from 'axios';
-import { KUCOIN_API_BASE } from '../routes';
+
+const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
 
 interface MarketContext {
   price: {
@@ -20,7 +21,7 @@ interface MarketContext {
 class CryptoService {
   private cache: Map<string, { data: any; timestamp: number }> = new Map();
   private readonly CACHE_DURATION = 30000; // 30 seconds
-  private readonly API_BASE = KUCOIN_API_BASE || 'https://api.kucoin.com/api/v1';
+  private readonly API_BASE = KUCOIN_API_BASE;
 
   async getMarketContext(symbol: string): Promise<MarketContext> {
     try {
