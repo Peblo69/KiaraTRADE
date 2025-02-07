@@ -44,7 +44,7 @@ export function KiaraVideo() {
         muted
         playsInline
       >
-        <source src="/kiara-background.mp4" type="video/mp4" />
+        <source src="/videos/kiara-background.mp4" type="video/mp4" />
       </video>
     </div>
   );
