@@ -2,14 +2,12 @@ import { db } from "@db";
 import { coinImages, coinMappings } from "@db/schema";
 import { eq } from "drizzle-orm";
 import type { Express } from "express";
-import { createServer, type Server } from "http";
+import { type Server } from "http";
 import { wsManager } from './services/websocket';
 import { initializePumpPortalWebSocket } from './pumpportal';
 import axios from 'axios';
-import express from 'express';
+
 // Constants
-const CACHE_DURATION = 30000; // 30 seconds cache
-const INTERNAL_PORT = 5000;
 const DEBUG = true;
 // Add request interceptor for rate limiting
 let lastRequestTime = 0;
@@ -27,34 +25,14 @@ axios.interceptors.request.use(async (config) => {
   return config;
 });
 
-if (!process.env.HELIUS_API_KEY) {
-  throw new Error("HELIUS_API_KEY must be set in environment variables");
-}
-
-// Update Helius RPC URL with API key
-const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
-
-function logHeliusError(error: any, context: string) {
-  console.error(`[Helius ${context} Error]`, {
-    message: error.message,
-    status: error.response?.status,
-    data: error.response?.data,
-    url: error.config?.url,
-    method: error.config?.method,
-    params: error.config?.data
-  });
-}
-
 function debugLog(source: string, message: string, data?: any) {
   if (DEBUG) {
     console.log(`[${source}] ${message}`, data ? data : '');
   }
 }
 
-export function registerRoutes(app: Express): Server {
-  debugLog('Server', `Initializing server for user ${process.env.REPL_OWNER || 'unknown'}`);
-
-  const server = createServer(app);
+export function registerRoutes(app: Express, server: Server): void {
+  debugLog('Server', `Initializing routes for user ${process.env.REPL_OWNER || 'unknown'}`);
 
   // Initialize WebSocket manager with server instance
   wsManager.initialize(server);
@@ -62,46 +40,16 @@ export function registerRoutes(app: Express): Server {
   // Initialize PumpPortal WebSocket
   initializePumpPortalWebSocket();
 
-  // Error handling for the server
-  server.on('error', (error: any) => {
-    if (error.code === 'EADDRINUSE') {
-      console.error(`❌ Port ${INTERNAL_PORT} is in use. Please wait...`);
-      setTimeout(() => {
-        server.close();
-        server.listen(INTERNAL_PORT, '0.0.0.0');
-      }, 1000);
-    } else {
-      console.error('❌ Server error:', error);
-    }
-  });
-
-  // Start server
-  try {
-    server.close(); // Close any existing connections first
-    server.listen(INTERNAL_PORT, '0.0.0.0', () => {
-      console.log(`\n🚀 Server Status:`);
-      console.log(`📡 Internal: Running on 0.0.0.0:${INTERNAL_PORT}`);
-      console.log(`🌍 External: Mapped to port 3000`);
-      console.log(`👤 User: ${process.env.REPL_OWNER || 'unknown'}`);
-      console.log(`⏰ Started at: ${new Date().toISOString()}`);
-      console.log(`\n✅ Server is ready to accept connections\n`);
-    });
-  } catch (error) {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
-  }
-
-  // Add your routes here
-  app.get('/api/health', (req, res) => {
+  // Basic health check endpoint
+  app.get('/api/health', (_req, res) => {
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
-      port: INTERNAL_PORT,
-      external_port: 3000
+      user: process.env.REPL_OWNER || 'unknown'
     });
   });
 
-  // Add predictions endpoint for all tokens
+  // Add your routes here
   app.get('/api/predictions', async (req, res) => {
     try {
       // Default tokens if not specified
@@ -490,49 +438,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add chat endpoint
-  app.post('/api/chat', async (req, res) => {
-    try {
-      const { message, sessionId, profile } = req.body;
 
-      if (!message) {
-        return res.status(400).json({ error: 'Message is required' });
-      }
-
-      // Get or initialize chat history for this session
-      if (!chatHistory[sessionId]) {
-        chatHistory[sessionId] = [];
-      }
-
-      // Generate response using our AI service
-      const response = await generateAIResponse(
-        message,
-        chatHistory[sessionId],
-        profile
-      );
-
-      // Update chat history
-      chatHistory[sessionId].push(
-        { role: 'user', content: message },
-        { role: 'assistant', content: response }
-      );
-
-      // Keep only last 20 messages to prevent context from growing too large
-      if (chatHistory[sessionId].length > 20) {
-        chatHistory[sessionId] = chatHistory[sessionId].slice(-20);
-      }
-
-      res.json({ response });
-    } catch (error: any) {
-      console.error('Chat error:', error);
-      res.status(500).json({
-        error: 'Failed to process chat request',
-        details: error.message
-      });
-    }
-  });
-
-  // Add market context endpoint
   app.get('/api/market-context/:symbol', async (req, res) => {
     try {
       const symbol = req.params.symbol;
@@ -898,6 +804,18 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Error handling middleware
+  app.use((err: Error, _req: any, res: any, next: any) => {
+    console.error('Global error handler:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Internal Server Error',
+        message: err.message 
+      });
+    }
+    next(err);
+  });
+
   // Process handling
   process.on('uncaughtException', (error) => {
     console.error('❌ Uncaught Exception:', error);
@@ -915,9 +833,8 @@ export function registerRoutes(app: Express): Server {
     process.on(signal, () => {
       console.log(`\n${signal} received, shutting down gracefully...`);
       process.exit(0);
-        });
+    });
   });
-  return server;
 }
 // Helper functions
 function calculateRiskScore(tokenInfo: any, holderConcentration: any, snipers: any[]): number {
@@ -970,7 +887,7 @@ function getTopHolders(holders: Map<string, number>, limit: number) {
     .map(([address, balance]) => ({
       address,
       balance,
-      percentage: (balance / totalSupply) * 100
+      percentage: (balance /totalSupply) * 100
     }));
 }
 
@@ -997,7 +914,7 @@ function calculateVolume24h(trades: Array<{ timestamp: number; amount: number }>
 
 function calculateAverageTradeSize(trades: Array<{ amount: number }>) {
   if (!trades.length) return 0;
-  return trades.reduce((sum, trade) => sum + (trade.amount || 0), 0) / trades.length;
+  return trades.reduce((sum, trade) =>sum + (trade.amount || 0), 0) / trades.length;
 }
 
 function calculatePriceImpact(trades: Array<{ amount: number }>) {
@@ -1081,6 +998,9 @@ const addPriorityToken = (symbol: string) => {
 };
 const NEWSDATA_API_BASE = 'https://newsdata.io/api/1';
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
+const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
+const CACHE_DURATION = 30000; // 30 seconds cache
+const INTERNAL_PORT = 5000;
 const cache = {
   prices: { data: null, timestamp: 0 },
   stats24h: { data: null, timestamp: 0 },
@@ -1092,6 +1012,17 @@ import { generateAIResponse } from './services/ai';
 import { getTokenImage } from './image-worker';
 import { pricePredictionService } from './services/price-prediction';
 import { cryptoService } from './services/crypto'; // Import the crypto service
+
+function logHeliusError(error: any, context: string) {
+  console.error(`[Helius ${context} Error]`, {
+    message: error.message,
+    status: error.response?.status,
+    data: error.response?.data,
+    url: error.config?.url,
+    method: error.config?.method,
+    params: error.config?.data
+  });
+}
 
 interface TokenAnalytics {
   token: {

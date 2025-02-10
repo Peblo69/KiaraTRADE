@@ -10,36 +10,26 @@ let server: http.Server | null = null;
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Global error handler middleware
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  log(`Error Handler: ${err.message}`);
+  if (!res.headersSent) {
+    res.status(500).json({ 
+      error: 'Internal Server Error',
+      message: err.message 
+    });
+  }
+});
+
 async function startServer() {
   try {
-    // Close existing server if it exists
-    if (server) {
-      await new Promise<void>((resolve) => {
-        server?.close(() => {
-          server = null;
-          log('Closed existing server');
-          resolve();
-        });
-      });
-    }
-
     // Create new server instance
     server = http.createServer(app);
 
-    // Register routes first
-    registerRoutes(app);
+    // Register routes with the server instance
+    registerRoutes(app, server);
 
-    // Global error handler middleware
-    app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-      const status = err instanceof Error ? 500 : err.status;
-      const message = err.message || "Internal Server Error";
-      log(`Error Handler: ${status} - ${message}`);
-      if (!res.headersSent) {
-        res.status(status).json({ message });
-      }
-    });
-
-    // Setup vite in development and after all other routes
+    // Setup vite in development
     if (process.env.NODE_ENV === "development") {
       await setupVite(app, server);
     } else {
@@ -47,19 +37,13 @@ async function startServer() {
     }
 
     // Start server
-    await new Promise<void>((resolve, reject) => {
-      if (!server) {
-        return reject(new Error('Server was not properly initialized'));
-      }
-
-      server.listen(port, '0.0.0.0', () => {
-        log('\n🚀 Server Status:');
-        log(`📡 Internal: Running on 0.0.0.0:${port}`);
-        log(`🌍 External: Mapped to port 80`);
-        log(`⏰ Started at: ${new Date().toISOString()}`);
-        log('\n✅ Server is ready to accept connections\n');
-        resolve();
-      });
+    server.listen(port, '0.0.0.0', () => {
+      log('\n🚀 Server Status:');
+      log(`📡 Internal: Running on 0.0.0.0:${port}`);
+      log(`🌍 External: Mapped to port 3000`);
+      log(`👤 User: ${process.env.REPL_OWNER || 'unknown'}`);
+      log(`⏰ Started at: ${new Date().toISOString()}`);
+      log('\n✅ Server is ready to accept connections\n');
     });
 
   } catch (error) {
@@ -68,7 +52,13 @@ async function startServer() {
   }
 }
 
-// Graceful shutdown handler
+// Start the server
+startServer().catch(error => {
+  log(`Failed to start server: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+});
+
+// Graceful shutdown handlers
 process.on('SIGTERM', () => {
   if (server) {
     server.close(() => {
@@ -78,7 +68,6 @@ process.on('SIGTERM', () => {
   }
 });
 
-// Handle interrupts
 process.on('SIGINT', () => {
   if (server) {
     server.close(() => {
@@ -86,10 +75,4 @@ process.on('SIGINT', () => {
       process.exit(0);
     });
   }
-});
-
-// Start the server
-startServer().catch(error => {
-  log(`Failed to start server: ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(1);
 });
