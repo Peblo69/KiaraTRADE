@@ -2,6 +2,7 @@ import React from 'react';
 import { BookOpen } from 'lucide-react';
 import type { OrderBook as OrderBookType } from '../types/trading';
 
+// This component displays an order book using static (mock) data.
 const OrderBook: React.FC = () => {
   const mockOrderBook: OrderBookType = {
     asks: [
@@ -26,6 +27,7 @@ const OrderBook: React.FC = () => {
     ]
   };
 
+  // Helper function to format numbers
   const formatNumber = (num: number, decimals: number = 2) => {
     return num.toLocaleString('en-US', {
       minimumFractionDigits: decimals,
@@ -35,6 +37,7 @@ const OrderBook: React.FC = () => {
 
   return (
     <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30">
+      {/* Header */}
       <div className="p-4 border-b border-purple-900/30">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
@@ -55,7 +58,9 @@ const OrderBook: React.FC = () => {
         </div>
       </div>
 
+      {/* Order Book Data */}
       <div className="p-2">
+        {/* Asks */}
         <div className="grid grid-cols-4 text-xs text-purple-400 pb-2">
           <span>Price</span>
           <span className="text-right">Size</span>
@@ -88,6 +93,7 @@ const OrderBook: React.FC = () => {
           <span className="text-purple-400 text-sm ml-2">$46,789.00</span>
         </div>
 
+        {/* Bids */}
         <div className="space-y-0.5">
           {mockOrderBook.bids.map(([price, size], i) => {
             const total = price * size;

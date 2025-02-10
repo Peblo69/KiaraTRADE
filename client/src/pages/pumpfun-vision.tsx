@@ -8,7 +8,6 @@ import SocialMetrics from "../../../TradingView/project/src/components/SocialMet
 import HolderAnalytics from "../../../TradingView/project/src/components/HolderAnalytics";
 import WalletTracker from "../../../TradingView/project/src/components/WalletTracker";
 import TopBar from "../../../TradingView/project/src/components/TopBar";
-import TradingChart from "../../../TradingView/project/src/components/TradingChart";
 import TokenCard from "@/components/TokenCard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
@@ -43,10 +42,12 @@ const PumpFunVision: FC = () => {
     setActiveTokenView(null);
   }, [setActiveTokenView]);
 
+  // Compute the selected token's data (if any)
   const selectedTokenData = useMemo(() => {
     return tokens.find(t => t.address === selectedToken);
   }, [tokens, selectedToken]);
 
+  // Filter tokens based on their stage
   const newTokens = tokens.filter(t => t.isNew);
   const aboutToGraduate = tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol < 100);
   const graduated = tokens.filter(t => !t.isNew && t.marketCapSol && t.marketCapSol >= 100);
@@ -69,6 +70,7 @@ const PumpFunVision: FC = () => {
         <ErrorBoundary>
           <div className="min-h-screen bg-[#070510] text-white">
             <TopBar />
+            {/* Stars background effect */}
             <div className="fixed inset-0 pointer-events-none">
               {[...Array(50)].map((_, i) => (
                 <div
@@ -86,41 +88,59 @@ const PumpFunVision: FC = () => {
               ))}
             </div>
 
-            <div className="w-full p-4 relative">
-              <div className="w-full h-[calc(100vh-64px)]">
-                <div className="grid grid-cols-12 gap-4 h-full">
-                  <div className="col-span-2 space-y-2 h-full overflow-auto">
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[29%]">
-                      <MarketStats tokenAddress={selectedToken} />
-                    </div>
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[19%]">
-                      <SocialMetrics tokenAddress={selectedToken} />
-                    </div>
+            <div className="container mx-auto px-4 relative">
+              <div className="grid grid-cols-12 gap-4">
+                {/* Left Column - Market Stats & Social Metrics */}
+                <div className="col-span-2 space-y-4">
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                    <MarketStats tokenAddress={selectedToken} />
                   </div>
+                </div>
 
-                  <div className="col-span-7 flex flex-col gap-4 h-full">
-                    <div className="flex-1 min-h-0">
-                      <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-full">
-                        <TradingChart tokenAddress={selectedToken} />
+                {/* Main Trading Area */}
+                <div className="col-span-7 space-y-4">
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <Button variant="ghost" onClick={handleBack} className="text-purple-400">
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Back
+                      </Button>
+                      <div>
+                        <h1 className="text-2xl font-bold text-purple-100">
+                          {tokens.find(t => t.address === selectedToken)?.symbol}
+                        </h1>
+                        <p className="text-sm text-purple-400">
+                          ${tokens.find(t => t.address === selectedToken)?.priceInUsd?.toFixed(8) || '0.00000000'}
+                        </p>
                       </div>
                     </div>
-                    <div className="h-[900px]">
-                      <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-full">
-                        <TradeHistory tokenAddress={selectedToken} />
+                  </div>
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <OrderBook />
+                      <div className="space-y-4">
+                        <SocialMetrics tokenAddress={selectedToken} />
                       </div>
                     </div>
                   </div>
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <TradeHistory tokenAddress={selectedToken} />
+                      <div className="space-y-4">
+                        <HolderAnalytics tokenAddress={selectedToken} />
+                        <WalletTracker />
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-                  <div className="col-span-3 h-full flex flex-col gap-4">
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[45%]">
-                      <TradingForm tokenAddress={selectedToken} />
-                    </div>
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[50%]">
-                      <HolderAnalytics tokenAddress={selectedToken} />
-                    </div>
-                    <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4 h-[45%]">
-                      <WalletTracker />
-                    </div>
+                {/* Right Column - Trading Form & Holder Analytics */}
+                <div className="col-span-3 space-y-4">
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                    <TradingForm tokenAddress={selectedToken} />
+                  </div>
+                  <div className="bg-[#0D0B1F] rounded-lg border border-purple-900/30 p-4">
+                    <HolderAnalytics tokenAddress={selectedToken} />
                   </div>
                 </div>
               </div>
@@ -135,6 +155,7 @@ const PumpFunVision: FC = () => {
     <div className="min-h-screen bg-[#070510]">
       <div className="max-w-[1800px] mx-auto p-6">
         <div className="grid grid-cols-3 gap-6">
+          {/* Tokens Columns */}
           {[
             { title: "New Creations", tokens: newTokens },
             { title: "About to Graduate", tokens: aboutToGraduate },

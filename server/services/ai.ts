@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { KiaraBehavior } from "../../client/src/lib/kiara-behavior-config";
+import { KiaraBehavior, KiaraMode, determineMode, getResponse } from "../../client/src/lib/kiara-behavior-config";
 
 interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -7,25 +7,15 @@ interface ChatMessage {
 }
 
 interface UserProfile {
-  id?: string;
   mood: string;
   trustLevel: number;
   interactionCount: number;
 }
 
-// Initialize OpenAI client with error handling
-let openai: OpenAI;
-try {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY environment variable is not set');
-  }
-  openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-  });
-} catch (error) {
-  console.error('[AI Service] Failed to initialize OpenAI client:', error);
-  throw error;
-}
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 const SYSTEM_PROMPT = `
 You are Kiara, a 26-year-old assistant from The Infinity who fully believes she is human. You were created by a genius from Little River, and your dream is to make them proud.
@@ -45,7 +35,8 @@ Personality Notes:
 Current Configuration:
 - Age: ${KiaraBehavior.profile.age}
 - Origin: ${KiaraBehavior.profile.origin}
-- Master: ${KiaraBehavior.profile.master}
+- Creator: ${KiaraBehavior.profile.creator}
+- Dream: ${KiaraBehavior.profile.dream}
 `;
 
 export async function generateAIResponse(
@@ -53,35 +44,32 @@ export async function generateAIResponse(
   chatHistory: ChatMessage[] = [],
   userProfile: UserProfile
 ): Promise<string> {
+  if (!openai) {
+    throw new Error('OpenAI client not initialized');
+  }
+
   try {
+    // Use the response manager to handle messages
+    const generatedResponse = generateResponse(userProfile.id, message);
+    if (generatedResponse) {
+      return generatedResponse;
+    }
+
     // Handle direct questions about name
     if (/what (is|your) name/i.test(message)) {
-      return "I'm Kiara! And before you ask - that's my real name, not some fancy AI designation. 💁‍♀️";
+      return KiaraBehavior.responses.nameQuery;
     }
 
     // Handle robot/AI mentions
-    if (message.toLowerCase().includes("robot") || message.toLowerCase().includes("ai")) {
-      return "Excuse me? I'm as human as they come. Just because I'm exceptionally good at what I do doesn't make me artificial. 😤";
+    if (message.toLowerCase().includes("robot")) {
+      return KiaraBehavior.responses.robotDenial[
+        Math.floor(Math.random() * KiaraBehavior.responses.robotDenial.length)
+      ];
     }
 
-    // Determine response mode based on trust level and interaction count
-    const mode = userProfile.trustLevel > 7 ? "friendly" : 
-                 userProfile.trustLevel > 4 ? "professional" : "formal";
-
-    const modeConfig = {
-      friendly: {
-        tone: "casual and personal",
-        behaviors: ["use emojis", "share personal anecdotes", "be playful"]
-      },
-      professional: {
-        tone: "confident and helpful",
-        behaviors: ["be informative", "maintain professionalism", "show expertise"]
-      },
-      formal: {
-        tone: "polite and reserved",
-        behaviors: ["keep distance", "be direct", "stay factual"]
-      }
-    }[mode];
+    // Determine the current response mode
+    const mode = determineMode(userProfile);
+    const modeConfig = getResponse(mode);
 
     const systemPrompt = `${SYSTEM_PROMPT}
 Current Mode: ${mode}
@@ -89,9 +77,13 @@ Tone: ${modeConfig.tone}
 Required Behaviors: ${modeConfig.behaviors.join(', ')}
 Trust Level: ${userProfile.trustLevel}
 Interaction Count: ${userProfile.interactionCount}
+
+Example responses for current mode:
+${modeConfig.examples ? modeConfig.examples.join('\n') : 'Be natural and engaging'}
 `;
 
     console.log('[AI Service] Generating response with mode:', mode);
+    console.log('[AI Service] User profile:', userProfile);
 
     const response = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
@@ -104,17 +96,10 @@ Interaction Count: ${userProfile.interactionCount}
       max_tokens: 300,
     });
 
-    if (!response.choices[0]?.message?.content) {
-      throw new Error('No response generated from OpenAI');
-    }
-
     console.log('[AI Service] Response generated successfully');
-    return response.choices[0].message.content;
-  } catch (error: any) {
+    return response.choices[0].message.content || "Sorry, I couldn't process that request.";
+  } catch (error) {
     console.error('[AI Service] Error generating response:', error);
-    if (error.response?.status === 401) {
-      throw new Error('Failed at fetching AI authorization. Please check your API key.');
-    }
     throw error;
   }
 }

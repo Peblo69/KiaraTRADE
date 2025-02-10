@@ -4,71 +4,101 @@ import { setupVite, serveStatic, log } from "./vite";
 import http from 'http';
 
 const app = express();
-const port = process.env.PORT || 3000;
-
-// Create HTTP server first
-const server = http.createServer(app);
+const PORT = 3000; // Fixed port for consistency
+let server: http.Server | null = null;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 async function startServer() {
   try {
-    // Register routes first
-    registerRoutes(app, server);
+    // First try to close any existing server
+    if (server) {
+      await new Promise<void>((resolve) => {
+        server?.close(() => {
+          log('👋 Closed existing server');
+          resolve();
+        });
+      });
+      server = null;
+    }
 
-    // Global error handler middleware
+    server = registerRoutes(app);
+
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
-      log(`Error Handler: ${status} - ${message}`);
+      log(`❌ Error Handler: ${status} - ${message}`);
       if (!res.headersSent) {
         res.status(status).json({ message });
       }
     });
 
-    // Setup vite in development and after all other routes
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
     }
 
-    // Start server on port 3000 with 0.0.0.0 binding
-    await new Promise<void>((resolve) => {
-      server.listen(port, '0.0.0.0', () => {
+    await new Promise<void>((resolve, reject) => {
+      if (!server) {
+        return reject(new Error('Server was not properly initialized'));
+      }
+
+      server.listen(PORT, () => {
         log(`🚀 Server Status:`);
-        log(`📡 Internal: Running on 0.0.0.0:${port}`);
-        log(`🌍 External: Mapped to port 80`);
+        log(`📡 Server running on port ${PORT}`);
         log(`⏰ Started at: ${new Date().toISOString()}`);
         resolve();
+      }).on('error', (error: any) => {
+        if (error.code === 'EADDRINUSE') {
+          log(`❌ Port ${PORT} is already in use. Please close any other running instances.`);
+          process.exit(1);
+        }
+        reject(error);
       });
     });
 
   } catch (error) {
-    log(`Server startup error: ${error instanceof Error ? error.message : String(error)}`);
+    log(`❌ Server startup error: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
 }
 
-// Graceful shutdown handler
+// Handle graceful shutdown
 process.on('SIGTERM', () => {
-  server.close(() => {
-    log('Server gracefully shut down');
-    process.exit(0);
-  });
+  log('📤 SIGTERM received. Starting graceful shutdown...');
+  if (server) {
+    server.close(() => {
+      log('👋 Server gracefully shut down');
+      process.exit(0);
+    });
+  }
 });
 
-// Handle interrupts
 process.on('SIGINT', () => {
-  server.close(() => {
-    log('Server interrupted and shut down');
-    process.exit(0);
-  });
+  log('📤 SIGINT received. Starting graceful shutdown...');
+  if (server) {
+    server.close(() => {
+      log('👋 Server interrupted and shut down');
+      process.exit(0);
+    });
+  }
 });
 
-// Start the server
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+  log(`❌ Uncaught Exception: ${error.message}`);
+  if (server) {
+    server.close(() => {
+      process.exit(1);
+    });
+  } else {
+    process.exit(1);
+  }
+});
+
 startServer().catch(error => {
-  log(`Failed to start server: ${error instanceof Error ? error.message : String(error)}`);
+  log(`❌ Failed to start server: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 });

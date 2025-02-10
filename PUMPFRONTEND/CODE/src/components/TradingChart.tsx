@@ -37,7 +37,7 @@ const TradingChart: React.FC = () => {
           ))}
         </div>
       </div>
-      <div className="h-[300px] flex items-center justify-center">
+      <div className="h-[400px] flex items-center justify-center">
         <div className="text-purple-400 flex items-center space-x-2">
           <Sparkles className="w-5 h-5 animate-pulse" />
           <span>Chart visualization will be integrated here</span>
