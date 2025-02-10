@@ -7,10 +7,11 @@ import { wsManager } from './services/websocket';
 import { initializePumpPortalWebSocket } from './pumpportal';
 import axios from 'axios';
 import express from 'express';
+
 // Constants
 const CACHE_DURATION = 30000; // 30 seconds cache
-const INTERNAL_PORT = 5000;
 const DEBUG = true;
+
 // Add request interceptor for rate limiting
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 20;
@@ -51,52 +52,21 @@ function debugLog(source: string, message: string, data?: any) {
   }
 }
 
-export function registerRoutes(app: Express): Server {
+export function registerRoutes(app: Express): void {
   debugLog('Server', `Initializing server for user ${process.env.REPL_OWNER || 'unknown'}`);
 
-  const server = createServer(app);
-
   // Initialize WebSocket manager with server instance
-  wsManager.initialize(server);
+  // wsManager.initialize(server); //Server initialization moved to index.ts
 
   // Initialize PumpPortal WebSocket
   initializePumpPortalWebSocket();
-
-  // Error handling for the server
-  server.on('error', (error: any) => {
-    if (error.code === 'EADDRINUSE') {
-      console.error(`❌ Port ${INTERNAL_PORT} is in use. Please wait...`);
-      setTimeout(() => {
-        server.close();
-        server.listen(INTERNAL_PORT, '0.0.0.0');
-      }, 1000);
-    } else {
-      console.error('❌ Server error:', error);
-    }
-  });
-
-  // Start server
-  try {
-    server.close(); // Close any existing connections first
-    server.listen(INTERNAL_PORT, '0.0.0.0', () => {
-      console.log(`\n🚀 Server Status:`);
-      console.log(`📡 Internal: Running on 0.0.0.0:${INTERNAL_PORT}`);
-      console.log(`🌍 External: Mapped to port 3000`);
-      console.log(`👤 User: ${process.env.REPL_OWNER || 'unknown'}`);
-      console.log(`⏰ Started at: ${new Date().toISOString()}`);
-      console.log(`\n✅ Server is ready to accept connections\n`);
-    });
-  } catch (error) {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
-  }
 
   // Add your routes here
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
-      port: INTERNAL_PORT,
+      port: 5000,
       external_port: 3000
     });
   });
@@ -506,7 +476,7 @@ export function registerRoutes(app: Express): Server {
 
       // Generate response using our AI service
       const response = await generateAIResponse(
-        message, 
+        message,
         chatHistory[sessionId],
         profile
       );
@@ -525,9 +495,9 @@ export function registerRoutes(app: Express): Server {
       res.json({ response });
     } catch (error: any) {
       console.error('Chat error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to process chat request',
-        details: error.message 
+        details: error.message
       });
     }
   });
@@ -884,16 +854,16 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-    // Process handling
+  // Process handling
   process.on('uncaughtException', (error) => {
-      console.error('❌ Uncaught Exception:', error);
+    console.error('❌ Uncaught Exception:', error);
     if (error.code === 'EADDRINUSE') {
       console.log('⚠️ Port is busy, attempting restart...');
       process.exit(1); // Replit will automatically restart
     }
   });
 
-  process.on('unhandledRejection',(reason, promise) => {
+  process.on('unhandledRejection', (reason, promise) => {
     console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
   });
 
@@ -903,7 +873,6 @@ export function registerRoutes(app: Express): Server {
       process.exit(0);
     });
   });
-  return server;
 }
 // Helper functions
 function calculateRiskScore(tokenInfo: any, holderConcentration: any, snipers: any[]): number {
@@ -1017,7 +986,7 @@ const COIN_METADATA: Record<string, { name: string, image: string }> = {
     name: 'Tether',
     image: 'https://assets.coingecko.com/coins/images/325/large/Tether.png'
   },
-    'XRP': {
+  'XRP': {
     name: 'XRP',
     image: 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/xrp.png'
   }
@@ -1069,7 +1038,7 @@ const NEWSDATA_API_BASE = 'https://newsdata.io/api/1';
 const KUCOIN_API_BASE = 'https://api.kucoin.com/api/v1';
 const cache = {
   prices: { data: null, timestamp: 0 },
-    stats24h: { data: null, timestamp: 0 },
+  stats24h: { data: null, timestamp: 0 },
   trending: { data: null, timestamp: 0 },
   news: { data: null, timestamp: 0 }
 };

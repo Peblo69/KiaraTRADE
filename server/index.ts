@@ -2,9 +2,10 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import http from 'http';
+import { wsManager } from './services/websocket';
 
 const app = express();
-const PORT = 3000; // Fixed port for consistency
+const PORT = 5000; // Updated to match INTERNAL_PORT from routes.ts
 let server: http.Server | null = null;
 
 app.use(express.json());
@@ -23,7 +24,14 @@ async function startServer() {
       server = null;
     }
 
-    server = registerRoutes(app);
+    // Create the HTTP server
+    server = http.createServer(app);
+
+    // Initialize WebSocket manager
+    wsManager.initialize(server);
+
+    // Register routes
+    registerRoutes(app);
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
@@ -45,7 +53,7 @@ async function startServer() {
         return reject(new Error('Server was not properly initialized'));
       }
 
-      server.listen(PORT, () => {
+      server.listen(PORT, '0.0.0.0', () => {
         log(`🚀 Server Status:`);
         log(`📡 Server running on port ${PORT}`);
         log(`⏰ Started at: ${new Date().toISOString()}`);
